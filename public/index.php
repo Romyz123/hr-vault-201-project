@@ -1,0 +1,761 @@
+
+<?php
+// ======================================================
+// TESP HR 201 System - Directory (Refactored)
+// ======================================================
+
+// ---- 1) SYSTEM IMPORTS, SECURITY, SESSION ------------
+require '../config/db.php';
+require '../src/Security.php';
+session_start();
+
+if (!isset($_SESSION['user_id'])) {
+    header('Location: login.php');
+    exit;
+}
+
+$security = new Security($pdo);
+$security->checkRateLimit($_SERVER['REMOTE_ADDR'] ?? '0.0.0.0', 500, 60); // 500 req/min
+
+// ---- 2) HELPERS --------------------------------------
+function h($v): string {
+    return htmlspecialchars((string)$v, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+}
+function hs($v): string { // for attribute-safe shorter alias
+    return htmlspecialchars((string)$v, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+}
+function getQueryParam(string $key, $default = '') {
+    return isset($_GET[$key]) ? trim((string)$_GET[$key]) : $default;
+}
+function keepQuery(array $override = []): string {
+    $q = $_GET;
+    foreach ($override as $k => $v) {
+        if ($v === null) unset($q[$k]); else $q[$k] = $v;
+    }
+    return '?' . http_build_query($q);
+}
+
+// ---- 3) INPUTS / FILTERS / SORT / PAGINATION ----------
+$filter_status = getQueryParam('status');
+$filter_type   = getQueryParam('type');
+$filter_dept   = getQueryParam('dept');
+$search_query  = getQueryParam('search');
+$sort_option   = getQueryParam('sort', 'newest');
+
+// Whitelist sort
+$sortWhitelist = [
+    'newest'   => 'hire_date DESC',
+    'oldest'   => 'hire_date ASC',
+    'alpha_az' => 'last_name ASC, first_name ASC',
+    'alpha_za' => 'last_name DESC, first_name DESC'
+];
+$orderBy = $sortWhitelist[$sort_option] ?? $sortWhitelist['newest'];
+
+// Pagination
+$page     = max(1, (int)getQueryParam('page', 1));
+$perPage  = max(6, min(48, (int)getQueryParam('per_page', 24)));
+$offset   = ($page - 1) * $perPage;
+
+// ---- 4) COMPLIANCE ALERTS -----------------------------
+$alertDate = date('Y-m-d', strtotime('+30 days'));
+$notifyStmt = $pdo->prepare("
+    SELECT d.id, d.category, d.expiry_date, e.first_name, e.last_name, e.emp_id 
+    FROM documents d 
+    JOIN employees e ON d.employee_id = e.emp_id 
+    WHERE d.expiry_date IS NOT NULL 
+    AND d.expiry_date <= ? 
+    AND d.is_resolved = 0 
+    ORDER BY d.expiry_date ASC
+");
+$notifyStmt->execute([$alertDate]);
+$notifications = $notifyStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+$notifyCount   = count($notifications);
+
+// ---- 5) BUILD FILTER SQL (REUSABLE) -------------------
+$where = ['1=1'];
+$params = [];
+
+if ($filter_status !== '') { $where[] = 'status = ?';           $params[] = $filter_status; }
+if ($filter_type   !== '') { $where[] = 'employment_type = ?';  $params[] = $filter_type;   }
+if ($filter_dept   !== '') { $where[] = 'dept = ?';             $params[] = $filter_dept;   }
+
+if ($search_query !== '') {
+    // Match ID, first, last
+    $where[] = '(emp_id LIKE ? OR first_name LIKE ? OR last_name LIKE ?)';
+    $term = "%{$search_query}%";
+    array_push($params, $term, $term, $term);
+}
+
+$whereSql = 'WHERE ' . implode(' AND ', $where);
+
+// ---- 6) TOTAL COUNT (for pagination) ------------------
+$countSql = "SELECT COUNT(*) FROM employees {$whereSql}";
+$countStmt = $pdo->prepare($countSql);
+$countStmt->execute($params);
+$totalRows = (int)$countStmt->fetchColumn();
+$totalPages = max(1, (int)ceil($totalRows / $perPage));
+
+// Clamp page if out of range
+if ($page > $totalPages) {
+    $page = $totalPages;
+    $offset = ($page - 1) * $perPage;
+}
+
+// ---- 7) FETCH EMPLOYEES PAGE --------------------------
+$empSql = "
+    SELECT *
+    FROM employees
+    {$whereSql}
+    ORDER BY {$orderBy}
+    LIMIT ? OFFSET ?
+";
+$empParams = array_merge($params, [$perPage, $offset]);
+$empStmt = $pdo->prepare($empSql);
+$empStmt->execute($empParams);
+$employees = $empStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+// ---- 8) BATCH FETCH DOCUMENTS FOR LISTED EMPLOYEES ----
+$filesByEmp = [];
+if (!empty($employees)) {
+    $empIds = array_map(fn($e) => $e['emp_id'], $employees);
+    // Prepare safe IN (...) list
+    $placeholders = implode(',', array_fill(0, count($empIds), '?'));
+    $docsSql = "SELECT * FROM documents WHERE employee_id IN ($placeholders) ORDER BY uploaded_at DESC";
+    $docsStmt = $pdo->prepare($docsSql);
+    $docsStmt->execute($empIds);
+    $docs = $docsStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    foreach ($docs as $d) {
+        $filesByEmp[$d['employee_id']][] = $d;
+    }
+}
+
+// ---- 9) CHART DATA ------------------------------------
+$statsQuery = $pdo->query("SELECT category, COUNT(*) as cnt FROM documents GROUP BY category");
+$stats = $statsQuery->fetchAll(PDO::FETCH_KEY_PAIR) ?: [];
+$labels = json_encode(array_keys($stats), JSON_UNESCAPED_UNICODE);
+$data   = json_encode(array_values($stats), JSON_UNESCAPED_UNICODE);
+?>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>TESP HR 201 System</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <!-- CSS / Icons -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
+    <style>
+        :root {
+            --bg: #f4f6f9;
+            --card-border: #e9ecef;
+            --accent: #2a5298;
+        }
+        body { background: var(--bg); }
+        .container { max-width: 1200px; }
+
+        .navbar-brand { font-weight: 700; letter-spacing: .2px; }
+        .shadow-soft { box-shadow: 0 10px 30px rgba(0,0,0,.05); }
+        .avatar-circle {
+            width: 86px; height: 86px; border-radius: 50%;
+            object-fit: cover; border: 4px solid #fff;
+            box-shadow: 0 6px 12px rgba(0,0,0,.12);
+            background: #fff;
+        }
+        .employee-card { cursor: pointer; transition: transform .18s ease, box-shadow .18s ease; border: 1px solid var(--card-border); }
+        .employee-card:hover { transform: translateY(-4px); box-shadow: 0 1rem 2rem rgba(0,0,0,.08); }
+
+        .status-active      { border-top: 6px solid #198754; }
+        .status-agency      { border-top: 6px solid #ffc107; }
+        .status-sick        { border-top: 6px solid #dc3545; }
+        .status-terminated  { border-top: 6px solid #000000; }
+
+        .modal-header-custom {
+            background: linear-gradient(135deg, #1e3c72 0%, var(--accent) 100%);
+            color: #fff;
+        }
+        .info-label { font-weight: 600; color: #6c757d; font-size: .8rem; text-transform: uppercase; }
+
+        .preview-box {
+            height: 520px; border: 2px dashed #dee2e6;
+            display: flex; align-items: center; justify-content: center; background: #f8f9fa; border-radius: .5rem;
+            color: #6c757d;
+        }
+        .preview-iframe { width: 100%; height: 100%; border: 0; border-radius: .5rem; }
+        .preview-img { max-width: 100%; max-height: 100%; border-radius: .5rem; }
+
+        .list-heading { font-weight: 700; color: #6c757d; text-transform: uppercase; letter-spacing: .02em; }
+        .sticky-filters { position: sticky; top: 72px; z-index: 1020; background: #fff; border-bottom: 1px solid var(--card-border); }
+
+        .page-link { border-radius: .4rem; }
+        .dropdown-menu { border-radius: .75rem; }
+        .card { border-radius: .75rem; }
+    </style>
+</head>
+<body>
+
+<!-- NAVBAR -->
+<nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4 sticky-top shadow-sm" role="navigation" aria-label="Main navigation">
+  <div class="container">
+    <a class="navbar-brand" href="#">🏢 TES Philippines HR</a>
+
+    <div class="d-flex align-items-center">
+        <!-- Compliance Notifications -->
+        <div class="dropdown me-3">
+            <a href="#" class="text-white text-decoration-none position-relative" data-bs-toggle="dropdown" aria-label="Compliance alerts">
+                <i class="bi bi-bell-fill fs-5"></i>
+                <?php if ($notifyCount > 0): ?>
+                    <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger border border-light"><?php echo (int)$notifyCount; ?></span>
+                <?php endif; ?>
+            </a>
+         <ul class="dropdown-menu dropdown-menu-end shadow-lg" style="width: 320px; max-height: 400px; overflow-y: auto;">
+    <li><h6 class="dropdown-header bg-light border-bottom fw-bold">Compliance Alerts</h6></li>
+    
+    <?php if ($notifyCount > 0): ?>
+        <?php foreach ($notifications as $notif): 
+            $days = ceil((strtotime($notif['expiry_date']) - time()) / (60 * 60 * 24));
+            $color = ($days < 0) ? 'text-danger' : 'text-warning';
+            $msg = ($days < 0) ? "EXPIRED" : "Expiring in $days days";
+            $icon = ($days < 0) ? 'bi-exclamation-octagon-fill' : 'bi-exclamation-triangle-fill';
+        ?>
+            <li class="border-bottom py-2 px-3">
+                <div class="d-flex justify-content-between align-items-center">
+                    <a href="index.php?search=<?php echo $notif['emp_id']; ?>" class="text-decoration-none text-dark w-100">
+                        <div class="d-flex align-items-center">
+                            <i class="bi <?php echo $icon; ?> <?php echo $color; ?> fs-5 me-2"></i>
+                            <div style="line-height: 1.2;">
+                                <small class="fw-bold d-block"><?php echo htmlspecialchars($notif['first_name'] . ' ' . $notif['last_name']); ?></small>
+                                <span class="text-muted small"><?php echo htmlspecialchars($notif['category']); ?></span>
+                                <br><span class="extra-small fw-bold <?php echo $color; ?>"><?php echo $msg; ?></span>
+                            </div>
+                        </div>
+                    </a>
+                    <button class="btn btn-sm btn-outline-success ms-2" 
+                            onclick="openResolveModal('<?php echo $notif['id']; ?>', '<?php echo htmlspecialchars($notif['category']); ?>')"
+                            title="Report Action / Resolve">
+                        <i class="bi bi-check2-circle"></i>
+                    </button>
+                </div>
+            </li>
+        <?php endforeach; ?>
+    <?php else: ?>
+        <li class="p-4 text-center text-muted small">
+            <i class="bi bi-check-circle fs-1 text-success d-block mb-2"></i>
+            All documents are up to date!
+        </li>
+    <?php endif; ?>
+</ul>
+        </div>
+
+        <!-- User Menu -->
+        <div class="dropdown">
+            <a href="#" class="d-flex align-items-center text-white text-decoration-none dropdown-toggle" id="userMenu" data-bs-toggle="dropdown">
+                <i class="bi bi-person-circle fs-5 me-2"></i>
+                <strong><?php echo h($_SESSION['username'] ?? 'User'); ?></strong>
+            </a>
+            <ul class="dropdown-menu dropdown-menu-end shadow">
+                <li><a class="dropdown-item" href="profile_settings.php"><i class="bi bi-gear me-2"></i> Change Password</a></li>
+                <?php if (($_SESSION['role'] ?? '') === 'ADMIN'): ?>
+                    <li><hr class="dropdown-divider"></li>
+                    <li><a class="dropdown-item" href="manager_user.php"><i class="bi bi-people-fill me-2"></i> Manage Users</a></li>
+                    <li><a class="dropdown-item" href="activity_logs.php"><i class="bi bi-shield-lock-fill me-2 text-danger"></i> Activity Logs</a></li>
+                <?php endif; ?>
+                <li><hr class="dropdown-divider"></li>
+                <li><a class="dropdown-item text-danger" href="logout.php"><i class="bi bi-box-arrow-right me-2"></i> Logout</a></li>
+            </ul>
+        </div>
+    </div>
+  </div>
+</nav>
+
+<div class="container">
+
+    <!-- ANALYTICS + QUICK ACTIONS -->
+    <div class="row mb-4">
+        <div class="col-lg-8 mb-3 mb-lg-0">
+            <div class="card h-100 shadow-soft">
+                <div class="card-header d-flex align-items-center">
+                    <i class="bi bi-graph-up-arrow me-2 text-primary"></i>
+                    <span class="fw-semibold">Document Analytics</span>
+                </div>
+                <div class="card-body">
+                    <canvas id="hrChart" style="max-height: 260px;"></canvas>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-4">
+            <div class="card h-100 shadow-soft">
+                <div class="card-header d-flex align-items-center">
+                    <i class="bi bi-lightning-charge-fill me-2 text-warning"></i>
+                    <span class="fw-semibold">Quick Actions</span>
+                </div>
+                <div class="card-body d-grid gap-2">
+                    <a href="upload_form.php" class="btn btn-primary">
+                        <i class="bi bi-cloud-arrow-up"></i> Upload Document
+                    </a>
+                    <a href="add_employee.php" class="btn btn-success">
+                        <i class="bi bi-person-plus-fill"></i> Add Employee
+                    </a>
+                    <?php if (in_array($_SESSION['role'] ?? '', ['ADMIN', 'HR'], true)): ?>
+                        <a href="admin_approval.php" class="btn btn-outline-danger">
+                            <i class="bi bi-shield-lock"></i> Pending Requests
+                        </a>
+                    <?php endif; ?>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- FILTERS / SEARCH BAR -->
+    <div class="card mb-4 shadow-soft">
+        <div class="card-body">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h5 class="text-muted mb-0"><i class="bi bi-funnel-fill"></i> Directory Search</h5>
+                <a href="index.php" class="btn btn-sm btn-outline-secondary">Reset Filters</a>
+            </div>
+
+            <form action="index.php" method="GET" class="row g-2">
+                <div class="col-md-2">
+                    <select name="status" class="form-select form-select-sm" onchange="this.form.submit()">
+                        <option value="">All Statuses</option>
+                        <?php
+                        $statuses = ['Active' => '✅ Active', 'Resigned' => '❌ Resigned', 'Terminated' => '🛑 Terminated', 'AWOL' => '🚫 AWOL'];
+                        foreach ($statuses as $val => $label) {
+                            $sel = ($filter_status === $val) ? 'selected' : '';
+                            echo "<option value=\"".hs($val)."\" {$sel}>".h($label)."</option>";
+                        }
+                        ?>
+                    </select>
+                </div>
+
+                <div class="col-md-2">
+                    <select name="type" class="form-select form-select-sm" onchange="this.form.submit()">
+                        <option value="">All Types</option>
+                        <?php
+                        $types = ['TESP Direct' => 'TESP Direct', 'Agency' => 'Agency (All)'];
+                        foreach ($types as $val => $label) {
+                            $sel = ($filter_type === $val) ? 'selected' : '';
+                            echo "<option value=\"".hs($val)."\" {$sel}>".h($label)."</option>";
+                        }
+                        ?>
+                    </select>
+                </div>
+
+                <div class="col-md-3">
+                    <select name="dept" class="form-select form-select-sm" onchange="this.form.submit()">
+                        <option value="">All Departments</option>
+                        <?php
+                        $depts = ['ADMIN','HMS','RAS','TRS','LMS','DOS','SQP','CTS','SIGCOM','PSS','OCS','BFS','WHS','GUNJIN'];
+                        foreach ($depts as $d) {
+                            $sel = ($filter_dept === $d) ? 'selected' : '';
+                            echo "<option value=\"".hs($d)."\" {$sel}>".h($d)."</option>";
+                        }
+                        ?>
+                    </select>
+                </div>
+
+                <div class="col-md-2">
+                    <select name="sort" class="form-select form-select-sm fw-bold text-primary" onchange="this.form.submit()">
+                        <option value="newest"   <?php echo ($sort_option==='newest')?'selected':''; ?>>📅 Newest</option>
+                        <option value="oldest"   <?php echo ($sort_option==='oldest')?'selected':''; ?>>📅 Oldest</option>
+                        <option value="alpha_az" <?php echo ($sort_option==='alpha_az')?'selected':''; ?>>🔤 Name (A-Z)</option>
+                        <option value="alpha_za" <?php echo ($sort_option==='alpha_za')?'selected':''; ?>>🔤 Name (Z-A)</option>
+                    </select>
+                </div>
+
+                <div class="col-md-3 position-relative">
+                    <div class="input-group input-group-sm">
+                        <input type="text" id="mainSearch" name="search" class="form-control" placeholder="Search by ID / First / Last..." value="<?php echo h($search_query); ?>" autocomplete="off" aria-label="Search employees">
+                        <button class="btn btn-primary" type="submit" aria-label="Submit search"><i class="bi bi-search"></i></button>
+
+                        <!-- Export split -->
+                        <button type="button" class="btn btn-success dropdown-toggle dropdown-toggle-split" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Export options"><i class="bi bi-download"></i></button>
+                        <ul class="dropdown-menu dropdown-menu-end shadow p-3" style="width: 260px;">
+                            <li><h6 class="dropdown-header text-primary"><i class="bi bi-info-circle"></i> Export Options</h6></li>
+                            <li><p class="small text-muted mb-2 text-wrap">Download the currently filtered list.</p></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><button type="submit" formaction="export_employees.php" class="dropdown-item"><i class="bi bi-file-earmark-spreadsheet text-success me-2"></i> Save as Excel</button></li>
+                            <li><button type="submit" formaction="print_list.php" formtarget="_blank" class="dropdown-item"><i class="bi bi-file-earmark-pdf text-danger me-2"></i> Print / PDF</button></li>
+                        </ul>
+                    </div>
+                    <div id="suggestionBox" class="list-group position-absolute w-100 shadow" style="z-index: 1000; display: none; top: 35px;"></div>
+                </div>
+
+                <!-- keep pagination state -->
+                <input type="hidden" name="page" value="<?php echo (int)$page; ?>">
+                <input type="hidden" name="per_page" value="<?php echo (int)$perPage; ?>">
+            </form>
+        </div>
+    </div>
+
+    <!-- EMPTY STATE -->
+    <?php if (empty($employees)): ?>
+        <div class="alert alert-warning text-center shadow-sm">No employees found matching your search.</div>
+    <?php endif; ?>
+
+    <!-- EMPLOYEE GRID -->
+    <div class="row">
+        <?php foreach ($employees as $emp):
+            $statusClass = match ($emp['status']) {
+                'Active'     => 'status-active',
+                'Resigned'   => 'status-agency',
+                'Terminated' => 'status-terminated',
+                default      => 'border-secondary'
+            };
+            $statusBadge = match ($emp['status']) {
+                'Active'     => 'bg-success',
+                'Resigned'   => 'bg-warning',
+                'Terminated' => 'bg-dark',
+                default      => 'bg-secondary'
+            };
+
+            if (($emp['employment_type'] ?? '') === 'TESP Direct') {
+                $employerBadge = '<span class="badge bg-primary">TESP DIRECT</span>';
+            } else {
+                $agencyName = !empty($emp['agency_name']) ? strtoupper($emp['agency_name']) : 'AGENCY';
+                $employerBadge = '<span class="badge bg-warning text-dark">'.h($agencyName).'</span>';
+            }
+
+            $deptDisplay = h($emp['dept']);
+            if (!empty($emp['section']) && $emp['section'] !== 'Main Unit') {
+                $deptDisplay .= ' &gt; ' . h($emp['section']);
+            }
+
+            $files = $filesByEmp[$emp['emp_id']] ?? [];
+            $modalId = 'viewModal' . (int)$emp['id'];
+            $previewBoxId = 'preview-' . (int)$emp['id'];
+        ?>
+        <div class="col-md-6 col-lg-4 mb-4">
+            <div class="card h-100 employee-card <?php echo $statusClass; ?>" role="button" data-bs-toggle="modal" data-bs-target="#<?php echo hs($modalId); ?>">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start mb-3">
+                        <div class="me-3">
+                            <img src="uploads/avatars/<?php echo h($emp['avatar_path'] ?: ''); ?>" class="avatar-circle" onerror="this.src='../assets/default_avatar.png';" alt="Avatar">
+                        </div>
+                        <div class="flex-grow-1">
+                            <h5 class="card-title mb-1 fw-bold"><?php echo h($emp['first_name'] . ' ' . $emp['last_name']); ?></h5>
+                            <small class="text-muted d-block mb-1"><?php echo $deptDisplay; ?></small>
+                            <span class="badge <?php echo $statusBadge; ?> rounded-pill"><?php echo h($emp['status']); ?></span>
+                        </div>
+                        <div class="d-flex flex-column align-items-end">
+                            <div class="mb-2"><?php echo $employerBadge; ?></div>
+
+                            <a href="print_employee.php?id=<?php echo (int)$emp['id']; ?>" class="btn btn-sm btn-outline-dark py-0 px-2 mt-1" target="_blank" onclick="event.stopPropagation();" aria-label="Print employee">
+                                <i class="bi bi-printer-fill"></i>
+                            </a>
+
+                            <?php if (isset($_SESSION['user_id'])): ?>
+                                <a href="edit_employee.php?id=<?php echo (int)$emp['id']; ?>" class="btn btn-sm btn-outline-secondary py-0 px-2 mt-1" onclick="event.stopPropagation();" aria-label="Edit employee">
+                                    <i class="bi bi-pencil-square"></i> Edit
+                                </a>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- MODAL -->
+            <div class="modal fade" id="<?php echo hs($modalId); ?>" tabindex="-1" aria-hidden="true">
+                <div class="modal-dialog modal-xl modal-dialog-scrollable">
+                    <div class="modal-content">
+                        <div class="modal-header modal-header-custom p-4">
+                            <div class="d-flex align-items-center w-100">
+                                <img src="uploads/avatars/<?php echo h($emp['avatar_path'] ?: ''); ?>" class="rounded-circle border border-3 border-white shadow-sm" width="100" height="100" onerror="this.src='../assets/default_avatar.png';" alt="Avatar">
+                                <div class="ms-3 flex-grow-1">
+                                    <h3 class="mb-0 fw-bold"><?php echo h($emp['first_name'] . ' ' . $emp['last_name']); ?></h3>
+                                    <div class="badge bg-light text-dark mt-1"><?php echo h($emp['emp_id']); ?></div>
+                                    <div class="badge bg-white text-dark mt-1"><?php echo h($emp['job_title']); ?></div>
+                                </div>
+                                <button type="button" class="btn-close btn-close-white align-self-start" data-bs-dismiss="modal" aria-label="Close"></button>
+                            </div>
+                        </div>
+                        <div class="modal-body bg-light p-0">
+                            <div class="d-flex h-100">
+                                <div class="nav flex-column nav-pills p-3 bg-white border-end" style="width: 260px;">
+                                    <button class="nav-link active text-start mb-2" data-bs-toggle="pill" data-bs-target="#info-<?php echo (int)$emp['id']; ?>">Profile</button>
+                                    <button class="nav-link text-start" data-bs-toggle="pill" data-bs-target="#files-<?php echo (int)$emp['id']; ?>">Documents (<?php echo (int)count($files); ?>)</button>
+                                </div>
+                                <div class="tab-content flex-grow-1 p-4">
+                                    <div class="tab-pane fade show active" id="info-<?php echo (int)$emp['id']; ?>">
+                                        <div class="row g-3">
+                                            <div class="col-6"><span class="info-label">Department:</span><br><?php echo h($emp['dept']); ?></div>
+                                            <div class="col-6"><span class="info-label">Section:</span><br><?php echo h($emp['section']); ?></div>
+                                            <div class="col-6"><span class="info-label">Contact:</span><br><?php echo h($emp['contact_number']); ?></div>
+                                            <div class="col-6"><span class="info-label">Email:</span><br><?php echo h($emp['email']); ?></div>
+                                            <div class="col-12"><span class="info-label">Address:</span><br><?php echo h($emp['present_address']); ?></div>
+                                        </div>
+                                    </div>
+                                    <div class="tab-pane fade" id="files-<?php echo (int)$emp['id']; ?>">
+                                        <div class="row h-100">
+                                            <div class="col-4 border-end">
+                                                <div class="d-grid gap-2 mb-3">
+                                                    <a href="upload_form.php?emp_id=<?php echo hs($emp['emp_id']); ?>" class="btn btn-primary btn-sm">
+                                                        <i class="bi bi-cloud-arrow-up-fill"></i> Upload New File
+                                                    </a>
+                                                </div>
+                                                <div class="list-group">
+                                                    <?php if (empty($files)): ?>
+                                                        <div class="list-group-item text-muted small">No files yet.</div>
+                                                    <?php else: foreach ($files as $file):
+                                                        $previewUrl = 'view_doc.php?id=' . $file['file_uuid'];
+                                                        $isPdf = (bool)preg_match('/\.pdf(\?.*)?$/i', $file['original_name']);
+                                                    ?>
+                                                        <a href="#" class="list-group-item list-group-item-action d-flex align-items-center gap-2 doc-link"
+                                                           data-url="<?php echo hs($previewUrl); ?>"
+                                                           data-type="<?php echo $isPdf ? 'pdf' : 'img'; ?>"
+                                                           data-target="<?php echo hs($previewBoxId); ?>">
+                                                            <i class="bi <?php echo $isPdf ? 'bi-file-earmark-pdf text-danger' : 'bi-image text-primary'; ?>"></i>
+                                                            <span class="text-truncate"><?php echo h($file['original_name']); ?></span>
+                                                        </a>
+                                                    <?php endforeach; endif; ?>
+                                                </div>
+                                            </div>
+                                            <div class="col-8">
+                                                <div id="<?php echo hs($previewBoxId); ?>" class="preview-box">Select a file to preview</div>
+                                            </div>
+                                        </div>
+                                    </div> <!-- /tab -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div> <!-- /modal -->
+        </div>
+        <?php endforeach; ?>
+    </div>
+
+    <!-- PAGINATION -->
+    <?php if ($totalPages > 1): ?>
+    <nav class="mt-3" aria-label="Employee pagination">
+        <ul class="pagination justify-content-center">
+            <?php
+            $prevDisabled = ($page <= 1) ? ' disabled' : '';
+            $nextDisabled = ($page >= $totalPages) ? ' disabled' : '';
+            ?>
+            <li class="page-item<?php echo $prevDisabled; ?>">
+                <a class="page-link" href="<?php echo hs(keepQuery(['page' => max(1, $page-1)])); ?>" aria-label="Previous">
+                    <span aria-hidden="true">&laquo;</span>
+                </a>
+            </li>
+
+            <?php
+            // windowed pagination
+            $window = 2;
+            $start = max(1, $page - $window);
+            $end   = min($totalPages, $page + $window);
+            if ($start > 1) {
+                echo '<li class="page-item"><a class="page-link" href="'.hs(keepQuery(['page' => 1])).'">1</a></li>';
+                if ($start > 2) echo '<li class="page-item disabled"><span class="page-link">…</span></li>';
+            }
+            for ($p = $start; $p <= $end; $p++) {
+                $active = ($p === $page) ? ' active' : '';
+                echo '<li class="page-item'.$active.'"><a class="page-link" href="'.hs(keepQuery(['page' => $p])).'">'.(int)$p.'</a></li>';
+            }
+            if ($end < $totalPages) {
+                if ($end < $totalPages - 1) echo '<li class="page-item disabled"><span class="page-link">…</span></li>';
+                echo '<li class="page-item"><a class="page-link" href="'.hs(keepQuery(['page' => $totalPages])).'">'.(int)$totalPages.'</a></li>';
+            }
+            ?>
+
+            <li class="page-item<?php echo $nextDisabled; ?>">
+                <a class="page-link" href="<?php echo hs(keepQuery(['page' => min($totalPages, $page+1)])); ?>" aria-label="Next">
+                    <span aria-hidden="true">&raquo;</span>
+                </a>
+            </li>
+        </ul>
+        <p class="text-center text-muted small mb-0">
+            Showing <strong><?php echo (int)count($employees); ?></strong> of <strong><?php echo (int)$totalRows; ?></strong> employees — Page <?php echo (int)$page; ?> / <?php echo (int)$totalPages; ?>
+        </p>
+    </nav>
+    <?php endif; ?>
+
+</div> <!-- /container -->
+
+<!-- SCRIPTS -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+// ---------------- Chart ----------------
+document.addEventListener('DOMContentLoaded', () => {
+    const ctx = document.getElementById('hrChart');
+    if (!ctx) return;
+
+    const labels = <?php echo $labels ?: '[]'; ?>;
+    const values = <?php echo $data   ?: '[]'; ?>;
+
+    const chart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels,
+            datasets: [{
+                label: 'Documents',
+                data: values,
+                backgroundColor: (ctx) => {
+                    // Soft palette for bars
+                    const palette = ['#4BC0C0','#36A2EB','#FFCE56','#9966FF','#FF9F40','#FF6384'];
+                    return ctx.dataIndex != null ? palette[ctx.dataIndex % palette.length] : '#36A2EB';
+                },
+                borderRadius: 6,
+                barPercentage: .6,
+                maxBarThickness: 54
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false },
+                tooltip: { mode: 'index', intersect: false }
+            },
+            scales: {
+                x: { ticks: { color: '#6c757d' } },
+                y: { beginAtZero: true, ticks: { precision: 0, color: '#6c757d' }, grid: { color: 'rgba(0,0,0,.05)' } }
+            }
+        }
+    });
+});
+
+// ---------------- Typeahead Suggestions (safe DOM) ----------------
+(() => {
+    const searchInput = document.getElementById('mainSearch');
+    const suggestionBox = document.getElementById('suggestionBox');
+    if (!searchInput || !suggestionBox) return;
+
+    let aborter = null;
+    let debounceTimer = null;
+
+    function clearSuggestions() {
+        suggestionBox.innerHTML = '';
+        suggestionBox.style.display = 'none';
+    }
+
+    function createSuggestionItem(emp) {
+        // Build <a> safely via DOM APIs to avoid XSS
+        const a = document.createElement('a');
+        a.href = `index.php?search=${encodeURIComponent(emp.emp_id)}`;
+        a.className = 'list-group-item list-group-item-action d-flex align-items-center';
+
+        const img = document.createElement('img');
+        img.width = 30; img.height = 30; img.className = 'rounded-circle me-2';
+        img.src = `uploads/avatars/${emp.avatar_path || ''}`;
+        img.onerror = function() { this.src = '../assets/default_avatar.png'; };
+
+        const wrap = document.createElement('div');
+        const strong = document.createElement('strong');
+        strong.textContent = `${emp.first_name || ''} ${emp.last_name || ''}`.trim();
+
+        const br = document.createElement('br');
+        const small = document.createElement('small');
+        small.className = 'text-muted';
+        small.textContent = emp.emp_id || '';
+
+        wrap.appendChild(strong);
+        wrap.appendChild(br);
+        wrap.appendChild(small);
+
+        a.appendChild(img);
+        a.appendChild(wrap);
+        return a;
+    }
+
+    function fetchSuggestions(q) {
+        if (aborter) aborter.abort();
+        aborter = new AbortController();
+
+        fetch(`api/search_suggestions.php?q=${encodeURIComponent(q)}`, { signal: aborter.signal })
+            .then(r => r.ok ? r.json() : [])
+            .then(data => {
+                suggestionBox.innerHTML = '';
+                if (Array.isArray(data) && data.length > 0) {
+                    suggestionBox.style.display = 'block';
+                    data.slice(0, 8).forEach(emp => suggestionBox.appendChild(createSuggestionItem(emp)));
+                } else {
+                    clearSuggestions();
+                }
+            })
+            .catch(() => { /* ignore aborted or network errors */ });
+    }
+
+    searchInput.addEventListener('input', function() {
+        const q = this.value.trim();
+        if (q.length < 2) return clearSuggestions();
+
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(() => fetchSuggestions(q), 180);
+    });
+
+    document.addEventListener('click', (e) => {
+        if (!searchInput.contains(e.target) && !suggestionBox.contains(e.target)) {
+            clearSuggestions();
+        }
+    });
+})();
+
+// ---------------- Document Preview ----------------
+(function() {
+    function showPreview(url, type, containerId) {
+        const container = document.getElementById(containerId);
+        if (!container) return;
+        if (type === 'pdf') {
+            const iframe = document.createElement('iframe');
+            iframe.src = url;
+            iframe.className = 'preview-iframe';
+            container.innerHTML = '';
+            container.appendChild(iframe);
+        } else {
+            const img = document.createElement('img');
+            img.src = url;
+            img.className = 'preview-img';
+            img.alt = 'Document image preview';
+            container.innerHTML = '';
+            container.appendChild(img);
+        }
+    }
+    // Event delegation for document links
+    document.addEventListener('click', function(e) {
+        const a = e.target.closest('.doc-link');
+        if (!a) return;
+        e.preventDefault();
+        const url = a.getAttribute('data-url');
+        const type = a.getAttribute('data-type');
+        const target = a.getAttribute('data-target');
+        if (url && type && target) showPreview(url, type, target);
+    });
+})();
+</script>
+<div class="modal fade" id="resolveModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title"><i class="bi bi-clipboard-check"></i> Report Action Taken</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form action="submit_resolution.php" method="POST">
+                <div class="modal-body">
+                    <input type="hidden" name="doc_id" id="res_doc_id">
+                    <p class="mb-2">You are resolving the alert for: <strong id="res_cat_name"></strong></p>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Action Report (Required)</label>
+                        <textarea name="resolution_note" class="form-control" rows="3" required placeholder="Example: Scheduled medical exam... or Uploaded renewal file..."></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-success">Submit Report</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+function openResolveModal(id, category) {
+    document.getElementById('res_doc_id').value = id;
+    document.getElementById('res_cat_name').innerText = category;
+    new bootstrap.Modal(document.getElementById('resolveModal')).show();
+}
+</script>
+
+
+</body>
+</html>

@@ -1,0 +1,12 @@
+# Turn off directory listing (Security)
+Options -Indexes
+
+# Set upload limits locally for this folder
+php_value upload_max_filesize 128M
+php_value post_max_size 128M
+
+# Block access to .env or .git files if they accidentally get here
+<FilesMatch "^\.">
+    Order allow,deny
+    Deny from all
+</FilesMatch>
