@@ -10,10 +10,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // 1. GATHER INPUTS
     $emp_id = $_POST['emp_id'];
-    $category = $_POST['category'];
     $description = trim($_POST['description']);
     $expiry_date = !empty($_POST['expiry_date']) ? $_POST['expiry_date'] : NULL;
     $customName = trim($_POST['custom_filename']); // Get custom name
+
+    // --- "OTHERS" CATEGORY LOGIC (NEW) ---
+    $category = $_POST['category'];
+    if (empty($category)) {
+        die("Error: You must select a document category.");
+    }
+
+    if ($category === 'Others') {
+        // Use the specific text they typed instead
+        $other_cat = trim($_POST['other_category']);
+        
+        if (!empty($other_cat)) {
+            // Capitalize nicely (e.g., "gym membership" -> "Gym Membership")
+            $category = ucwords(strtolower($other_cat));
+        } else {
+            die("Error: You selected 'Others' but did not specify the document type.");
+        }
+    }
+    // -------------------------------------
 
     // 2. HANDLE FILE UPLOAD
     if (isset($_FILES['document']) && $_FILES['document']['error'] === 0) {
@@ -58,7 +76,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'employee_id' => $emp_id,
                 'original_name' => $finalName, // Save the NEW name
                 'file_path' => $finalName,
-                'category' => $category,
+                'category' => $category,       // Saves "Gym Membership" instead of "Others"
                 'expiry_date' => $expiry_date,
                 'description' => $description,
                 'uploaded_by' => $_SESSION['user_id']

@@ -10,7 +10,7 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'ADMIN') {
 
 $message = "";
 
-// 2. HANDLE ACTIONS
+// 2. HANDLE ACTIONS (ALL POST REQUESTS NOW)
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     
     // --- ADD NEW USER ---
@@ -55,20 +55,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $message = "<div class='alert alert-success'>✅ User details updated!</div>";
         }
     }
-}
 
-// 3. HANDLE DELETE
-if (isset($_GET['delete'])) {
-    $id = $_GET['delete'];
-    if ($id == $_SESSION['user_id']) {
-        $message = "<div class='alert alert-danger'>❌ You cannot delete yourself!</div>";
-    } else {
-        $pdo->prepare("DELETE FROM users WHERE id = ?")->execute([$id]);
-        $message = "<div class='alert alert-warning'>⚠️ User deleted.</div>";
+    // --- DELETE USER (MOVED TO POST FOR SAFETY) ---
+    if (isset($_POST['action']) && $_POST['action'] === 'delete') {
+        $id = $_POST['user_id'];
+
+        if ($id == $_SESSION['user_id']) {
+            $message = "<div class='alert alert-danger'>❌ You cannot delete yourself!</div>";
+        } else {
+            $pdo->prepare("DELETE FROM users WHERE id = ?")->execute([$id]);
+            $message = "<div class='alert alert-warning'>⚠️ User deleted successfully.</div>";
+        }
     }
 }
 
-// 4. FETCH USERS
+// 3. FETCH USERS
 $users = $pdo->query("SELECT * FROM users ORDER BY created_at DESC")->fetchAll();
 ?>
 
@@ -149,7 +150,13 @@ $users = $pdo->query("SELECT * FROM users ORDER BY created_at DESC")->fetchAll()
                                     </button>
 
                                     <?php if($u['id'] != $_SESSION['user_id']): ?>
-                                        <a href="manage_users.php?delete=<?php echo $u['id']; ?>" class="btn btn-sm btn-outline-danger" onclick="return confirm('Delete this user?');"><i class="bi bi-trash"></i></a>
+                                        <form method="POST" class="d-inline" onsubmit="return confirm('Permanently delete this user?');">
+                                            <input type="hidden" name="action" value="delete">
+                                            <input type="hidden" name="user_id" value="<?php echo $u['id']; ?>">
+                                            <button type="submit" class="btn btn-sm btn-outline-danger">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </form>
                                     <?php endif; ?>
                                 </td>
                             </tr>

@@ -3,20 +3,27 @@ require '../config/db.php';
 require '../src/Security.php';
 session_start();
 
-if (!isset($_SESSION['user_id'])) { header("Location: login.php"); exit; }
+if (!isset($_SESSION['user_id'])) {
+    header("Location: login.php");
+    exit;
+}
 
-// Check if we are locking to a specific employee
-$pre_emp_id = isset($_GET['emp_id']) ? $_GET['emp_id'] : '';
-$pre_emp_name = "";
-$is_locked = false;
+// --- LOGIC: CHECK IF PRE-SELECTED EMPLOYEE EXISTS ---
+$preFilledID = '';
+$preFilledName = '';
+$isLocked = false;
 
-if($pre_emp_id) {
+if (isset($_GET['emp_id'])) {
+    $target_id = $_GET['emp_id'];
+    // Fetch name to show in the box
     $stmt = $pdo->prepare("SELECT first_name, last_name FROM employees WHERE emp_id = ?");
-    $stmt->execute([$pre_emp_id]);
-    $res = $stmt->fetch();
-    if($res) {
-        $pre_emp_name = $res['first_name'] . " " . $res['last_name'];
-        $is_locked = true; // Flag to disable input
+    $stmt->execute([$target_id]);
+    $emp = $stmt->fetch();
+
+    if ($emp) {
+        $preFilledID = $target_id;
+        $preFilledName = $emp['first_name'] . ' ' . $emp['last_name'] . ' (' . $target_id . ')';
+        $isLocked = true; // User cannot change this
     }
 }
 ?>
@@ -36,81 +43,88 @@ if($pre_emp_id) {
         <div class="col-md-8">
             <div class="card shadow">
                 <div class="card-header bg-primary text-white">
-                    <h5 class="mb-0"><i class="bi bi-cloud-arrow-up"></i> Upload Document</h5>
+                    <h4 class="mb-0"><i class="bi bi-cloud-arrow-up-fill"></i> Upload Document</h4>
                 </div>
                 <div class="card-body">
-                    
-                    <form action="process_upload.php" method="POST" enctype="multipart/form-data" id="uploadForm">
+
+                    <?php if (isset($_GET['error'])): ?>
+                        <div class="alert alert-danger"><?php echo htmlspecialchars($_GET['error']); ?></div>
+                    <?php endif; ?>
+
+                    <form action="process_upload.php" method="POST" enctype="multipart/form-data">
                         
-                        <div class="mb-3 position-relative">
-                            <label class="form-label fw-bold">Select Employee <span class="text-danger">*</span></label>
+                        <div class="mb-4 position-relative">
+                            <label class="form-label fw-bold">Employee <span class="text-danger">*</span></label>
                             
-                            <input type="hidden" name="emp_id" id="selected_emp_id" value="<?php echo $pre_emp_id; ?>" required>
+                            <input type="hidden" name="emp_id" id="finalEmpId" value="<?php echo htmlspecialchars($preFilledID); ?>">
                             
                             <div class="input-group">
-                                <span class="input-group-text"><i class="bi bi-person-badge"></i></span>
-                                <input type="text" id="empSearch" class="form-control" 
-                                       placeholder="Type name to search..." 
-                                       autocomplete="off" 
-                                       value="<?php echo $pre_emp_name; ?>"
-                                       <?php echo $is_locked ? 'readonly style="background-color: #e9ecef;"' : ''; ?>>
-                                
-                                <?php if($is_locked): ?>
-                                    <a href="upload_form.php" class="btn btn-outline-secondary" title="Clear Selection">
-                                        <i class="bi bi-x-lg"></i>
-                                    </a>
-                                <?php endif; ?>
+                                <span class="input-group-text"><i class="bi bi-search"></i></span>
+                                <input type="text" id="employeeSearch" class="form-control" 
+                                       placeholder="Search by Name or ID..." 
+                                       autocomplete="off"
+                                       value="<?php echo htmlspecialchars($preFilledName); ?>"
+                                       <?php echo $isLocked ? 'readonly style="background-color: #e9ecef;"' : ''; ?>>
                             </div>
                             
-                            <div id="uploadSuggestionBox" class="list-group position-absolute w-100 shadow" style="z-index: 1000; display: none;"></div>
+                            <div id="suggestionBox" class="list-group position-absolute w-100 shadow" style="z-index: 1000; display: none;"></div>
+                            
+                            <div class="form-text text-muted">
+                                <?php if ($isLocked): ?>
+                                    <i class="bi bi-lock-fill"></i> Linked to specific employee. <a href="upload_form.php">Click here to upload for someone else.</a>
+                                <?php else: ?>
+                                    Start typing to select an employee.
+                                <?php endif; ?>
+                            </div>
                         </div>
 
                         <div class="mb-3">
                             <label class="form-label fw-bold">Select File <span class="text-danger">*</span></label>
-                            <input type="file" name="document" id="fileInput" class="form-control" required accept=".pdf,.jpg,.jpeg,.png">
-                            
-                            <div class="d-flex justify-content-between mt-1">
-                                <small class="text-muted"><i class="bi bi-info-circle"></i> Supported: PDF, JPG, PNG</small>
-                                <small class="text-muted"><i class="bi bi-hdd"></i> Max Size: 5MB</small>
-                            </div>
-
-                            <div id="duplicateWarning" class="alert alert-warning mt-2 py-2" style="display:none; font-size: 0.9rem;">
-                                <i class="bi bi-exclamation-triangle-fill"></i> <strong>Warning:</strong> A file with this name already exists. It will be auto-renamed.
-                            </div>
+                            <input type="file" name="document" class="form-control" accept=".pdf,.jpg,.jpeg,.png" required>
+                            <div class="form-text">Allowed: PDF, JPG, PNG</div>
                         </div>
 
                         <div class="mb-3">
-                            <label class="form-label">Rename File (Optional)</label>
-                            <input type="text" name="custom_filename" class="form-control" placeholder="e.g. Contract_2026_Signed">
+                            <label class="form-label">Custom Filename (Optional)</label>
+                            <input type="text" name="custom_filename" class="form-control" placeholder="e.g. 2024_Medical_Cert">
+                            <div class="form-text">Leave blank to auto-generate name.</div>
                         </div>
 
                         <div class="row">
                             <div class="col-md-6 mb-3">
-                                <label class="form-label">Category</label>
-                                <select name="category" class="form-select" required>
+                                <label class="form-label fw-bold">Category <span class="text-danger">*</span></label>
+                                <select name="category" id="categorySelect" class="form-select" required onchange="toggleOtherInput()">
+                                    <option value="" disabled selected>-- Select --</option>
                                     <option value="201 Files">201 Files</option>
                                     <option value="Contract">Contract</option>
                                     <option value="Government IDs">Government IDs</option>
                                     <option value="Medical">Medical</option>
-                                    <option value="Memo">Memo / DA</option>
+                                    <option value="Memo / DA">Memo / DA</option>
                                     <option value="Evaluation">Evaluation</option>
                                     <option value="Certificate">Certificate</option>
+                                    <option value="Others">Others</option>
                                 </select>
                             </div>
+
                             <div class="col-md-6 mb-3">
                                 <label class="form-label">Expiry Date</label>
                                 <input type="date" name="expiry_date" class="form-control">
                             </div>
                         </div>
 
+                        <div class="mb-3" id="otherInputDiv" style="display: none;">
+                            <label class="form-label fw-bold text-primary">Specify Document Type <span class="text-danger">*</span></label>
+                            <input type="text" name="other_category" id="otherInput" class="form-control" placeholder="e.g. Gym Membership, Parking Permit...">
+                        </div>
+
                         <div class="mb-4">
-                            <label class="form-label">Description / Notes (Visible to Admin)</label>
-                            <textarea name="description" class="form-control" rows="2" placeholder="Explain what this file is for..."></textarea>
+                            <label class="form-label">Description / Notes</label>
+                            <textarea name="description" class="form-control" rows="2" placeholder="Optional details..."></textarea>
                         </div>
 
                         <div class="d-flex justify-content-between">
                             <a href="index.php" class="btn btn-secondary">Cancel</a>
-                            <button type="submit" id="submitBtn" class="btn btn-success px-4" disabled>
+                            <button type="submit" id="submitBtn" class="btn btn-success px-4" <?php echo empty($preFilledID) ? 'disabled' : ''; ?>>
                                 <i class="bi bi-cloud-upload"></i> Upload Now
                             </button>
                         </div>
@@ -123,76 +137,104 @@ if($pre_emp_id) {
 </div>
 
 <script>
-// --- ELEMENTS ---
-const empSearch = document.getElementById('empSearch');
-const suggestionBox = document.getElementById('uploadSuggestionBox');
-const hiddenId = document.getElementById('selected_emp_id');
-const fileInput = document.getElementById('fileInput');
-const submitBtn = document.getElementById('submitBtn');
-const warningBox = document.getElementById('duplicateWarning');
-const isLocked = <?php echo $is_locked ? 'true' : 'false'; ?>;
+// --- A. TOGGLE "OTHERS" INPUT ---
+function toggleOtherInput() {
+    const select = document.getElementById('categorySelect');
+    const otherDiv = document.getElementById('otherInputDiv');
+    const otherInput = document.getElementById('otherInput');
 
-// --- VALIDATION FUNCTION ---
-function validateForm() {
-    // Enable button ONLY if Employee ID is set AND File is selected
-    if (hiddenId.value !== "" && fileInput.value !== "") {
-        submitBtn.disabled = false;
+    if (select.value === 'Others') {
+        otherDiv.style.display = 'block';
+        otherInput.required = true;
     } else {
-        submitBtn.disabled = true;
+        otherDiv.style.display = 'none';
+        otherInput.required = false;
+        otherInput.value = '';
     }
 }
 
-// Listen for changes
-fileInput.addEventListener('change', validateForm);
-// Also check on load (for pre-filled scenarios)
-validateForm();
+// --- B. EMPLOYEE SEARCH LOGIC ---
+document.addEventListener('DOMContentLoaded', () => {
+    const searchInput = document.getElementById('employeeSearch');
+    const suggestionBox = document.getElementById('suggestionBox');
+    const hiddenIdInput = document.getElementById('finalEmpId');
+    const submitBtn = document.getElementById('submitBtn');
+    
+    // If field is readonly (locked), stop here.
+    if (searchInput.hasAttribute('readonly')) return;
 
-// --- SEARCH LOGIC (Only if not locked) ---
-if (!isLocked) {
-    empSearch.addEventListener('input', function() {
-        let query = this.value;
+    let debounceTimer = null;
+
+    // 1. Listen for typing
+    searchInput.addEventListener('input', function() {
+        const q = this.value.trim();
         
-        // Reset hidden ID if typing (force re-selection)
-        hiddenId.value = ""; 
-        validateForm(); 
+        // Disable submit while typing/searching
+        hiddenIdInput.value = ''; 
+        submitBtn.disabled = true;
 
-        if (query.length < 2) {
+        if (q.length < 2) {
+            suggestionBox.innerHTML = '';
             suggestionBox.style.display = 'none';
             return;
         }
 
-        fetch(`api/search_suggestions.php?q=${query}`)
-            .then(res => res.json())
-            .then(data => {
-                suggestionBox.innerHTML = '';
-                if (data.length > 0) {
-                    suggestionBox.style.display = 'block';
-                    data.forEach(emp => {
-                        let item = document.createElement('a');
-                        item.href = "#"; 
-                        item.className = 'list-group-item list-group-item-action border-bottom';
-                        item.innerHTML = `
-                            <div class="d-flex w-100 justify-content-between">
-                                <h6 class="mb-1">${emp.first_name} ${emp.last_name}</h6>
-                                <small>${emp.emp_id}</small>
-                            </div>`;
-                        
-                        item.addEventListener('click', function(e) {
-                            e.preventDefault();
-                            empSearch.value = `${emp.first_name} ${emp.last_name}`;
-                            hiddenId.value = emp.emp_id;
-                            suggestionBox.style.display = 'none';
-                            validateForm(); // Re-check validation
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(() => {
+            fetch(`api/search_suggestions.php?q=${encodeURIComponent(q)}`)
+                .then(r => r.json())
+                .then(data => {
+                    suggestionBox.innerHTML = '';
+                    if (Array.isArray(data) && data.length > 0) {
+                        suggestionBox.style.display = 'block';
+                        data.slice(0, 6).forEach(emp => {
+                            // Create Suggestion Item
+                            const item = document.createElement('a');
+                            item.className = 'list-group-item list-group-item-action cursor-pointer';
+                            item.style.cursor = 'pointer';
+                            item.innerHTML = `
+                                <div class="d-flex align-items-center">
+                                    <img src="uploads/avatars/${emp.avatar_path || ''}" width="30" height="30" class="rounded-circle me-2" onerror="this.src='../assets/default_avatar.png'">
+                                    <div>
+                                        <strong>${emp.first_name} ${emp.last_name}</strong>
+                                        <br><small class="text-muted">${emp.emp_id}</small>
+                                    </div>
+                                </div>`;
+                            
+                            // Click Event
+                            item.onclick = () => {
+                                selectEmployee(emp);
+                            };
+                            
+                            suggestionBox.appendChild(item);
                         });
-                        
-                        suggestionBox.appendChild(item);
-                    });
-                } else {
-                    suggestionBox.style.display = 'none';
-                }
-            });
+                    } else {
+                        suggestionBox.style.display = 'none';
+                    }
+                })
+                .catch(err => console.error(err));
+        }, 200);
     });
-}
+
+    // 2. Function to Select Employee
+    function selectEmployee(emp) {
+        searchInput.value = `${emp.first_name} ${emp.last_name} (${emp.emp_id})`;
+        hiddenIdInput.value = emp.emp_id; // THIS IS WHAT GETS SENT TO PHP
+        
+        suggestionBox.innerHTML = '';
+        suggestionBox.style.display = 'none';
+        
+        // Enable the submit button now that we have a valid ID
+        submitBtn.disabled = false;
+    }
+
+    // 3. Close suggestions if clicking outside
+    document.addEventListener('click', (e) => {
+        if (!searchInput.contains(e.target) && !suggestionBox.contains(e.target)) {
+            suggestionBox.style.display = 'none';
+        }
+    });
+});
 </script>
 
 </body>

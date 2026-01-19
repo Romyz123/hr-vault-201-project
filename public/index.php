@@ -1,4 +1,3 @@
-
 <?php
 // ======================================================
 // TESP HR 201 System - Directory (Refactored)
@@ -56,10 +55,10 @@ $page     = max(1, (int)getQueryParam('page', 1));
 $perPage  = max(6, min(48, (int)getQueryParam('per_page', 24)));
 $offset   = ($page - 1) * $perPage;
 
-// ---- 4) COMPLIANCE ALERTS -----------------------------
+// ---- 4) COMPLIANCE ALERTS (Updated with Specific File Name) ----
 $alertDate = date('Y-m-d', strtotime('+30 days'));
 $notifyStmt = $pdo->prepare("
-    SELECT d.id, d.category, d.expiry_date, e.first_name, e.last_name, e.emp_id 
+    SELECT d.id, d.category, d.original_name, d.expiry_date, e.first_name, e.last_name, e.emp_id 
     FROM documents d 
     JOIN employees e ON d.employee_id = e.emp_id 
     WHERE d.expiry_date IS NOT NULL 
@@ -141,7 +140,6 @@ $data   = json_encode(array_values($stats), JSON_UNESCAPED_UNICODE);
     <meta charset="UTF-8">
     <title>TESP HR 201 System</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <!-- CSS / Icons -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
@@ -194,60 +192,65 @@ $data   = json_encode(array_values($stats), JSON_UNESCAPED_UNICODE);
 </head>
 <body>
 
-<!-- NAVBAR -->
 <nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4 sticky-top shadow-sm" role="navigation" aria-label="Main navigation">
   <div class="container">
     <a class="navbar-brand" href="#">🏢 TES Philippines HR</a>
 
     <div class="d-flex align-items-center">
-        <!-- Compliance Notifications -->
         <div class="dropdown me-3">
             <a href="#" class="text-white text-decoration-none position-relative" data-bs-toggle="dropdown" aria-label="Compliance alerts">
                 <i class="bi bi-bell-fill fs-5"></i>
-                <?php if ($notifyCount > 0): ?>
-                    <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger border border-light"><?php echo (int)$notifyCount; ?></span>
-                <?php endif; ?>
+                
+                <span id="notifyBadge" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger border border-light"
+                      style="display: <?php echo ($notifyCount > 0) ? 'block' : 'none'; ?>">
+                    <?php echo (int)$notifyCount; ?>
+                </span>
             </a>
-         <ul class="dropdown-menu dropdown-menu-end shadow-lg" style="width: 320px; max-height: 400px; overflow-y: auto;">
-    <li><h6 class="dropdown-header bg-light border-bottom fw-bold">Compliance Alerts</h6></li>
-    
-    <?php if ($notifyCount > 0): ?>
-        <?php foreach ($notifications as $notif): 
-            $days = ceil((strtotime($notif['expiry_date']) - time()) / (60 * 60 * 24));
-            $color = ($days < 0) ? 'text-danger' : 'text-warning';
-            $msg = ($days < 0) ? "EXPIRED" : "Expiring in $days days";
-            $icon = ($days < 0) ? 'bi-exclamation-octagon-fill' : 'bi-exclamation-triangle-fill';
-        ?>
-            <li class="border-bottom py-2 px-3">
-                <div class="d-flex justify-content-between align-items-center">
-                    <a href="index.php?search=<?php echo $notif['emp_id']; ?>" class="text-decoration-none text-dark w-100">
-                        <div class="d-flex align-items-center">
-                            <i class="bi <?php echo $icon; ?> <?php echo $color; ?> fs-5 me-2"></i>
-                            <div style="line-height: 1.2;">
-                                <small class="fw-bold d-block"><?php echo htmlspecialchars($notif['first_name'] . ' ' . $notif['last_name']); ?></small>
-                                <span class="text-muted small"><?php echo htmlspecialchars($notif['category']); ?></span>
-                                <br><span class="extra-small fw-bold <?php echo $color; ?>"><?php echo $msg; ?></span>
+            
+            <ul id="notifyList" class="dropdown-menu dropdown-menu-end shadow-lg" style="width: 320px; max-height: 400px; overflow-y: auto;">
+                <li><h6 class="dropdown-header bg-light border-bottom fw-bold">Compliance Alerts</h6></li>
+                
+                <?php if ($notifyCount > 0): ?>
+                    <?php foreach ($notifications as $notif): 
+                        $days = ceil((strtotime($notif['expiry_date']) - time()) / (60 * 60 * 24));
+                        $color = ($days < 0) ? 'text-danger' : 'text-warning';
+                        $msg = ($days < 0) ? "EXPIRED" : "Expiring in $days days";
+                        $icon = ($days < 0) ? 'bi-exclamation-octagon-fill' : 'bi-exclamation-triangle-fill';
+                    ?>
+                        <li class="border-bottom py-2 px-3">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <a href="index.php?search=<?php echo $notif['emp_id']; ?>" class="text-decoration-none text-dark w-100">
+                                    <div class="d-flex align-items-center">
+                                        <i class="bi <?php echo $icon; ?> <?php echo $color; ?> fs-5 me-2"></i>
+                                        <div style="line-height: 1.2;">
+                                            <small class="fw-bold d-block"><?php echo htmlspecialchars($notif['first_name'] . ' ' . $notif['last_name']); ?></small>
+                                            
+                                            <span class="text-muted" style="font-size: 0.75rem;">
+                                                <?php echo htmlspecialchars($notif['category']); ?>: 
+                                                <em class="text-dark"><?php echo htmlspecialchars($notif['original_name']); ?></em>
+                                            </span>
+                                            
+                                            <br><span class="extra-small fw-bold <?php echo $color; ?>"><?php echo $msg; ?></span>
+                                        </div>
+                                    </div>
+                                </a>
+                                <button class="btn btn-sm btn-outline-success ms-2" 
+                                        onclick="openResolveModal('<?php echo $notif['id']; ?>', '<?php echo htmlspecialchars($notif['original_name']); ?>')"
+                                        title="Report Action / Resolve">
+                                    <i class="bi bi-check2-circle"></i>
+                                </button>
                             </div>
-                        </div>
-                    </a>
-                    <button class="btn btn-sm btn-outline-success ms-2" 
-                            onclick="openResolveModal('<?php echo $notif['id']; ?>', '<?php echo htmlspecialchars($notif['category']); ?>')"
-                            title="Report Action / Resolve">
-                        <i class="bi bi-check2-circle"></i>
-                    </button>
-                </div>
-            </li>
-        <?php endforeach; ?>
-    <?php else: ?>
-        <li class="p-4 text-center text-muted small">
-            <i class="bi bi-check-circle fs-1 text-success d-block mb-2"></i>
-            All documents are up to date!
-        </li>
-    <?php endif; ?>
-</ul>
+                        </li>
+                    <?php endforeach; ?>
+                <?php else: ?>
+                    <li class="p-4 text-center text-muted small">
+                        <i class="bi bi-check-circle fs-1 text-success d-block mb-2"></i>
+                        All documents are up to date!
+                    </li>
+                <?php endif; ?>
+            </ul>
         </div>
 
-        <!-- User Menu -->
         <div class="dropdown">
             <a href="#" class="d-flex align-items-center text-white text-decoration-none dropdown-toggle" id="userMenu" data-bs-toggle="dropdown">
                 <i class="bi bi-person-circle fs-5 me-2"></i>
@@ -270,7 +273,6 @@ $data   = json_encode(array_values($stats), JSON_UNESCAPED_UNICODE);
 
 <div class="container">
 
-    <!-- ANALYTICS + QUICK ACTIONS -->
     <div class="row mb-4">
         <div class="col-lg-8 mb-3 mb-lg-0">
             <div class="card h-100 shadow-soft">
@@ -306,7 +308,6 @@ $data   = json_encode(array_values($stats), JSON_UNESCAPED_UNICODE);
         </div>
     </div>
 
-    <!-- FILTERS / SEARCH BAR -->
     <div class="card mb-4 shadow-soft">
         <div class="card-body">
             <div class="d-flex justify-content-between align-items-center mb-3">
@@ -368,7 +369,6 @@ $data   = json_encode(array_values($stats), JSON_UNESCAPED_UNICODE);
                         <input type="text" id="mainSearch" name="search" class="form-control" placeholder="Search by ID / First / Last..." value="<?php echo h($search_query); ?>" autocomplete="off" aria-label="Search employees">
                         <button class="btn btn-primary" type="submit" aria-label="Submit search"><i class="bi bi-search"></i></button>
 
-                        <!-- Export split -->
                         <button type="button" class="btn btn-success dropdown-toggle dropdown-toggle-split" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Export options"><i class="bi bi-download"></i></button>
                         <ul class="dropdown-menu dropdown-menu-end shadow p-3" style="width: 260px;">
                             <li><h6 class="dropdown-header text-primary"><i class="bi bi-info-circle"></i> Export Options</h6></li>
@@ -381,19 +381,16 @@ $data   = json_encode(array_values($stats), JSON_UNESCAPED_UNICODE);
                     <div id="suggestionBox" class="list-group position-absolute w-100 shadow" style="z-index: 1000; display: none; top: 35px;"></div>
                 </div>
 
-                <!-- keep pagination state -->
                 <input type="hidden" name="page" value="<?php echo (int)$page; ?>">
                 <input type="hidden" name="per_page" value="<?php echo (int)$perPage; ?>">
             </form>
         </div>
     </div>
 
-    <!-- EMPTY STATE -->
     <?php if (empty($employees)): ?>
         <div class="alert alert-warning text-center shadow-sm">No employees found matching your search.</div>
     <?php endif; ?>
 
-    <!-- EMPLOYEE GRID -->
     <div class="row">
         <?php foreach ($employees as $emp):
             $statusClass = match ($emp['status']) {
@@ -418,7 +415,7 @@ $data   = json_encode(array_values($stats), JSON_UNESCAPED_UNICODE);
 
             $deptDisplay = h($emp['dept']);
             if (!empty($emp['section']) && $emp['section'] !== 'Main Unit') {
-                $deptDisplay .= ' &gt; ' . h($emp['section']);
+                $deptDisplay .= ' > ' . h($emp['section']);
             }
 
             $files = $filesByEmp[$emp['emp_id']] ?? [];
@@ -454,7 +451,6 @@ $data   = json_encode(array_values($stats), JSON_UNESCAPED_UNICODE);
                 </div>
             </div>
 
-            <!-- MODAL -->
             <div class="modal fade" id="<?php echo hs($modalId); ?>" tabindex="-1" aria-hidden="true">
                 <div class="modal-dialog modal-xl modal-dialog-scrollable">
                     <div class="modal-content">
@@ -494,38 +490,47 @@ $data   = json_encode(array_values($stats), JSON_UNESCAPED_UNICODE);
                                                     </a>
                                                 </div>
                                                 <div class="list-group">
-                                                    <?php if (empty($files)): ?>
-                                                        <div class="list-group-item text-muted small">No files yet.</div>
-                                                    <?php else: foreach ($files as $file):
-                                                        $previewUrl = 'view_doc.php?id=' . $file['file_uuid'];
-                                                        $isPdf = (bool)preg_match('/\.pdf(\?.*)?$/i', $file['original_name']);
-                                                    ?>
-                                                        <a href="#" class="list-group-item list-group-item-action d-flex align-items-center gap-2 doc-link"
-                                                           data-url="<?php echo hs($previewUrl); ?>"
-                                                           data-type="<?php echo $isPdf ? 'pdf' : 'img'; ?>"
-                                                           data-target="<?php echo hs($previewBoxId); ?>">
-                                                            <i class="bi <?php echo $isPdf ? 'bi-file-earmark-pdf text-danger' : 'bi-image text-primary'; ?>"></i>
-                                                            <span class="text-truncate"><?php echo h($file['original_name']); ?></span>
-                                                        </a>
-                                                    <?php endforeach; endif; ?>
+                                                <?php foreach($files as $file):
+                                                    $previewUrl = "view_doc.php?id=" . $file['file_uuid'];
+                                                    $type = (stripos($file['original_name'], '.pdf') !== false) ? 'pdf' : 'img';
+                                                    $previewTarget = 'preview-' . (int)$emp['id']; 
+                                                ?>
+                                                <div class="list-group-item list-group-item-action d-flex justify-content-between align-items-center p-2">
+                                                    
+                                                    <a href="javascript:void(0);" 
+                                                       class="text-decoration-none text-dark text-truncate w-75"
+                                                       onclick="showPreview('<?php echo $previewUrl; ?>', '<?php echo $type; ?>', '<?php echo $previewTarget; ?>'); return false;">
+                                                        <strong><?php echo htmlspecialchars($file['original_name']); ?></strong><br>
+                                                        <small class="text-muted"><?php echo htmlspecialchars($file['category']); ?></small>
+                                                    </a>
+
+                                                    <?php if (isset($_SESSION['role']) && in_array($_SESSION['role'], ['ADMIN', 'HR'])): ?>
+                                                        <form action="delete_document.php" method="POST" onsubmit="return confirm('Permanently delete this file?');" class="m-0">
+                                                            <input type="hidden" name="file_uuid" value="<?php echo $file['file_uuid']; ?>">
+                                                            <input type="hidden" name="emp_id" value="<?php echo $emp['emp_id']; ?>">
+                                                            <button type="submit" class="btn btn-sm btn-outline-danger border-0" title="Delete File">
+                                                                <i class="bi bi-trash"></i>
+                                                            </button>
+                                                        </form>
+                                                    <?php endif; ?>
+
+                                                </div>
+                                                <?php endforeach; ?>
                                                 </div>
                                             </div>
                                             <div class="col-8">
                                                 <div id="<?php echo hs($previewBoxId); ?>" class="preview-box">Select a file to preview</div>
                                             </div>
                                         </div>
-                                    </div> <!-- /tab -->
-                                </div>
+                                    </div> </div>
                             </div>
                         </div>
                     </div>
                 </div>
-            </div> <!-- /modal -->
-        </div>
+            </div> </div>
         <?php endforeach; ?>
     </div>
 
-    <!-- PAGINATION -->
     <?php if ($totalPages > 1): ?>
     <nav class="mt-3" aria-label="Employee pagination">
         <ul class="pagination justify-content-center">
@@ -570,10 +575,7 @@ $data   = json_encode(array_values($stats), JSON_UNESCAPED_UNICODE);
     </nav>
     <?php endif; ?>
 
-</div> <!-- /container -->
-
-<!-- SCRIPTS -->
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+</div> <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script>
 // ---------------- Chart ----------------
 document.addEventListener('DOMContentLoaded', () => {
@@ -591,7 +593,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 label: 'Documents',
                 data: values,
                 backgroundColor: (ctx) => {
-                    // Soft palette for bars
                     const palette = ['#4BC0C0','#36A2EB','#FFCE56','#9966FF','#FF9F40','#FF6384'];
                     return ctx.dataIndex != null ? palette[ctx.dataIndex % palette.length] : '#36A2EB';
                 },
@@ -603,10 +604,7 @@ document.addEventListener('DOMContentLoaded', () => {
         options: {
             responsive: true,
             maintainAspectRatio: false,
-            plugins: {
-                legend: { display: false },
-                tooltip: { mode: 'index', intersect: false }
-            },
+            plugins: { legend: { display: false } },
             scales: {
                 x: { ticks: { color: '#6c757d' } },
                 y: { beginAtZero: true, ticks: { precision: 0, color: '#6c757d' }, grid: { color: 'rgba(0,0,0,.05)' } }
@@ -615,114 +613,144 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 });
 
-// ---------------- Typeahead Suggestions (safe DOM) ----------------
+// ---------------- Typeahead Suggestions ----------------
 (() => {
     const searchInput = document.getElementById('mainSearch');
     const suggestionBox = document.getElementById('suggestionBox');
     if (!searchInput || !suggestionBox) return;
 
-    let aborter = null;
     let debounceTimer = null;
-
-    function clearSuggestions() {
-        suggestionBox.innerHTML = '';
-        suggestionBox.style.display = 'none';
-    }
-
-    function createSuggestionItem(emp) {
-        // Build <a> safely via DOM APIs to avoid XSS
-        const a = document.createElement('a');
-        a.href = `index.php?search=${encodeURIComponent(emp.emp_id)}`;
-        a.className = 'list-group-item list-group-item-action d-flex align-items-center';
-
-        const img = document.createElement('img');
-        img.width = 30; img.height = 30; img.className = 'rounded-circle me-2';
-        img.src = `uploads/avatars/${emp.avatar_path || ''}`;
-        img.onerror = function() { this.src = '../assets/default_avatar.png'; };
-
-        const wrap = document.createElement('div');
-        const strong = document.createElement('strong');
-        strong.textContent = `${emp.first_name || ''} ${emp.last_name || ''}`.trim();
-
-        const br = document.createElement('br');
-        const small = document.createElement('small');
-        small.className = 'text-muted';
-        small.textContent = emp.emp_id || '';
-
-        wrap.appendChild(strong);
-        wrap.appendChild(br);
-        wrap.appendChild(small);
-
-        a.appendChild(img);
-        a.appendChild(wrap);
-        return a;
-    }
-
-    function fetchSuggestions(q) {
-        if (aborter) aborter.abort();
-        aborter = new AbortController();
-
-        fetch(`api/search_suggestions.php?q=${encodeURIComponent(q)}`, { signal: aborter.signal })
-            .then(r => r.ok ? r.json() : [])
-            .then(data => {
-                suggestionBox.innerHTML = '';
-                if (Array.isArray(data) && data.length > 0) {
-                    suggestionBox.style.display = 'block';
-                    data.slice(0, 8).forEach(emp => suggestionBox.appendChild(createSuggestionItem(emp)));
-                } else {
-                    clearSuggestions();
-                }
-            })
-            .catch(() => { /* ignore aborted or network errors */ });
-    }
 
     searchInput.addEventListener('input', function() {
         const q = this.value.trim();
-        if (q.length < 2) return clearSuggestions();
+        if (q.length < 2) {
+            suggestionBox.innerHTML = '';
+            suggestionBox.style.display = 'none';
+            return;
+        }
 
         clearTimeout(debounceTimer);
-        debounceTimer = setTimeout(() => fetchSuggestions(q), 180);
+        debounceTimer = setTimeout(() => {
+            fetch(`api/search_suggestions.php?q=${encodeURIComponent(q)}`)
+                .then(r => r.json())
+                .then(data => {
+                    suggestionBox.innerHTML = '';
+                    if (Array.isArray(data) && data.length > 0) {
+                        suggestionBox.style.display = 'block';
+                        data.slice(0, 8).forEach(emp => {
+                            const a = document.createElement('a');
+                            a.href = `index.php?search=${emp.emp_id}`;
+                            a.className = 'list-group-item list-group-item-action d-flex align-items-center';
+                            a.innerHTML = `<img src="uploads/avatars/${emp.avatar_path||''}" width="30" height="30" class="rounded-circle me-2" onerror="this.src='../assets/default_avatar.png'">
+                                           <div><strong>${emp.first_name} ${emp.last_name}</strong><br><small class="text-muted">${emp.emp_id}</small></div>`;
+                            suggestionBox.appendChild(a);
+                        });
+                    } else {
+                        suggestionBox.style.display = 'none';
+                    }
+                })
+                .catch(() => {});
+        }, 180);
     });
 
     document.addEventListener('click', (e) => {
         if (!searchInput.contains(e.target) && !suggestionBox.contains(e.target)) {
-            clearSuggestions();
+            suggestionBox.style.display = 'none';
         }
     });
 })();
 
-// ---------------- Document Preview ----------------
-(function() {
-    function showPreview(url, type, containerId) {
-        const container = document.getElementById(containerId);
-        if (!container) return;
+// ---------------- Document Preview (GLOBAL) ----------------
+function showPreview(url, type, containerId) {
+    console.log("Previewing:", url, type, containerId);
+
+    const container = document.getElementById(containerId);
+    if (!container) {
+        console.error("Preview container not found: " + containerId);
+        return;
+    }
+
+    // 1. Show Loading
+    container.innerHTML = '<div class="d-flex justify-content-center align-items-center h-100 text-muted"><div class="spinner-border spinner-border-sm text-primary me-2"></div> Loading...</div>';
+
+    // 2. Load Content
+    setTimeout(() => {
+        container.innerHTML = ''; 
         if (type === 'pdf') {
             const iframe = document.createElement('iframe');
             iframe.src = url;
             iframe.className = 'preview-iframe';
-            container.innerHTML = '';
+            iframe.style.width = "100%";
+            iframe.style.height = "100%";
+            iframe.style.border = "none";
+            iframe.style.borderRadius = "8px";
             container.appendChild(iframe);
         } else {
             const img = document.createElement('img');
             img.src = url;
             img.className = 'preview-img';
-            img.alt = 'Document image preview';
-            container.innerHTML = '';
+            img.style.maxWidth = "100%";
+            img.style.maxHeight = "100%";
+            img.style.objectFit = "contain";
+            img.alt = 'Preview';
             container.appendChild(img);
         }
+    }, 200);
+}
+
+// ---------------- Resolve Modal Logic ----------------
+function openResolveModal(id, fileName) {
+    const idField = document.getElementById('res_doc_id');
+    const nameField = document.getElementById('res_cat_name');
+    const modalEl = document.getElementById('resolveModal');
+
+    if(idField && nameField && modalEl) {
+        idField.value = id;
+        nameField.innerText = fileName; // Shows specific file name now!
+        new bootstrap.Modal(modalEl).show();
     }
-    // Event delegation for document links
-    document.addEventListener('click', function(e) {
-        const a = e.target.closest('.doc-link');
-        if (!a) return;
-        e.preventDefault();
-        const url = a.getAttribute('data-url');
-        const type = a.getAttribute('data-type');
-        const target = a.getAttribute('data-target');
-        if (url && type && target) showPreview(url, type, target);
-    });
-})();
+}
+
+// ---------------- Real-Time Updates (AJAX) ----------------
+// Checks for updates every 5 seconds
+setInterval(fetchDashboardUpdates, 5000);
+
+function fetchDashboardUpdates() {
+    fetch('api/get_updates.php')
+        .then(response => response.json())
+        .then(data => {
+            // 1. Update Notification Badge
+            const badge = document.getElementById('notifyBadge');
+            if (badge) {
+                badge.innerText = data.count;
+                badge.style.display = (data.count > 0) ? 'block' : 'none';
+            }
+
+            // 2. Update Notification List (Dropdown)
+            const list = document.getElementById('notifyList');
+            if (list) {
+                // Only update HTML if the count changed to prevent flicker
+                if (list.getAttribute('data-last-count') != data.count) {
+                    list.innerHTML = data.html;
+                    list.setAttribute('data-last-count', data.count);
+                }
+            }
+
+            // 3. Update Chart
+            const chartInstance = Chart.getChart("hrChart");
+            if (chartInstance) {
+                // Check if data is different
+                if (JSON.stringify(chartInstance.data.datasets[0].data) !== JSON.stringify(data.chartValues)) {
+                    chartInstance.data.labels = data.chartLabels;
+                    chartInstance.data.datasets[0].data = data.chartValues;
+                    chartInstance.update();
+                }
+            }
+        })
+        .catch(err => console.error("Update error:", err));
+}
 </script>
+
 <div class="modal fade" id="resolveModal" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
@@ -747,15 +775,6 @@ document.addEventListener('DOMContentLoaded', () => {
         </div>
     </div>
 </div>
-
-<script>
-function openResolveModal(id, category) {
-    document.getElementById('res_doc_id').value = id;
-    document.getElementById('res_cat_name').innerText = category;
-    new bootstrap.Modal(document.getElementById('resolveModal')).show();
-}
-</script>
-
 
 </body>
 </html>
