@@ -8,6 +8,12 @@ require '../config/db.php';
 require '../src/Security.php';
 session_start();
 
+
+// CSRF PROTECTION
+if (empty($_SESSION['csrf_token'])) {
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+}
+
 if (!isset($_SESSION['user_id'])) {
     header('Location: login.php');
     exit;
@@ -272,6 +278,13 @@ $data   = json_encode(array_values($stats), JSON_UNESCAPED_UNICODE);
 </nav>
 
 <div class="container">
+    <?php if (isset($_SESSION['error'])): ?>
+        <div class="alert alert-danger alert-dismissible fade show mt-4 shadow-sm" role="alert">
+            <i class="bi bi-exclamation-octagon-fill fs-5 me-2"></i> 
+            <strong>Action Failed:</strong> <?php echo $_SESSION['error']; unset($_SESSION['error']); ?>
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    <?php endif; ?>
 
     <div class="row mb-4">
         <div class="col-lg-8 mb-3 mb-lg-0">
@@ -298,6 +311,12 @@ $data   = json_encode(array_values($stats), JSON_UNESCAPED_UNICODE);
                     <a href="add_employee.php" class="btn btn-success">
                         <i class="bi bi-person-plus-fill"></i> Add Employee
                     </a>
+
+
+                 <button type="button" class="btn btn-dark" data-bs-toggle="modal" data-bs-target="#exportModal">
+    <i class="bi bi-file-earmark-zip-fill text-warning"></i> Export Files (ZIP)
+</button>
+                    
                     <?php if (in_array($_SESSION['role'] ?? '', ['ADMIN', 'HR'], true)): ?>
                         <a href="admin_approval.php" class="btn btn-outline-danger">
                             <i class="bi bi-shield-lock"></i> Pending Requests
@@ -749,32 +768,314 @@ function fetchDashboardUpdates() {
         })
         .catch(err => console.error("Update error:", err));
 }
+// Resolve Modal
+function openResolveModal(id, name) {
+    document.getElementById('res_doc_id').value = id;
+    document.getElementById('res_cat_name').innerText = name;
+    new bootstrap.Modal(document.getElementById('resolveModal')).show();
+}
 </script>
 
 <div class="modal fade" id="resolveModal" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header bg-success text-white">
-                <h5 class="modal-title"><i class="bi bi-clipboard-check"></i> Report Action Taken</h5>
+                <h5 class="modal-title">Report Action Taken</h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
             <form action="submit_resolution.php" method="POST">
                 <div class="modal-body">
                     <input type="hidden" name="doc_id" id="res_doc_id">
-                    <p class="mb-2">You are resolving the alert for: <strong id="res_cat_name"></strong></p>
-                    <div class="mb-3">
-                        <label class="form-label fw-bold">Action Report (Required)</label>
-                        <textarea name="resolution_note" class="form-control" rows="3" required placeholder="Example: Scheduled medical exam... or Uploaded renewal file..."></textarea>
-                    </div>
+                    <p>Resolving alert for: <strong id="res_cat_name"></strong></p>
+                    <textarea name="resolution_note" class="form-control" rows="3" required placeholder="Action taken..."></textarea>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-success">Submit Report</button>
+                    <button type="submit" class="btn btn-success">Submit</button>
                 </div>
             </form>
         </div>
     </div>
 </div>
 
+<div class="modal fade" id="exportModal" tabindex="-1">
+    <div class="modal-dialog">
+        <form action="export_files.php" method="POST" class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title"><i class="bi bi-archive-fill"></i> Bulk Export</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                
+                <div class="mb-3 p-2 bg-light border rounded position-relative">
+                    <label class="form-label fw-bold text-primary">Search Employee (Optional)</label>
+                    <input type="text" id="exportSearch" name="search" class="form-control" 
+                           placeholder="Type Name or ID..." minlength="2" maxlength="50" autocomplete="off">
+                    
+                    <div id="exportSuggestionBox" class="list-group position-absolute w-100 shadow" 
+                         style="display: none; z-index: 2000; top: 75px; max-height: 200px; overflow-y: auto;">
+                    </div>
+                    
+                    <div class="form-text small">Typing a name makes "Department" optional.</div>
+                </div>
+
+                <hr>
+
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Department</label>
+                    <select name="dept" id="exportDept" class="form-select">
+                        <option value="" selected>-- Select Scope --</option>
+                        <option value="ALL" class="fw-bold text-danger">-- ENTIRE DATABASE --</option>
+                        <option value="ADMIN">ADMIN</option>
+                        <option value="HMS">HMS</option>
+                        <option value="RAS">RAS</option>
+                        <option value="TRS">TRS</option>
+                        <option value="LMS">LMS</option>
+                        <option value="DOS">DOS</option>
+                        <option value="SQP">SQP</option>
+                        <option value="CTS">CTS</option>
+                        <option value="SIGCOM">SIGCOM</option>
+                        <option value="PSS">PSS</option>
+                        <option value="OCS">OCS</option>
+                        <option value="BFS">BFS</option>
+                        <option value="WHS">WHS</option>
+                        <option value="GUNJIN">GUNJIN</option>
+                        <option value="SUBCONS-OTHERS">SUBCONS-OTHERS</option>
+                    </select>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Section (Filtered by Dept)</label>
+                    <select name="section" id="exportSection" class="form-select" disabled>
+                        <option value="">-- All Sections --</option>
+                        
+                        <optgroup label="ADMIN">
+                            <option value="GAG">GAG</option>
+                            <option value="TKG">TKG</option>
+                            <option value="PCG">PCG</option>
+                            <option value="ACG">ACG</option>
+                            <option value="MED">MED</option>
+                            <option value="OP">OP</option>
+                            <option value="CLEANERS/HOUSE KEEPING">CLEANERS</option>
+                        </optgroup>
+
+                        <optgroup label="HMS"><option value="HEAVY MAINTENANCE SECTION">HEAVY MAINTENANCE SECTION</option></optgroup>
+                        <optgroup label="RAS"><option value="ROOT CAUSE ANALYSIS SECTION">ROOT CAUSE ANALYSIS SECTION</option></optgroup>
+                        <optgroup label="TRS"><option value="TECHNICAL RESEARCH SECTION">TECHNICAL RESEARCH SECTION</option></optgroup>
+                        <optgroup label="LMS"><option value="LIGHT MAINTENANCE SECTION">LIGHT MAINTENANCE SECTION</option></optgroup>
+                        <optgroup label="DOS"><option value="DEPARTMENT OPERATIONS SECTION">DEPARTMENT OPERATIONS SECTION</option></optgroup>
+                        
+                        <optgroup label="SQP">
+                            <option value="SAFETY">SAFETY</option>
+                            <option value="QA">QA</option>
+                            <option value="PLANNING">PLANNING</option>
+                            <option value="IT">IT</option>
+                        </optgroup>
+
+                        <optgroup label="CTS"><option value="CIVIL TRACKS SECTION">CIVIL TRACKS SECTION</option></optgroup>
+                        <optgroup label="SIGCOM"><option value="SIGNALING COMMUNICATION">SIGNALING COMMUNICATION</option></optgroup>
+                        <optgroup label="PSS"><option value="POWER SUPPLY SECTION">POWER SUPPLY SECTION</option></optgroup>
+                        <optgroup label="OCS"><option value="OVERHEAD CANERARY SECTION">OVERHEAD CANERARY SECTION</option></optgroup>
+                        <optgroup label="BFS"><option value="BUILDING FACILITIES SECTION">BUILDING FACILITIES SECTION</option></optgroup>
+                        <optgroup label="WHS"><option value="WAREHOUSE">WAREHOUSE</option></optgroup>
+                        
+                        <optgroup label="GUNJIN">
+                            <option value="EMT">EMT</option>
+                            <option value="SECURITY PERSONNEL">SECURITY PERSONNEL</option>
+                        </optgroup>
+                        
+                        <optgroup label="SUBCONS-OTHERS"><option value="OTHERS">OTHERS</option></optgroup>
+                    </select>
+                </div>
+
+                <div class="row">
+                    <div class="col-6 mb-3">
+                        <label class="form-label fw-bold">Agency</label>
+                        <select name="employment_type" class="form-select">
+                            <option value="">-- All --</option>
+                            <option value="TESP DIRECT">TESP DIRECT</option>
+                            <option value="GUNJIN">GUNJIN</option>
+                            <option value="JORATECH">JORATECH</option>
+                            <option value="UNLISOLUTIONS">UNLISOLUTIONS</option>
+                            <option value="OTHERS - SUBCONS">OTHERS - SUBCONS</option>
+                        </select>
+                    </div>
+                    <div class="col-6 mb-3">
+                        <label class="form-label fw-bold">Category</label>
+                        <select name="category" class="form-select">
+                            <option value="">-- All --</option>
+                            <option value="201 Files">201 Files</option>
+                            <option value="Medical">Medical</option>
+                            <option value="Contract">Contract</option>
+                            <option value="Evaluation">Evaluation</option>
+                            <option value="Certificate">Certificate</option>
+                            <option value="Others">Others</option>
+                        </select>
+                    </div>
+                </div>
+
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="submit" class="btn btn-success"><i class="bi bi-download"></i> Download ZIP</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
+
+<div class="modal fade" id="exportModal" tabindex="-1">
+    <div class="modal-dialog">
+        <form action="export_files.php" method="POST" class="modal-content" target="_blank">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title"><i class="bi bi-archive-fill"></i> Bulk Export</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                
+                <div class="mb-3 p-2 bg-light border rounded position-relative">
+                    <label class="form-label fw-bold text-primary">Search Employee (Optional)</label>
+                    <input type="text" id="exportSearch" name="search" class="form-control" 
+                           placeholder="Type Name or ID..." autocomplete="off">
+                    
+                    <div id="exportSuggestionBox" class="list-group position-absolute w-100 shadow" 
+                         style="display: none; z-index: 2000; top: 75px;"></div>
+                    
+                    <div class="form-text small">Typing a name makes "Department" optional.</div>
+                </div>
+
+                <hr>
+
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Department</label>
+                    <select name="dept" id="exportDept" class="form-select">
+                        <option value="" selected>-- Select Scope --</option>
+                        <option value="ALL" class="fw-bold text-danger">-- ENTIRE DATABASE --</option>
+                        <option value="ADMIN">ADMIN</option>
+                        <option value="HMS">HMS</option>
+                        <option value="RAS">RAS</option>
+                        <option value="TRS">TRS</option>
+                        <option value="LMS">LMS</option>
+                        <option value="DOS">DOS</option>
+                        <option value="SQP">SQP</option>
+                        <option value="CTS">CTS</option>
+                        <option value="SIGCOM">SIGCOM</option>
+                        <option value="PSS">PSS</option>
+                        <option value="OCS">OCS</option>
+                        <option value="BFS">BFS</option>
+                        <option value="WHS">WHS</option>
+                        <option value="GUNJIN">GUNJIN</option>
+                        <option value="SUBCONS-OTHERS">SUBCONS-OTHERS</option>
+                    </select>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Section (Filtered by Dept)</label>
+                    <select name="section" id="exportSection" class="form-select" disabled>
+                        <option value="">-- All Sections --</option>
+                        <optgroup label="ADMIN">
+                            <option value="GAG">GAG</option>
+                            <option value="TKG">TKG</option>
+                            <option value="PCG">PCG</option>
+                            <option value="ACG">ACG</option>
+                            <option value="MED">MED</option>
+                            <option value="OP">OP</option>
+                            <option value="CLEANERS/HOUSE KEEPING">CLEANERS</option>
+                        </optgroup>
+                        <optgroup label="SQP">
+                            <option value="SAFETY">SAFETY</option>
+                            <option value="QA">QA</option>
+                            <option value="PLANNING">PLANNING</option>
+                            <option value="IT">IT</option>
+                        </optgroup>
+                        </select>
+                </div>
+                
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Category</label>
+                    <select name="category" class="form-select">
+                        <option value="">-- All --</option>
+                        <option value="201 Files">201 Files</option>
+                        <option value="Medical">Medical</option>
+                        <option value="Contract">Contract</option>
+                        <option value="Evaluation">Evaluation</option>
+                        <option value="Certificate">Certificate</option>
+                        <option value="Others">Others</option>
+                    </select>
+                </div>
+
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="submit" class="btn btn-success"><i class="bi bi-download"></i> Download ZIP</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    
+    // 1. SMART DROPDOWNS
+    const deptSelect = document.getElementById('exportDept');
+    const sectSelect = document.getElementById('exportSection');
+    if (deptSelect && sectSelect) {
+        const sectOptGroups = sectSelect.querySelectorAll('optgroup');
+        deptSelect.addEventListener('change', function() {
+            const selectedDept = this.value;
+            if (selectedDept && selectedDept !== 'ALL') {
+                sectSelect.disabled = false;
+                sectSelect.value = "";
+                sectOptGroups.forEach(group => {
+                    group.style.display = (group.label === selectedDept) ? '' : 'none';
+                });
+            } else {
+                sectSelect.disabled = true;
+                sectSelect.value = "";
+            }
+        });
+    }
+
+    // 2. SEARCH SUGGESTIONS
+    const input = document.getElementById('exportSearch');
+    const box = document.getElementById('exportSuggestionBox');
+    
+    if (input && box) {
+        let timer;
+        input.addEventListener('input', function() {
+            const q = this.value.trim();
+            if (q.length < 2) { box.style.display = 'none'; return; }
+            clearTimeout(timer);
+            timer = setTimeout(() => {
+                fetch(`api/search_suggestions.php?q=${encodeURIComponent(q)}`)
+                    .then(r => r.json())
+                    .then(data => {
+                        box.innerHTML = '';
+                        if (data.length > 0) {
+                            box.style.display = 'block';
+                            data.forEach(emp => {
+                                const item = document.createElement('a');
+                                item.className = 'list-group-item list-group-item-action';
+                                item.style.cursor = 'pointer';
+                                item.innerHTML = `<strong>${emp.first_name} ${emp.last_name}</strong> <small class='text-muted'>${emp.emp_id}</small>`;
+                                item.onclick = function() {
+                                    input.value = emp.emp_id;
+                                    box.style.display = 'none';
+                                };
+                                box.appendChild(item);
+                            });
+                        } else { box.style.display = 'none'; }
+                    });
+            }, 200);
+        });
+        document.addEventListener('click', (e) => {
+            if (!input.contains(e.target) && !box.contains(e.target)) { box.style.display = 'none'; }
+        });
+    }
+});
+</script>
 </body>
 </html>
