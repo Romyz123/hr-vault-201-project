@@ -32,7 +32,7 @@ $security->checkRateLimit($_SERVER['REMOTE_ADDR'] ?? '0.0.0.0', 120, 60); // 120
 
 // Departments & Sections (server-side source of truth)
 $deptMap = [
-    "ADMIN"   => ["GAG", "TKG", "PCG", "ACG", "MED", "OP", "CLEANERS/HOUSE KEEPING"],
+    "ADMIN"   => ["ADMIN","GAG", "TKG", "PCG", "ACG", "MED", "OP", "CLEANERS/HOUSE KEEPING"],
     "HMS"     => ["HEAVY MAINTENANCE SECTION"],
     "RAS"     => ["ROOT CAUSE ANALYSIS SECTION"],
     "TRS"     => ["TECHNICAL RESEARCH SECTION"],
@@ -48,8 +48,9 @@ $deptMap = [
     "GUNJIN"  => ["EMT", "SECURITY PERSONNEL"],
     "SUBCONS-OTHERS" => ["OTHERS"]
 ];
-// Allowed agencies
-$agencies = ["Unisolutions", "Maximum", "M8 Manpower"];
+
+// The new allowed list
+$agencies = ["TESP DIRECT", "GUNJIN", "JORATECH", "UNLISOLUTIONS", "OTHERS - SUBCONS"];
 
 // CSRF token
 if (empty($_SESSION['csrf_token'])) {
@@ -111,10 +112,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
-    $employment_type = in_array($employment_type, ['TESP Direct','Agency'], true) ? $employment_type : 'TESP Direct';
-    $agency_name = ($employment_type === 'Agency')
-        ? (in_array($agency_name_in, $agencies, true) ? $agency_name_in : $agencies[0])
-        : 'TESP';
+// LOGIC FIX: Map the single dropdown back to your 2 database columns
+    $input_selection = $_POST['employment_type']; 
+
+    if ($input_selection === 'TESP DIRECT') {
+        $employment_type = 'TESP Direct'; // DB Value for Type
+        $agency_name     = 'TESP';        // DB Value for Name (Default)
+    } else {
+        // If they selected GUNJIN, JORATECH, etc.
+        $employment_type = 'Agency';      // DB Value for Type
+        $agency_name     = $input_selection; // DB Value for Name
+    }
 
     // Validate dates (Y-m-d)
     $validHire = DateTime::createFromFormat('Y-m-d', $hire_date);
@@ -190,6 +198,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
+    
+
     // If no validation errors, proceed
     if (empty($errors)) {
         $empData = [
@@ -218,7 +228,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'emergency_contact' => $emergency_contact,
             'emergency_address' => $emergency_address,
             'status'            => 'Active',
-            'avatar_path'       => $avatar_path
+            'avatar_path'       => $avatar_path,
+            'request_note'      => post('request_note') ,
         ];
 
         try {
@@ -325,13 +336,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             <!-- Populated by JS based on dept (and pre-selected via script) -->
                         </select>
                     </div>
-                    <div class="col-md-3">
-                        <label class="form-label">Type</label>
-                        <select name="employment_type" id="employment_type" class="form-select">
-                            <option value="TESP Direct" <?php echo (old('employment_type','TESP Direct')==='TESP Direct')?'selected':''; ?>>TESP Direct</option>
-                            <option value="Agency" <?php echo (old('employment_type')==='Agency')?'selected':''; ?>>Agency</option>
-                        </select>
-                    </div>
+                    <div class="col-md-6">
+    <label class="form-label">Employment Type / Agency</label>
+    <select name="employment_type" class="form-select" required>
+        <option value="" selected disabled>-- Select --</option>
+        
+        <?php 
+        // This makes sure the form remembers the selection if there is an error
+        $current = old('employment_type'); 
+        ?>
+        
+        <option value="TESP DIRECT" <?php echo ($current === 'TESP DIRECT') ? 'selected' : ''; ?>>TESP DIRECT</option>
+        <option value="GUNJIN" <?php echo ($current === 'GUNJIN') ? 'selected' : ''; ?>>GUNJIN</option>
+        <option value="JORATECH" <?php echo ($current === 'JORATECH') ? 'selected' : ''; ?>>JORATECH</option>
+        <option value="UNLISOLUTIONS" <?php echo ($current === 'UNLISOLUTIONS') ? 'selected' : ''; ?>>UNLISOLUTIONS</option>
+        <option value="OTHERS - SUBCONS" <?php echo ($current === 'OTHERS - SUBCONS') ? 'selected' : ''; ?>>OTHERS - SUBCONS</option>
+    </select>
+</div>
                     <div class="col-md-3" id="agencyField" style="display:none;">
                         <label class="form-label">Agency Name</label>
                         <select name="agency_name" class="form-select">
@@ -342,6 +363,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             <?php endforeach; ?>
                         </select>
                     </div>
+
+
                     <div class="col-md-3">
                         <label class="form-label">Hire Date</label>
                         <input type="date" name="hire_date" class="form-control" required value="<?php echo old('hire_date'); ?>">
@@ -432,6 +455,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     </div>
                 </div>
 
+                <?php if (($_SESSION['role'] ?? '') === 'STAFF'): ?>
+                <div class="alert alert-warning mt-4">
+                    <label class="form-label fw-bold text-dark"><i class="bi bi-chat-left-text-fill"></i> Note for Admin (Optional)</label>
+                    <textarea name="request_note" class="form-control" rows="2" placeholder="e.g. New hire for Night Shift..."><?php echo old('request_note'); ?></textarea>
+                </div>
+                <?php endif; ?>
+
                 <div class="mt-4 d-grid gap-2">
                     <button type="submit" class="btn btn-success btn-lg">
                         <?php echo (($_SESSION['role'] ?? '') === 'STAFF') ? 'Submit for Approval' : 'Save Record'; ?>
@@ -477,14 +507,7 @@ if (oldDept) {
     populateSections(oldDept, oldSection);
 }
 
-// --- Agency toggle ---
-const empTypeSel = document.getElementById('employment_type');
-const agencyField = document.getElementById('agencyField');
-function toggleAgency(val) {
-    agencyField.style.display = (val === 'Agency') ? 'block' : 'none';
-}
-empTypeSel.addEventListener('change', function() { toggleAgency(this.value); });
-toggleAgency(empTypeSel.value); // initial
+
 
 </script>
 </body>

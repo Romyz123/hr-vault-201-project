@@ -47,12 +47,16 @@ $employees = $stmt->fetchAll();
 
     @media print {
         .no-print { display: none !important; }
-        body { -webkit-print-color-adjust: exact; background: white; }
+       body {
+        background: white;
+        -webkit-print-color-adjust: exact; /* For Chrome/Safari */
+        print-color-adjust: exact;
         .page { box-shadow: none; margin: 0; width: 100%; }
         /* Fix Table Borders for printing */
         .table-bordered th, .table-bordered td { border: 1px solid #000 !important; }
     }
-
+    }
+    
     body { background: #eee; }
     .page { 
         background: white; 

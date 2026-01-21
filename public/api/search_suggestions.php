@@ -1,27 +1,31 @@
 <?php
 // public/api/search_suggestions.php
 require '../../config/db.php';
+session_start();
+
+// 1. SECURITY CHECK (New)
+// Stop access if not logged in
+if (!isset($_SESSION['user_id'])) {
+    http_response_code(403);
+    echo json_encode(['error' => 'Access Denied']);
+    exit;
+}
 
 header('Content-Type: application/json');
 
-$query = isset($_GET['q']) ? trim($_GET['q']) : '';
+$q = $_GET['q'] ?? '';
 
-if (strlen($query) < 2) {
+// Require at least 2 characters
+if (strlen($q) < 2) {
     echo json_encode([]);
     exit;
 }
 
-// Search for matches in First Name, Last Name, or ID
-// LIMIT 10 to keep it fast
-$stmt = $pdo->prepare("
-    SELECT id, emp_id, first_name, last_name, avatar_path 
-    FROM employees 
-    WHERE first_name LIKE ? OR last_name LIKE ? OR emp_id LIKE ?
-    LIMIT 10
-");
-
-$term = "%$query%";
+// 2. SEARCH
+$stmt = $pdo->prepare("SELECT emp_id, first_name, last_name FROM employees WHERE emp_id LIKE ? OR first_name LIKE ? OR last_name LIKE ? LIMIT 5");
+$term = "%$q%";
 $stmt->execute([$term, $term, $term]);
+
 $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 echo json_encode($results);

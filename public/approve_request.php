@@ -8,7 +8,11 @@ $security = new Security($pdo);
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     
     // 1. Security Check
-    if (!isset($_POST['csrf_token'])) $security->checkCSRF($_POST['csrf_token']);
+   // CSRF Check (Manual replacement)
+$token = $_POST['csrf_token'] ?? '';
+if (!hash_equals($_SESSION['csrf_token'] ?? '', $token)) {
+    die("Security token mismatch. Please go back and refresh.");
+}
     
     $req_id = $_POST['request_id'];
     $action = $_POST['action']; // 'approve' or 'reject'

@@ -1,5 +1,6 @@
 <?php
 require '../config/db.php';
+require '../src/Logger.php'; 
 session_start();
 
 // 1. SECURITY CHECK

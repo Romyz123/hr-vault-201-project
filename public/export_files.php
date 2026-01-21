@@ -1,14 +1,15 @@
 <?php
 // public/export_files.php
 
-// 1. CLEAR BUFFER (Fixes corrupt ZIPs)
+// 1. CLEAN BUFFER (Prevents corrupt ZIPs)
 if (ob_get_level()) ob_end_clean();
-
+require '../src/Logger.php'; 
 require '../config/db.php';
 session_start();
 
 // 2. SECURITY CHECK
-if (!isset($_SESSION['user_id']) || !in_array($_SESSION['role'] ?? '', ['ADMIN', 'HR'])) {
+// [UPDATED] Added 'STAFF' to the allowed list so they can download, but we will log it.
+if (!isset($_SESSION['user_id']) || !in_array($_SESSION['role'] ?? '', ['ADMIN', 'HR', 'STAFF'])) {
     header("Location: index.php");
     exit;
 }
@@ -27,7 +28,7 @@ $search   = trim($_POST['search'] ?? '');
 
 // 5. VALIDATION
 if (empty($dept) && empty($search)) {
-    $_SESSION['error'] = "You must select a Department OR type a Search Name.";
+    $_SESSION['error'] = "Export Failed: Select a Department OR type a Search Name.";
     header("Location: index.php");
     exit;
 }
@@ -66,7 +67,6 @@ $stmt->execute($params);
 $files = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 if (count($files) === 0) {
-    // REDIRECT BACK TO DASHBOARD WITH ERROR
     $_SESSION['error'] = "No files found matching your criteria.";
     header("Location: index.php");
     exit;
@@ -89,9 +89,20 @@ $filesAdded = 0;
 foreach ($files as $row) {
     $realPath = "uploads/" . $row['file_path']; 
     if (file_exists($realPath)) {
-        $folderName = cleanName($row['last_name']) . ", " . cleanName($row['first_name']) . " - " . cleanName($row['dept']);
-        if(!empty($row['section'])) $folderName .= " - " . cleanName($row['section']);
         
+        // --- FOLDER NAMING FIX ---
+        // Format: Santos, Maria - 1001 ADMIN - GAG
+        $folderName = cleanName($row['last_name']) . ", " . 
+                      cleanName($row['first_name']) . " - " . 
+                      cleanName($row['emp_id']) . " " . 
+                      cleanName($row['dept']);
+        
+        // Append Section if it exists (e.g. " - GAG")
+        if (!empty($row['section']) && $row['section'] !== 'Main Unit') {
+            $folderName .= " - " . cleanName($row['section']);
+        }
+        // -------------------------
+
         $zip->addFile($realPath, $folderName . "/" . $row['original_name']);
         $filesAdded++;
     }
@@ -104,8 +115,40 @@ if ($filesAdded === 0) {
     exit;
 }
 
-// 9. DOWNLOAD
+// 9. DOWNLOAD & LOG
 if (file_exists($tempZipPath)) {
+
+    // ========================================================
+    // [FIXED] SECURITY AUDIT LOG
+    // ========================================================
+    try {
+        $logUserId   = $_SESSION['user_id'];
+        $logIp       = $_SERVER['REMOTE_ADDR'];
+        
+        // Prepare the log message
+        $filterDesc = "Dept: " . ($dept ?: 'All') . ", Files: " . $filesAdded;
+        if($search) $filterDesc .= ", Search: '$search'";
+        
+        $logAction  = "EXPORT_FILES"; // Matches your UPPERCASE style
+        $logDetails = "User downloaded Bulk ZIP. [$filterDesc]";
+
+        // [ATTEMPT 1] Try inserting with 'action' and 'details' (Standard)
+        // We use a generic query that fits your likely table structure
+        $logStmt = $pdo->prepare("INSERT INTO activity_logs (user_id, action, details, ip_address) VALUES (?, ?, ?, ?)");
+        $logStmt->execute([$logUserId, $logAction, $logDetails, $logIp]);
+
+    } catch (Exception $e) {
+        // [FALLBACK] If Attempt 1 fails (wrong column names), try 'action_type' and 'description'
+        try {
+             $logStmt = $pdo->prepare("INSERT INTO activity_logs (user_id, action_type, description, ip_address) VALUES (?, ?, ?, ?)");
+             $logStmt->execute([$logUserId, $logAction, $logDetails, $logIp]);
+        } catch (Exception $e2) {
+            // If both fail, save to a text file so you can debug it later
+            error_log("HR System Log Error: " . $e->getMessage());
+        }
+    }
+    // ========================================================
+
     header('Content-Type: application/zip');
     header('Content-Disposition: attachment; filename="' . $zipFilename . '"');
     header('Content-Length: ' . filesize($tempZipPath));
@@ -113,4 +156,3 @@ if (file_exists($tempZipPath)) {
     unlink($tempZipPath);
     exit;
 }
-?>

@@ -43,7 +43,7 @@ $errors = [];
 
 // ---------- Department / Section (server truth) ----------
 $deptMap = [
-    "ADMIN"   => ["GAG", "TKG", "PCG", "ACG", "MED", "OP", "CLEANERS/HOUSE KEEPING"],
+   "ADMIN"    => ["ADMIN","GAG", "TKG", "PCG", "ACG", "MED", "OP", "CLEANERS/HOUSE KEEPING"],
     "HMS"     => ["HEAVY MAINTENANCE SECTION"],
     "RAS"     => ["ROOT CAUSE ANALYSIS SECTION"],
     "TRS"     => ["TECHNICAL RESEARCH SECTION"],
@@ -59,7 +59,8 @@ $deptMap = [
     "GUNJIN"  => ["EMT", "SECURITY PERSONNEL"],
     "SUBCONS-OTHERS" => ["OTHERS"]
 ];
-$agencies = ["Unisolutions", "Maximum", "M8 Manpower"];
+// Unified list of Employment Options
+$emp_options = ["TESP DIRECT", "GUNJIN", "JORATECH", "UNLISOLUTIONS", "OTHERS - SUBCONS"];
 
 // Helper to render form values (prefer POST on validation error)
 function val($key, $fallback = '') {
@@ -128,11 +129,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
-    $employment_type = in_array($employment_type, ['TESP Direct', 'Agency'], true) ? $employment_type : 'TESP Direct';
-    $agency_name     = ($employment_type === 'Agency')
-        ? (in_array($agency_name_in, $agencies, true) ? $agency_name_in : $agencies[0])
-        : 'TESP';
+   // LOGIC FIX: Map the single dropdown back to your 2 database columns
+    $input_selection = $_POST['employment_type']; 
 
+    if ($input_selection === 'TESP DIRECT') {
+        $employment_type = 'TESP Direct'; // DB Value for Type
+        $agency_name     = 'TESP';        // DB Value for Name (Default)
+    } else {
+        // If they selected GUNJIN, JORATECH, etc.
+        $employment_type = 'Agency';      // DB Value for Type
+        $agency_name     = $input_selection; // DB Value for Name
+    }
     // Dates
     $validHire = DateTime::createFromFormat('Y-m-d', $hire_date);
     $validBirth= DateTime::createFromFormat('Y-m-d', $birthdate);
@@ -234,8 +241,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'emergency_contact' => $emergency_contact,
         'emergency_address' => $emergency_address,
         'status'            => $status,
-        'avatar_path'       => $final_avatar_path
+        'avatar_path'       => $final_avatar_path,
+        'request_note'      => post('request_note'),
     ];
+
 
     // ---------- Persist ----------
     if (empty($errors)) {
@@ -369,26 +378,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <input type="text" name="job_title" class="form-control" value="<?php echo val('job_title'); ?>" required>
                     </div>
 
-                    <div class="col-md-3">
-                        <label class="form-label">Type</label>
-                        <select name="employment_type" id="employment_type" class="form-select"
+                  <div class="col-md-6">
+                        <label class="form-label fw-bold">Employment Type / Agency</label>
+                        <select name="employment_type" class="form-select" required 
                             <?php echo (($_SESSION['role'] ?? '') === 'STAFF') ? 'style="pointer-events:none; background-color:#e9ecef;"' : ''; ?>>
-                            <option value="TESP Direct" <?php echo (raw('employment_type', $emp['employment_type'])==='TESP Direct')?'selected':''; ?>>TESP Direct</option>
-                            <option value="Agency" <?php echo (raw('employment_type', $emp['employment_type'])==='Agency')?'selected':''; ?>>Agency</option>
-                        </select>
-                    </div>
-
-                    <div class="col-md-3" id="agencyField" style="display: <?php echo (raw('employment_type', $emp['employment_type'])==='Agency')?'block':'none'; ?>;">
-                        <label class="form-label">Agency Name</label>
-                        <select name="agency_name" class="form-select"
-                            <?php echo (($_SESSION['role'] ?? '') === 'STAFF') ? 'style="pointer-events:none; background-color:#e9ecef;"' : ''; ?>>
-                            <?php foreach ($agencies as $a): ?>
-                                <option value="<?php echo h($a); ?>" <?php echo (raw('agency_name', $emp['agency_name'])===$a)?'selected':''; ?>>
-                                    <?php echo h($a); ?>
+                            <option value="" disabled>-- Select --</option>
+                            <?php foreach ($emp_options as $opt): ?>
+                                <?php 
+                                // Logic to check which option is currently selected in DB
+                                $isSelected = '';
+                                if ($opt === 'TESP DIRECT') {
+                                    // If DB says "TESP Direct", select this option
+                                    if ($emp['employment_type'] === 'TESP Direct') $isSelected = 'selected';
+                                } else {
+                                    // If DB says "Agency" AND the name matches (e.g. GUNJIN), select this option
+                                    if ($emp['employment_type'] === 'Agency' && $emp['agency_name'] === $opt) $isSelected = 'selected';
+                                }
+                                ?>
+                                <option value="<?php echo h($opt); ?>" <?php echo $isSelected; ?>>
+                                    <?php echo h($opt); ?>
                                 </option>
                             <?php endforeach; ?>
                         </select>
                     </div>
+
 
                     <div class="col-md-3">
                         <label class="form-label">Status</label>
@@ -528,6 +541,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     </div>
                 </div>
 
+                <?php if (($_SESSION['role'] ?? '') === 'STAFF'): ?>
+                <div class="alert alert-warning mt-4">
+                    <label class="form-label fw-bold text-dark"><i class="bi bi-chat-left-text-fill"></i> Note for Admin (Optional)</label>
+                    <textarea name="request_note" class="form-control" rows="2" placeholder="e.g. Correcting spelling of last name..."></textarea>
+                </div>
+                <?php endif; ?>
+
+
                 <div class="mt-4 d-grid gap-2">
                     <button type="submit" class="btn btn-warning btn-lg">
                         <?php echo (($_SESSION['role'] ?? '') === 'STAFF') ? 'Submit Edit Request' : 'Save Changes'; ?>
@@ -568,15 +589,7 @@ deptSelect.addEventListener('change', function() {
 // Initialize
 populateSections(currentDept, currentSection);
 
-// Agency toggle
-const empTypeSel = document.getElementById('employment_type');
-const agencyField = document.getElementById('agencyField');
-function toggleAgency(val) {
-    agencyField.style.display = (val === 'Agency') ? 'block' : 'none';
-}
-empTypeSel.addEventListener('change', () => toggleAgency(empTypeSel.value));
-// Initial state
-toggleAgency(empTypeSel.value);
+
 
 // Note: If both "Remove photo" and "Upload new photo" are used,
 // the new upload takes precedence; removing is ignored in that case.

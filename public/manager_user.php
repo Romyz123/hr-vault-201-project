@@ -56,7 +56,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
-    // --- DELETE USER (MOVED TO POST FOR SAFETY) ---
+    // --- DELETE USER ---
     if (isset($_POST['action']) && $_POST['action'] === 'delete') {
         $id = $_POST['user_id'];
 

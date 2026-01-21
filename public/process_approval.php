@@ -8,7 +8,10 @@ $security = new Security($pdo);
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     
     // 1. Security Check
-    if (!isset($_POST['csrf_token'])) $security->checkCSRF($_POST['csrf_token']);
+    // Validate CSRF Token manually
+if (!isset($_POST['csrf_token']) || !hash_equals($_SESSION['csrf_token'] ?? '', $_POST['csrf_token'])) {
+    die("Security Warning: Invalid CSRF Token. Please refresh and try again.");
+}
     
     $req_id = $_POST['request_id'];
     $action = $_POST['action'];

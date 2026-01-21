@@ -5,7 +5,7 @@ require '../src/Logger.php';
 session_start();
 
 // SECURITY: Admin/HR Only
-if (!isset($_SESSION['user_id']) || ($_SESSION['role'] !== 'ADMIN' && $_SESSION['role'] !== 'HR')) {
+if (!in_array($_SESSION['role'], ['ADMIN', 'HR'])) {
     header("Location: index.php");
     exit;
 }
@@ -17,6 +17,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     $action  = $_POST['action'];
     $tab     = $_POST['tab_name']; 
     $adminId = $_SESSION['user_id'];
+
+    // Capture rejection reason if sent
+    $reject_reason = $_POST['reject_reason'] ?? '';
 
     // FETCH DETAILS
     $stmt = $pdo->prepare("SELECT * FROM requests WHERE id = ?");
@@ -39,14 +42,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                         header("Location: admin_approval.php?msg=$msg&tab=$tab");
                         exit;
                     }
+                    
+                    // SAFETY: Remove the note so it doesn't break the SQL INSERT
+                    unset($data['request_note']); 
+
                     $cols = implode(", ", array_keys($data));
                     $vals = implode(", ", array_fill(0, count($data), "?"));
                     $pdo->prepare("INSERT INTO employees ($cols) VALUES ($vals)")->execute(array_values($data));
+                    
+                    // NOTIFY SUCCESS
+                    $pdo->prepare("INSERT INTO notifications (user_id, title, message, type) VALUES (?, 'Request Approved', ?, 'success')")
+                        ->execute([$req['user_id'], "Your request to add employee " . $data['first_name'] . " was approved."]);
+
                     $logger->log($adminId, 'APPROVED_HIRE', "Approved New Employee: " . $data['first_name'] . " " . $data['last_name']);
                 } 
                 // 2. EDIT PROFILE
                 elseif ($req['request_type'] === 'EDIT_PROFILE') {
                     $targetId = $req['target_id'];
+                    
+                    // SAFETY: Remove the note so it doesn't break the SQL UPDATE
+                    unset($data['request_note']);
+
                     $setParts = []; $values = [];
                     foreach ($data as $key => $val) {
                         $setParts[] = "$key = ?";
@@ -65,6 +81,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                             $pdo->prepare("UPDATE documents SET employee_id = ? WHERE employee_id = ?")->execute([$data['emp_id'], $oldEmp['emp_id']]);
                         }
                     }
+
+                    // NOTIFY SUCCESS
+                    $pdo->prepare("INSERT INTO notifications (user_id, title, message, type) VALUES (?, 'Update Approved', 'Your profile update request was approved.', 'success')")
+                        ->execute([$req['user_id']]);
+
                     $logger->log($adminId, 'APPROVED_EDIT', "Approved Profile Edit for ID: " . $req['target_id']);
                 }
                 // 3. UPLOAD DOCUMENT
@@ -75,6 +96,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                         $data['employee_id'], $data['original_name'], $data['file_path'], 
                         $data['category'], $data['expiry_date'], $data['description'], $req['user_id']
                     ]);
+                    
+                    // NOTIFY SUCCESS
+                    $pdo->prepare("INSERT INTO notifications (user_id, title, message, type) VALUES (?, 'Document Approved', ?, 'success')")
+                       ->execute([$req['user_id'], "Document '" . $data['original_name'] . "' has been approved."]);
+
                     $logger->log($adminId, 'APPROVED_DOC', "Approved Document: " . $data['original_name']);
                 }
                 // 4. RESOLVE ALERT (TICKET)
@@ -83,6 +109,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                     $note  = $data['note'];
                     // This sets the alert to hidden (Resolved)
                     $pdo->prepare("UPDATE documents SET is_resolved = 1, resolution_note = ? WHERE id = ?")->execute([$note, $docId]);
+                    
+                    // NOTIFY SUCCESS
+                    $pdo->prepare("INSERT INTO notifications (user_id, title, message, type) VALUES (?, 'Resolution Approved', 'Your resolution report was approved.', 'success')")
+                        ->execute([$req['user_id']]);
+
                     $logger->log($adminId, 'APPROVED_RESOLUTION', "Approved resolution for Doc ID $docId");
                 }
 
@@ -95,11 +126,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             }
 
         } elseif ($action === 'reject') {
-            // === DISREGARD TICKET ===
-            // Deleting the request WITHOUT updating 'is_resolved' means the alert stays active.
+            // [NEW] REJECTION LOGIC WITH NOTE
+            $msgTitle = "Request Rejected";
+            $msgBody  = "Your request (" . $req['request_type'] . ") was rejected.";
+            
+            // Append the reason if the admin typed one
+            if (!empty($reject_reason)) {
+                $msgBody .= "\n\nReason: " . $reject_reason;
+            }
+
+            // Insert Notification
+            $pdo->prepare("INSERT INTO notifications (user_id, title, message, type) VALUES (?, ?, ?, 'danger')")
+                ->execute([$req['user_id'], $msgTitle, $msgBody]);
+
+            // Deleting the request
             $pdo->prepare("DELETE FROM requests WHERE id = ?")->execute([$req_id]);
-            $logger->log($adminId, 'REJECTED_REQUEST', "Rejected/Disregarded request type: " . $req['request_type']);
-            $msg = "Request Rejected / Disregarded";
+            $logger->log($adminId, 'REJECTED_REQUEST', "Rejected request: " . $req['request_type']);
+            $msg = "Request Rejected & User Notified";
         }
     }
 
@@ -107,12 +150,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     exit;
 }
 
-/// FETCH REQUESTS (Updated to LEFT JOIN to show requests even if user is deleted)
+/// FETCH REQUESTS
 $newHires = $pdo->query("SELECT r.*, u.username FROM requests r LEFT JOIN users u ON r.user_id = u.id WHERE request_type='ADD_EMPLOYEE'")->fetchAll();
 $edits    = $pdo->query("SELECT r.*, u.username FROM requests r LEFT JOIN users u ON r.user_id = u.id WHERE request_type='EDIT_PROFILE'")->fetchAll();
 $docs     = $pdo->query("SELECT r.*, u.username FROM requests r LEFT JOIN users u ON r.user_id = u.id WHERE request_type='UPLOAD_DOC'")->fetchAll();
-
-// THIS IS THE ONE FOR RESOLUTIONS:
 $tickets  = $pdo->query("SELECT r.*, u.username FROM requests r LEFT JOIN users u ON r.user_id = u.id WHERE request_type='RESOLVE_ALERT'")->fetchAll();
 ?>
 
@@ -170,6 +211,32 @@ $tickets  = $pdo->query("SELECT r.*, u.username FROM requests r LEFT JOIN users 
     </div>
 </div>
 
+<div class="modal fade" id="rejectModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title">Reject Request</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST">
+                <div class="modal-body">
+                    <input type="hidden" name="req_id" id="reject_req_id">
+                    <input type="hidden" name="tab_name" id="reject_tab_name">
+                    <input type="hidden" name="action" value="reject">
+                    
+                    <label class="form-label fw-bold">Reason for Rejection:</label>
+                    <textarea name="reject_reason" class="form-control" rows="3" placeholder="e.g. Photo is blurry, please retake." required></textarea>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-danger">Confirm Rejection</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+
 <?php
 // HELPER FUNCTION TO RENDER TABLES
 function renderTable($requests, $type) {
@@ -202,11 +269,10 @@ function renderTable($requests, $type) {
                 <form method='POST' class='d-inline'>
                     <input type='hidden' name='req_id' value='{$r['id']}'>
                     <input type='hidden' name='tab_name' value='$tabName'>
-                    
                     <button name='action' value='approve' class='btn btn-sm btn-success' title='Approve'><i class='bi bi-check-lg'></i></button>
-                    
-                    <button name='action' value='reject' class='btn btn-sm btn-danger' title='Disregard / Reject'><i class='bi bi-x-lg'></i></button>
                 </form>
+                
+                <button type='button' class='btn btn-sm btn-danger' onclick='openRejectModal({$r['id']}, \"$tabName\")' title='Reject with Note'><i class='bi bi-x-lg'></i></button>
             </td>
         </tr>";
     }
@@ -231,22 +297,27 @@ document.addEventListener("DOMContentLoaded", function() {
     }
 });
 
+// THIS WAS MISSING BEFORE - IT OPENS THE REJECT MODAL
+function openRejectModal(reqId, tabName) {
+    document.getElementById('reject_req_id').value = reqId;
+    document.getElementById('reject_tab_name').value = tabName;
+    new bootstrap.Modal(document.getElementById('rejectModal')).show();
+}
+
 function openPreview(data, type) {
     let content = '';
     const modalBody = document.getElementById('modalContent');
 
-    // === 1. IF IT IS A TICKET (RESOLUTION REPORT) ===
+    // 1. TICKET (RESOLUTION)
     if (type === 'ticket') {
         content += `<div class="alert alert-warning border-start border-5 border-warning shadow-sm">
                         <h5 class="text-dark"><i class="bi bi-clipboard-check"></i> Resolution Report</h5>
                         <hr>
                         <p class="mb-1 text-muted small">Staff Note:</p>
                         <p class="fs-5 fw-bold text-dark">"${data.note}"</p>
-                        <hr>
-                        <small class="text-muted"><i class="bi bi-info-circle"></i> If you approve this, the Dashboard Alert will be marked as Resolved and removed.</small>
                     </div>`;
     }
-    // === 2. IF IT IS A DOCUMENT ===
+    // 2. DOCUMENT
     else if (type === 'doc') {
         let filePath = 'uploads/' + encodeURIComponent(data.file_path); 
         let fileExt = data.original_name.split('.').pop().toLowerCase();
@@ -261,12 +332,28 @@ function openPreview(data, type) {
             content += `<img src="${filePath}" style="max-width:100%; max-height:400px; display:block; margin:0 auto;" onerror="this.src='../assets/error_image.png';">`;
         }
     } 
-    // === 3. IF IT IS A PROFILE EDIT/ADD ===
+    // 3. PROFILE ADD / EDIT
     else {
+        // --- DEBUG MODE: ALWAYS SHOW NOTE STATUS ---
+        if (data.request_note && data.request_note.trim() !== "") {
+            // Note Exists
+            content += `<div class="alert alert-warning border-start border-5 border-warning shadow-sm mb-3">
+                            <h6 class="text-dark fw-bold"><i class="bi bi-chat-left-text-fill me-2"></i> Note from Staff:</h6>
+                            <p class="mb-0 text-dark fs-6">"${data.request_note}"</p>
+                        </div>`;
+        } else {
+            // Note Missing 
+            content += `<div class="alert alert-secondary border-start border-5 border-secondary shadow-sm mb-3">
+                            <h6 class="text-muted fw-bold"><i class="bi bi-chat-left-text me-2"></i> Note from Staff:</h6>
+                            <p class="mb-0 text-muted small"><em>(No note was entered for this request)</em></p>
+                        </div>`;
+        }
+
         content += '<table class="table table-bordered table-sm">';
         for (const [key, value] of Object.entries(data)) {
-            if(value && key !== 'avatar_path') {
-                content += `<tr><th class="bg-light w-25">${key.toUpperCase()}</th><td>${value}</td></tr>`;
+            if(value && key !== 'avatar_path' && key !== 'request_note') {
+                let label = key.replace(/_/g, ' ').toUpperCase();
+                content += `<tr><th class="bg-light w-25">${label}</th><td>${value}</td></tr>`;
             }
         }
         content += '</table>';
