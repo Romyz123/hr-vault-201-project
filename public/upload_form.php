@@ -3,11 +3,6 @@ require '../config/db.php';
 require '../src/Security.php';
 session_start();
 
-if (!isset($_SESSION['user_id'])) {
-    header("Location: login.php");
-    exit;
-}
-
 // --- LOGIC: CHECK IF PRE-SELECTED EMPLOYEE EXISTS ---
 $preFilledID = '';
 $preFilledName = '';
@@ -237,5 +232,36 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 </script>
 
+<script>
+// ==========================================
+// [SECURITY] AUTO-LOGOUT (Client-Side)
+// ==========================================
+
+// TIME SETTING: 30 Minutes
+// 1 second = 1000
+// 15 mins  = 900000
+// 30 mins  = 1800000  <-- WE ARE USING THIS
+const INACTIVITY_LIMIT = 1800000; 
+
+let autoLogoutTimer;
+
+function resetTimer() {
+    clearTimeout(autoLogoutTimer);
+    autoLogoutTimer = setTimeout(doLogout, INACTIVITY_LIMIT);
+}
+
+function doLogout() {
+    // Redirect to logout page with message
+    alert("Session expired due to inactivity.");
+    window.location.href = 'logout.php?msg=Session_Expired_Auto';
+}
+
+// LISTEN FOR ACTIVITY (Resets timer on movement/clicks)
+window.onload = resetTimer;
+document.addEventListener('mousemove', resetTimer);
+document.addEventListener('keydown', resetTimer);
+document.addEventListener('click', resetTimer);
+document.addEventListener('scroll', resetTimer);
+</script>
 </body>
 </html>

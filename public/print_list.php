@@ -1,4 +1,9 @@
 <?php
+// ======================================================
+// [FILE] public/print_list.php
+// [STATUS] DESIGN: Original (Restored) | LOGIC: Fixed
+// ======================================================
+
 require '../config/db.php';
 require '../src/Security.php';
 session_start();
@@ -6,19 +11,29 @@ session_start();
 if (!isset($_SESSION['user_id'])) { die("Access Denied"); }
 
 // 1. CAPTURE FILTERS
-$filter_status = isset($_GET['status']) ? htmlspecialchars($_GET['status']) : '';
-$filter_type   = isset($_GET['type'])   ? htmlspecialchars($_GET['type'])   : '';
-$filter_dept   = isset($_GET['dept'])   ? htmlspecialchars($_GET['dept'])   : '';
+$filter_status = isset($_GET['status']) ? trim($_GET['status']) : '';
+$filter_type   = isset($_GET['type'])   ? trim($_GET['type'])   : '';
+$filter_dept   = isset($_GET['dept'])   ? trim($_GET['dept'])   : '';
 $search_query  = isset($_GET['search']) ? trim($_GET['search']) : '';
 
 // 2. BUILD QUERY
-$sql = "SELECT emp_id, last_name, first_name, job_title, dept, section, employment_type, hire_date, status 
+// [FIX 1] Added 'agency_name' to the SELECT list so we can display it.
+$sql = "SELECT emp_id, last_name, first_name, job_title, dept, section, employment_type, agency_name, hire_date, status 
         FROM employees WHERE 1=1";
 $params = [];
 
 if (!empty($filter_status)) { $sql .= " AND status = ?"; $params[] = $filter_status; }
-if (!empty($filter_type))   { $sql .= " AND employment_type = ?"; $params[] = $filter_type; }
+
+// [FIX 2] Updated Filter Logic to search BOTH Employment Type AND Agency Name
+// This ensures "Joratech", "UnliSolutions", etc. work correctly.
+if (!empty($filter_type)) { 
+    $sql .= " AND (employment_type = ? OR agency_name = ?)"; 
+    $params[] = $filter_type; 
+    $params[] = $filter_type; 
+}
+
 if (!empty($filter_dept))   { $sql .= " AND dept = ?"; $params[] = $filter_dept; }
+
 if (!empty($search_query))  { 
     $sql .= " AND (emp_id LIKE ? OR first_name LIKE ? OR last_name LIKE ?)";
     $term = "%$search_query%";
@@ -38,7 +53,7 @@ $employees = $stmt->fetchAll();
     <meta charset="UTF-8">
     <title>Employee Master List</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-  <style>
+    <style>
     /* 1. Force A4 Landscape */
     @page {
         size: A4 landscape;
@@ -47,14 +62,14 @@ $employees = $stmt->fetchAll();
 
     @media print {
         .no-print { display: none !important; }
-       body {
-        background: white;
-        -webkit-print-color-adjust: exact; /* For Chrome/Safari */
-        print-color-adjust: exact;
+        body {
+            background: white;
+            -webkit-print-color-adjust: exact; /* For Chrome/Safari */
+            print-color-adjust: exact;
+        }
         .page { box-shadow: none; margin: 0; width: 100%; }
         /* Fix Table Borders for printing */
         .table-bordered th, .table-bordered td { border: 1px solid #000 !important; }
-    }
     }
     
     body { background: #eee; }
@@ -67,7 +82,7 @@ $employees = $stmt->fetchAll();
         box-shadow: 0 0 10px rgba(0,0,0,0.3); 
     }
     .table-sm { font-size: 0.8rem; } /* Slightly smaller text to fit everything */
-</style>
+    </style>
 </head>
 <body>
 
@@ -109,7 +124,9 @@ $employees = $stmt->fetchAll();
                 <td><?php echo htmlspecialchars($emp['job_title']); ?></td>
                 <td><?php echo htmlspecialchars($emp['dept']); ?></td>
                 <td><?php echo htmlspecialchars($emp['section']); ?></td>
-                <td><?php echo htmlspecialchars($emp['employment_type']); ?></td>
+                <td>
+                    <?php echo htmlspecialchars($emp['agency_name'] ?: $emp['employment_type']); ?>
+                </td>
                 <td><?php echo htmlspecialchars($emp['hire_date']); ?></td>
                 <td><?php echo htmlspecialchars($emp['status']); ?></td>
             </tr>

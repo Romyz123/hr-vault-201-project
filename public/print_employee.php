@@ -91,7 +91,13 @@ $docs = $docStmt->fetchAll();
     
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div class="d-flex align-items-center">
-            <img src="uploads/avatars/<?php echo $emp['avatar_path']; ?>" class="profile-img me-4" onerror="this.src='../assets/default_avatar.png'">
+
+<img src="uploads/avatars/<?php echo htmlspecialchars($emp['avatar_path'] ?: 'default.png'); ?>" 
+ alt="Profile Photo"
+style="width: 150px; height: 150px; object-fit: cover; border: 1px solid #000;"
+onerror="this.onerror=null; this.src='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI1MCIgZmlsbD0iI2UzZTNlMyIvPjxwYXRoIGQ9Ik01MCA1MCBhMjAgMjAgMCAxIDAgMC00MCAyMCAyMCAwIDEgMCAwIDQwIHptMCAxMCBjLTE1IDAtMzUgMTAtMzUgMzAgdjEwIGg3MCB2LTEwIGMtMC0yMC0yMC0zMC0zNS0zMCIgZmlsbD0iI2FhYSIvPjwvc3ZnPg==';">
+
+
             <div>
                 <h1 class="m-0 fw-bold"><?php echo strtoupper($emp['last_name'] . ', ' . $emp['first_name']); ?></h1>
                 <p class="mb-0 fs-5"><?php echo $emp['job_title']; ?></p>
@@ -111,7 +117,7 @@ $docs = $docStmt->fetchAll();
 
     <div class="section-title">Personal Information</div>
     <div class="row g-3">
-        <div class="col-4"><div class="data-label">Date of Birth</div><div class="data-value"><?php echo $emp['birthdate']; ?></div></div>
+        <div class="col-4"><div class="data-label">Date of Birth</div><div class="data-value"><?php echo $emp['birth_date']; ?></div></div>
         <div class="col-4"><div class="data-label">Contact Number</div><div class="data-value"><?php echo $emp['contact_number']; ?></div></div>
         <div class="col-4"><div class="data-label">Email</div><div class="data-value"><?php echo $emp['email']; ?></div></div>
         <div class="col-12"><div class="data-label">Present Address</div><div class="data-value"><?php echo $emp['present_address']; ?></div></div>

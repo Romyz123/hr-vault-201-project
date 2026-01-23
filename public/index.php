@@ -1,40 +1,151 @@
-
 <?php
 // ======================================================
 // TESP HR 201 System - Dashboard & Notification Center
+// (Refactored with fixes, comments, and input length guards)
 // ======================================================
 
-// ---- 1) SYSTEM IMPORTS, SECURITY, SESSION ------------
+// ---------- 1) SYSTEM IMPORTS, SECURITY, SESSION ----------
 require '../config/db.php';
 require '../src/Security.php';
+require '../src/Logger.php';
 session_start();
 
-// CSRF PROTECTION (for forms on this page, e.g., export)
-if (empty($_SESSION['csrf_token'])) {
-    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
-}
-
+// Redirect guests to login
 if (!isset($_SESSION['user_id'])) {
     header('Location: login.php');
     exit;
 }
-// [FIX] Normalize Role to Uppercase (Handles 'hr', 'HR', 'Hr')
-$userRole = isset($_SESSION['role']) ? strtoupper($_SESSION['role']) : '';
+
+// Normalize role to uppercase (handles 'hr', 'HR', etc.)
+$userRole = isset($_SESSION['role']) ? strtoupper((string)$_SESSION['role']) : '';
 
 $security = new Security($pdo);
+$logger   = new Logger($pdo);
+
+// Light rate limit (per IP): 500 req / minute
 $security->checkRateLimit($_SERVER['REMOTE_ADDR'] ?? '0.0.0.0', 500, 60);
 
-// ---- 2) NOTIFICATION SYSTEM --------------------------
-
-// A. Handle "Clear All" (clears only DB notifications for user)
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['clear_notifs'])) {
-    $delStmt = $pdo->prepare("DELETE FROM notifications WHERE user_id = ?");
-    $delStmt->execute([$_SESSION['user_id']]);
-    header("Location: index.php");
-    exit;
+// CSRF token for forms on this page
+if (empty($_SESSION['csrf_token'])) {
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 }
 
-// B. Fetch Admin/User Notifications (Source 1)
+// ---------- 2) AUTOMATED FRIDAY BACKUP (ADMIN only) ----------
+// Creates a simple SQL dump once each Friday (local server time)
+if ($userRole === 'ADMIN' && date('D') === 'Fri') {
+    $backupFolder = realpath(__DIR__ . '/../backups');
+    if ($backupFolder === false) {
+        // Attempt to create backups folder if missing
+        $backupFolder = __DIR__ . '/../backups';
+        @mkdir($backupFolder, 0755, true);
+    }
+    $backupFile = rtrim($backupFolder, '/\\') . '/AutoBackup_' . date('Y-m-d') . '.sql';
+
+    // Only create one backup per Friday
+    if (!file_exists($backupFile)) {
+        $tables = [];
+        $query  = $pdo->query('SHOW TABLES');
+        while ($row = $query->fetch(PDO::FETCH_NUM)) { $tables[] = $row[0]; }
+
+        $content  = "-- AUTOMATED FRIDAY BACKUP\n";
+        $content .= "-- Date: " . date("Y-m-d H:i:s") . "\n\n";
+        $content .= "SET FOREIGN_KEY_CHECKS=0;\n\n";
+
+        foreach ($tables as $table) {
+            // CREATE TABLE DDL
+            $stmt = $pdo->query("SHOW CREATE TABLE `$table`");
+            $row  = $stmt->fetch(PDO::FETCH_NUM);
+            $content .= "DROP TABLE IF EXISTS `$table`;\n" . $row[1] . ";\n\n";
+
+            // INSERT rows
+            $stmt = $pdo->query("SELECT * FROM `$table`");
+            while ($r = $stmt->fetch(PDO::FETCH_ASSOC)) {
+                $values = [];
+                foreach ($r as $v) {
+                    if ($v === null) { $values[] = "NULL"; continue; }
+                    $v = addslashes((string)$v);
+                    $v = str_replace("\n", "\\n", $v);
+                    $values[] = "'{$v}'";
+                }
+                $content .= "INSERT INTO `$table` VALUES (" . implode(', ', $values) . ");\n";
+            }
+            $content .= "\n";
+        }
+        $content .= "\nSET FOREIGN_KEY_CHECKS=1;";
+
+        if (@file_put_contents($backupFile, $content) !== false) {
+            // Log and show a one-time success message in UI
+            $logger->log($_SESSION['user_id'], 'AUTO_BACKUP', 'Weekly Friday Backup created successfully.');
+            $_SESSION['backup_msg'] = "✅ Weekly Backup Completed Automatically!";
+        }
+    }
+}
+
+// ---------- 3) HELPERS ----------
+function h($v): string { return htmlspecialchars((string)$v, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); }
+
+/**
+ * Get and sanitize GET param with a max length (prevents oversized values)
+ */
+function getQueryParamSafe(string $key, int $maxLen = 100, $default = ''): string {
+    $val = isset($_GET[$key]) ? trim((string)$_GET[$key]) : $default;
+    if (mb_strlen($val) > $maxLen) {
+        $val = mb_substr($val, 0, $maxLen);
+    }
+    return $val;
+}
+
+/**
+ * Keep existing GET params while overriding given keys
+ */
+function keepQuery(array $override = []): string {
+    $q = $_GET;
+    foreach ($override as $k => $v) {
+        if ($v === null) unset($q[$k]);
+        else $q[$k] = $v;
+    }
+    $qs = http_build_query($q);
+    return $qs ? ('?' . $qs) : '';
+}
+
+// ---------- 4) INPUTS / FILTERS / SORT / PAGINATION ----------
+$filter_status = getQueryParamSafe('status', 24, '');
+$filter_type   = getQueryParamSafe('type',   40, ''); // can match employment_type or agency_name
+$filter_dept   = getQueryParamSafe('dept',   32, '');
+$search_query  = getQueryParamSafe('search', 150, '');
+$sort_option   = getQueryParamSafe('sort',   24, 'newest');
+
+// Sort whitelist (prevents SQL injection)
+$sortWhitelist = [
+    'newest'   => 'hire_date DESC',
+    'oldest'   => 'hire_date ASC',
+    'alpha_az' => 'last_name ASC, first_name ASC',
+    'alpha_za' => 'last_name DESC, first_name DESC'
+];
+$orderBy = $sortWhitelist[$sort_option] ?? $sortWhitelist['newest'];
+
+// Pagination inputs, bounded to reasonable values
+$page    = max(1, (int)($_GET['page'] ?? 1));
+$perPage = (int)($_GET['per_page'] ?? 24);
+$perPage = max(6, min(48, $perPage));
+$offset  = ($page - 1) * $perPage;
+
+// ---------- 5) NOTIFICATIONS (DB + Expiry alerts) ----------
+// Handle "Clear Messages" (only clears DB notifications for this user)
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['clear_notifs'])) {
+    // CSRF validation
+    $formToken = $_POST['csrf_token'] ?? '';
+    if (!hash_equals($_SESSION['csrf_token'], $formToken)) {
+        // silently ignore if token mismatch (or handle as you prefer)
+    } else {
+        $delStmt = $pdo->prepare("DELETE FROM notifications WHERE user_id = ?");
+        $delStmt->execute([$_SESSION['user_id']]);
+        header('Location: index.php');
+        exit;
+    }
+}
+
+// (Source 1) User-specific DB notifications
 $notifStmt = $pdo->prepare("
     SELECT id, title, message, type, created_at, 'db_msg' as source, NULL as link_id
     FROM notifications
@@ -42,12 +153,11 @@ $notifStmt = $pdo->prepare("
     ORDER BY created_at DESC
 ");
 $notifStmt->execute([$_SESSION['user_id']]);
-$db_notifs = $notifStmt->fetchAll(PDO::FETCH_ASSOC);
+$db_notifs = $notifStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
-// C. Fetch Expiry Alerts (Source 2)
+// (Source 2) Expiring docs within next 30 days (unresolved)
 $alertDate = date('Y-m-d', strtotime('+30 days'));
-
-$docQuery = "
+$docQuery  = "
     SELECT d.id, d.original_name, d.expiry_date, e.emp_id AS real_emp_id
     FROM documents d
     JOIN employees e ON d.employee_id = e.emp_id
@@ -55,22 +165,22 @@ $docQuery = "
       AND d.expiry_date IS NOT NULL
       AND d.expiry_date <= ?
 ";
-if (($_SESSION['role'] ?? '') !== 'ADMIN' && ($_SESSION['role'] ?? '') !== 'HR') {
-    // (Optional) If you want to scope by who uploaded:
+if (!in_array($userRole, ['ADMIN','HR'], true)) {
+    // scope to files uploaded by current user
     $docQuery .= " AND d.uploaded_by = " . (int)$_SESSION['user_id'];
 }
 $notifyStmt = $pdo->prepare($docQuery);
 $notifyStmt->execute([$alertDate]);
-$raw_alerts = $notifyStmt->fetchAll(PDO::FETCH_ASSOC);
+$raw_alerts = $notifyStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
 $doc_alerts = [];
 foreach ($raw_alerts as $d) {
-    $daysLeft = floor((strtotime($d['expiry_date']) - time()) / 86400);
-    $status = ($daysLeft < 0) ? "EXPIRED" : "{$daysLeft} days left";
+    $daysLeft = (int)floor((strtotime($d['expiry_date']) - time()) / 86400);
+    $status   = ($daysLeft < 0) ? 'EXPIRED' : ($daysLeft . ' days left');
     $doc_alerts[] = [
         'id'         => 'doc_' . $d['id'],
         'title'      => "Document Expiring: {$status}",
-        'message'    => "File: {$d['original_name']}",
+        'message'    => 'File: ' . $d['original_name'],
         'type'       => 'warning',
         'created_at' => date('Y-m-d H:i:s'),
         'source'     => 'expiry',
@@ -80,82 +190,75 @@ foreach ($raw_alerts as $d) {
     ];
 }
 
-// D. Merge & Sort Notifications
+// Merge & sort notifications (newest first)
 $all_notifications = array_merge($db_notifs, $doc_alerts);
 usort($all_notifications, function($a, $b) {
     return strtotime($b['created_at']) <=> strtotime($a['created_at']);
 });
 $notifCount = count($all_notifications);
 
-// ---- 3) HELPERS --------------------------------------
-function h($v): string { return htmlspecialchars((string)$v, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); }
-function hs($v): string { return htmlspecialchars((string)$v, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); }
-function getQueryParam(string $key, $default = '') {
-    return isset($_GET[$key]) ? trim((string)$_GET[$key]) : $default;
-}
-function keepQuery(array $override = []): string {
-    $q = $_GET;
-    foreach ($override as $k => $v) { if ($v === null) unset($q[$k]); else $q[$k] = $v; }
-    return '?' . http_build_query($q);
-}
-
-// ---- 4) INPUTS / FILTERS / SORT / PAGINATION ----------
-$filter_status = getQueryParam('status');
-$filter_type   = getQueryParam('type');
-$filter_dept   = getQueryParam('dept');
-$search_query  = getQueryParam('search');      // used to filter list when user searches or when coming from a notif
-$sort_option   = getQueryParam('sort', 'newest');
-
-// Sort whitelist
-$sortWhitelist = [
-    'newest'   => 'hire_date DESC',
-    'oldest'   => 'hire_date ASC',
-    'alpha_az' => 'last_name ASC, first_name ASC',
-    'alpha_za' => 'last_name DESC, first_name DESC'
-];
-$orderBy = $sortWhitelist[$sort_option] ?? $sortWhitelist['newest'];
-
-// Pagination
-$page     = max(1, (int)getQueryParam('page', 1));
-$perPage  = max(6, min(48, (int)getQueryParam('per_page', 24)));
-$offset   = ($page - 1) * $perPage;
-
-// ---- 5) BUILD FILTER SQL ------------------------------
-$where = ['1=1'];
+// ---------- 6) BUILD FILTER SQL ----------
+$where  = ['1=1'];
 $params = [];
 
-if ($filter_status !== '') { $where[] = 'status = ?';           $params[] = $filter_status; }
-if ($filter_type   !== '') { $where[] = 'employment_type = ?';  $params[] = $filter_type;   }
-if ($filter_dept   !== '') { $where[] = 'dept = ?';             $params[] = $filter_dept;   }
+// Status filter (exact match)
+if ($filter_status !== '') {
+    $where[]  = 'status = ?';
+    $params[] = $filter_status;
+}
 
+// Type filter: match either employment_type or agency_name (exact to value)
+if ($filter_type !== '') {
+    $where[]  = '(employment_type = ? OR agency_name = ?)';
+    $params[] = $filter_type;
+    $params[] = $filter_type;
+}
+
+// Department filter (exact)
+if ($filter_dept !== '') {
+    $where[]  = 'dept = ?';
+    $params[] = $filter_dept;
+}
+
+// Search (LIKE on id/first/last)
 if ($search_query !== '') {
     $where[] = '(emp_id LIKE ? OR first_name LIKE ? OR last_name LIKE ?)';
-    $term = "%{$search_query}%";
+    $term    = "%{$search_query}%";
     array_push($params, $term, $term, $term);
 }
 
 $whereSql = 'WHERE ' . implode(' AND ', $where);
 
-// ---- 6) TOTAL COUNT -----------------------------------
-$countSql = "SELECT COUNT(*) FROM employees {$whereSql}";
+// ---------- 7) TOTAL COUNT ----------
+$countSql  = "SELECT COUNT(*) FROM employees {$whereSql}";
 $countStmt = $pdo->prepare($countSql);
 $countStmt->execute($params);
-$totalRows = (int)$countStmt->fetchColumn();
+$totalRows  = (int)$countStmt->fetchColumn();
 $totalPages = max(1, (int)ceil($totalRows / $perPage));
 
 if ($page > $totalPages) {
-    $page = $totalPages;
+    $page   = $totalPages;
     $offset = ($page - 1) * $perPage;
 }
 
-// ---- 7) FETCH EMPLOYEES -------------------------------
+// ---------- 8) FETCH EMPLOYEES (FIXED: Pure Positional Parameters) ----------
 $empSql = "SELECT * FROM employees {$whereSql} ORDER BY {$orderBy} LIMIT ? OFFSET ?";
-$empParams = array_merge($params, [$perPage, $offset]);
 $empStmt = $pdo->prepare($empSql);
-$empStmt->execute($empParams);
+
+// 1. Bind the WHERE params dynamically
+$paramIndex = 1;
+foreach ($params as $val) {
+    $empStmt->bindValue($paramIndex++, $val);
+}
+
+// 2. Bind LIMIT and OFFSET as Integers (Strictly required for LIMIT)
+$empStmt->bindValue($paramIndex++, $perPage, PDO::PARAM_INT);
+$empStmt->bindValue($paramIndex++, $offset,  PDO::PARAM_INT);
+
+$empStmt->execute();
 $employees = $empStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
-// ---- 8) BATCH FETCH DOCUMENTS -------------------------
+// ---------- 9) BATCH FETCH DOCUMENTS for visible employees ----------
 $filesByEmp = [];
 if (!empty($employees)) {
     $empIds = array_map(fn($e) => $e['emp_id'], $employees);
@@ -169,15 +272,15 @@ if (!empty($employees)) {
     }
 }
 
-// ---- 9) CHART DATA ------------------------------------
+// ---------- 10) CHART DATA (simple counts by category) ----------
 $statsQuery = $pdo->query("SELECT category, COUNT(*) as cnt FROM documents GROUP BY category");
 $stats = $statsQuery->fetchAll(PDO::FETCH_KEY_PAIR) ?: [];
-$labels = json_encode(array_keys($stats), JSON_UNESCAPED_UNICODE);
-$data   = json_encode(array_values($stats), JSON_UNESCAPED_UNICODE);
+$labels = json_encode(array_values(array_keys($stats)), JSON_UNESCAPED_UNICODE);
+$data   = json_encode(array_values($stats),            JSON_UNESCAPED_UNICODE);
 
-// ---- 10) TARGETS FROM NOTIFICATION (for auto-open) ----
-$targetDocId   = getQueryParam('resolve_doc');
-$targetEmpId   = getQueryParam('search'); // employee id string from notification link
+// ---------- 11) TARGETS FROM NOTIFICATION (for auto-open) ----------
+$targetDocId = getQueryParamSafe('resolve_doc', 32, '');
+$targetEmpId = getQueryParamSafe('search',      150, '');
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -223,7 +326,7 @@ $targetEmpId   = getQueryParam('search'); // employee id string from notificatio
 
     <div class="d-flex align-items-center">
 
-        <!-- Notifications -->
+        <!-- Notifications dropdown -->
         <div class="dropdown me-3">
             <a class="text-white position-relative" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                 <i class="bi bi-bell-fill fs-5"></i>
@@ -251,9 +354,8 @@ $targetEmpId   = getQueryParam('search'); // employee id string from notificatio
                 <?php if ($notifCount > 0): ?>
                     <?php foreach ($all_notifications as $n): ?>
                         <?php
-                            if ($n['source'] === 'expiry') {
+                            if (($n['source'] ?? '') === 'expiry') {
                                 $icon = "bi-exclamation-triangle-fill text-warning";
-                                // Build link to filter to that employee and pass resolve_doc
                                 $link = "index.php?search=" . urlencode($n['emp_search']) . "&resolve_doc=" . urlencode((string)$n['link_id']) . "&doc_name=" . urlencode($n['doc_name']);
                                 $clickableClass = "list-group-item-action";
                             } elseif (($n['type'] ?? '') === 'success') {
@@ -267,14 +369,14 @@ $targetEmpId   = getQueryParam('search'); // employee id string from notificatio
                             }
                         ?>
                         <li>
-                            <a href="<?php echo hs($link); ?>" class="dropdown-item white-space-normal <?php echo $clickableClass; ?>">
+                            <a href="<?php echo h($link); ?>" class="dropdown-item white-space-normal <?php echo $clickableClass; ?>">
                                 <div class="d-flex align-items-start">
                                     <i class="bi <?php echo $icon; ?> fs-4 me-2"></i>
                                     <div>
                                         <h6 class="mb-0 small fw-bold"><?php echo h($n['title']); ?></h6>
                                         <p class="mb-1 small text-muted" style="font-size: 0.85rem;"><?php echo h($n['message']); ?></p>
                                         <small class="text-secondary" style="font-size: 0.7rem;">
-                                            <?php echo ($n['source'] === 'expiry') ? "Action Required" : date('M d, h:i A', strtotime($n['created_at'])); ?>
+                                            <?php echo (($n['source'] ?? '') === 'expiry') ? 'Action Required' : date('M d, h:i A', strtotime($n['created_at'])); ?>
                                         </small>
                                     </div>
                                 </div>
@@ -295,7 +397,7 @@ $targetEmpId   = getQueryParam('search'); // employee id string from notificatio
             </a>
             <ul class="dropdown-menu dropdown-menu-end shadow">
                 <li><a class="dropdown-item" href="profile_settings.php"><i class="bi bi-gear me-2"></i> Change Password</a></li>
-                <?php if (($_SESSION['role'] ?? '') === 'ADMIN'): ?>
+                <?php if ($userRole === 'ADMIN'): ?>
                     <li><hr class="dropdown-divider"></li>
                     <li><a class="dropdown-item" href="manager_user.php"><i class="bi bi-people-fill me-2"></i> Manage Users</a></li>
                     <li><a class="dropdown-item" href="activity_logs.php"><i class="bi bi-shield-lock-fill me-2 text-danger"></i> Activity Logs</a></li>
@@ -310,6 +412,16 @@ $targetEmpId   = getQueryParam('search'); // employee id string from notificatio
 
 <div class="container">
 
+    <!-- One-time backup success notice (if any) -->
+    <?php if (!empty($_SESSION['backup_msg'])): ?>
+        <div class="alert alert-success alert-dismissible fade show shadow-sm" role="alert">
+            <i class="bi bi-database-check-fill me-2"></i>
+            <strong>System Update:</strong> <?php echo h($_SESSION['backup_msg']); unset($_SESSION['backup_msg']); ?>
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    <?php endif; ?>
+
+    <!-- Server-side error toast (if any) -->
     <?php if (!empty($_SESSION['error'])): ?>
         <div class="alert alert-danger alert-dismissible fade show mt-2 shadow-sm" role="alert">
             <i class="bi bi-exclamation-octagon-fill fs-5 me-2"></i>
@@ -337,23 +449,40 @@ $targetEmpId   = getQueryParam('search'); // employee id string from notificatio
                     <span class="fw-semibold">Quick Actions</span>
                 </div>
                 <div class="card-body d-grid gap-2">
-                <a href="upload_form.php" class="btn btn-primary"><i class="bi bi-cloud-arrow-up"></i> Upload Document</a>
-                <a href="add_employee.php" class="btn btn-success"><i class="bi bi-person-plus-fill"></i> Add Employee</a>
-    
-                 <button type="button" class="btn btn-dark" data-bs-toggle="modal" data-bs-target="#exportModal">
-                  <i class="bi bi-file-earmark-zip-fill text-warning"></i> Export Files (ZIP)
-                 </button>
+                    <a href="upload_form.php" class="btn btn-primary"><i class="bi bi-cloud-arrow-up"></i> Upload Document</a>
+                    <a href="add_employee.php" class="btn btn-success"><i class="bi bi-person-plus-fill"></i> Add Employee</a>
+                    <a href="import_employees.php" class="btn btn-outline-success" title="Upload CSV">
+                      <i class="bi bi-file-spreadsheet"></i> Bulk Import
+                    </a>
+                    <a href="analytics.php" class="btn btn-outline-primary btn-sm">
+                    <i class="bi bi-graph-up"></i>Analytics
+                     </a>
+                    <a href="tracker.php" class="btn btn-outline-info btn-sm">
+                    <i class="bi bi-kanban"></i> Missing Docs Tracker
+                    <a href="disciplinary.php" class="btn btn-outline-danger btn-sm">
+                    <i class="bi bi-exclamation-triangle"></i> Disciplinary Cases
+                    </a>
+                    </a>
+                    <button type="button" class="btn btn-dark" data-bs-toggle="modal" data-bs-target="#exportModal">
+                      <i class="bi bi-file-earmark-zip-fill text-warning"></i> Export Files (ZIP)
+                    </button>
 
-              <?php if (in_array($userRole, ['ADMIN', 'HR'])): ?>
-              <a href="admin_approval.php" class="btn btn-outline-danger">
-              <i class="bi bi-shield-lock"></i> Approval Center
-             </a>
-            <?php endif; ?>
-         </div>
+                    <?php if (in_array($userRole, ['ADMIN', 'HR'], true)): ?>
+                        <a href="expiry_report.php" class="btn btn-outline-dark w-100 mt-2">
+                          <i class="bi bi-binoculars-fill"></i> Expiry Forecast
+                        </a>
+                    <?php endif; ?>
+                    <?php if (in_array($userRole, ['ADMIN', 'HR'], true)): ?>
+                        <a href="admin_approval.php" class="btn btn-outline-danger">
+                          <i class="bi bi-shield-lock"></i> Approval Center
+                        </a>
+                    <?php endif; ?>
+                </div>
             </div>
         </div>
     </div>
 
+    <!-- Directory Search / Filters -->
     <div class="card mb-4 shadow-soft">
         <div class="card-body">
             <div class="d-flex justify-content-between align-items-center mb-3">
@@ -362,45 +491,65 @@ $targetEmpId   = getQueryParam('search'); // employee id string from notificatio
             </div>
 
             <form action="index.php" method="GET" class="row g-2">
+                <!-- Status filter -->
                 <div class="col-md-2">
                     <select name="status" class="form-select form-select-sm" onchange="this.form.submit()">
                         <option value="">All Statuses</option>
                         <?php
-                        $statuses = ['Active'=>'✅ Active','Resigned'=>'❌ Resigned','Terminated'=>'🛑 Terminated','AWOL'=>'🚫 AWOL'];
+                        $statuses = [
+                            'Active'     => '✅ Active',
+                            'Resigned'   => '❌ Resigned',
+                            'Terminated' => '🛑 Terminated',
+                            'AWOL'       => '🚫 AWOL'
+                        ];
                         foreach ($statuses as $val => $label) {
                             $sel = ($filter_status === $val) ? 'selected' : '';
-                            echo '<option value="'.hs($val).'" '.$sel.'>'.h($label).'</option>';
+                            echo '<option value="'.h($val).'" '.$sel.'>'.h($label).'</option>';
                         }
                         ?>
                     </select>
                 </div>
 
+                <!-- Employment Type/Agency filter -->
                 <div class="col-md-2">
                     <select name="type" class="form-select form-select-sm" onchange="this.form.submit()">
                         <option value="">All Types</option>
                         <?php
-                        $types = ['TESP Direct'=>'TESP Direct','Agency'=>'Agency (All)'];
+                        $types = [
+                            'TESP Direct'      => 'TESP Direct',
+                            'UNLISOLUTIONS'    => 'UnliSolutions',
+                            'JORATECH'         => 'Joratech',
+                            'GUNJIN'           => 'Gunjin',
+                            'OTHERS - SUBCONS' => 'Others'
+                        ];
                         foreach ($types as $val => $label) {
                             $sel = ($filter_type === $val) ? 'selected' : '';
-                            echo '<option value="'.hs($val).'" '.$sel.'>'.h($label).'</option>';
+                            echo '<option value="'.h($val).'" '.$sel.'>'.h($label).'</option>';
                         }
                         ?>
                     </select>
                 </div>
 
-                <div class="col-md-3">
+                <!-- Department filter (FIX: correct name="dept") -->
+                <div class="col-md-2">
                     <select name="dept" class="form-select form-select-sm" onchange="this.form.submit()">
                         <option value="">All Departments</option>
                         <?php
-                        $depts = ['ADMIN','HMS','RAS','TRS','LMS','DOS','SQP','CTS','SIGCOM','PSS','OCS','BFS','WHS','GUNJIN'];
+                        // Match your import/add/edit allowable departments
+                        $depts = [
+                            'SQP','SIGCOM','PSS','OCS','ADMIN',
+                            'HMS','RAS','TRS','LMS','DOS','CTS','BFS','WHS',
+                            'GUNJIN','SUBCONS-OTHERS'
+                        ];
                         foreach ($depts as $d) {
                             $sel = ($filter_dept === $d) ? 'selected' : '';
-                            echo '<option value="'.hs($d).'" '.$sel.'>'.h($d).'</option>';
+                            echo '<option value="'.h($d).'" '.$sel.'>'.h($d).'</option>';
                         }
                         ?>
                     </select>
                 </div>
 
+                <!-- Sort options -->
                 <div class="col-md-2">
                     <select name="sort" class="form-select form-select-sm fw-bold text-primary" onchange="this.form.submit()">
                         <option value="newest"   <?php echo ($sort_option==='newest')?'selected':''; ?>>📅 Newest</option>
@@ -410,12 +559,15 @@ $targetEmpId   = getQueryParam('search'); // employee id string from notificatio
                     </select>
                 </div>
 
+                <!-- Search box (with maxlength for UX) -->
                 <div class="col-md-3 position-relative">
                     <div class="input-group input-group-sm">
                         <input type="text" id="mainSearch" name="search" class="form-control"
-                               placeholder="Search by ID / First / Last..." value="<?php echo h($search_query); ?>" autocomplete="off" aria-label="Search employees">
+                               placeholder="Search by ID / First / Last..." value="<?php echo h($search_query); ?>"
+                               autocomplete="off" aria-label="Search employees" maxlength="150">
                         <button class="btn btn-primary" type="submit" aria-label="Submit search"><i class="bi bi-search"></i></button>
 
+                        <!-- Export dropdown trigger (uses current filters) -->
                         <button type="button" class="btn btn-success dropdown-toggle dropdown-toggle-split" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Export options">
                             <i class="bi bi-download"></i>
                         </button>
@@ -430,12 +582,14 @@ $targetEmpId   = getQueryParam('search'); // employee id string from notificatio
                     <div id="suggestionBox" class="list-group position-absolute w-100 shadow" style="z-index: 1000; display: none; top: 35px;"></div>
                 </div>
 
+                <!-- Keep paging inputs -->
                 <input type="hidden" name="page" value="<?php echo (int)$page; ?>">
                 <input type="hidden" name="per_page" value="<?php echo (int)$perPage; ?>">
             </form>
         </div>
     </div>
 
+    <!-- Results -->
     <?php if (empty($employees)): ?>
         <div class="alert alert-warning text-center shadow-sm">No employees found matching your search.</div>
     <?php endif; ?>
@@ -454,31 +608,40 @@ $targetEmpId   = getQueryParam('search'); // employee id string from notificatio
                 'Terminated' => 'bg-dark',
                 default      => 'bg-secondary'
             };
+            // Color-coded employer badges
+            $agName = strtoupper($emp['agency_name'] ?? '');
             if (($emp['employment_type'] ?? '') === 'TESP Direct') {
                 $employerBadge = '<span class="badge bg-primary">TESP DIRECT</span>';
+            } elseif ($agName === 'JORATECH') {
+                $employerBadge = '<span class="badge bg-success">JORATECH</span>';
+            } elseif ($agName === 'UNLISOLUTIONS') {
+                $employerBadge = '<span class="badge bg-warning text-dark">UNLISOLUTIONS</span>';
+            } elseif ($agName === 'GUNJIN') {
+                $employerBadge = '<span class="badge bg-danger">GUNJIN</span>';
             } else {
-                $agencyName = !empty($emp['agency_name']) ? strtoupper($emp['agency_name']) : 'AGENCY';
-                $employerBadge = '<span class="badge bg-warning text-dark">'.h($agencyName).'</span>';
+                $employerBadge = '<span class="badge bg-secondary">'.h($agName ?: 'AGENCY').'</span>';
             }
             $deptDisplay = h($emp['dept']);
             if (!empty($emp['section']) && $emp['section'] !== 'Main Unit') {
                 $deptDisplay .= ' &gt; ' . h($emp['section']);
             }
-            $files = $filesByEmp[$emp['emp_id']] ?? [];
-            $modalId = 'viewModal' . (int)$emp['id'];
+            $files      = $filesByEmp[$emp['emp_id']] ?? [];
+            $modalId    = 'viewModal' . (int)$emp['id'];
             $previewBoxId = 'preview-' . (int)$emp['id'];
         ?>
         <div class="col-md-6 col-lg-4 mb-4">
             <div class="card h-100 employee-card <?php echo $statusClass; ?>"
                  role="button"
                  data-bs-toggle="modal"
-                 data-bs-target="#<?php echo hs($modalId); ?>"
-                 data-emp-id-str="<?php echo hs($emp['emp_id']); ?>">
+                 data-bs-target="#<?php echo h($modalId); ?>"
+                 data-emp-id-str="<?php echo h($emp['emp_id']); ?>">
                 <div class="card-body">
                     <div class="d-flex justify-content-between align-items-start mb-3">
                         <div class="me-3">
-                            <img src="uploads/avatars/<?php echo h($emp['avatar_path'] ?: ''); ?>" class="avatar-circle"
-                                 onerror="this.src='../assets/default_avatar.png';" alt="Avatar">
+                            <img src="uploads/avatars/<?php echo h($emp['avatar_path'] ?: 'default.png'); ?>"
+                                 class="card-img-top avatar-circle"
+                                 alt="Profile"
+                                 onerror="this.onerror=null; this.src='uploads/avatars/default.png';">
                         </div>
                         <div class="flex-grow-1">
                             <h5 class="card-title mb-1 fw-bold"><?php echo h($emp['first_name'] . ' ' . $emp['last_name']); ?></h5>
@@ -501,7 +664,7 @@ $targetEmpId   = getQueryParam('search'); // employee id string from notificatio
             </div>
 
             <!-- EMPLOYEE MODAL -->
-            <div class="modal fade" id="<?php echo hs($modalId); ?>" tabindex="-1" aria-hidden="true" data-emp-id-str="<?php echo hs($emp['emp_id']); ?>">
+            <div class="modal fade" id="<?php echo h($modalId); ?>" tabindex="-1" aria-hidden="true" data-emp-id-str="<?php echo h($emp['emp_id']); ?>">
                 <div class="modal-dialog modal-xl modal-dialog-scrollable">
                     <div class="modal-content">
                         <div class="modal-header modal-header-custom p-4">
@@ -535,7 +698,7 @@ $targetEmpId   = getQueryParam('search'); // employee id string from notificatio
                                         <div class="row h-100">
                                             <div class="col-4 border-end">
                                                 <div class="d-grid gap-2 mb-3">
-                                                    <a href="upload_form.php?emp_id=<?php echo hs($emp['emp_id']); ?>" class="btn btn-primary btn-sm">
+                                                    <a href="upload_form.php?emp_id=<?php echo h($emp['emp_id']); ?>" class="btn btn-primary btn-sm">
                                                         <i class="bi bi-cloud-arrow-up-fill"></i> Upload New File
                                                     </a>
                                                 </div>
@@ -549,7 +712,7 @@ $targetEmpId   = getQueryParam('search'); // employee id string from notificatio
                                                     ?>
                                                     <div class="list-group-item list-group-item-action d-flex justify-content-between align-items-center p-2 <?php echo $rowClass; ?>">
                                                         <a href="javascript:void(0);" class="text-decoration-none text-dark text-truncate w-75"
-                                                           onclick="showPreview('<?php echo hs($previewUrl); ?>', '<?php echo hs($type); ?>', '<?php echo hs($previewTarget); ?>'); return false;">
+                                                           onclick="showPreview('<?php echo h($previewUrl); ?>', '<?php echo h($type); ?>', '<?php echo h($previewTarget); ?>'); return false;">
                                                             <?php if ($isTarget): ?>
                                                                 <span class="badge bg-danger me-1">⚠️ ACTION REQUIRED</span>
                                                             <?php endif; ?>
@@ -565,21 +728,19 @@ $targetEmpId   = getQueryParam('search'); // employee id string from notificatio
                                                             </button>
                                                         <?php endif; ?>
 
-                                                        <?php if (isset($_SESSION['role']) && in_array($_SESSION['role'], ['ADMIN','HR'], true)): ?>
-                                                            <form action="delete_document.php" method="POST" onsubmit="return confirm('Permanently delete this file?');" class="m-0 ms-1">
-                                                                <input type="hidden" name="file_uuid" value="<?php echo h($file['file_uuid']); ?>">
-                                                                <input type="hidden" name="emp_id" value="<?php echo h($emp['emp_id']); ?>">
-                                                                <button type="submit" class="btn btn-sm btn-outline-danger border-0" title="Delete File">
-                                                                    <i class="bi bi-trash"></i>
-                                                                </button>
-                                                            </form>
+                                                        <?php if (in_array($userRole, ['ADMIN','HR'], true)): ?>
+                                                            <button type="button" class="btn btn-sm btn-outline-danger border-0"
+                                                                    onclick="confirmDelete('<?php echo h($file['file_uuid']); ?>', '<?php echo h($emp['emp_id']); ?>')"
+                                                                    title="Delete File">
+                                                                <i class="bi bi-trash"></i>
+                                                            </button>
                                                         <?php endif; ?>
                                                     </div>
                                                     <?php endforeach; ?>
                                                 </div>
                                             </div>
                                             <div class="col-8">
-                                                <div id="<?php echo hs($previewBoxId); ?>" class="preview-box">Select a file to preview</div>
+                                                <div id="<?php echo h($previewBoxId); ?>" class="preview-box">Select a file to preview</div>
                                             </div>
                                         </div>
                                     </div> <!-- /tab -->
@@ -598,27 +759,27 @@ $targetEmpId   = getQueryParam('search'); // employee id string from notificatio
         <ul class="pagination justify-content-center">
             <?php $prevDisabled = ($page <= 1) ? ' disabled' : ''; $nextDisabled = ($page >= $totalPages) ? ' disabled' : ''; ?>
             <li class="page-item<?php echo $prevDisabled; ?>">
-                <a class="page-link" href="<?php echo hs(keepQuery(['page' => max(1, $page-1)])); ?>" aria-label="Previous"><span aria-hidden="true">&laquo;</span></a>
+                <a class="page-link" href="<?php echo h(keepQuery(['page' => max(1, $page-1)])); ?>" aria-label="Previous"><span aria-hidden="true">&laquo;</span></a>
             </li>
             <?php
             $window = 2;
             $start = max(1, $page - $window);
             $end   = min($totalPages, $page + $window);
             if ($start > 1) {
-                echo '<li class="page-item"><a class="page-link" href="'.hs(keepQuery(['page'=>1])).'">1</a></li>';
+                echo '<li class="page-item"><a class="page-link" href="'.h(keepQuery(['page'=>1])).'">1</a></li>';
                 if ($start > 2) echo '<li class="page-item disabled"><span class="page-link">…</span></li>';
             }
             for ($p=$start; $p<=$end; $p++) {
                 $active = ($p === $page) ? ' active' : '';
-                echo '<li class="page-item'.$active.'"><a class="page-link" href="'.hs(keepQuery(['page'=>$p])).'">'.(int)$p.'</a></li>';
+                echo '<li class="page-item'.$active.'"><a class="page-link" href="'.h(keepQuery(['page'=>$p])).'">'.(int)$p.'</a></li>';
             }
             if ($end < $totalPages) {
                 if ($end < $totalPages - 1) echo '<li class="page-item disabled"><span class="page-link">…</span></li>';
-                echo '<li class="page-item"><a class="page-link" href="'.hs(keepQuery(['page'=>$totalPages])).'">'.(int)$totalPages.'</a></li>';
+                echo '<li class="page-item"><a class="page-link" href="'.h(keepQuery(['page'=>$totalPages])).'">'.(int)$totalPages.'</a></li>';
             }
             ?>
             <li class="page-item<?php echo $nextDisabled; ?>">
-                <a class="page-link" href="<?php echo hs(keepQuery(['page' => min($totalPages, $page+1)])); ?>" aria-label="Next"><span aria-hidden="true">&raquo;</span></a>
+                <a class="page-link" href="<?php echo h(keepQuery(['page' => min($totalPages, $page+1)])); ?>" aria-label="Next"><span aria-hidden="true">&raquo;</span></a>
             </li>
         </ul>
         <p class="text-center text-muted small mb-0">
@@ -627,6 +788,150 @@ $targetEmpId   = getQueryParam('search'); // employee id string from notificatio
     </nav>
     <?php endif; ?>
 
+</div>
+
+<!-- Delete confirmation modal -->
+<div class="modal fade" id="deleteModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title"><i class="bi bi-exclamation-triangle-fill me-2"></i> Confirm Deletion</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body text-center p-4">
+                <div class="text-danger mb-3">
+                    <i class="bi bi-trash3-fill" style="font-size: 3rem;"></i>
+                </div>
+                <h5 class="fw-bold">Are you sure?</h5>
+                <p class="text-muted">Do you really want to permanently delete this file?<br>This process cannot be undone.</p>
+                <form action="delete_document.php" method="POST">
+                    <input type="hidden" name="file_uuid" id="del_file_uuid">
+                    <input type="hidden" name="emp_id" id="del_emp_id">
+                    <div class="d-flex justify-content-center gap-2 mt-4">
+                        <button type="button" class="btn btn-secondary px-4" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-danger px-4">Yes, Delete It</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Resolve/Report Modal (single instance) -->
+<div class="modal fade" id="resolveModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <form action="submit_resolution.php" method="POST" class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title"><i class="bi bi-clipboard2-check me-2"></i> Report Action Taken</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" name="doc_id" id="res_doc_id">
+                <input type="hidden" name="csrf_token" value="<?php echo h($_SESSION['csrf_token']); ?>">
+                <p>Resolving alert for: <strong id="res_cat_name"></strong></p>
+                <textarea name="resolution_note" class="form-control" rows="3" required placeholder="Action taken..." maxlength="500"></textarea>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="submit" class="btn btn-success">Submit Report</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Export Modal (single instance) -->
+<div class="modal fade" id="exportModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <form action="export_files.php" method="POST" class="modal-content" target="_blank">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title"><i class="bi bi-archive-fill"></i> Bulk Export</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" name="csrf_token" value="<?php echo h($_SESSION['csrf_token']); ?>">
+
+                <div class="mb-3 p-2 bg-light border rounded position-relative">
+                    <label class="form-label fw-bold text-primary">Search Employee (Optional)</label>
+                    <input type="text" id="exportSearch" name="search" class="form-control" placeholder="Type Name or ID..." autocomplete="off" maxlength="150">
+                    <div id="exportSuggestionBox" class="list-group position-absolute w-100 shadow" style="display:none; z-index:2000; top:75px;"></div>
+                    <div class="form-text small">Typing a name makes "Department" optional.</div>
+                </div>
+
+                <hr>
+
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Department</label>
+                    <select name="dept" id="exportDept" class="form-select">
+                        <option value="" selected>-- Select Scope --</option>
+                        <option value="ALL" class="fw-bold text-danger">-- ENTIRE DATABASE --</option>
+                        <option value="ADMIN">ADMIN</option><option value="HMS">HMS</option><option value="RAS">RAS</option>
+                        <option value="TRS">TRS</option><option value="LMS">LMS</option><option value="DOS">DOS</option>
+                        <option value="SQP">SQP</option><option value="CTS">CTS</option><option value="SIGCOM">SIGCOM</option>
+                        <option value="PSS">PSS</option><option value="OCS">OCS</option><option value="BFS">BFS</option>
+                        <option value="WHS">WHS</option><option value="GUNJIN">GUNJIN</option><option value="SUBCONS-OTHERS">SUBCONS-OTHERS</option>
+                    </select>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Section (Filtered by Dept)</label>
+                    <select name="section" id="exportSection" class="form-select" disabled>
+                        <option value="">-- All Sections --</option>
+                        <optgroup label="ADMIN">
+                            <option value="GAG">GAG</option><option value="TKG">TKG</option><option value="PCG">PCG</option>
+                            <option value="ACG">ACG</option><option value="MED">MED</option><option value="OP">OP</option>
+                            <option value="CLEANERS/HOUSE KEEPING">CLEANERS</option>
+                        </optgroup>
+                        <optgroup label="HMS"><option value="HEAVY MAINTENANCE SECTION">HEAVY MAINTENANCE SECTION</option></optgroup>
+                        <optgroup label="RAS"><option value="ROOT CAUSE ANALYSIS SECTION">ROOT CAUSE ANALYSIS SECTION</option></optgroup>
+                        <optgroup label="TRS"><option value="TECHNICAL RESEARCH SECTION">TECHNICAL RESEARCH SECTION</option></optgroup>
+                        <optgroup label="LMS"><option value="LIGHT MAINTENANCE SECTION">LIGHT MAINTENANCE SECTION</option></optgroup>
+                        <optgroup label="DOS"><option value="DEPARTMENT OPERATIONS SECTION">DEPARTMENT OPERATIONS SECTION</option></optgroup>
+                        <optgroup label="SQP">
+                            <option value="SAFETY">SAFETY</option><option value="QA">QA</option><option value="PLANNING">PLANNING</option><option value="IT">IT</option>
+                        </optgroup>
+                        <optgroup label="CTS"><option value="CIVIL TRACKS SECTION">CIVIL TRACKS SECTION</option></optgroup>
+                        <optgroup label="SIGCOM"><option value="SIGNALING COMMUNICATION">SIGNALING COMMUNICATION</option></optgroup>
+                        <optgroup label="PSS"><option value="POWER SUPPLY SECTION">POWER SUPPLY SECTION</option></optgroup>
+                        <optgroup label="OCS"><option value="OVERHEAD CATENARY SECTION">OVERHEAD CATENARY SECTION</option></optgroup>
+                        <optgroup label="BFS"><option value="BUILDING FACILITIES SECTION">BUILDING FACILITIES SECTION</option></optgroup>
+                        <optgroup label="WHS"><option value="WAREHOUSE">WAREHOUSE</option></optgroup>
+                        <optgroup label="GUNJIN"><option value="EMT">EMT</option><option value="SECURITY PERSONNEL">SECURITY PERSONNEL</option></optgroup>
+                        <optgroup label="SUBCONS-OTHERS"><option value="OTHERS">OTHERS</option></optgroup>
+                    </select>
+                </div>
+
+                <div class="row">
+                    <div class="col-6 mb-3">
+                        <label class="form-label fw-bold">Agency</label>
+                        <select name="employment_type" class="form-select">
+                            <option value="">-- All --</option>
+                            <option value="TESP DIRECT">TESP DIRECT</option>
+                            <option value="GUNJIN">GUNJIN</option>
+                            <option value="JORATECH">JORATECH</option>
+                            <option value="UNLISOLUTIONS">UNLISOLUTIONS</option>
+                            <option value="OTHERS - SUBCONS">OTHERS - SUBCONS</option>
+                        </select>
+                    </div>
+                    <div class="col-6 mb-3">
+                        <label class="form-label fw-bold">Category</label>
+                        <select name="category" class="form-select">
+                            <option value="">-- All --</option>
+                            <option value="201 Files">201 Files</option>
+                            <option value="Medical">Medical</option>
+                            <option value="Contract">Contract</option>
+                            <option value="Evaluation">Evaluation</option>
+                            <option value="Certificate">Certificate</option>
+                            <option value="Others">Others</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="submit" class="btn btn-success"><i class="bi bi-download"></i> Download ZIP</button>
+            </div>
+        </form>
+    </div>
 </div>
 
 <!-- SINGLE Bootstrap bundle include -->
@@ -669,7 +974,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 });
 
-// ---------- Typeahead Suggestions ----------
+// ---------- Typeahead Suggestions (Directory Search) ----------
 (() => {
     const searchInput = document.getElementById('mainSearch');
     const suggestionBox = document.getElementById('suggestionBox');
@@ -717,210 +1022,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 })();
 
-// ---------- Document Preview ----------
-function showPreview(url, type, containerId) {
-    const container = document.getElementById(containerId);
-    if (!container) return;
-    container.innerHTML = '<div class="d-flex justify-content-center align-items-center h-100 text-muted"><div class="spinner-border spinner-border-sm text-primary me-2"></div> Loading...</div>';
-    setTimeout(() => {
-        container.innerHTML = '';
-        if (type === 'pdf') {
-            const iframe = document.createElement('iframe');
-            iframe.src = url;
-            iframe.className = 'preview-iframe';
-            container.appendChild(iframe);
-        } else {
-            const img = document.createElement('img');
-            img.src = url;
-            img.className = 'preview-img';
-            img.alt = 'Preview';
-            container.appendChild(img);
-        }
-    }, 200);
-}
-
-// ---------- Resolve Modal ----------
-function openResolveModal(id, fileName) {
-    const idField   = document.getElementById('res_doc_id');
-    const nameField = document.getElementById('res_cat_name');
-    const modalEl   = document.getElementById('resolveModal');
-    if (!idField || !nameField || !modalEl) return;
-
-    idField.value = String(id);
-    nameField.innerText = fileName;
-    const modal = new bootstrap.Modal(modalEl);
-    modal.show();
-}
-
-// ---------- Prevent "stuck" screen with nested modals ----------
-document.addEventListener('hidden.bs.modal', function () {
-    const anyOpen = document.querySelectorAll('.modal.show').length > 0;
-    if (anyOpen) {
-        document.body.classList.add('modal-open');
-    } else {
-        document.body.classList.remove('modal-open');
-    }
-});
-
-// ---------- Auto-open target modal from notification & restore list on cancel ----------
-document.addEventListener('DOMContentLoaded', function () {
-    const params     = new URLSearchParams(window.location.search);
-    const targetDoc  = params.get('resolve_doc');
-    const targetEmp  = params.get('search');
-
-    if (targetDoc && targetEmp) {
-        // Find the modal for the targeted employee on this page
-        const modalEl = document.querySelector(`.modal[data-emp-id-str="${CSS.escape(targetEmp)}"]`);
-        if (modalEl) {
-            const modal = new bootstrap.Modal(modalEl);
-            modal.show();
-
-            // When user closes the modal, go back to full list (no ?search=)
-            modalEl.addEventListener('hidden.bs.modal', function onHide() {
-                modalEl.removeEventListener('hidden.bs.modal', onHide);
-                window.location.href = 'index.php';
-            }, { once: true });
-        }
-
-        // Clean noisy params from URL immediately to avoid refresh issues
-        const cleanUrl = window.location.pathname; // no query
-        window.history.replaceState({}, document.title, cleanUrl);
-    }
-});
-
-// ---------- (Optional) Live updates hook ----------
-function fetchDashboardUpdates() {
-    // If you have an endpoint that returns {count, html, chartLabels, chartValues}
-    // keep this function (IDs exist in DOM now: notifyBadge, notifyList).
-    // fetch('api/get_updates.php')
-    //   .then(r => r.json())
-    //   .then(data => { ...update UI... })
-    //   .catch(()=>{});
-}
-</script>
-
-<!-- Resolve/Report Modal (single instance) -->
-<div class="modal fade" id="resolveModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog">
-        <form action="submit_resolution.php" method="POST" class="modal-content">
-            <div class="modal-header bg-success text-white">
-                <h5 class="modal-title"><i class="bi bi-clipboard2-check me-2"></i> Report Action Taken</h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <input type="hidden" name="doc_id" id="res_doc_id">
-                <input type="hidden" name="csrf_token" value="<?php echo h($_SESSION['csrf_token']); ?>">
-                <p>Resolving alert for: <strong id="res_cat_name"></strong></p>
-                <textarea name="resolution_note" class="form-control" rows="3" required placeholder="Action taken..."></textarea>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button type="submit" class="btn btn-success">Submit Report</button>
-            </div>
-        </form>
-    </div>
-</div>
-
-<!-- Export Modal (single instance) -->
-<div class="modal fade" id="exportModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog">
-        <form action="export_files.php" method="POST" class="modal-content" target="_blank">
-            <div class="modal-header bg-success text-white">
-                <h5 class="modal-title"><i class="bi bi-archive-fill"></i> Bulk Export</h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-
-                <input type="hidden" name="csrf_token" value="<?php echo h($_SESSION['csrf_token']); ?>">
-
-                <div class="mb-3 p-2 bg-light border rounded position-relative">
-                    <label class="form-label fw-bold text-primary">Search Employee (Optional)</label>
-                    <input type="text" id="exportSearch" name="search" class="form-control" placeholder="Type Name or ID..." autocomplete="off">
-                    <div id="exportSuggestionBox" class="list-group position-absolute w-100 shadow"
-                         style="display:none; z-index:2000; top:75px;"></div>
-                    <div class="form-text small">Typing a name makes "Department" optional.</div>
-                </div>
-
-                <hr>
-
-                <div class="mb-3">
-                    <label class="form-label fw-bold">Department</label>
-                    <select name="dept" id="exportDept" class="form-select">
-                        <option value="" selected>-- Select Scope --</option>
-                        <option value="ALL" class="fw-bold text-danger">-- ENTIRE DATABASE --</option>
-                        <option value="ADMIN">ADMIN</option><option value="HMS">HMS</option><option value="RAS">RAS</option>
-                        <option value="TRS">TRS</option><option value="LMS">LMS</option><option value="DOS">DOS</option>
-                        <option value="SQP">SQP</option><option value="CTS">CTS</option><option value="SIGCOM">SIGCOM</option>
-                        <option value="PSS">PSS</option><option value="OCS">OCS</option><option value="BFS">BFS</option>
-                        <option value="WHS">WHS</option><option value="GUNJIN">GUNJIN</option><option value="SUBCONS-OTHERS">SUBCONS-OTHERS</option>
-                    </select>
-                </div>
-
-                <div class="mb-3">
-                    <label class="form-label fw-bold">Section (Filtered by Dept)</label>
-                    <select name="section" id="exportSection" class="form-select" disabled>
-                        <option value="">-- All Sections --</option>
-                        <optgroup label="ADMIN">
-                            <option value="GAG">GAG</option><option value="TKG">TKG</option><option value="PCG">PCG</option>
-                            <option value="ACG">ACG</option><option value="MED">MED</option><option value="OP">OP</option>
-                            <option value="CLEANERS/HOUSE KEEPING">CLEANERS</option>
-                        </optgroup>
-                        <optgroup label="HMS"><option value="HEAVY MAINTENANCE SECTION">HEAVY MAINTENANCE SECTION</option></optgroup>
-                        <optgroup label="RAS"><option value="ROOT CAUSE ANALYSIS SECTION">ROOT CAUSE ANALYSIS SECTION</option></optgroup>
-                        <optgroup label="TRS"><option value="TECHNICAL RESEARCH SECTION">TECHNICAL RESEARCH SECTION</option></optgroup>
-                        <optgroup label="LMS"><option value="LIGHT MAINTENANCE SECTION">LIGHT MAINTENANCE SECTION</option></optgroup>
-                        <optgroup label="DOS"><option value="DEPARTMENT OPERATIONS SECTION">DEPARTMENT OPERATIONS SECTION</option></optgroup>
-                        <optgroup label="SQP">
-                            <option value="SAFETY">SAFETY</option><option value="QA">QA</option><option value="PLANNING">PLANNING</option><option value="IT">IT</option>
-                        </optgroup>
-                        <optgroup label="CTS"><option value="CIVIL TRACKS SECTION">CIVIL TRACKS SECTION</option></optgroup>
-                        <optgroup label="SIGCOM"><option value="SIGNALING COMMUNICATION">SIGNALING COMMUNICATION</option></optgroup>
-                        <optgroup label="PSS"><option value="POWER SUPPLY SECTION">POWER SUPPLY SECTION</option></optgroup>
-                        <optgroup label="OCS"><option value="OVERHEAD CANERARY SECTION">OVERHEAD CANERARY SECTION</option></optgroup>
-                        <optgroup label="BFS"><option value="BUILDING FACILITIES SECTION">BUILDING FACILITIES SECTION</option></optgroup>
-                        <optgroup label="WHS"><option value="WAREHOUSE">WAREHOUSE</option></optgroup>
-                        <optgroup label="GUNJIN"><option value="EMT">EMT</option><option value="SECURITY PERSONNEL">SECURITY PERSONNEL</option></optgroup>
-                        <optgroup label="SUBCONS-OTHERS"><option value="OTHERS">OTHERS</option></optgroup>
-                    </select>
-                </div>
-
-                <div class="row">
-                    <div class="col-6 mb-3">
-                        <label class="form-label fw-bold">Agency</label>
-                        <select name="employment_type" class="form-select">
-                            <option value="">-- All --</option>
-                            <option value="TESP DIRECT">TESP DIRECT</option>
-                            <option value="GUNJIN">GUNJIN</option>
-                            <option value="JORATECH">JORATECH</option>
-                            <option value="UNLISOLUTIONS">UNLISOLUTIONS</option>
-                            <option value="OTHERS - SUBCONS">OTHERS - SUBCONS</option>
-                        </select>
-                    </div>
-                    <div class="col-6 mb-3">
-                        <label class="form-label fw-bold">Category</label>
-                        <select name="category" class="form-select">
-                            <option value="">-- All --</option>
-                            <option value="201 Files">201 Files</option>
-                            <option value="Medical">Medical</option>
-                            <option value="Contract">Contract</option>
-                            <option value="Evaluation">Evaluation</option>
-                            <option value="Certificate">Certificate</option>
-                            <option value="Others">Others</option>
-                        </select>
-                    </div>
-                </div>
-
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
-                <button type="submit" class="btn btn-success"><i class="bi bi-download"></i> Download ZIP</button>
-            </div>
-        </form>
-    </div>
-</div>
-
-<script>
-// Export modal helpers (smart section filter + suggestions)
+// ---------- Export modal helpers (smart section filter + suggestions) ----------
 document.addEventListener('DOMContentLoaded', function () {
     const deptSelect = document.getElementById('exportDept');
     const sectSelect = document.getElementById('exportSection');
@@ -978,6 +1080,92 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 });
+
+// ---------- Document Preview ----------
+function showPreview(url, type, containerId) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+    container.innerHTML = '<div class="d-flex justify-content-center align-items-center h-100 text-muted"><div class="spinner-border spinner-border-sm text-primary me-2"></div> Loading...</div>';
+    setTimeout(() => {
+        container.innerHTML = '';
+        if (type === 'pdf') {
+            const iframe = document.createElement('iframe');
+            iframe.src = url;
+            iframe.className = 'preview-iframe';
+            container.appendChild(iframe);
+        } else {
+            const img = document.createElement('img');
+            img.src = url;
+            img.className = 'preview-img';
+            img.alt = 'Preview';
+            container.appendChild(img);
+        }
+    }, 200);
+}
+
+// ---------- Delete confirmation ----------
+function confirmDelete(uuid, empId) {
+    document.getElementById('del_file_uuid').value = uuid;
+    document.getElementById('del_emp_id').value = empId;
+    new bootstrap.Modal(document.getElementById('deleteModal')).show();
+}
+
+// ---------- Resolve Modal ----------
+function openResolveModal(id, fileName) {
+    const idField   = document.getElementById('res_doc_id');
+    const nameField = document.getElementById('res_cat_name');
+    const modalEl   = document.getElementById('resolveModal');
+    if (!idField || !nameField || !modalEl) return;
+
+    idField.value = String(id);
+    nameField.innerText = fileName;
+    const modal = new bootstrap.Modal(modalEl);
+    modal.show();
+}
+
+// ---------- Prevent "stuck" screen with nested modals ----------
+document.addEventListener('hidden.bs.modal', function () {
+    const anyOpen = document.querySelectorAll('.modal.show').length > 0;
+    if (anyOpen) {
+        document.body.classList.add('modal-open');
+    } else {
+        document.body.classList.remove('modal-open');
+    }
+});
+
+// ---------- Auto-open target modal from notification & restore list on cancel ----------
+document.addEventListener('DOMContentLoaded', function () {
+    const params     = new URLSearchParams(window.location.search);
+    const targetDoc  = params.get('resolve_doc');
+    const targetEmp  = params.get('search');
+
+    if (targetDoc && targetEmp) {
+        // Find the modal for the targeted employee on this page
+        const modalEl = document.querySelector(`.modal[data-emp-id-str="${CSS.escape(targetEmp)}"]`);
+        if (modalEl) {
+            const modal = new bootstrap.Modal(modalEl);
+            modal.show();
+
+            // When user closes the modal, go back to full list (no ?search=)
+            modalEl.addEventListener('hidden.bs.modal', function onHide() {
+                modalEl.removeEventListener('hidden.bs.modal', onHide);
+                window.location.href = 'index.php';
+            }, { once: true });
+        }
+
+        // Clean noisy params from URL immediately to avoid refresh issues
+        const cleanUrl = window.location.pathname; // no query
+        window.history.replaceState({}, document.title, cleanUrl);
+    }
+});
+
+// ---------- [SECURITY] AUTO-LOGOUT (Client-Side) ----------
+// Time setting: 30 minutes (1800000 ms)
+const INACTIVITY_LIMIT = 1800000; 
+let autoLogoutTimer;
+function resetTimer() { clearTimeout(autoLogoutTimer); autoLogoutTimer = setTimeout(doLogout, INACTIVITY_LIMIT); }
+function doLogout() { alert('Session expired due to inactivity.'); window.location.href = 'logout.php?msg=Session_Expired_Auto'; }
+window.onload = resetTimer; document.addEventListener('mousemove', resetTimer); document.addEventListener('keydown', resetTimer); document.addEventListener('click', resetTimer); document.addEventListener('scroll', resetTimer);
 </script>
 
 </body>

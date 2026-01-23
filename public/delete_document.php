@@ -1,46 +1,58 @@
 <?php
+// public/delete_document.php
 require '../config/db.php';
-require '../src/Security.php';
-require '../src/Logger.php';
+require '../src/Logger.php'; 
 session_start();
 
-// 1. SECURITY: Only Admin or HR can delete
-if (!isset($_SESSION['user_id']) || ($_SESSION['role'] !== 'ADMIN' && $_SESSION['role'] !== 'HR')) {
-    header("Location: index.php?error=Access Denied");
+// 1. SECURITY: Allow ADMIN and HR only
+if (!isset($_SESSION['user_id']) || !in_array($_SESSION['role'], ['ADMIN', 'HR'])) {
+    $_SESSION['error'] = "Access Denied: You do not have permission to delete files.";
+    header("Location: index.php");
     exit;
 }
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $file_uuid = $_POST['file_uuid'];
-    $emp_id    = $_POST['emp_id']; // Needed for redirect
+// 2. INPUT CHECK: We expect POST from the Dashboard button
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['file_uuid'])) {
+    
+    $uuid = $_POST['file_uuid'];
+    $empId = $_POST['emp_id'] ?? ''; 
 
-    // 2. FETCH FILE INFO
-    $stmt = $pdo->prepare("SELECT * FROM documents WHERE file_uuid = ?");
-    $stmt->execute([$file_uuid]);
-    $doc = $stmt->fetch();
+    // 3. GET FILE PATH & NAME (Needed for logging)
+    $stmt = $pdo->prepare("SELECT file_path, original_name FROM documents WHERE file_uuid = ?");
+    $stmt->execute([$uuid]);
+    $file = $stmt->fetch();
 
-    if ($doc) {
-        // 3. DELETE ACTUAL FILE
-        $filePath = __DIR__ . '/uploads/' . $doc['file_path'];
+    if ($file) {
+        // 4. DELETE PHYSICAL FILE
+        $filePath = "uploads/" . $file['file_path'];
         if (file_exists($filePath)) {
-            unlink($filePath);
+            unlink($filePath); 
         }
 
-        // 4. DELETE DATABASE RECORD
-        $delStmt = $pdo->prepare("DELETE FROM documents WHERE file_uuid = ?");
-        $delStmt->execute([$file_uuid]);
+        // 5. DELETE DATABASE RECORD
+        $del = $pdo->prepare("DELETE FROM documents WHERE file_uuid = ?");
+        $del->execute([$uuid]);
 
-        // 5. LOG ACTION
+        // ---------------------------------------------------------
+        // [FIX] ENABLE LOGGING
+        // ---------------------------------------------------------
         $logger = new Logger($pdo);
-        $logger->log($_SESSION['user_id'], 'DELETE_DOC', "Deleted file: " . $doc['original_name']);
+        $logger->log($_SESSION['user_id'], "DELETE_DOC", "Deleted file: " . $file['original_name']);
+        // ---------------------------------------------------------
 
-        // Redirect back to the employee's profile
-        // We use a small script to reload the modal or page
-        header("Location: index.php?search=" . $emp_id . "&msg=File Deleted Successfully");
+        // 6. REDIRECT
+        $redirectUrl = "index.php?msg=File Deleted Successfully";
+        if (!empty($empId)) {
+            $redirectUrl .= "&search=" . urlencode($empId); 
+        }
+        header("Location: " . $redirectUrl);
         exit;
     } else {
-        header("Location: index.php?error=File not found");
-        exit;
+        $_SESSION['error'] = "Error: File record not found in database.";
     }
+} else {
+    $_SESSION['error'] = "Invalid Request.";
 }
+
+header("Location: index.php");
 ?>

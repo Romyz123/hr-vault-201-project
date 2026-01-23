@@ -5,7 +5,7 @@ session_start();
 
 $message = '';
 
-// 1. Handle "Unlock System" Request (The Fix)
+// 1. Handle "Unlock System" Request
 if (isset($_POST['unlock_system'])) {
     $pdo->query("TRUNCATE TABLE rate_limits");
     $message = "<div class='alert alert-success'>✅ System Unlocked! You can login now.</div>";
@@ -15,35 +15,43 @@ if (isset($_POST['unlock_system'])) {
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
     $username = trim($_POST['username']);
     $password = trim($_POST['password']);
-
-    $security = new Security($pdo);
     
-    // Check Rate Limit (Returns false if blocked)
-    if (!$security->checkRateLimit($_SERVER['REMOTE_ADDR'])) {
-        $message = "
-        <div class='alert alert-danger'>
-            <strong>⛔ Too Many Requests!</strong><br>
-            You are temporarily locked out.
-            <form method='POST' class='mt-2'>
-                <button type='submit' name='unlock_system' class='btn btn-warning btn-sm w-100'>
-                    <i class='bi bi-unlock-fill'></i> Dev Mode: Force Unlock
-                </button>
-            </form>
-        </div>";
+    // [SECURITY] Check if terms were agreed to (Server-side validation)
+    if (!isset($_POST['terms_agreed'])) {
+        $message = "<div class='alert alert-warning'>⚠️ You must agree to the Confidentiality Pledge to login.</div>";
     } else {
-        // Normal Login Logic
-        $stmt = $pdo->prepare("SELECT * FROM users WHERE username = ?");
-        $stmt->execute([$username]);
-        $user = $stmt->fetch();
-
-        if ($user && password_verify($password, $user['password'])) {
-            $_SESSION['user_id'] = $user['id'];
-            $_SESSION['username'] = $user['username'];
-            $_SESSION['role'] = $user['role'];
-            header("Location: index.php");
-            exit;
+        $security = new Security($pdo);
+        
+        // Check Rate Limit
+        if (!$security->checkRateLimit($_SERVER['REMOTE_ADDR'])) {
+            $message = "
+            <div class='alert alert-danger'>
+                <strong>⛔ Too Many Requests!</strong><br>
+                You are temporarily locked out.
+                <form method='POST' class='mt-2'>
+                    <button type='submit' name='unlock_system' class='btn btn-warning btn-sm w-100'>
+                        <i class='bi bi-unlock-fill'></i> Dev Mode: Force Unlock
+                    </button>
+                </form>
+            </div>";
         } else {
-            $message = "<div class='alert alert-danger'>❌ Invalid Username or Password</div>";
+            // Normal Login Logic
+            $stmt = $pdo->prepare("SELECT * FROM users WHERE username = ?");
+            $stmt->execute([$username]);
+            $user = $stmt->fetch();
+
+            if ($user && password_verify($password, $user['password'])) {
+                $_SESSION['user_id'] = $user['id'];
+                $_SESSION['username'] = $user['username'];
+                $_SESSION['role'] = $user['role'];
+                
+                // [OPTIONAL] Log the login event here
+                
+                header("Location: index.php");
+                exit;
+            } else {
+                $message = "<div class='alert alert-danger'>❌ Invalid Username or Password</div>";
+            }
         }
     }
 }
@@ -81,6 +89,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
             font-size: 3rem;
             color: #198754;
         }
+        /* Disable button style */
+        .btn-disabled {
+            cursor: not-allowed;
+            opacity: 0.6;
+        }
     </style>
 </head>
 <body>
@@ -104,7 +117,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
                 </div>
             </div>
 
-            <div class="mb-4">
+            <div class="mb-3">
                 <label class="form-label text-secondary">Password</label>
                 <div class="input-group">
                     <span class="input-group-text bg-light"><i class="bi bi-key"></i></span>
@@ -112,9 +125,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
                 </div>
             </div>
 
+            <div class="mb-4 form-check bg-light p-3 rounded border">
+                <input type="checkbox" name="terms_agreed" class="form-check-input" id="termsCheck">
+                <label class="form-check-label small text-muted lh-sm" for="termsCheck">
+                    <strong>Confidentiality Pledge:</strong><br>
+                    I promise to keep all accessed data strictly confidential and adhere to MHI Security Policies.
+                </label>
+            </div>
+
             <div class="d-grid">
-                <button type="submit" name="login" class="btn btn-success btn-lg shadow-sm">
-                    Secure Login <i class="bi bi-arrow-right"></i>
+                <button type="submit" name="login" id="loginBtn" class="btn btn-success btn-lg shadow-sm" disabled>
+                    Secure Login <i class="bi bi-lock-fill"></i>
                 </button>
             </div>
         </form>
@@ -124,6 +145,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
         </div>
     </div>
 </div>
+
+<script>
+    // [SCRIPT] Toggle Login Button based on Checkbox
+    const termsCheck = document.getElementById('termsCheck');
+    const loginBtn = document.getElementById('loginBtn');
+    const icon = loginBtn.querySelector('i');
+
+    termsCheck.addEventListener('change', function() {
+        if (this.checked) {
+            loginBtn.disabled = false;
+            loginBtn.innerHTML = 'Secure Login <i class="bi bi-arrow-right"></i>';
+        } else {
+            loginBtn.disabled = true;
+            loginBtn.innerHTML = 'Secure Login <i class="bi bi-lock-fill"></i>';
+        }
+    });
+</script>
 
 </body>
 </html>
