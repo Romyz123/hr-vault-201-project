@@ -12,8 +12,11 @@ try {
     $sql = "CREATE TABLE users (
         id INT AUTO_INCREMENT PRIMARY KEY,
         username VARCHAR(50) UNIQUE NOT NULL,
-        password_hash VARCHAR(255) NOT NULL, -- Must be 255 for security hashes
+        email VARCHAR(100) UNIQUE NULL,
+        password VARCHAR(255) NOT NULL,
         role ENUM('ADMIN', 'STAFF') NOT NULL,
+        reset_token VARCHAR(64) NULL,
+        reset_expires DATETIME NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     ) ENGINE=InnoDB;";
     
@@ -24,14 +27,14 @@ try {
     $pass = 'admin123';
     $hash = password_hash($pass, PASSWORD_DEFAULT);
     
-    $stmt = $pdo->prepare("INSERT INTO users (username, password_hash, role) VALUES ('admin', ?, 'ADMIN')");
+    $stmt = $pdo->prepare("INSERT INTO users (username, email, password, role) VALUES ('admin', 'admin@demo.com', ?, 'ADMIN')");
     $stmt->execute([$hash]);
     
     // 4. INSERT Fresh Staff User
     $passStaff = 'staff123';
     $hashStaff = password_hash($passStaff, PASSWORD_DEFAULT);
     
-    $stmt = $pdo->prepare("INSERT INTO users (username, password_hash, role) VALUES ('staff', ?, 'STAFF')");
+    $stmt = $pdo->prepare("INSERT INTO users (username, email, password, role) VALUES ('staff', 'staff@demo.com', ?, 'STAFF')");
     $stmt->execute([$hashStaff]);
 
     echo "✅ Users created successfully.<br><br>";

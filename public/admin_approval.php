@@ -50,6 +50,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                     $vals = implode(", ", array_fill(0, count($data), "?"));
                     $pdo->prepare("INSERT INTO employees ($cols) VALUES ($vals)")->execute(array_values($data));
                     
+                    // [NEW] Send Welcome Email (On Approval)
+                    if (!empty($data['email'])) {
+                        $subject = "Welcome to TES Philippines!";
+                        $body    = "<h3>Hi " . htmlspecialchars($data['first_name']) . ",</h3>";
+                        $body   .= "<p>Welcome to the team! We are excited to have you on board as our new <strong>" . htmlspecialchars($data['job_title']) . "</strong>.</p>";
+                        $body   .= "<p><strong>Employee ID:</strong> " . htmlspecialchars($data['emp_id']) . "</p>";
+                        $body   .= "<p>Please coordinate with your department head for your initial schedule.</p>";
+                        $body   .= "<br><p>Best Regards,<br>Human Resources</p>";
+
+                        $headers  = "MIME-Version: 1.0" . "\r\n";
+                        $headers .= "Content-type:text/html;charset=UTF-8" . "\r\n";
+                        $headers .= "From: HR System <no-reply@hrsystem.com>" . "\r\n";
+
+                        @mail($data['email'], $subject, $body, $headers);
+                    }
+
                     // NOTIFY SUCCESS
                     $pdo->prepare("INSERT INTO notifications (user_id, title, message, type) VALUES (?, 'Request Approved', ?, 'success')")
                         ->execute([$req['user_id'], "Your request to add employee " . $data['first_name'] . " was approved."]);

@@ -1,7 +1,7 @@
 <?php
 // ======================================================
 // [FILE] public/edit_employee.php
-// [STATUS] FULL VERSION: All Fields Included + Save Fix
+// [STATUS] FULL VERSION: Status + Exit Date + Exit Reason
 // ======================================================
 
 require '../config/db.php';
@@ -31,7 +31,7 @@ if (!$emp) die("Employee not found.");
 // 3. CONFIGURATION
 
 $deptMap = [
-    "SQP"     => ["SAFETY", "QA", "PLANNING", "IT"], // IT is now here!
+    "SQP"     => ["SAFETY", "QA", "PLANNING", "IT"], 
     "SIGCOM"  => ["SIGNALING", "COMMUNICATION", "SIG"],
     "PSS"     => ["POWER SUPPLY", "PSS"],
     "OCS"     => ["OVERHEAD", "CATENARY", "OCS"],
@@ -74,8 +74,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $company_name      = post('company_name', $emp['company_name']);
     $previous_company  = post('previous_company', $emp['previous_company']);
     $hire_date         = post('hire_date', $emp['hire_date']);
-    $status            = post('status', $emp['status']);
     
+    // Status & Exit (Updated)
+    $status            = post('status', $emp['status']);
+    $exit_date         = post('exit_date', $emp['exit_date']); // Logic handled by JS/Display
+    if ($exit_date === '') $exit_date = NULL; // Ensure NULL if empty
+    $exit_reason       = post('exit_reason', $emp['exit_reason']); // <--- NEW FIELD
+
     // Personal Details
     $gender            = post('gender', $emp['gender']);
     $birth_date        = post('birth_date', $emp['birth_date']);
@@ -111,6 +116,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($chk->fetch()) $errors[] = "ID $new_emp_id is already in use.";
     }
 
+    // [SECURITY] Name Validation
+    if (!preg_match("/^[a-zA-Z\s\-\.]+$/", $first_name)) $errors[] = "First Name contains invalid characters.";
+    if ($middle_name !== '' && !preg_match("/^[a-zA-Z\s\-\.]+$/", $middle_name)) $errors[] = "Middle Name contains invalid characters.";
+    if (!preg_match("/^[a-zA-Z\s\-\.]+$/", $last_name)) $errors[] = "Last Name contains invalid characters.";
+
     // Avatar Logic
     $final_avatar_path = $emp['avatar_path'];
     if (isset($_FILES['avatar']) && $_FILES['avatar']['error'] === UPLOAD_ERR_OK) {
@@ -130,7 +140,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // 5. UPDATE DATABASE
     if (empty($errors)) {
         
-        // This array holds ALL the data
         $updateData = [
             'emp_id' => $new_emp_id, 
             'first_name' => $first_name, 
@@ -158,6 +167,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'emergency_contact' => $emergency_contact, 
             'emergency_address' => $emergency_address,
             'status' => $status, 
+            'exit_date' => $exit_date,
+            'exit_reason' => $exit_reason, // <--- SAVING THE REASON
             'avatar_path' => $final_avatar_path
         ];
 
@@ -172,7 +183,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             header("Location: index.php?msg=" . urlencode("📝 Edit Request Submitted"));
             exit;
         } else {
-            // Admin: Direct Update (Do NOT try to save request_note to employees table!)
+            // Admin: Direct Update
             $setParts = [];
             $values = [];
             foreach ($updateData as $k => $v) {
@@ -201,14 +212,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <meta charset="UTF-8">
     <title>Edit Employee</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <style>
         body { background: #f4f6f9; }
         .avatar-preview { width: 120px; height: 120px; object-fit: cover; border-radius: 50%; border: 4px solid #fff; box-shadow: 0 4px 8px rgba(0,0,0,0.1); background: #fff; }
+        .exit-field { display: none; } /* Default hidden */
     </style>
 </head>
 <body class="bg-light">
 
 <div class="container mt-5 mb-5">
+    <!-- DEBUG: Force Show Document Buttons -->
+    <div class="alert alert-warning text-center shadow-sm">
+        <strong>🛠️ DEBUG TOOLS:</strong> 
+        <a href="generate_document.php?id=<?php echo $id; ?>&type=probationary_lms" target="_blank" class="btn btn-sm btn-dark ms-2">Test Probationary Contract</a>
+        <a href="generate_document.php?id=<?php echo $id; ?>&type=confidentiality" target="_blank" class="btn btn-sm btn-dark ms-2">Test NDA</a>
+    </div>
+
     <div class="card shadow">
         <div class="card-header bg-warning text-dark d-flex justify-content-between align-items-center">
             <h5 class="mb-0">✏️ Edit: <?php echo h($emp['first_name'] . ' ' . $emp['last_name']); ?></h5>
@@ -224,9 +244,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             <div class="d-flex align-items-center gap-3 mb-4">
              <img src="uploads/avatars/<?php echo h($emp['avatar_path'] ?: 'default.png'); ?>" 
-     class="avatar-preview" 
-     alt="Profile Photo"
-     onerror="this.onerror=null; this.src='uploads/avatars/default.png';">
+                 class="avatar-preview" 
+                 alt="Profile Photo"
+                 onerror="this.onerror=null; this.src='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI1MCIgZmlsbD0iI2UzZTNlMyIvPjxwYXRoIGQ9Ik01MCA1MCBhMjAgMjAgMCAxIDAgMC00MCAyMCAyMCAwIDEgMCAwIDQwIHptMCAxMCBjLTE1IDAtMzUgMTAtMzUgMzAgdjEwIGg3MCB2LTEwIGMtMC0yMC0yMC0zMC0zNS0zMCIgZmlsbD0iI2FhYSIvPjwvc3ZnPg==';">
                 <div>
                     <div class="fw-bold"><?php echo h($emp['emp_id']); ?></div>
                     <div class="text-muted small"><?php echo h($emp['job_title']); ?></div>
@@ -238,6 +258,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 
                 <h6 class="text-secondary border-bottom pb-2 mb-3">Work Information</h6>
                 <div class="row g-3">
+
+                
                     <div class="col-md-3">
                         <label class="form-label">Employee ID</label>
                         <input type="text" name="emp_id" class="form-control" value="<?php echo val('emp_id'); ?>" required oninput="this.value=this.value.toUpperCase()">
@@ -269,15 +291,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             <?php endforeach; ?>
                         </select>
                     </div>
-                    <div class="col-md-3">
-                        <label class="form-label">Status</label>
-                        <select name="status" class="form-select">
-                            <option value="Active" <?php echo ($emp['status']=='Active')?'selected':''; ?>>Active</option>
-                            <option value="Resigned" <?php echo ($emp['status']=='Resigned')?'selected':''; ?>>Resigned</option>
-                            <option value="Terminated" <?php echo ($emp['status']=='Terminated')?'selected':''; ?>>Terminated</option>
-                        </select>
-                    </div>
-                    <div class="col-md-3">
+                    <div class="col-md-6">
                         <label class="form-label">Hire Date</label>
                         <input type="date" name="hire_date" class="form-control" value="<?php echo val('hire_date'); ?>">
                     </div>
@@ -291,6 +305,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     </div>
                 </div>
 
+                <div class="row mb-3 mt-4 p-3 bg-light border rounded">
+                    
+                    <div class="col-md-3">
+                        <label class="form-label fw-bold">Current Status</label>
+                        <select name="status" id="statusSelect" class="form-select border-primary fw-bold" onchange="toggleExitFields()">
+                            <option value="Active" <?php if($emp['status']=='Active') echo 'selected'; ?>>Active</option>
+                            <option value="Resigned" <?php if($emp['status']=='Resigned') echo 'selected'; ?>>Resigned</option>
+                            <option value="Terminated" <?php if($emp['status']=='Terminated') echo 'selected'; ?>>Terminated</option>
+                            <option value="AWOL" <?php if($emp['status']=='AWOL') echo 'selected'; ?>>AWOL</option>
+                            <option value="Retired" <?php if($emp['status']=='Retired') echo 'selected'; ?>>Retired</option>
+                        </select>
+                    </div>
+
+                    <div class="col-md-3 exit-field">
+                        <label class="form-label fw-bold text-danger">Date of Exit</label>
+                        <input type="date" name="exit_date" class="form-control border-danger text-danger fw-bold" 
+                               value="<?php echo $emp['exit_date'] ?? ''; ?>">
+                    </div>
+
+                    <div class="col-md-6 exit-field">
+                        <label class="form-label fw-bold text-danger">Reason for Leaving</label>
+                        <input type="text" name="exit_reason" class="form-control border-danger" 
+                               placeholder="e.g. Found better opportunity, Family reasons..." 
+                               value="<?php echo htmlspecialchars($emp['exit_reason'] ?? ''); ?>">
+                    </div>
+                </div>
                 <h6 class="text-secondary border-bottom pb-2 mb-3 mt-4">Personal Details</h6>
                 <div class="row g-3">
                     <div class="col-md-4">
@@ -384,8 +424,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <div class="mt-4 d-grid gap-2">
                     <button type="submit" class="btn btn-warning btn-lg">Save Changes</button>
                     <a href="index.php" class="btn btn-secondary">Cancel</a>
-                </div>
+            </div>
             </form>
+            
+            <?php if (in_array($_SESSION['role'], ['ADMIN', 'HR'])): ?>
+                <hr class="my-4">
+                <div class="card border-primary shadow-sm">
+                    <div class="card-body d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="fw-bold text-primary mb-1">📄 Document Generator</h6>
+                            <small class="text-muted">Create legal PDFs for this employee instantly.</small>
+                        </div>
+                        <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#docModal">
+                            <i class="bi bi-file-earmark-pdf-fill"></i> Generate Document
+                        </button>
+                    </div>
+                </div>
+            <?php endif; ?>
             
             <?php if (in_array($_SESSION['role'], ['ADMIN', 'HR'])): ?>
                 <hr class="my-5">
@@ -402,6 +457,62 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 <form id="deleteForm" action="delete_employee.php" method="POST" style="display:none;"><input type="hidden" name="id" id="deleteId"></form>
 
+<!-- DOCUMENT GENERATION MODAL -->
+<div class="modal fade" id="docModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header bg-primary text-white">
+        <h5 class="modal-title"><i class="bi bi-printer"></i> Generate Document</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <form id="docForm" target="_blank" action="generate_document.php" method="GET">
+          <input type="hidden" name="id" value="<?php echo $id; ?>">
+          
+          <div class="mb-3">
+            <label class="form-label fw-bold">Document Type</label>
+            <select name="type" id="docType" class="form-select" onchange="toggleDateFields()">
+              <option value="probationary_lms">📄 Probationary Contract (LMS Technician ONLY)</option>
+              <option value="regular">📄 Regular Employment Contract</option>
+              <option value="confidentiality">🔒 Confidentiality Agreement</option>
+            </select>
+            <div class="form-text text-muted" id="docHelp">Standard 6-month probationary contract.</div>
+          </div>
+
+          <!-- Date Selection (Hidden for NDA) -->
+          <div id="dateFields" class="p-3 bg-light border rounded mb-3">
+            <h6 class="text-primary fw-bold mb-3">Contract Validity (Longevity)</h6>
+            
+            <div class="mb-2">
+                <label class="form-label small fw-bold">Effectivity Date (Start)</label>
+                <input type="date" name="start_date" id="startDate" class="form-control" value="<?php echo $emp['hire_date']; ?>" onchange="calcEndDate()">
+            </div>
+            
+            <div class="mb-2">
+                <label class="form-label small fw-bold">Duration Preset</label>
+                <select id="durationSelect" class="form-select form-select-sm" onchange="calcEndDate()" onkeyup="calcEndDate()">
+                    <option value="6">6 Months (Probationary)</option>
+                    <option value="12">1 Year (Regular)</option>
+                    <option value="custom">Custom / Manual Edit</option>
+                </select>
+            </div>
+
+            <div class="mb-0">
+                <label class="form-label small fw-bold">Validity Until (End)</label>
+                <input type="date" name="end_date" id="endDate" class="form-control">
+            </div>
+          </div>
+          
+          <div class="d-grid">
+            <button type="submit" class="btn btn-success btn-lg">Generate PDF</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script>
 // Logic for Sections and Auto-Capitalize
 const deptMap = <?php echo json_encode($deptMap); ?>;
@@ -430,12 +541,83 @@ function capitalize(input) {
     input.value = words.join(' ');
 }
 function confirmDelete(id) {
-    if (confirm("Are you sure? This action cannot be undone.")) {
-        document.getElementById('deleteId').value = id;
-        document.getElementById('deleteForm').submit();
+    Swal.fire({
+        title: 'Are you sure?',
+        text: "This action cannot be undone. All related documents will be unlinked.",
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#dc3545',
+        confirmButtonText: 'Yes, delete it!'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            document.getElementById('deleteId').value = id;
+            document.getElementById('deleteForm').submit();
+        }
+    });
+}
+
+// TOGGLE EXIT FIELDS LOGIC
+function toggleExitFields() {
+    const statusSelect = document.getElementById('statusSelect');
+    if (!statusSelect) return; // Guard clause
+
+    const status = statusSelect.value;
+    const fields = document.querySelectorAll('.exit-field'); 
+
+    // If status is ANYTHING other than 'Active', show the exit fields
+    if (status !== 'Active') {
+        fields.forEach(field => field.style.display = 'block');
+    } else {
+        fields.forEach(field => field.style.display = 'none');
     }
 }
-if(deptSelect) { deptSelect.addEventListener('change', updateSections); updateSections(); }
+
+// DOCUMENT MODAL LOGIC
+function toggleDateFields() {
+    const type = document.getElementById('docType').value;
+    const dateDiv = document.getElementById('dateFields');
+    const help = document.getElementById('docHelp');
+
+    if (type === 'confidentiality') {
+        dateDiv.style.display = 'none';
+        help.innerText = "Standard Non-Disclosure Agreement.";
+    } else {
+        dateDiv.style.display = 'block';
+        if (type === 'regular') {
+            document.getElementById('durationSelect').value = '12';
+            help.innerText = "Contract for Regularized Employees.";
+        } else if (type === 'probationary_lms') {
+            document.getElementById('durationSelect').value = '6';
+            help.innerText = "Standard 6-month probationary contract for LMS Technicians.";
+        }
+        calcEndDate();
+    }
+}
+
+function calcEndDate() {
+    const startVal = document.getElementById('startDate').value;
+    const duration = document.getElementById('durationSelect').value;
+    const endInput = document.getElementById('endDate');
+
+    if (!startVal || duration === 'custom') return;
+
+    const date = new Date(startVal);
+    // Add months
+    date.setMonth(date.getMonth() + parseInt(duration));
+    // Format YYYY-MM-DD
+    const yyyy = date.getFullYear();
+    const mm = String(date.getMonth() + 1).padStart(2, '0');
+    const dd = String(date.getDate()).padStart(2, '0');
+    endInput.value = `${yyyy}-${mm}-${dd}`;
+}
+
+// Run functions on load
+if(deptSelect) { 
+    deptSelect.addEventListener('change', updateSections); 
+    updateSections(); 
+}
+document.addEventListener("DOMContentLoaded", toggleExitFields);
+document.addEventListener("DOMContentLoaded", toggleDateFields); // Init Modal State
 </script>
 </body>
 </html>

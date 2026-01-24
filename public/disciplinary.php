@@ -17,7 +17,8 @@ if (!isset($_SESSION['user_id']) || !in_array($_SESSION['role'], ['ADMIN', 'HR']
 }
 
 $logger = new Logger($pdo);
-$message = "";
+$alertType = "";
+$alertMsg = "";
 
 // 2. HANDLE FORM SUBMISSION
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] == 'add_case') {
@@ -29,19 +30,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     
     $dbFilePath = null; 
     $syncStatus = "Skipped (No File)";
+    $isValid    = true; // Flag to control execution
 
     // --- FILE UPLOAD LOGIC ---
     if (!empty($_FILES['attachment']['name'])) {
         
         $targetDir = "uploads/"; 
         $originalName = basename($_FILES['attachment']['name']);
+
+        // [SECURITY] Validate File Type (Allow only PDF & Images)
+        $ext = strtolower(pathinfo($originalName, PATHINFO_EXTENSION));
+        if (!in_array($ext, ['pdf', 'jpg', 'jpeg', 'png'])) {
+            $alertType = 'error';
+            $alertMsg = "❌ <strong>Upload Failed:</strong> Only PDF, JPG, or PNG files are allowed.";
+            $isValid = false; // Stop the process
+        }
         
         // Clean filename to prevent issues
         $cleanName = preg_replace('/[^a-zA-Z0-9._-]/', '', $originalName);
         $fileName  = "DISCIPLINARY_" . time() . "_" . $cleanName;
         $targetFile = $targetDir . $fileName;
         
-        if (move_uploaded_file($_FILES['attachment']['tmp_name'], $targetFile)) {
+        if ($isValid && move_uploaded_file($_FILES['attachment']['tmp_name'], $targetFile)) {
             $dbFilePath = $fileName;
 
          // [FIX] STANDARD UUID GENERATION (MD5)
@@ -78,17 +88,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     }
 
     // INSERT CASE RECORD
+    if ($isValid) {
     try {
         $stmt = $pdo->prepare("INSERT INTO disciplinary_cases (employee_id, violation_type, incident_date, action_taken, description, attachment_path) VALUES (?, ?, ?, ?, ?, ?)");
         if ($stmt->execute([$emp_id, $type, $date, $action, $desc, $dbFilePath])) {
             $logger->log($_SESSION['user_id'], 'CASE_ADD', "Filed case: $type");
-            $message = "<div class='alert alert-success'>
-                            <strong>Case Filed Successfully!</strong><br>
-                            File Sync Status: <b>$syncStatus</b>
-                        </div>";
+            $alertType = 'success';
+            $alertMsg = "<strong>Case Filed Successfully!</strong><br>File Sync Status: <b>$syncStatus</b>";
         }
     } catch (PDOException $e) {
-        $message = "<div class='alert alert-danger'>Database Error: " . $e->getMessage() . "</div>";
+        $alertType = 'error';
+        $alertMsg = "Database Error: " . $e->getMessage();
+    }
     }
 }
 
@@ -101,6 +112,10 @@ if (isset($_GET['close_id'])) {
 
 // 4. FETCH DATA
 $search = isset($_GET['search']) ? trim($_GET['search']) : '';
+// [SECURITY] Limit & Sanitize Search
+if (strlen($search) > 50) $search = substr($search, 0, 50);
+$search = preg_replace('/[^a-zA-Z0-9\-_ ]/', '', $search);
+
 $sql = "SELECT d.*, e.first_name, e.last_name, e.dept FROM disciplinary_cases d JOIN employees e ON d.employee_id = e.emp_id WHERE 1=1";
 $params = [];
 
@@ -124,6 +139,7 @@ $emps = $pdo->query("SELECT emp_id, last_name, first_name FROM employees ORDER B
     <title>Disciplinary Management</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <style>
         .status-Open { background-color: #ffeeba; color: #856404; }
         .status-Closed { background-color: #d4edda; color: #155724; }
@@ -138,8 +154,6 @@ $emps = $pdo->query("SELECT emp_id, last_name, first_name FROM employees ORDER B
 </nav>
 
 <div class="container">
-    <?php echo $message; ?>
-
     <div class="row mb-4">
         <div class="col-md-12 text-end">
             <button class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#addCaseModal">
@@ -242,5 +256,13 @@ $emps = $pdo->query("SELECT emp_id, last_name, first_name FROM employees ORDER B
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+<?php if ($alertMsg): ?>
+Swal.fire({
+    icon: '<?php echo $alertType; ?>',
+    html: <?php echo json_encode($alertMsg); ?>
+});
+<?php endif; ?>
+</script>
 </body>
 </html>

@@ -16,44 +16,58 @@ if (!isset($_SESSION['user_id']) || ($_SESSION['role'] ?? '') !== 'ADMIN') {
     exit;
 }
 
+// [SECURITY] Generate CSRF Token
+if (empty($_SESSION['csrf_token'])) {
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+}
+
 $logger = new Logger($pdo);
-$message = "";
+$alertType = "";
+$alertMsg = "";
 
 // Capture session errors passed from redirects
 if (isset($_SESSION['error'])) {
-    $message = "<div class='alert alert-danger'>".$_SESSION['error']."</div>";
+    $alertType = 'error'; $alertMsg = $_SESSION['error'];
     unset($_SESSION['error']);
 }
 
 // 2. HANDLE ACTIONS
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     
+    // [SECURITY] Verify CSRF Token
+    if (!isset($_POST['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'])) {
+        die("Security Error: Invalid Token. Please refresh the page.");
+    }
+    
     // --- ADD NEW USER ---
     if (isset($_POST['action']) && $_POST['action'] === 'add') {
         $username = trim($_POST['username']);
+        $email    = trim($_POST['email']);
         $password = $_POST['password'];
         $role     = $_POST['role'];
 
         // [PHASE 2 SECURITY] Strong Password Check
         if (strlen($password) < 12) {
-            $message = "<div class='alert alert-danger'>❌ Password too short! Must be at least 12 characters.</div>";
+            $alertType = 'error'; $alertMsg = "❌ Password too short! Must be at least 12 characters.";
         } elseif (!preg_match('/[0-9]/', $password)) {
-            $message = "<div class='alert alert-danger'>❌ Password must contain at least one number.</div>";
+            $alertType = 'error'; $alertMsg = "❌ Password must contain at least one number.";
         } elseif (!preg_match('/[\W]/', $password)) {
-            $message = "<div class='alert alert-danger'>❌ Password must contain at least one symbol (!@#$%).</div>";
+            $alertType = 'error'; $alertMsg = "❌ Password must contain at least one symbol (!@#$%).";
+        } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            $alertType = 'error'; $alertMsg = "❌ Invalid email format.";
         } else {
             // Check Duplicate
-            $check = $pdo->prepare("SELECT id FROM users WHERE username = ?");
-            $check->execute([$username]);
+            $check = $pdo->prepare("SELECT id FROM users WHERE username = ? OR email = ?");
+            $check->execute([$username, $email]);
             
             if ($check->rowCount() > 0) {
-                $message = "<div class='alert alert-warning'>⚠️ Username '$username' already exists.</div>";
+                $alertType = 'warning'; $alertMsg = "⚠️ Username or Email already exists.";
             } else {
                 $hashed = password_hash($password, PASSWORD_BCRYPT);
-                $stmt = $pdo->prepare("INSERT INTO users (username, password, role) VALUES (?, ?, ?)");
-                if ($stmt->execute([$username, $hashed, $role])) {
+                $stmt = $pdo->prepare("INSERT INTO users (username, email, password, role) VALUES (?, ?, ?, ?)");
+                if ($stmt->execute([$username, $email, $hashed, $role])) {
                     $logger->log($_SESSION['user_id'], 'USER_ADD', "Created user: $username ($role)");
-                    $message = "<div class='alert alert-success'>✅ User '$username' created successfully!</div>";
+                    $alertType = 'success'; $alertMsg = "✅ User '$username' created successfully!";
                 }
             }
         }
@@ -63,33 +77,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (isset($_POST['action']) && $_POST['action'] === 'edit') {
         $id       = $_POST['user_id'];
         $username = trim($_POST['username']);
+        $email    = trim($_POST['email']);
         $role     = $_POST['role'];
         $new_pass = $_POST['password']; // Optional
 
-        // Update Info
-        $sql = "UPDATE users SET username = ?, role = ? WHERE id = ?";
-        $params = [$username, $role, $id];
+        // Check email uniqueness (ignore self)
+        $chk = $pdo->prepare("SELECT id FROM users WHERE email = ? AND id != ?");
+        $chk->execute([$email, $id]);
         
-        // If password changed, validate and hash it
-        if (!empty($new_pass)) {
-            if (strlen($new_pass) < 12 || !preg_match('/[0-9]/', $new_pass) || !preg_match('/[\W]/', $new_pass)) {
-                $message = "<div class='alert alert-danger'>❌ Update Failed: New password is too weak (Min 12 chars, 1 number, 1 symbol).</div>";
-            } else {
-                $sql = "UPDATE users SET username = ?, role = ?, password = ? WHERE id = ?";
-                $params = [$username, $role, password_hash($new_pass, PASSWORD_BCRYPT), $id];
-                
-                $stmt = $pdo->prepare($sql);
-                if ($stmt->execute($params)) {
-                    $logger->log($_SESSION['user_id'], 'USER_EDIT', "Updated profile/password for User ID: $id");
-                    $message = "<div class='alert alert-success'>✅ User details updated!</div>";
+        if ($chk->rowCount() > 0) {
+            $alertType = 'error'; $alertMsg = "❌ Email '$email' is already taken by another user.";
+        } else {
+            // Update Info
+            $sql = "UPDATE users SET username = ?, email = ?, role = ? WHERE id = ?";
+            $params = [$username, $email, $role, $id];
+            
+            // If password changed, validate and hash it
+            if (!empty($new_pass)) {
+                if (strlen($new_pass) < 12 || !preg_match('/[0-9]/', $new_pass) || !preg_match('/[\W]/', $new_pass)) {
+                    $alertType = 'error'; $alertMsg = "❌ Update Failed: New password is too weak (Min 12 chars, 1 number, 1 symbol).";
+                } else {
+                    $sql = "UPDATE users SET username = ?, email = ?, role = ?, password = ? WHERE id = ?";
+                    $params = [$username, $email, $role, password_hash($new_pass, PASSWORD_BCRYPT), $id];
                 }
             }
-        } else {
-            // Just update role/name
+            
             $stmt = $pdo->prepare($sql);
             if ($stmt->execute($params)) {
-                $logger->log($_SESSION['user_id'], 'USER_EDIT', "Updated role/username for User ID: $id");
-                $message = "<div class='alert alert-success'>✅ User details updated!</div>";
+                $logger->log($_SESSION['user_id'], 'USER_EDIT', "Updated User ID: $id");
+                $alertType = 'success'; $alertMsg = "✅ User details updated!";
             }
         }
     }
@@ -99,11 +115,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $id = $_POST['user_id'];
 
         if ($id == $_SESSION['user_id']) {
-            $message = "<div class='alert alert-danger'>⛔ You cannot delete your own account!</div>";
+            $alertType = 'error'; $alertMsg = "⛔ You cannot delete your own account!";
         } else {
             $pdo->prepare("DELETE FROM users WHERE id = ?")->execute([$id]);
             $logger->log($_SESSION['user_id'], 'USER_DELETE', "Deleted User ID: $id");
-            $message = "<div class='alert alert-warning'>🗑️ User deleted successfully.</div>";
+            $alertType = 'success'; $alertMsg = "🗑️ User deleted successfully.";
         }
     }
 }
@@ -119,6 +135,7 @@ $users = $pdo->query("SELECT * FROM users ORDER BY created_at DESC")->fetchAll(P
     <title>Manage System Users</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 </head>
 <body class="bg-light">
 
@@ -145,15 +162,13 @@ $users = $pdo->query("SELECT * FROM users ORDER BY created_at DESC")->fetchAll(P
                             Download a full SQL dump. Use this to restore data if the server crashes.
                         </p>
                     </div>
-                    <button onclick="alert('Backup feature coming in next update!')" class="btn btn-outline-danger btn-lg">
+                    <button onclick="Swal.fire('Coming Soon', 'Backup feature coming in next update!', 'info')" class="btn btn-outline-danger btn-lg">
                         <i class="bi bi-database-down"></i> Download Backup (.sql)
                     </button>
                 </div>
             </div>
         </div>
     </div>
-
-    <?php echo $message; ?>
 
     <div class="row">
         <div class="col-md-4">
@@ -162,9 +177,14 @@ $users = $pdo->query("SELECT * FROM users ORDER BY created_at DESC")->fetchAll(P
                 <div class="card-body">
                     <form method="POST">
                         <input type="hidden" name="action" value="add">
+                        <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
                         <div class="mb-3">
                             <label class="form-label fw-bold">Username</label>
                             <input type="text" name="username" class="form-control" placeholder="e.g. hr_officer" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Email Address</label>
+                            <input type="email" name="email" class="form-control" placeholder="user@company.com" required>
                         </div>
                         <div class="mb-3">
                             <label class="form-label fw-bold">Password</label>
@@ -193,6 +213,7 @@ $users = $pdo->query("SELECT * FROM users ORDER BY created_at DESC")->fetchAll(P
                         <thead class="table-light">
                             <tr>
                                 <th>Username</th>
+                                <th>Email</th>
                                 <th>Role</th>
                                 <th>Created</th>
                                 <th class="text-end">Actions</th>
@@ -205,6 +226,7 @@ $users = $pdo->query("SELECT * FROM users ORDER BY created_at DESC")->fetchAll(P
                                     <?php echo htmlspecialchars($u['username']); ?>
                                     <?php if($u['id'] == $_SESSION['user_id']) echo ' <span class="badge bg-info text-dark ms-1">You</span>'; ?>
                                 </td>
+                                <td><?php echo htmlspecialchars($u['email'] ?? ''); ?></td>
                                 <td>
                                     <?php 
                                     $badge = match($u['role']) { 'ADMIN'=>'bg-danger', 'HR'=>'bg-primary', default=>'bg-secondary' };
@@ -220,6 +242,7 @@ $users = $pdo->query("SELECT * FROM users ORDER BY created_at DESC")->fetchAll(P
                                     <?php if($u['id'] != $_SESSION['user_id']): ?>
                                         <form method="POST" class="d-inline" onsubmit="return confirm('Permanently delete this user?');">
                                             <input type="hidden" name="action" value="delete">
+                                            <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
                                             <input type="hidden" name="user_id" value="<?php echo $u['id']; ?>">
                                             <button type="submit" class="btn btn-sm btn-outline-danger ms-1">
                                                 <i class="bi bi-trash"></i>
@@ -239,11 +262,16 @@ $users = $pdo->query("SELECT * FROM users ORDER BY created_at DESC")->fetchAll(P
                                         <form method="POST">
                                             <div class="modal-body">
                                                 <input type="hidden" name="action" value="edit">
+                                                <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
                                                 <input type="hidden" name="user_id" value="<?php echo $u['id']; ?>">
                                                 
                                                 <div class="mb-3">
                                                     <label class="form-label">Username</label>
                                                     <input type="text" name="username" class="form-control" value="<?php echo htmlspecialchars($u['username']); ?>" required>
+                                                </div>
+                                                <div class="mb-3">
+                                                    <label class="form-label">Email</label>
+                                                    <input type="email" name="email" class="form-control" value="<?php echo htmlspecialchars($u['email'] ?? ''); ?>" required>
                                                 </div>
                                                 <div class="mb-3">
                                                     <label class="form-label">Role</label>
@@ -299,6 +327,14 @@ document.addEventListener('mousemove', resetTimer);
 document.addEventListener('keydown', resetTimer);
 document.addEventListener('click', resetTimer);
 document.addEventListener('scroll', resetTimer);
+</script>
+<script>
+<?php if ($alertMsg): ?>
+Swal.fire({
+    icon: '<?php echo $alertType; ?>',
+    html: <?php echo json_encode($alertMsg); ?>
+});
+<?php endif; ?>
 </script>
 </body>
 </html>

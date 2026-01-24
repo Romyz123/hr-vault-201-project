@@ -32,22 +32,33 @@ $logger   = new Logger($pdo);
 // Rate Limit
 $security->checkRateLimit($_SERVER['REMOTE_ADDR'] ?? '0.0.0.0', 120, 60);
 
-// [FIXED] Synchronized Department Map (Same as Import)
+// [FIXED] Clean Department Map
+// This list determines EXACTLY what appears in the "Section" dropdown.
+// No acronyms or duplicates here. Only the official names.
 $deptMap = [
-    "SQP"     => ["SAFETY", "QA", "PLANNING", "IT"], // IT is now here!
-    "SIGCOM"  => ["SIGNALING", "COMMUNICATION", "SIG"],
-    "PSS"     => ["POWER SUPPLY", "PSS"],
-    "OCS"     => ["OVERHEAD", "CATENARY", "OCS"],
+    // SQP & Admin have real sub-sections
+    "SQP"     => ["SAFETY", "QA", "PLANNING", "IT"], 
     "ADMIN"   => ["ADMIN","GAG", "TKG", "PCG", "ACG", "MED", "OP", "CLEANERS/HOUSE KEEPING"],
-    "HMS"     => ["HEAVY MAINTENANCE", "HMS"],
-    "RAS"     => ["ROOT CAUSE", "RAS"],
-    "TRS"     => ["TECHNICAL RESEARCH", "TRS"],
-    "LMS"     => ["LIGHT MAINTENANCE", "LMS"],
-    "DOS"     => ["DEPARTMENT OPERATIONS", "DOS"],
-    "CTS"     => ["CIVIL TRACKS", "CTS"],
-    "BFS"     => ["BUILDING FACILITIES", "BFS"],
-    "WHS"     => ["WAREHOUSE", "WHS"],
-    "GUNJIN"  => ["EMT", "SECURITY", "GUNJIN"],
+    
+    // OPERATIONS - Combined into single official names
+    "SIGCOM"  => ["SIGNALING & COMMUNICATION"], 
+    "PSS"     => ["POWER SUPPLY"],
+    "OCS"     => ["OVERHEAD CATENARY"],
+    
+    // MAINTENANCE
+    "HMS"     => ["HEAVY MAINTENANCE"],
+    "RAS"     => ["ROOT CAUSE ANALYSIS"],
+    "TRS"     => ["TECHNICAL RESEARCH"],
+    "LMS"     => ["LIGHT MAINTENANCE"],
+    "DOS"     => ["DEPARTMENT OPERATIONS"],
+    
+    // FACILITIES
+    "CTS"     => ["CIVIL TRACKS"],
+    "BFS"     => ["BUILDING FACILITIES"],
+    "WHS"     => ["WAREHOUSE"],
+    "GUNJIN"  => ["EMT", "SECURITY"],
+    
+    // OTHERS
     "SUBCONS-OTHERS" => ["OTHERS"]
 ];
 $agencies = ["TESP DIRECT", "GUNJIN", "JORATECH", "UNLISOLUTIONS", "OTHERS - SUBCONS"];
@@ -62,9 +73,15 @@ $errors = [];
 // ---------------- Handle Form Submission ----------------
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
+    // [FIX] Check if file upload exceeded server limits (causes empty POST)
+    if (empty($_POST) && isset($_SERVER['CONTENT_LENGTH']) && $_SERVER['CONTENT_LENGTH'] > 0) {
+        $errors[] = "The file you uploaded is too large. Please use a smaller image (Max " . ini_get('post_max_size') . ").";
+    }
+
     // 1. CSRF Check
     $token = $_POST['csrf_token'] ?? '';
-    if (!hash_equals($_SESSION['csrf_token'], $token)) {
+    // Only run CSRF check if we haven't already detected a file size error
+    if (empty($errors) && (!isset($_SESSION['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $token))) {
         $errors[] = "Security token mismatch. Please refresh and try again.";
     }
 
@@ -152,6 +169,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($job_title === '') $errors[] = "Job Title is required.";
     if ($first_name === '' || $last_name === '') $errors[] = "First and Last Name are required.";
     if ($gender === '' || !in_array($gender, $allowedGenders, true)) $errors[] = "Gender is required.";
+
+    // [SECURITY] Name Validation (Letters, spaces, dots, dashes only)
+    if (!preg_match("/^[a-zA-Z\s\-\.]+$/", $first_name)) $errors[] = "First Name contains invalid characters.";
+    if ($middle_name !== '' && !preg_match("/^[a-zA-Z\s\-\.]+$/", $middle_name)) $errors[] = "Middle Name contains invalid characters.";
+    if (!preg_match("/^[a-zA-Z\s\-\.]+$/", $last_name)) $errors[] = "Last Name contains invalid characters.";
+
     if ($dept === '' || !array_key_exists($dept, $deptMap)) $errors[] = "Valid Department is required.";
     if ($section === '' || !($dept && in_array($section, $deptMap[$dept] ?? [], true))) $errors[] = "Valid Section is required for the selected Department.";
     if ($present_address === '') $errors[] = "Present Address is required.";
@@ -267,6 +290,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmt = $pdo->prepare($sql);
                 $stmt->execute($empData);
 
+                // [NEW] Send Welcome Email
+                if (!empty($email)) {
+                    $subject = "Welcome to TES Philippines!";
+                    $body    = "<h3>Hi " . h($first_name) . ",</h3>";
+                    $body   .= "<p>Welcome to the team! We are excited to have you on board as our new <strong>" . h($job_title) . "</strong>.</p>";
+                    $body   .= "<p><strong>Employee ID:</strong> " . h($emp_id) . "</p>";
+                    $body   .= "<p>Please coordinate with your department head for your initial schedule.</p>";
+                    $body   .= "<br><p>Best Regards,<br>Human Resources</p>";
+
+                    $headers  = "MIME-Version: 1.0" . "\r\n";
+                    $headers .= "Content-type:text/html;charset=UTF-8" . "\r\n";
+                    $headers .= "From: HR System <no-reply@hrsystem.com>" . "\r\n";
+
+                    @mail($email, $subject, $body, $headers);
+                }
+
                 $logger->log($_SESSION['user_id'], 'ADD_EMPLOYEE', "Added $first_name $last_name ($emp_id)");
                 $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 
@@ -358,6 +397,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             <option value="">-- Select --</option>
                         </select>
                     </div>
+
+
+                    
                     <div class="col-md-6">
                         <label class="form-label">Employment Type <span class="text-danger">*</span></label>
                         <select name="employment_type" class="form-select" required>
@@ -562,6 +604,43 @@ document.addEventListener("DOMContentLoaded", function() {
             input.addEventListener('input', function() { capitalize(this); });
         }
     });
+
+    // 7. AUTO-SAVE DRAFT (Protects against Session Timeout)
+    const form = document.querySelector('form');
+    const draftKey = 'hr_add_emp_draft';
+
+    // A. Restore on Load
+    const savedDraft = localStorage.getItem(draftKey);
+    const firstInput = document.querySelector('input[name="first_name"]');
+    
+    // Only restore if the form is empty (don't overwrite PHP validation errors)
+    if (savedDraft && firstInput && !firstInput.value) {
+        try {
+            const data = JSON.parse(savedDraft);
+            Object.keys(data).forEach(key => {
+                const el = document.querySelector(`[name="${key}"]`);
+                if (el && el.type !== 'file' && el.type !== 'hidden') el.value = data[key];
+            });
+            // Notify user
+            const alertDiv = document.createElement('div');
+            alertDiv.className = 'alert alert-info alert-dismissible fade show mt-3';
+            alertDiv.innerHTML = '<i class="bi bi-arrow-counterclockwise"></i> <strong>Draft Restored:</strong> We recovered your unsaved work from the last session. <button type="button" class="btn-close" data-bs-dismiss="alert"></button>';
+            document.querySelector('.card-body').prepend(alertDiv);
+        } catch(e) {}
+    }
+
+    // B. Save on Typing
+    form.addEventListener('input', () => {
+        const formData = new FormData(form);
+        const data = {};
+        formData.forEach((value, key) => {
+            if (key !== 'csrf_token' && key !== 'avatar') data[key] = value;
+        });
+        localStorage.setItem(draftKey, JSON.stringify(data));
+    });
+
+    // C. Clear on Submit (Optional: You can leave it to persist until manually cleared)
+    // form.addEventListener('submit', () => localStorage.removeItem(draftKey));
 });
 </script>
 </body>

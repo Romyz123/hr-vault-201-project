@@ -112,7 +112,10 @@ function keepQuery(array $override = []): string {
 $filter_status = getQueryParamSafe('status', 24, '');
 $filter_type   = getQueryParamSafe('type',   40, ''); // can match employment_type or agency_name
 $filter_dept   = getQueryParamSafe('dept',   32, '');
-$search_query  = getQueryParamSafe('search', 150, '');
+$search_query  = getQueryParamSafe('search', 50, '');
+$filter_doc_cat = getQueryParamSafe('doc_cat', 50, '');
+// [SECURITY] Strict validation: Allow only alphanumeric, spaces, dashes, underscores
+$search_query = preg_replace('/[^a-zA-Z0-9\-_ ]/', '', $search_query);
 $sort_option   = getQueryParamSafe('sort',   24, 'newest');
 
 // Sort whitelist (prevents SQL injection)
@@ -220,6 +223,16 @@ if ($filter_dept !== '') {
     $params[] = $filter_dept;
 }
 
+// Document Category filter (from Chart click)
+if ($filter_doc_cat !== '') {
+    if ($filter_doc_cat === 'Documents for Employee') {
+        $where[] = 'emp_id IN (SELECT employee_id FROM documents WHERE category IS NULL OR TRIM(category) = \'\')';
+    } else {
+        $where[] = 'emp_id IN (SELECT employee_id FROM documents WHERE category = ?)';
+        $params[] = $filter_doc_cat;
+    }
+}
+
 // Search (LIKE on id/first/last)
 if ($search_query !== '') {
     $where[] = '(emp_id LIKE ? OR first_name LIKE ? OR last_name LIKE ?)';
@@ -273,7 +286,11 @@ if (!empty($employees)) {
 }
 
 // ---------- 10) CHART DATA (simple counts by category) ----------
-$statsQuery = $pdo->query("SELECT category, COUNT(*) as cnt FROM documents GROUP BY category");
+$statsQuery = $pdo->query("
+    SELECT COALESCE(NULLIF(TRIM(category), ''), 'Documents for Employee'), COUNT(*) 
+    FROM documents 
+    GROUP BY 1
+");
 $stats = $statsQuery->fetchAll(PDO::FETCH_KEY_PAIR) ?: [];
 $labels = json_encode(array_values(array_keys($stats)), JSON_UNESCAPED_UNICODE);
 $data   = json_encode(array_values($stats),            JSON_UNESCAPED_UNICODE);
@@ -292,6 +309,7 @@ $targetEmpId = getQueryParamSafe('search',      150, '');
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <style>
         :root { --bg: #f4f6f9; --card-border: #e9ecef; --accent: #2a5298; }
         body { background: var(--bg); }
@@ -325,6 +343,11 @@ $targetEmpId = getQueryParamSafe('search',      150, '');
     <a class="navbar-brand" href="index.php"><i class="bi bi-building"></i> TES Philippines HR</a>
 
     <div class="d-flex align-items-center">
+
+        <!-- Session Timer -->
+        <div class="text-white me-3 small d-none d-md-block" title="Time until auto-logout">
+            <i class="bi bi-hourglass-split"></i> <span id="sessionTimer" class="fw-bold font-monospace">30:00</span>
+        </div>
 
         <!-- Notifications dropdown -->
         <div class="dropdown me-3">
@@ -412,24 +435,6 @@ $targetEmpId = getQueryParamSafe('search',      150, '');
 
 <div class="container">
 
-    <!-- One-time backup success notice (if any) -->
-    <?php if (!empty($_SESSION['backup_msg'])): ?>
-        <div class="alert alert-success alert-dismissible fade show shadow-sm" role="alert">
-            <i class="bi bi-database-check-fill me-2"></i>
-            <strong>System Update:</strong> <?php echo h($_SESSION['backup_msg']); unset($_SESSION['backup_msg']); ?>
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-        </div>
-    <?php endif; ?>
-
-    <!-- Server-side error toast (if any) -->
-    <?php if (!empty($_SESSION['error'])): ?>
-        <div class="alert alert-danger alert-dismissible fade show mt-2 shadow-sm" role="alert">
-            <i class="bi bi-exclamation-octagon-fill fs-5 me-2"></i>
-            <strong>Action Failed:</strong> <?php echo h($_SESSION['error']); unset($_SESSION['error']); ?>
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-        </div>
-    <?php endif; ?>
-
     <div class="row mb-4">
         <div class="col-lg-8 mb-3 mb-lg-0">
             <div class="card h-100 shadow-soft">
@@ -437,8 +442,8 @@ $targetEmpId = getQueryParamSafe('search',      150, '');
                     <i class="bi bi-graph-up-arrow me-2 text-primary"></i>
                     <span class="fw-semibold">Document Analytics</span>
                 </div>
-                <div class="card-body">
-                    <canvas id="hrChart" style="max-height:260px;"></canvas>
+                <div class="card-body position-relative">
+                    <canvas id="hrChart" style="width: 100%; height: 100%; min-height: 300px;"></canvas>
                 </div>
             </div>
         </div>
@@ -564,7 +569,7 @@ $targetEmpId = getQueryParamSafe('search',      150, '');
                     <div class="input-group input-group-sm">
                         <input type="text" id="mainSearch" name="search" class="form-control"
                                placeholder="Search by ID / First / Last..." value="<?php echo h($search_query); ?>"
-                               autocomplete="off" aria-label="Search employees" maxlength="150">
+                               autocomplete="off" aria-label="Search employees" maxlength="50">
                         <button class="btn btn-primary" type="submit" aria-label="Submit search"><i class="bi bi-search"></i></button>
 
                         <!-- Export dropdown trigger (uses current filters) -->
@@ -585,6 +590,10 @@ $targetEmpId = getQueryParamSafe('search',      150, '');
                 <!-- Keep paging inputs -->
                 <input type="hidden" name="page" value="<?php echo (int)$page; ?>">
                 <input type="hidden" name="per_page" value="<?php echo (int)$perPage; ?>">
+                
+                <?php if ($filter_doc_cat !== ''): ?>
+                    <input type="hidden" name="doc_cat" value="<?php echo h($filter_doc_cat); ?>">
+                <?php endif; ?>
             </form>
         </div>
     </div>
@@ -592,6 +601,14 @@ $targetEmpId = getQueryParamSafe('search',      150, '');
     <!-- Results -->
     <?php if (empty($employees)): ?>
         <div class="alert alert-warning text-center shadow-sm">No employees found matching your search.</div>
+    <?php endif; ?>
+
+    <?php if ($filter_doc_cat !== ''): ?>
+        <div class="alert alert-info alert-dismissible fade show shadow-sm mb-4" role="alert">
+            <i class="bi bi-funnel-fill me-2"></i>
+            Filtering by Document Category: <strong><?php echo h($filter_doc_cat); ?></strong>
+            <a href="index.php" class="btn-close" aria-label="Close"></a>
+        </div>
     <?php endif; ?>
 
     <div class="row">
@@ -641,7 +658,7 @@ $targetEmpId = getQueryParamSafe('search',      150, '');
                             <img src="uploads/avatars/<?php echo h($emp['avatar_path'] ?: 'default.png'); ?>"
                                  class="card-img-top avatar-circle"
                                  alt="Profile"
-                                 onerror="this.onerror=null; this.src='uploads/avatars/default.png';">
+                                 onerror="this.onerror=null; this.src='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI1MCIgZmlsbD0iI2UzZTNlMyIvPjxwYXRoIGQ9Ik01MCA1MCBhMjAgMjAgMCAxIDAgMC00MCAyMCAyMCAwIDEgMCAwIDQwIHptMCAxMCBjLTE1IDAtMzUgMTAtMzUgMzAgdjEwIGg3MCB2LTEwIGMtMC0yMC0yMC0zMC0zNS0zMCIgZmlsbD0iI2FhYSIvPjwvc3ZnPg==';">
                         </div>
                         <div class="flex-grow-1">
                             <h5 class="card-title mb-1 fw-bold"><?php echo h($emp['first_name'] . ' ' . $emp['last_name']); ?></h5>
@@ -669,7 +686,7 @@ $targetEmpId = getQueryParamSafe('search',      150, '');
                     <div class="modal-content">
                         <div class="modal-header modal-header-custom p-4">
                             <div class="d-flex align-items-center w-100">
-                                <img src="uploads/avatars/<?php echo h($emp['avatar_path'] ?: ''); ?>" class="rounded-circle border border-3 border-white shadow-sm" width="100" height="100" onerror="this.src='../assets/default_avatar.png';" alt="Avatar">
+                                <img src="uploads/avatars/<?php echo h($emp['avatar_path'] ?: 'default.png'); ?>" class="rounded-circle border border-3 border-white shadow-sm" width="100" height="100" onerror="this.onerror=null; this.src='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI1MCIgZmlsbD0iI2UzZTNlMyIvPjxwYXRoIGQ9Ik01MCA1MCBhMjAgMjAgMCAxIDAgMC00MCAyMCAyMCAwIDEgMCAwIDQwIHptMCAxMCBjLTE1IDAtMzUgMTAtMzUgMzAgdjEwIGg3MCB2LTEwIGMtMC0yMC0yMC0zMC0zNS0zMCIgZmlsbD0iI2FhYSIvPjwvc3ZnPg==';" alt="Avatar">
                                 <div class="ms-3 flex-grow-1">
                                     <h3 class="mb-0 fw-bold"><?php echo h($emp['first_name'] . ' ' . $emp['last_name']); ?></h3>
                                     <div class="badge bg-light text-dark mt-1"><?php echo h($emp['emp_id']); ?></div>
@@ -946,7 +963,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const labels = <?php echo $labels ?: '[]'; ?>;
     const values = <?php echo $data   ?: '[]'; ?>;
 
-    new Chart(ctx, {
+    window.hrChartInstance = new Chart(ctx, {
         type: 'bar',
         data: {
             labels,
@@ -955,11 +972,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 data: values,
                 backgroundColor: (ctx) => {
                     const palette = ['#4BC0C0','#36A2EB','#FFCE56','#9966FF','#FF9F40','#FF6384'];
-                    return ctx.dataIndex != null ? palette[ctx.dataIndex % palette.length] : '#36A2EB';
+                    if (ctx.dataIndex != null) {
+                        // Access current labels dynamically to support live updates
+                        const lbl = ctx.chart.data.labels[ctx.dataIndex];
+                        if (lbl === 'Documents for Employee') return '#dc3545'; // Distinct Red
+                        return palette[ctx.dataIndex % palette.length];
+                    }
+                    return '#36A2EB';
                 },
                 borderRadius: 6,
-                barPercentage: .6,
-                maxBarThickness: 54
+                barPercentage: 0.6, // Controls bar width (0.5 = thin, 0.9 = wide)
+                categoryPercentage: 1.0
             }]
         },
         options: {
@@ -969,6 +992,16 @@ document.addEventListener('DOMContentLoaded', () => {
             scales: {
                 x: { ticks: { color: '#6c757d' } },
                 y: { beginAtZero: true, ticks: { precision: 0, color: '#6c757d' }, grid: { color: 'rgba(0,0,0,.05)' } }
+            },
+            onClick: (e, elements) => {
+                if (elements.length > 0) {
+                    const index = elements[0].index;
+                    const label = window.hrChartInstance.data.labels[index];
+                    window.location.href = `index.php?doc_cat=${encodeURIComponent(label)}`;
+                }
+            },
+            onHover: (event, chartElement) => {
+                event.native.target.style.cursor = chartElement[0] ? 'pointer' : 'default';
             }
         }
     });
@@ -1002,7 +1035,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             a.href = `index.php?search=${encodeURIComponent(emp.emp_id)}`;
                             a.className = 'list-group-item list-group-item-action d-flex align-items-center';
                             a.innerHTML = `
-                                <img src="uploads/avatars/${emp.avatar_path||''}" width="30" height="30" class="rounded-circle me-2" onerror="this.src='../assets/default_avatar.png'">
+                                <img src="uploads/avatars/${emp.avatar_path||'default.png'}" width="30" height="30" class="rounded-circle me-2" onerror="this.onerror=null; this.src='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI1MCIgZmlsbD0iI2UzZTNlMyIvPjxwYXRoIGQ9Ik01MCA1MCBhMjAgMjAgMCAxIDAgMC00MCAyMCAyMCAwIDEgMCAwIDQwIHptMCAxMCBjLTE1IDAtMzUgMTAtMzUgMzAgdjEwIGg3MCB2LTEwIGMtMC0yMC0yMC0zMC0zNS0zMCIgZmlsbD0iI2FhYSIvPjwvc3ZnPg=='">
                                 <div><strong>${emp.first_name} ${emp.last_name}</strong><br><small class="text-muted">${emp.emp_id}</small></div>
                             `;
                             suggestionBox.appendChild(a);
@@ -1160,13 +1193,126 @@ document.addEventListener('DOMContentLoaded', function () {
 });
 
 // ---------- [SECURITY] AUTO-LOGOUT (Client-Side) ----------
-// Time setting: 30 minutes (1800000 ms)
-const INACTIVITY_LIMIT = 1800000; 
-let autoLogoutTimer;
-function resetTimer() { clearTimeout(autoLogoutTimer); autoLogoutTimer = setTimeout(doLogout, INACTIVITY_LIMIT); }
-function doLogout() { alert('Session expired due to inactivity.'); window.location.href = 'logout.php?msg=Session_Expired_Auto'; }
-window.onload = resetTimer; document.addEventListener('mousemove', resetTimer); document.addEventListener('keydown', resetTimer); document.addEventListener('click', resetTimer); document.addEventListener('scroll', resetTimer);
+const INACTIVITY_LIMIT_MS = 1800000; // 30 Minutes
+let remainingMs = INACTIVITY_LIMIT_MS;
+
+function updateTimer() {
+    remainingMs -= 1000;
+    
+    if (remainingMs <= 0) {
+        window.location.href = 'logout.php?msg=Session_Expired_Auto';
+        return;
+    }
+
+    // Format MM:SS
+    const totalSeconds = Math.floor(remainingMs / 1000);
+    const m = Math.floor(totalSeconds / 60);
+    const s = totalSeconds % 60;
+    const text = `${m}:${s.toString().padStart(2, '0')}`;
+    
+    const timerEl = document.getElementById('sessionTimer');
+    if (timerEl) {
+        timerEl.innerText = text;
+        // Turn red if < 2 mins
+        if (remainingMs < 120000) timerEl.classList.add('text-danger'); 
+        else timerEl.classList.remove('text-danger');
+    }
+}
+
+function resetTimer() { remainingMs = INACTIVITY_LIMIT_MS; }
+
+// Start loop & Listeners
+setInterval(updateTimer, 1000);
+window.onload = resetTimer; 
+document.addEventListener('mousemove', resetTimer); 
+document.addEventListener('keydown', resetTimer); 
+document.addEventListener('click', resetTimer); 
+document.addEventListener('scroll', resetTimer);
 </script>
+
+<!-- SweetAlert2 for PHP Session Messages -->
+<script>
+<?php if (!empty($_SESSION['backup_msg'])): ?>
+    Swal.fire({
+        icon: 'success',
+        title: 'System Update',
+        text: '<?php echo h($_SESSION['backup_msg']); ?>',
+        timer: 3000,
+        showConfirmButton: false
+    });
+    <?php unset($_SESSION['backup_msg']); ?>
+<?php endif; ?>
+
+<?php if (!empty($_SESSION['error'])): ?>
+    Swal.fire({
+        icon: 'error',
+        title: 'Action Failed',
+        text: '<?php echo h($_SESSION['error']); ?>'
+    });
+    <?php unset($_SESSION['error']); ?>
+<?php endif; ?>
+
+// Check for URL msg param (e.g. from redirects)
+const urlParams = new URLSearchParams(window.location.search);
+if (urlParams.has('msg')) {
+    Swal.fire({
+        icon: 'success',
+        title: 'Success',
+        text: urlParams.get('msg'),
+        timer: 2500,
+        showConfirmButton: false
+    });
+    // Clean URL
+    window.history.replaceState({}, document.title, window.location.pathname);
+}
+</script>
+
+
+<!-- ---------- AUTO-REFRESH SYSTEM (Notifications + Dashboard Numbers) ---------- -->
+
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+    
+    function refreshSystem() {
+        fetch('api/get_updates.php')
+            .then(response => response.json())
+            .then(data => {
+                // 1. Update Notifications (Your Existing Feature)
+                const notifBadge = document.getElementById('notif-badge');
+                const notifList = document.getElementById('notification-list');
+                
+                if (notifBadge) {
+                    notifBadge.innerText = data.count;
+                    notifBadge.style.display = (data.count > 0) ? 'inline-block' : 'none';
+                }
+                if (notifList) notifList.innerHTML = data.html;
+
+                // 2. Update Dashboard Numbers (The New "Anti-Crash" Feature)
+                // MAKE SURE TO ADD id="live-headcount" and id="live-cases" to your HTML tags!
+                const headEl = document.getElementById('live-headcount');
+                const caseEl = document.getElementById('live-cases');
+
+                if (headEl) headEl.innerText = data.headcount;
+                if (caseEl) caseEl.innerText = data.cases;
+
+                // 3. Update Chart (Live Animation)
+                if (window.hrChartInstance && data.chartLabels && data.chartValues) {
+                    window.hrChartInstance.data.labels = data.chartLabels;
+                    window.hrChartInstance.data.datasets[0].data = data.chartValues;
+                    window.hrChartInstance.update();
+                }
+            })
+            .catch(err => console.log('Syncing...'));
+    }
+
+    // Run every 15 seconds
+    setInterval(refreshSystem, 15000); 
+    refreshSystem(); // Run once on load
+});
+</script>
+
+
+
 
 </body>
 </html>

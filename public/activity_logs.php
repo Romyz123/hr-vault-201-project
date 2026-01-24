@@ -11,6 +11,10 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'ADMIN') {
 
 // 2. PAGINATION & SEARCH LOGIC
 $search = $_GET['search'] ?? '';
+// [SECURITY] Limit & Sanitize Search
+if (strlen($search) > 50) $search = substr($search, 0, 50);
+$search = preg_replace('/[^a-zA-Z0-9\-_ ]/', '', $search);
+
 $page   = max(1, (int)($_GET['page'] ?? 1));
 $perPage = 20;
 $offset = ($page - 1) * $perPage;
@@ -111,6 +115,7 @@ $logs = $stmt->fetchAll();
                             if (strpos($type, 'UPLOAD') !== false) $class = 'badge-upload';
                             if (strpos($type, 'DELETE') !== false) $class = 'badge-delete';
                             if (strpos($type, 'LOGIN') !== false)  $class = 'badge-login';
+                            if (strpos($type, 'LOGOUT') !== false) $class = 'bg-secondary text-white';
                         ?>
                         <tr>
                             <td class="text-muted small" style="width: 180px;">

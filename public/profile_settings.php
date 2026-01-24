@@ -8,10 +8,38 @@ if (!isset($_SESSION['user_id'])) {
     exit;
 }
 
-$msg = "";
-$error = "";
+$alertType = "";
+$alertMsg = "";
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+// 1. FETCH CURRENT INFO
+$stmt = $pdo->prepare("SELECT email FROM users WHERE id = ?");
+$stmt->execute([$_SESSION['user_id']]);
+$currentUser = $stmt->fetch();
+$currentEmail = $currentUser['email'] ?? '';
+
+// 2. HANDLE EMAIL UPDATE
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'update_email') {
+    $new_email = trim($_POST['email']);
+    if (strlen($new_email) > 100) {
+        $alertType = "error"; $alertMsg = "❌ Email is too long (Max 100 characters).";
+    } elseif (filter_var($new_email, FILTER_VALIDATE_EMAIL)) {
+        // Check uniqueness
+        $chk = $pdo->prepare("SELECT id FROM users WHERE email = ? AND id != ?");
+        $chk->execute([$new_email, $_SESSION['user_id']]);
+        if ($chk->rowCount() > 0) {
+            $alertType = "error"; $alertMsg = "❌ Email is already in use by another account.";
+        } else {
+            $pdo->prepare("UPDATE users SET email = ? WHERE id = ?")->execute([$new_email, $_SESSION['user_id']]);
+            $alertType = "success"; $alertMsg = "✅ Email address updated successfully.";
+            $currentEmail = $new_email;
+        }
+    } else {
+        $alertType = "error"; $alertMsg = "❌ Invalid email format.";
+    }
+}
+
+// 3. HANDLE PASSWORD UPDATE
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'change_pass') {
     $current_pass = $_POST['current_password'];
     $new_pass     = $_POST['new_password'];
     $confirm_pass = $_POST['confirm_password'];
@@ -28,23 +56,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // 3. Check if new passwords match
             if ($new_pass === $confirm_pass) {
                 
-                // 4. Validate strength (Optional: min 6 chars)
-                if (strlen($new_pass) < 6) {
-                    $error = "Password must be at least 6 characters long.";
+                // 4. Validate strength (Match Admin Policy: 12 chars, number, symbol)
+                if (strlen($new_pass) < 12) {
+                    $alertType = "error"; $alertMsg = "Password must be at least 12 characters.";
+                } elseif (strlen($new_pass) > 128) {
+                    $alertType = "error"; $alertMsg = "Password is too long (Max 128 characters).";
+                } elseif (!preg_match('/[0-9]/', $new_pass)) {
+                    $alertType = "error"; $alertMsg = "Password must contain at least one number.";
+                } elseif (!preg_match('/[\W]/', $new_pass)) {
+                    $alertType = "error"; $alertMsg = "Password must contain at least one symbol (!@#$%).";
                 } else {
                     // 5. Update Password
                     $new_hash = password_hash($new_pass, PASSWORD_DEFAULT);
                     $update = $pdo->prepare("UPDATE users SET password = ? WHERE id = ?");
                     $update->execute([$new_hash, $_SESSION['user_id']]);
                     
-                    $msg = "Password updated successfully! Please login again.";
+                    $alertType = "success"; $alertMsg = "Password updated successfully!";
                 }
 
             } else {
-                $error = "New passwords do not match.";
+                $alertType = "error"; $alertMsg = "New passwords do not match.";
             }
         } else {
-            $error = "Current password is incorrect.";
+            $alertType = "error"; $alertMsg = "Current password is incorrect.";
         }
     }
 }
@@ -57,6 +91,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <title>Profile Settings</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 </head>
 <body class="bg-light">
 
@@ -71,33 +106,51 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <div class="row justify-content-center">
         
         <div class="col-md-6 mb-4">
+            <!-- EMAIL SETTINGS -->
+            <div class="card shadow mb-4">
+                <div class="card-header bg-info text-white"><h5 class="mb-0"><i class="bi bi-envelope-fill"></i> Recovery Email</h5></div>
+                <div class="card-body">
+                    <form method="POST">
+                        <input type="hidden" name="action" value="update_email">
+                        <div class="input-group">
+                            <input type="email" name="email" class="form-control" placeholder="Enter your email..." value="<?php echo htmlspecialchars($currentEmail); ?>" maxlength="100" required>
+                            <button class="btn btn-info text-white" type="submit">Save Email</button>
+                        </div>
+                        <div class="form-text">Used for "Forgot Password" recovery.</div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- PASSWORD SETTINGS -->
             <div class="card shadow">
                 <div class="card-header bg-primary text-white">
                     <h5 class="mb-0"><i class="bi bi-shield-lock"></i> Change Password</h5>
                 </div>
                 <div class="card-body">
                     
-                    <?php if($msg): ?>
-                        <div class="alert alert-success"><?php echo $msg; ?></div>
-                    <?php endif; ?>
-                    
-                    <?php if($error): ?>
-                        <div class="alert alert-danger"><?php echo $error; ?></div>
-                    <?php endif; ?>
-
                     <form method="POST">
+                        <input type="hidden" name="action" value="change_pass">
                         <div class="mb-3">
                             <label class="form-label fw-bold">Current Password</label>
-                            <input type="password" name="current_password" class="form-control" required>
+                            <div class="input-group">
+                                <input type="password" name="current_password" id="curPass" class="form-control" maxlength="128" required>
+                                <button class="btn btn-outline-secondary" type="button" onclick="togglePass('curPass')"><i class="bi bi-eye"></i></button>
+                            </div>
                         </div>
                         <hr>
                         <div class="mb-3">
                             <label class="form-label fw-bold">New Password</label>
-                            <input type="password" name="new_password" class="form-control" minlength="6" required>
+                            <div class="input-group">
+                                <input type="password" name="new_password" id="newPass" class="form-control" minlength="12" maxlength="128" required>
+                                <button class="btn btn-outline-secondary" type="button" onclick="togglePass('newPass')"><i class="bi bi-eye"></i></button>
+                            </div>
                         </div>
                         <div class="mb-3">
                             <label class="form-label fw-bold">Confirm New Password</label>
-                            <input type="password" name="confirm_password" class="form-control" minlength="6" required>
+                            <div class="input-group">
+                                <input type="password" name="confirm_password" id="confPass" class="form-control" minlength="12" maxlength="128" required>
+                                <button class="btn btn-outline-secondary" type="button" onclick="togglePass('confPass')"><i class="bi bi-eye"></i></button>
+                            </div>
                         </div>
 
                         <div class="d-grid gap-2">
@@ -133,5 +186,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         </div>
 
     </div> </div> <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+    function togglePass(id) {
+        const input = document.getElementById(id);
+        const icon = input.nextElementSibling.querySelector('i');
+        if (input.type === 'password') {
+            input.type = 'text';
+            icon.classList.replace('bi-eye', 'bi-eye-slash');
+        } else {
+            input.type = 'password';
+            icon.classList.replace('bi-eye-slash', 'bi-eye');
+        }
+    }
+
+    <?php if ($alertMsg): ?>
+    Swal.fire({
+        icon: '<?php echo $alertType; ?>',
+        title: '<?php echo ucfirst($alertType === "error" ? "Failed" : "Success"); ?>',
+        text: '<?php echo $alertMsg; ?>',
+        confirmButtonColor: '<?php echo $alertType === "error" ? "#dc3545" : "#198754"; ?>'
+    });
+    <?php endif; ?>
+</script>
 </body>
 </html>

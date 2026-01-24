@@ -1,5 +1,16 @@
 <?php
+require '../config/db.php';
+require '../src/Logger.php';
 session_start(); // 1. Access the current session
+
+// [LOGGING] Record logout before destroying session
+if (isset($_SESSION['user_id'])) {
+    try {
+        $logger = new Logger($pdo);
+        $reason = isset($_GET['msg']) ? $_GET['msg'] : 'Manual Logout';
+        $logger->log($_SESSION['user_id'], 'LOGOUT', "User logged out ($reason)");
+    } catch (Exception $e) { /* Ignore logging errors during logout */ }
+}
 
 // 2. Clear all session variables
 $_SESSION = [];

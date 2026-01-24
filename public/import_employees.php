@@ -237,10 +237,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['csv_file'])) {
             // --- PROCESSING ---
             $section = strtoupper(trim($section_raw));
             $dept    = findDept($section, $deptMap);
+
+            // [NORMALIZATION] Convert Keywords -> Official Section Names
+            if ($dept === 'SIGCOM') $section = "SIGNALING & COMMUNICATION";
+            if ($dept === 'PSS')    $section = "POWER SUPPLY";
+            if ($dept === 'OCS')    $section = "OVERHEAD CATENARY";
+            if ($dept === 'HMS')    $section = "HEAVY MAINTENANCE";
+            if ($dept === 'RAS')    $section = "ROOT CAUSE ANALYSIS";
+            if ($dept === 'TRS')    $section = "TECHNICAL RESEARCH";
+            if ($dept === 'LMS')    $section = "LIGHT MAINTENANCE";
+            if ($dept === 'DOS')    $section = "DEPARTMENT OPERATIONS";
+            if ($dept === 'CTS')    $section = "CIVIL TRACKS";
+            if ($dept === 'BFS')    $section = "BUILDING FACILITIES";
+            if ($dept === 'WHS')    $section = "WAREHOUSE";
             
             $birth_date = parseDate(trim($birth_raw));
             $hire_date  = parseDate(trim($hire_raw));
             
+            // [SECURITY] Enforce Limits & Whitelist (Match Add/Edit Rules)
+            $emp_id     = substr(preg_replace('/[^a-zA-Z0-9\-_]/', '', $emp_id), 0, 20);
+            $first_name = substr(preg_replace('/[^a-zA-Z0-9\s\-\.]/', '', $first_name), 0, 50);
+            $last_name  = substr(preg_replace('/[^a-zA-Z0-9\s\-\.]/', '', $last_name), 0, 50);
+            $job_title  = substr(preg_replace('/[^a-zA-Z0-9\s\-\.]/', '', $job_title), 0, 50);
+
             // Defaults
             $gender = "Male"; 
             $photo  = "default.png";
@@ -295,6 +314,7 @@ $history = $pdo->query("SELECT import_batch, agency_name, COUNT(*) as count, MAX
     <title>Import Employees</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <style>
         .format-box { display: none; }
     </style>
@@ -324,10 +344,7 @@ $history = $pdo->query("SELECT import_batch, agency_name, COUNT(*) as count, MAX
         </div>
         <div class="card-body">
             
-            <?php if ($msg): ?><div class="alert alert-success"><?php echo $msg; ?></div><?php endif; ?>
-            <?php if ($error): ?><div class="alert alert-danger"><?php echo $error; ?></div><?php endif; ?>
-
-            <form method="POST" enctype="multipart/form-data" onsubmit="return confirmUpload()">
+            <form method="POST" enctype="multipart/form-data" id="importForm">
                 <div class="row g-3">
                     <div class="col-md-6">
                         <label class="form-label fw-bold">Select Agency</label>
@@ -347,6 +364,9 @@ $history = $pdo->query("SELECT import_batch, agency_name, COUNT(*) as count, MAX
                 </div>
                 <div class="d-grid gap-2 mt-3">
                     <button type="submit" class="btn btn-success btn-lg">Upload & Import</button>
+                    <a href="fix_dates.php" class="btn btn-warning fw-bold">
+                   <i class="bi bi-bandaid-fill"></i> Fix Missing Dates / Data
+                     </a>
                     <a href="index.php" class="btn btn-outline-secondary">Back to Dashboard</a>
                 </div>
             </form>
@@ -368,9 +388,9 @@ $history = $pdo->query("SELECT import_batch, agency_name, COUNT(*) as count, MAX
                         <td><?php echo htmlspecialchars($h['agency_name']); ?></td>
                         <td><?php echo $h['count']; ?></td>
                         <td>
-                            <form method="POST" onsubmit="return confirm('Delete this batch?');">
+                            <form method="POST">
                                 <input type="hidden" name="undo_batch" value="<?php echo $h['import_batch']; ?>">
-                                <button class="btn btn-sm btn-outline-danger">Undo</button>
+                                <button type="button" class="btn btn-sm btn-outline-danger" onclick="confirmUndo(this)">Undo</button>
                             </form>
                         </td>
                     </tr>
@@ -396,9 +416,78 @@ function toggleFormat() {
         document.getElementById('instr_tesp').style.display = 'block';
     }
 }
-function confirmUpload() {
-    return confirm("Confirm upload for: " + document.getElementById('agency_select').value + "?");
+
+// SweetAlert2 Logic
+document.getElementById('importForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    const form = this;
+    const agency = document.getElementById('agency_select').value;
+    const fileInput = document.querySelector('input[name="csv_file"]');
+    const file = fileInput.files[0];
+
+    if (!file) { form.submit(); return; }
+
+    // Read first 10KB for preview (avoids freezing on large files)
+    const reader = new FileReader();
+    const blob = file.slice(0, 1024 * 10); 
+    
+    reader.onload = function(e) {
+        const text = e.target.result;
+        const rows = text.split(/\r\n|\n/).filter(r => r.trim() !== '');
+        const previewRows = rows.slice(0, 6); // Header + 5 Data
+
+        let tableHtml = '<div class="table-responsive" style="max-height:300px; text-align:left;"><table class="table table-sm table-bordered table-striped" style="font-size:0.75rem;">';
+        
+        previewRows.forEach((row, index) => {
+            // Split CSV by comma (ignoring commas inside quotes)
+            const cols = row.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/);
+            tableHtml += '<tr>';
+            cols.forEach(col => {
+                let clean = col.trim().replace(/^"|"$/g, ''); // Remove quotes
+                tableHtml += (index === 0) ? `<th class="bg-light">${clean}</th>` : `<td>${clean}</td>`;
+            });
+            tableHtml += '</tr>';
+        });
+        tableHtml += '</table></div>';
+        if (rows.length > 6) tableHtml += `<div class="text-muted small mt-1 text-center">... and more rows</div>`;
+
+        Swal.fire({
+            title: 'Confirm Import',
+            html: `<p>Importing into <strong>${agency}</strong>. Check the preview below:</p>${tableHtml}`,
+            icon: 'info',
+            width: '800px',
+            showCancelButton: true,
+            confirmButtonColor: '#198754',
+            confirmButtonText: 'Yes, Import Data'
+        }).then((result) => {
+            if (result.isConfirmed) form.submit();
+        });
+    };
+    
+    reader.readAsText(blob);
+});
+
+function confirmUndo(btn) {
+    Swal.fire({
+        title: 'Undo Import?',
+        text: "This will delete all employees from this batch. This cannot be undone.",
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#dc3545',
+        confirmButtonText: 'Yes, delete it!'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            btn.form.submit();
+        }
+    });
 }
+
+<?php if ($msg): ?>
+Swal.fire({ icon: 'success', title: 'Success', text: <?php echo json_encode($msg); ?>, confirmButtonColor: '#198754' });
+<?php endif; ?>
+<?php if ($error): ?>
+Swal.fire({ icon: 'error', title: 'Error', text: <?php echo json_encode($error); ?>, confirmButtonColor: '#dc3545' });
+<?php endif; ?>
 </script>
 </body>
 </html>
