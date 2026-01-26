@@ -97,6 +97,7 @@ if (isset($_GET['emp_id'])) {
                                     <option value="Memo / DA">Memo / DA</option>
                                     <option value="Evaluation">Evaluation</option>
                                     <option value="Certificate">Certificate</option>
+                                    <option value="Training Record">Training Record</option>
                                     <option value="Others">Others</option>
                                 </select>
                             </div>

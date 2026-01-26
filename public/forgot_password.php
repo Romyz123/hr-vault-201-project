@@ -44,15 +44,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         $emailSent = @mail($email, $subject, $message, $headers);
 
-        if ($emailSent) {
+        // [LOGIC] Handle Localhost vs Production
+        if (in_array($_SERVER['SERVER_NAME'], ['localhost', '127.0.0.1'])) {
+            $msg = "✅ <strong>(Localhost Demo):</strong> Your Code is <h1 class='display-4 fw-bold text-primary'>$token</h1>
+                    <p>Since you are on localhost, the email might not send. You can enter this code manually.</p>
+                    <a href='reset_password.php?token=$token&email=" . urlencode($email) . "' class='btn btn-success mt-2'>Go to Verification Page</a>";
+        } 
+        elseif ($emailSent) {
             // Redirect to the code entry page immediately
             header("Location: reset_password.php?sent=1&email=" . urlencode($email));
             exit;
         } 
-        
-        // [DEMO MODE] Always show link on localhost so you can test it
-        if (in_array($_SERVER['SERVER_NAME'], ['localhost', '127.0.0.1'])) {
-            $msg = "✅ <strong>(Localhost Demo):</strong> Your Code is <h1>$token</h1>";
+        else {
+            $error = "❌ Email failed to send. Please check your mail server settings.";
         }
     } else {
         $error = "❌ Email not found in our system.";
@@ -76,7 +80,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <?php if($msg): ?><div class="alert alert-success"><?php echo $msg; ?></div><?php endif; ?>
         <?php if($error): ?><div class="alert alert-danger"><?php echo $error; ?></div><?php endif; ?>
 
-        <p class="text-muted small">Enter your registered email address. We'll send you a link to reset your password.</p>
+        <p class="text-muted small">Enter your registered email address. We'll send you a code to reset your password.</p>
         
         <form method="POST">
             <div class="mb-3">
@@ -84,12 +88,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <input type="email" name="email" class="form-control" required>
             </div>
             <div class="d-grid">
-                <button type="submit" class="btn btn-primary">Send Reset Link</button>
+                <button type="submit" class="btn btn-primary">Send the Code</button>
             </div>
         </form>
     </div>
     <div class="card-footer text-center">
         <a href="login.php" class="text-decoration-none small">Back to Login</a>
+        <span class="mx-2 text-muted">|</span>
+        <a href="reset_password.php" class="text-decoration-none small fw-bold">I already have a code</a>
     </div>
 </div>
 

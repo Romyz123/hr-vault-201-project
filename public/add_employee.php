@@ -42,20 +42,20 @@ $deptMap = [
     
     // OPERATIONS - Combined into single official names
     "SIGCOM"  => ["SIGNALING & COMMUNICATION"], 
-    "PSS"     => ["POWER SUPPLY"],
-    "OCS"     => ["OVERHEAD CATENARY"],
+    "PSS"     => ["POWER SUPPLY SECTION"],
+    "OCS"     => ["OVERHEAD CATENARY SYSTEM"],
     
     // MAINTENANCE
-    "HMS"     => ["HEAVY MAINTENANCE"],
-    "RAS"     => ["ROOT CAUSE ANALYSIS"],
-    "TRS"     => ["TECHNICAL RESEARCH"],
-    "LMS"     => ["LIGHT MAINTENANCE"],
-    "DOS"     => ["DEPARTMENT OPERATIONS"],
+    "HMS"     => ["HEAVY MAINTENANCE SECTION"],
+    "RAS"     => ["ROOT CAUSE ANALYSIS "],
+    "TRS"     => ["TECHNICAL RESEARCH SECTION"],
+    "LMS"     => ["LIGHT MAINTENANCE SECTION"],
+    "DOS"     => ["DEPARTMENT OPERATIONS SECTION"],
     
     // FACILITIES
-    "CTS"     => ["CIVIL TRACKS"],
-    "BFS"     => ["BUILDING FACILITIES"],
-    "WHS"     => ["WAREHOUSE"],
+    "CTS"     => ["CIVIL TRACKS SECTION"],
+    "BFS"     => ["BUILDING FACILITIES SECTION"],
+    "WHS"     => ["WAREHOUSE SECTION"],
     "GUNJIN"  => ["EMT", "SECURITY"],
     
     // OTHERS
@@ -201,7 +201,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($email !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
         $errors[] = "Invalid email format.";
     }
-    $phonePattern = '/^[0-9+\-\s()]{0,20}$/';
+    $phonePattern = '/^[0-9+\-\s()\/]{0,20}$/';
     if ($contact_number !== '' && !preg_match($phonePattern, $contact_number)) {
         $errors[] = "Contact Number contains invalid characters.";
     }
@@ -374,6 +374,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <input type="text" name="emp_id" class="form-control" required maxlength="20"
                                placeholder="e.g. 2026-001" value="<?php echo old('emp_id'); ?>"
                                autocomplete="off" pattern="[A-Za-z0-9\-_]{1,20}">
+                        <div class="form-text extra-small">Allowed: Letters, Numbers, - and _</div>
                     </div>
                     <div class="col-md-3">
                         <label class="form-label">Job Title <span class="text-danger">*</span></label>
@@ -464,7 +465,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <input type="text" name="contact_number" class="form-control" maxlength="20"
                                placeholder="e.g. 0912-345-6789"
                                value="<?php echo old('contact_number'); ?>"
-                               inputmode="tel" pattern="[0-9+\-\s()]{0,20}">
+                               inputmode="tel" pattern="[0-9+\-\s()\/]{0,20}">
+                        <div class="form-text extra-small">Allowed: Numbers, +, -, /, ( )</div>
                     </div>
                     <div class="col-md-3">
                         <label class="form-label">Email</label>
@@ -524,7 +526,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <label class="form-label">Contact Number</label>
                         <input type="text" name="emergency_contact" class="form-control" maxlength="20"
                                placeholder="Mobile/Landline" value="<?php echo old('emergency_contact'); ?>"
-                               inputmode="tel" pattern="[0-9+\-\s()]{0,20}">
+                               inputmode="tel" pattern="[0-9+\-\s()\/]{0,20}">
+                        <div class="form-text extra-small">Allowed: Numbers, +, -, /, ( )</div>
                     </div>
                     <div class="col-12">
                         <label class="form-label">Address</label>

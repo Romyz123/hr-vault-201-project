@@ -15,9 +15,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SESSION['user_id'])) {
         exit;
     }
 
+    // [NEW] Fetch Document Name for Context
+    $stmt = $pdo->prepare("SELECT original_name FROM documents WHERE id = ?");
+    $stmt->execute([$doc_id]);
+    $docName = $stmt->fetchColumn() ?: 'Unknown File';
+
     // Prepare Payload
     $data = [
         'doc_id' => $doc_id,
+        'doc_name' => $docName, // [NEW] Save name in payload
         'note'   => $note,
         'resolved_by' => $user_id
     ];

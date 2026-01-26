@@ -9,8 +9,18 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'ADMIN') {
     exit;
 }
 
-// 2. PAGINATION & SEARCH LOGIC
+// 2. DASHBOARD STATS (Visual Cards)
+$todayCount = $pdo->query("SELECT COUNT(*) FROM activity_logs WHERE DATE(created_at) = CURDATE()")->fetchColumn();
+$monthCount = $pdo->query("SELECT COUNT(*) FROM activity_logs WHERE MONTH(created_at) = MONTH(CURRENT_DATE()) AND YEAR(created_at) = YEAR(CURRENT_DATE())")->fetchColumn();
+$topUserStmt = $pdo->query("SELECT u.username, COUNT(*) as c FROM activity_logs a JOIN users u ON a.user_id = u.id GROUP BY a.user_id ORDER BY c DESC LIMIT 1");
+$topUser = $topUserStmt->fetch(PDO::FETCH_ASSOC);
+$topUserName = $topUser ? $topUser['username'] : 'N/A';
+
+// 3. PAGINATION, SEARCH & FILTER LOGIC
 $search = $_GET['search'] ?? '';
+$start_date = $_GET['start_date'] ?? '';
+$end_date   = $_GET['end_date'] ?? '';
+
 // [SECURITY] Limit & Sanitize Search
 if (strlen($search) > 50) $search = substr($search, 0, 50);
 $search = preg_replace('/[^a-zA-Z0-9\-_ ]/', '', $search);
@@ -20,14 +30,48 @@ $perPage = 20;
 $offset = ($page - 1) * $perPage;
 
 // Build Query
-$whereSQL = "";
+$conditions = [];
 $params = [];
 
 if (!empty($search)) {
-    // FIX 1: Changed 'a.action_type' to 'a.action'
-    $whereSQL = "WHERE u.username LIKE ? OR a.action LIKE ? OR a.details LIKE ?";
+    $conditions[] = "(u.username LIKE ? OR a.action LIKE ? OR a.details LIKE ?)";
     $term = "%$search%";
-    $params = [$term, $term, $term];
+    array_push($params, $term, $term, $term);
+}
+
+if (!empty($start_date) && !empty($end_date)) {
+    $conditions[] = "DATE(a.created_at) BETWEEN ? AND ?";
+    array_push($params, $start_date, $end_date);
+}
+
+$whereSQL = $conditions ? 'WHERE ' . implode(' AND ', $conditions) : '';
+
+// 4. HANDLE EXPORT (CSV)
+if (isset($_GET['export'])) {
+    header('Content-Type: text/csv');
+    header('Content-Disposition: attachment; filename="Audit_Logs_' . date('Y-m-d') . '.csv"');
+    $out = fopen('php://output', 'w');
+    
+    // BOM for Excel
+    fwrite($out, "\xEF\xBB\xBF");
+    fputcsv($out, ['Date Time', 'User', 'Role', 'Action', 'Details', 'IP Address']);
+    
+    $sqlExport = "SELECT a.*, u.username, u.role FROM activity_logs a JOIN users u ON a.user_id = u.id $whereSQL ORDER BY a.created_at DESC";
+    $stmtExport = $pdo->prepare($sqlExport);
+    $stmtExport->execute($params);
+    
+    while ($row = $stmtExport->fetch(PDO::FETCH_ASSOC)) {
+        fputcsv($out, [
+            $row['created_at'],
+            $row['username'],
+            $row['role'],
+            $row['action'] ?? $row['action_type'] ?? 'UNKNOWN',
+            $row['details'],
+            $row['ip_address']
+        ]);
+    }
+    fclose($out);
+    exit;
 }
 
 // Fetch Total Count
@@ -67,6 +111,7 @@ $logs = $stmt->fetchAll();
         .badge-delete { background-color: #f8d7da; color: #842029; }
         .badge-login  { background-color: #cfe2ff; color: #084298; }
         .badge-other  { background-color: #e2e3e5; color: #41464b; }
+        .badge-print  { background-color: #fff3cd; color: #856404; }
     </style>
 </head>
 <body class="bg-light p-4">
@@ -77,14 +122,70 @@ $logs = $stmt->fetchAll();
         <a href="index.php" class="btn btn-secondary">Back to Dashboard</a>
     </div>
 
+    <!-- Visual Cards -->
+    <div class="row mb-4">
+        <div class="col-md-4">
+            <div class="card shadow-sm border-primary border-start border-4">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="text-muted text-uppercase mb-1">Activities Today</h6>
+                            <h2 class="fw-bold text-primary mb-0"><?php echo number_format($todayCount); ?></h2>
+                        </div>
+                        <div class="fs-1 text-primary opacity-25"><i class="bi bi-calendar-check"></i></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card shadow-sm border-success border-start border-4">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="text-muted text-uppercase mb-1">This Month</h6>
+                            <h2 class="fw-bold text-success mb-0"><?php echo number_format($monthCount); ?></h2>
+                        </div>
+                        <div class="fs-1 text-success opacity-25"><i class="bi bi-graph-up-arrow"></i></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card shadow-sm border-warning border-start border-4">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="text-muted text-uppercase mb-1">Top Contributor</h6>
+                            <h2 class="fw-bold text-warning mb-0"><?php echo htmlspecialchars($topUserName); ?></h2>
+                        </div>
+                        <div class="fs-1 text-warning opacity-25"><i class="bi bi-trophy-fill"></i></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div class="card shadow-sm mb-4">
         <div class="card-body">
             <form method="GET" class="row g-2">
-                <div class="col-md-10">
-                    <input type="text" name="search" class="form-control" placeholder="Search logs (e.g. 'delete', 'admin', 'medical')..." value="<?php echo htmlspecialchars($search); ?>">
+                <div class="col-md-4">
+                    <input type="text" name="search" class="form-control" placeholder="Search logs (e.g. 'delete', 'admin', 'medical')..." value="<?php echo htmlspecialchars($search); ?>" maxlength="50" pattern="[a-zA-Z0-9\-_ ]+" title="Allowed: Letters, Numbers, Spaces, Dashes, Underscores">
                 </div>
-                <div class="col-md-2 d-grid">
-                    <button type="submit" class="btn btn-primary"><i class="bi bi-search"></i> Search</button>
+                <div class="col-md-3">
+                    <div class="input-group">
+                        <span class="input-group-text bg-light">From</span>
+                        <input type="date" name="start_date" class="form-control" value="<?php echo htmlspecialchars($start_date); ?>">
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="input-group">
+                        <span class="input-group-text bg-light">To</span>
+                        <input type="date" name="end_date" class="form-control" value="<?php echo htmlspecialchars($end_date); ?>">
+                    </div>
+                </div>
+                <div class="col-md-2 d-flex gap-1">
+                    <button type="submit" class="btn btn-primary w-100"><i class="bi bi-search"></i></button>
+                    <button type="submit" name="export" value="1" class="btn btn-success w-100" title="Export CSV"><i class="bi bi-download"></i></button>
                 </div>
             </form>
         </div>
@@ -116,6 +217,7 @@ $logs = $stmt->fetchAll();
                             if (strpos($type, 'DELETE') !== false) $class = 'badge-delete';
                             if (strpos($type, 'LOGIN') !== false)  $class = 'badge-login';
                             if (strpos($type, 'LOGOUT') !== false) $class = 'bg-secondary text-white';
+                            if (strpos($type, 'GENERATE') !== false || strpos($type, 'PRINT') !== false) $class = 'badge-print';
                         ?>
                         <tr>
                             <td class="text-muted small" style="width: 180px;">
@@ -147,7 +249,7 @@ $logs = $stmt->fetchAll();
         <ul class="pagination justify-content-center">
             <?php for ($i = 1; $i <= $totalPages; $i++): ?>
                 <li class="page-item <?php echo ($i == $page) ? 'active' : ''; ?>">
-                    <a class="page-link" href="?page=<?php echo $i; ?>&search=<?php echo urlencode($search); ?>">
+                    <a class="page-link" href="?page=<?php echo $i; ?>&search=<?php echo urlencode($search); ?>&start_date=<?php echo urlencode($start_date); ?>&end_date=<?php echo urlencode($end_date); ?>">
                         <?php echo $i; ?>
                     </a>
                 </li>

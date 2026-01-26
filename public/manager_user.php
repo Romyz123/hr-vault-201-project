@@ -49,9 +49,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // [PHASE 2 SECURITY] Strong Password Check
         if (strlen($password) < 12) {
             $alertType = 'error'; $alertMsg = "❌ Password too short! Must be at least 12 characters.";
+        } elseif (!preg_match('/^[a-zA-Z0-9]+$/', $username)) {
+            $alertType = 'error'; $alertMsg = "❌ Username must be alphanumeric (letters & numbers only).";
         } elseif (!preg_match('/[0-9]/', $password)) {
             $alertType = 'error'; $alertMsg = "❌ Password must contain at least one number.";
-        } elseif (!preg_match('/[\W]/', $password)) {
+        } elseif (!preg_match('/[\W_]/', $password)) {
             $alertType = 'error'; $alertMsg = "❌ Password must contain at least one symbol (!@#$%).";
         } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
             $alertType = 'error'; $alertMsg = "❌ Invalid email format.";
@@ -87,6 +89,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         
         if ($chk->rowCount() > 0) {
             $alertType = 'error'; $alertMsg = "❌ Email '$email' is already taken by another user.";
+        } elseif (!preg_match('/^[a-zA-Z0-9]+$/', $username)) {
+            $alertType = 'error'; $alertMsg = "❌ Username must be alphanumeric (letters & numbers only).";
         } else {
             // Update Info
             $sql = "UPDATE users SET username = ?, email = ?, role = ? WHERE id = ?";
@@ -94,7 +98,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             
             // If password changed, validate and hash it
             if (!empty($new_pass)) {
-                if (strlen($new_pass) < 12 || !preg_match('/[0-9]/', $new_pass) || !preg_match('/[\W]/', $new_pass)) {
+                if (strlen($new_pass) < 12 || !preg_match('/[0-9]/', $new_pass) || !preg_match('/[\W_]/', $new_pass)) {
                     $alertType = 'error'; $alertMsg = "❌ Update Failed: New password is too weak (Min 12 chars, 1 number, 1 symbol).";
                 } else {
                     $sql = "UPDATE users SET username = ?, email = ?, role = ?, password = ? WHERE id = ?";

@@ -9,8 +9,8 @@ require '../src/Security.php';
 require '../src/Logger.php';
 session_start();
 
-// 1. SECURITY: Only Admin/HR
-if (!isset($_SESSION['role']) || !in_array($_SESSION['role'], ['ADMIN', 'HR'])) {
+// 1. SECURITY: Admin/HR/Staff
+if (!isset($_SESSION['role']) || !in_array($_SESSION['role'], ['ADMIN', 'HR', 'STAFF'])) {
     die("ACCESS DENIED");
 }
 
@@ -57,6 +57,10 @@ $current_month = date('F'); // January
 $current_year = date('Y');
 $current_full_date = date('F j, Y');
 
+// [LOGGING] Record document generation
+$logger = new Logger($pdo);
+$logger->log($_SESSION['user_id'], 'GENERATE_DOC', "Generated $type for {$emp['first_name']} {$emp['last_name']} ({$emp['emp_id']})");
+
 // 4. LOAD TEMPLATE
 // We wrap the template in a clean HTML container for printing
 ?>
@@ -67,7 +71,7 @@ $current_full_date = date('F j, Y');
     <title>Document: <?php echo htmlspecialchars($type); ?></title>
     <style>
         body { font-family: "Times New Roman", Times, serif; font-size: 12pt; line-height: 1.5; color: #000; background: #eee; }
-        .page { background: white; width: 8.5in; min-height: 11in; padding: 0.5in; margin: 20px auto; box-shadow: 0 0 10px rgba(0,0,0,0.1); position: relative; }
+        .page { background: white; width: 8in; min-height: 11in; padding: 0.5in; /* [PREVIEW CONTROL] Keep this same as print margin */ margin: 20px auto; box-shadow: 0 0 10px rgba(0,0,0,0.1); position: relative; }
         .no-print { position: fixed; top: 20px; right: 20px; }
         .text-center { text-align: center; }
         .fw-bold { font-weight: bold; }
@@ -91,7 +95,7 @@ $current_full_date = date('F j, Y');
     </div>
 
     <div class="page">
-        <?php if ($type !== 'probationary_lms' && $type !== 'confidentiality' && $type !== 'regular'): ?>
+        <?php if ($type !== 'probationary_lms' && $type !== 'confidentiality'): ?>
         <table style="width: 100%; margin-bottom: 10px;">
             <tr>
                 <td style="width: 100px; text-align: center; vertical-align: middle;">
@@ -114,10 +118,12 @@ $current_full_date = date('F j, Y');
 
         <?php 
         $templateFile = '';
-        if ($type === 'probationary_lms') {
+        if ($type === 'probationary_lms' || $type === 'probationary') {
             $templateFile = __DIR__ . '/templates/contract_probationary_lms.php';
-        } elseif ($type === 'regular') {
-            $templateFile = __DIR__ . '/templates/contract_regular.php';
+            // Fallback: If the new LMS file doesn't exist yet, use the old one
+            if (!file_exists($templateFile)) {
+                $templateFile = __DIR__ . '/templates/contract_probationary.php';
+            }
         } elseif ($type === 'confidentiality') {
             $templateFile = __DIR__ . '/templates/confidentiality_agreement.php';
         }

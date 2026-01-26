@@ -4,6 +4,10 @@ require '../src/Security.php';
 require '../src/Logger.php';
 session_start();
 
+// [FIX] Load Config to ensure VAULT_PATH is available
+$config = require '../config/config.php';
+$vaultPath = $config['VAULT_PATH'] ?? __DIR__ . '/../vault/';
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     
     if (!isset($_SESSION['user_id'])) die("ACCESS DENIED");
@@ -57,7 +61,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         // --- DUPLICATE CHECK ---
-        $targetDir = "uploads/";
+        $targetDir = $vaultPath;
         if (!is_dir($targetDir)) mkdir($targetDir, 0777, true);
         
         $targetPath = $targetDir . $finalName;

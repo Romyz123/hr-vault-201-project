@@ -9,6 +9,10 @@ require '../src/Logger.php';
 require '../config/db.php';
 session_start();
 
+// [FIX] Load Config to ensure VAULT_PATH is available
+$config = require '../config/config.php';
+$vaultPath = $config['VAULT_PATH'] ?? __DIR__ . '/../vault/';
+
 // 1. SECURITY
 if (!isset($_SESSION['user_id']) || !in_array($_SESSION['role'] ?? '', ['ADMIN', 'HR', 'STAFF'])) {
     header("Location: index.php"); exit;
@@ -226,7 +230,7 @@ foreach ($employees as $emp) {
     // --- C. ADD DOCUMENTS ---
     if (isset($docsByEmp[$empId])) {
         foreach ($docsByEmp[$empId] as $doc) {
-            $realPath = "uploads/" . $doc['file_path'];
+            $realPath = $vaultPath . $doc['file_path'];
             if (file_exists($realPath)) {
                 $zip->addFile($realPath, $folderName . "/" . $doc['original_name']);
             }

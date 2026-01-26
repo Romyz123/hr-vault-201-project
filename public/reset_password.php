@@ -37,8 +37,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         if ($pass !== $confirm) {
             $error = "Passwords do not match.";
             $step = 'reset';
-        } elseif (strlen($pass) < 12 || !preg_match('/[0-9]/', $pass) || !preg_match('/[\W]/', $pass)) {
-            $error = "Password must be 12+ chars, with a number & symbol.";
+        } elseif (strlen($pass) < 12 || !preg_match('/[a-zA-Z]/', $pass) || !preg_match('/[0-9]/', $pass) || !preg_match('/[\W_]/', $pass)) {
+            $error = "Password must be 12+ chars, with a letter, number & symbol.";
             $step = 'reset';
         } else {
             $hash = password_hash($pass, PASSWORD_DEFAULT);
@@ -91,7 +91,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
         <!-- STEP 1: ENTER CODE -->
         <?php if ($step === 'verify'): ?>
-            <p class="text-center text-muted small">Enter the 6-digit code sent to your email.</p>
+            <p class="text-center text-muted small">Enter the 6-digit code (OTP) sent to your email.</p>
             <form method="GET">
                 <div class="mb-4">
                     <input type="text" name="token" class="form-control otp-input" placeholder="000000" maxlength="6" required autofocus value="<?php echo htmlspecialchars($token); ?>">
@@ -100,7 +100,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                     <button type="submit" class="btn btn-primary btn-lg">Verify Code</button>
                 </div>
                 <div class="text-center mt-3">
-                    <a href="forgot_password.php" class="text-decoration-none small">Resend Code</a>
+                    <span class="text-muted small">Didn't receive the code?</span>
+                    <a href="forgot_password.php" class="text-decoration-none small fw-bold">Resend Code</a>
                 </div>
             </form>
 
@@ -121,6 +122,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                     <!-- Real-time Validation Checklist -->
                     <div class="mt-2 ps-1">
                         <div id="rule-len" class="validation-item"><i class="bi bi-circle"></i> At least 12 characters</div>
+                        <div id="rule-let" class="validation-item"><i class="bi bi-circle"></i> Contains a letter</div>
                         <div id="rule-num" class="validation-item"><i class="bi bi-circle"></i> Contains a number (0-9)</div>
                         <div id="rule-sym" class="validation-item"><i class="bi bi-circle"></i> Contains a symbol (!@#$)</div>
                     </div>
@@ -166,6 +168,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     if (p1 && p2) {
         const rules = {
             len: { el: document.getElementById('rule-len'), regex: /.{12,}/ },
+            let: { el: document.getElementById('rule-let'), regex: /[a-zA-Z]/ },
             num: { el: document.getElementById('rule-num'), regex: /[0-9]/ },
             sym: { el: document.getElementById('rule-sym'), regex: /[\W_]/ }
         };

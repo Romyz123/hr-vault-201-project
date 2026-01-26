@@ -256,6 +256,7 @@ $tickets  = $pdo->query("SELECT r.*, u.username FROM requests r LEFT JOIN users 
 <?php
 // HELPER FUNCTION TO RENDER TABLES
 function renderTable($requests, $type) {
+    global $pdo; // Access DB for lookups
     if (count($requests) == 0) { echo "<div class='p-4 text-center text-muted'>No pending requests.</div>"; return; }
     
     // Map tab names
@@ -265,14 +266,23 @@ function renderTable($requests, $type) {
     
     foreach ($requests as $r) {
         $data = json_decode($r['json_payload'], true);
-        $jsonData = htmlspecialchars($r['json_payload'], ENT_QUOTES, 'UTF-8');
+        
+        // [FIX] Ensure doc_name exists for old records (Ticket Resolutions)
+        if ($type == 'ticket' && empty($data['doc_name']) && isset($data['doc_id'])) {
+            $stmt = $pdo->prepare("SELECT original_name FROM documents WHERE id = ?");
+            $stmt->execute([$data['doc_id']]);
+            $data['doc_name'] = $stmt->fetchColumn() ?: 'Unknown File';
+        }
+
+        $jsonData = htmlspecialchars(json_encode($data), ENT_QUOTES, 'UTF-8');
         
         // Dynamic Summary
         if ($type == 'hire') $summary = "<strong>New Employee:</strong> " . $data['first_name'] . " " . $data['last_name'];
         elseif ($type == 'edit') $summary = "<strong>Update Profile:</strong> ID " . $r['target_id'];
         elseif ($type == 'doc') $summary = "<strong>File Upload:</strong> " . $data['original_name'];
         elseif ($type == 'ticket') {
-            $summary = "<strong class='text-primary'>Resolution Report:</strong> " . substr($data['note'], 0, 50) . "...";
+            $docLabel = isset($data['doc_name']) ? " (" . htmlspecialchars($data['doc_name']) . ")" : " (Doc #" . ($data['doc_id'] ?? '?') . ")";
+            $summary = "<strong class='text-primary'><i class='bi bi-check2-circle'></i> Action Taken{$docLabel}:</strong> " . substr($data['note'], 0, 100) . "...";
         }
         
         echo "<tr>
@@ -280,7 +290,7 @@ function renderTable($requests, $type) {
             <td><span class='badge bg-secondary'>{$r['username']}</span></td>
             <td>$summary</td>
             <td class='text-end'>
-                <button class='btn btn-sm btn-info text-white me-2' onclick='openPreview($jsonData, \"$type\")' title='View Details'><i class='bi bi-eye'></i> View</button>
+                <button class='btn btn-sm btn-info text-white me-2' onclick='openPreview($jsonData, \"$type\", {$r['id']})' title='View Details'><i class='bi bi-eye'></i> View</button>
                 
                 <form method='POST' class='d-inline'>
                     <input type='hidden' name='req_id' value='{$r['id']}'>
@@ -320,7 +330,7 @@ function openRejectModal(reqId, tabName) {
     new bootstrap.Modal(document.getElementById('rejectModal')).show();
 }
 
-function openPreview(data, type) {
+function openPreview(data, type, reqId = null) {
     let content = '';
     const modalBody = document.getElementById('modalContent');
 
@@ -329,13 +339,13 @@ function openPreview(data, type) {
         content += `<div class="alert alert-warning border-start border-5 border-warning shadow-sm">
                         <h5 class="text-dark"><i class="bi bi-clipboard-check"></i> Resolution Report</h5>
                         <hr>
-                        <p class="mb-1 text-muted small">Staff Note:</p>
+                        <p class="mb-1 text-primary fw-bold small text-uppercase">Action Taken${data.doc_name ? ' for ' + data.doc_name : ''}:</p>
                         <p class="fs-5 fw-bold text-dark">"${data.note}"</p>
                     </div>`;
     }
     // 2. DOCUMENT
     else if (type === 'doc') {
-        let filePath = 'uploads/' + encodeURIComponent(data.file_path); 
+        let filePath = 'view_pending.php?id=' + reqId; // [FIX] Use Viewer Script
         let fileExt = data.original_name.split('.').pop().toLowerCase();
         
         content += `<h5>File: ${data.original_name}</h5>

@@ -118,7 +118,18 @@ function parseDate($dateStr) {
 // ======================================================
 if (isset($_POST['undo_batch'])) {
     $batch_to_delete = $_POST['undo_batch'];
-    if (strpos($batch_to_delete, 'BATCH_') === 0) {
+    
+    // [NEW] 1. Check Time Limit (30 Minutes = 1800 Seconds)
+    $stmt = $pdo->prepare("SELECT MAX(created_at) FROM employees WHERE import_batch = ?");
+    $stmt->execute([$batch_to_delete]);
+    $batchTimeStr = $stmt->fetchColumn();
+    
+    // If batch exists AND is older than 30 mins
+    if ($batchTimeStr && (time() - strtotime($batchTimeStr) > 1800)) {
+        $error = "❌ Undo Failed: The 30-minute time limit for this batch has expired.";
+    } 
+    // [EXISTING LOGIC] Proceed if valid
+    elseif (strpos($batch_to_delete, 'BATCH_') === 0) {
         try {
             $stmt = $pdo->prepare("SELECT COUNT(*) FROM employees WHERE import_batch = ?");
             $stmt->execute([$batch_to_delete]);
@@ -134,6 +145,7 @@ if (isset($_POST['undo_batch'])) {
         }
     }
 }
+
 
 // ======================================================
 // 3. HANDLE IMPORT ACTION
@@ -237,19 +249,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['csv_file'])) {
             // --- PROCESSING ---
             $section = strtoupper(trim($section_raw));
             $dept    = findDept($section, $deptMap);
-
-            // [NORMALIZATION] Convert Keywords -> Official Section Names
-            if ($dept === 'SIGCOM') $section = "SIGNALING & COMMUNICATION";
-            if ($dept === 'PSS')    $section = "POWER SUPPLY";
-            if ($dept === 'OCS')    $section = "OVERHEAD CATENARY";
-            if ($dept === 'HMS')    $section = "HEAVY MAINTENANCE";
-            if ($dept === 'RAS')    $section = "ROOT CAUSE ANALYSIS";
-            if ($dept === 'TRS')    $section = "TECHNICAL RESEARCH";
-            if ($dept === 'LMS')    $section = "LIGHT MAINTENANCE";
-            if ($dept === 'DOS')    $section = "DEPARTMENT OPERATIONS";
-            if ($dept === 'CTS')    $section = "CIVIL TRACKS";
-            if ($dept === 'BFS')    $section = "BUILDING FACILITIES";
-            if ($dept === 'WHS')    $section = "WAREHOUSE";
             
             $birth_date = parseDate(trim($birth_raw));
             $hire_date  = parseDate(trim($hire_raw));
@@ -382,16 +381,35 @@ $history = $pdo->query("SELECT import_batch, agency_name, COUNT(*) as count, MAX
             <table class="table table-striped mb-0">
                 <thead><tr><th>Date</th><th>Agency</th><th>Count</th><th>Action</th></tr></thead>
                 <tbody>
-                    <?php foreach ($history as $h): ?>
-                    <tr>
-                        <td><?php echo date('M d, h:i A', strtotime($h['time'])); ?></td>
+                    <?php foreach ($history as $h): 
+                        // Calculate Time Remaining for Undo
+                        $importTime = strtotime($h['time']);
+                        $elapsed = time() - $importTime;
+                        $limit = 30 * 60; // 30 minutes in seconds
+                        $canUndo = $elapsed < $limit;
+                        $minsLeft = ceil(($limit - $elapsed) / 60);
+                    ?>
+                     <tr>
+                        <td><?php echo date('M d, h:i A', $importTime); ?></td>
                         <td><?php echo htmlspecialchars($h['agency_name']); ?></td>
                         <td><?php echo $h['count']; ?></td>
                         <td>
-                            <form method="POST">
-                                <input type="hidden" name="undo_batch" value="<?php echo $h['import_batch']; ?>">
-                                <button type="button" class="btn btn-sm btn-outline-danger" onclick="confirmUndo(this)">Undo</button>
-                            </form>
+                            <?php if ($canUndo): ?>
+                                <!-- ACTIVE BUTTON -->
+                                <form method="POST">
+                                    <input type="hidden" name="undo_batch" value="<?php echo $h['import_batch']; ?>">
+                                    <button type="button" class="btn btn-sm btn-outline-danger" onclick="confirmUndo(this)">Undo</button>
+                                </form>
+                                <div class="text-success small fw-bold mt-1">
+                                    <i class="bi bi-clock-history"></i> <?php echo $minsLeft; ?>m left
+                                </div>
+                            <?php else: ?>
+                                <!-- LOCKED BUTTON -->
+                                <button class="btn btn-sm btn-secondary disabled" disabled>
+                                    <i class="bi bi-lock-fill"></i> Locked
+                                </button>
+                                <div class="text-muted small mt-1">Time limit exceeded</div>
+                            <?php endif; ?>
                         </td>
                     </tr>
                     <?php endforeach; ?>

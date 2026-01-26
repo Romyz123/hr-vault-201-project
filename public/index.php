@@ -134,6 +134,17 @@ $perPage = max(6, min(48, $perPage));
 $offset  = ($page - 1) * $perPage;
 
 // ---------- 5) NOTIFICATIONS (DB + Expiry alerts) ----------
+// [FIX] Check if 'deleted_at' column exists for soft-delete feature
+$hasDeletedAtColumn = false;
+try {
+    $checkCols = $pdo->query("SHOW COLUMNS FROM `documents` LIKE 'deleted_at'");
+    if ($checkCols && $checkCols->rowCount() > 0) {
+        $hasDeletedAtColumn = true;
+    }
+} catch (PDOException $e) {
+    // Table might not exist, or other error. Safely assume no column.
+}
+
 // Handle "Clear Messages" (only clears DB notifications for this user)
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['clear_notifs'])) {
     // CSRF validation
@@ -168,6 +179,9 @@ $docQuery  = "
       AND d.expiry_date IS NOT NULL
       AND d.expiry_date <= ?
 ";
+if ($hasDeletedAtColumn) {
+    $docQuery .= " AND d.deleted_at IS NULL";
+}
 if (!in_array($userRole, ['ADMIN','HR'], true)) {
     // scope to files uploaded by current user
     $docQuery .= " AND d.uploaded_by = " . (int)$_SESSION['user_id'];
@@ -191,6 +205,22 @@ foreach ($raw_alerts as $d) {
         'doc_name'   => $d['original_name'],
         'emp_search' => $d['real_emp_id']
     ];
+}
+
+// (Source 3) Pending Requests (For ADMIN/HR only)
+if (in_array($userRole, ['ADMIN', 'HR'], true)) {
+    $pendCount = $pdo->query("SELECT COUNT(*) FROM requests")->fetchColumn();
+    if ($pendCount > 0) {
+        $doc_alerts[] = [
+            'id'         => 'pending_reqs',
+            'title'      => "Approval Center",
+            'message'    => "$pendCount request(s) waiting for review.",
+            'type'       => 'info',
+            'created_at' => date('Y-m-d H:i:s'), // Show at top
+            'source'     => 'request',
+            'link'       => 'admin_approval.php'
+        ];
+    }
 }
 
 // Merge & sort notifications (newest first)
@@ -276,7 +306,11 @@ $filesByEmp = [];
 if (!empty($employees)) {
     $empIds = array_map(fn($e) => $e['emp_id'], $employees);
     $placeholders = implode(',', array_fill(0, count($empIds), '?'));
-    $docsSql = "SELECT * FROM documents WHERE employee_id IN ($placeholders) ORDER BY uploaded_at DESC";
+    $docsSql = "SELECT * FROM documents WHERE employee_id IN ($placeholders)";
+    if ($hasDeletedAtColumn) {
+        $docsSql .= " AND deleted_at IS NULL";
+    }
+    $docsSql .= " ORDER BY uploaded_at DESC";
     $docsStmt = $pdo->prepare($docsSql);
     $docsStmt->execute($empIds);
     $docs = $docsStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
@@ -286,11 +320,14 @@ if (!empty($employees)) {
 }
 
 // ---------- 10) CHART DATA (simple counts by category) ----------
-$statsQuery = $pdo->query("
+$statsSql = "
     SELECT COALESCE(NULLIF(TRIM(category), ''), 'Documents for Employee'), COUNT(*) 
-    FROM documents 
-    GROUP BY 1
-");
+    FROM documents";
+if ($hasDeletedAtColumn) {
+    $statsSql .= " WHERE deleted_at IS NULL";
+}
+$statsSql .= " GROUP BY 1";
+$statsQuery = $pdo->query($statsSql);
 $stats = $statsQuery->fetchAll(PDO::FETCH_KEY_PAIR) ?: [];
 $labels = json_encode(array_values(array_keys($stats)), JSON_UNESCAPED_UNICODE);
 $data   = json_encode(array_values($stats),            JSON_UNESCAPED_UNICODE);
@@ -380,6 +417,10 @@ $targetEmpId = getQueryParamSafe('search',      150, '');
                             if (($n['source'] ?? '') === 'expiry') {
                                 $icon = "bi-exclamation-triangle-fill text-warning";
                                 $link = "index.php?search=" . urlencode($n['emp_search']) . "&resolve_doc=" . urlencode((string)$n['link_id']) . "&doc_name=" . urlencode($n['doc_name']);
+                                $clickableClass = "list-group-item-action";
+                            } elseif (($n['source'] ?? '') === 'request') {
+                                $icon = "bi-clipboard-data-fill text-primary";
+                                $link = "admin_approval.php";
                                 $clickableClass = "list-group-item-action";
                             } elseif (($n['type'] ?? '') === 'success') {
                                 $icon = "bi-check-circle-fill text-success";
@@ -482,6 +523,11 @@ $targetEmpId = getQueryParamSafe('search',      150, '');
                           <i class="bi bi-shield-lock"></i> Approval Center
                         </a>
                     <?php endif; ?>
+                    <?php if (in_array($userRole, ['ADMIN', 'HR'], true)): ?>
+                        <a href="recycle_bin.php" class="btn btn-outline-secondary mt-2">
+                          <i class="bi bi-trash3"></i> Recycle Bin
+                        </a>
+                    <?php endif; ?>
                 </div>
             </div>
         </div>
@@ -569,7 +615,7 @@ $targetEmpId = getQueryParamSafe('search',      150, '');
                     <div class="input-group input-group-sm">
                         <input type="text" id="mainSearch" name="search" class="form-control"
                                placeholder="Search by ID / First / Last..." value="<?php echo h($search_query); ?>"
-                               autocomplete="off" aria-label="Search employees" maxlength="50">
+                               autocomplete="off" aria-label="Search employees" maxlength="50" pattern="[a-zA-Z0-9\-_ ]+" title="Allowed: Letters, Numbers, Spaces, Dashes, Underscores">
                         <button class="btn btn-primary" type="submit" aria-label="Submit search"><i class="bi bi-search"></i></button>
 
                         <!-- Export dropdown trigger (uses current filters) -->
@@ -721,7 +767,7 @@ $targetEmpId = getQueryParamSafe('search',      150, '');
                                                 </div>
                                                 <div class="list-group">
                                                     <?php foreach ($files as $file):
-                                                        $previewUrl     = "view_doc.php?id=" . $file['file_uuid'];
+                                                        $previewUrl     = "view_doc.php?id=" . $file['file_uuid'] . "&embed=1";
                                                         $type           = (stripos($file['original_name'], '.pdf') !== false) ? 'pdf' : 'img';
                                                         $previewTarget  = 'preview-' . (int)$emp['id'];
                                                         $isTarget       = ($targetDocId !== '' && (string)$targetDocId === (string)$file['id']);
@@ -744,6 +790,10 @@ $targetEmpId = getQueryParamSafe('search',      150, '');
                                                                 <i class="bi bi-wrench-adjustable-circle-fill"></i> Fix
                                                             </button>
                                                         <?php endif; ?>
+
+                                                        <a href="view_doc.php?id=<?php echo $file['file_uuid']; ?>&download=1" class="btn btn-sm btn-outline-primary border-0 ms-1" title="Download">
+                                                            <i class="bi bi-download"></i>
+                                                        </a>
 
                                                         <?php if (in_array($userRole, ['ADMIN','HR'], true)): ?>
                                                             <button type="button" class="btn btn-sm btn-outline-danger border-0"
@@ -869,7 +919,7 @@ $targetEmpId = getQueryParamSafe('search',      150, '');
 
                 <div class="mb-3 p-2 bg-light border rounded position-relative">
                     <label class="form-label fw-bold text-primary">Search Employee (Optional)</label>
-                    <input type="text" id="exportSearch" name="search" class="form-control" placeholder="Type Name or ID..." autocomplete="off" maxlength="150">
+                    <input type="text" id="exportSearch" name="search" class="form-control" placeholder="Type Name or ID..." autocomplete="off" maxlength="50" pattern="[a-zA-Z0-9\-_ ]+" title="Allowed: Letters, Numbers, Spaces, Dashes, Underscores">
                     <div id="exportSuggestionBox" class="list-group position-absolute w-100 shadow" style="display:none; z-index:2000; top:75px;"></div>
                     <div class="form-text small">Typing a name makes "Department" optional.</div>
                 </div>
@@ -938,6 +988,7 @@ $targetEmpId = getQueryParamSafe('search',      150, '');
                             <option value="Contract">Contract</option>
                             <option value="Evaluation">Evaluation</option>
                             <option value="Certificate">Certificate</option>
+                            <option value="Training Record">Training Record</option>
                             <option value="Others">Others</option>
                         </select>
                     </div>

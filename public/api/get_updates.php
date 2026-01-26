@@ -3,6 +3,7 @@
 // [STATUS] MERGED: Notifications + Chart + Live Dashboard Stats
 
 require '../../config/db.php'; 
+session_start();
 header('Content-Type: application/json');
 
 try {
@@ -23,10 +24,33 @@ try {
     $notifications = $stmt->fetchAll(PDO::FETCH_ASSOC);
     $notifCount = count($notifications);
 
+    // [NEW] Check Pending Requests (For Admin/HR)
+    $pendingHtml = '';
+    $userRole = $_SESSION['role'] ?? '';
+    if (in_array($userRole, ['ADMIN', 'HR'])) {
+        $pCount = $pdo->query("SELECT COUNT(*) FROM requests")->fetchColumn();
+        if ($pCount > 0) {
+            $notifCount++;
+            $pendingHtml = '
+            <li class="border-bottom py-2 px-3 bg-light">
+                <a href="admin_approval.php" class="text-decoration-none text-dark d-block">
+                    <div class="d-flex align-items-center">
+                        <i class="bi bi-clipboard-data-fill text-primary fs-5 me-2"></i>
+                        <div style="line-height: 1.2;">
+                            <small class="fw-bold d-block">Approval Center</small>
+                            <span class="extra-small fw-bold text-primary">'.$pCount.' Request(s) Pending</span>
+                        </div>
+                    </div>
+                </a>
+            </li>';
+        }
+    }
+
     // Generate HTML for Dropdown
     ob_start();
     if ($notifCount > 0) {
-        echo '<li><h6 class="dropdown-header bg-light border-bottom fw-bold">Compliance Alerts</h6></li>';
+        echo '<li><h6 class="dropdown-header bg-light border-bottom fw-bold">Notifications</h6></li>';
+        echo $pendingHtml; // Show pending requests at the top
         foreach ($notifications as $notif) {
             $days = ceil((strtotime($notif['expiry_date']) - time()) / (60 * 60 * 24));
             $color = ($days < 0) ? 'text-danger' : 'text-warning';

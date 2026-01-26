@@ -25,8 +25,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
     $username = trim($_POST['username']);
     $password = trim($_POST['password']);
     
-    // [SECURITY] Check if terms were agreed to (Server-side validation)
-    if (!isset($_POST['terms_agreed'])) {
+    // [SECURITY] Input Validation & Character Limits
+    if (strlen($username) > 50) {
+        $alertType = 'error';
+        $alertMsg = "❌ Username exceeds 50 characters.";
+    } elseif (strlen($password) > 128) {
+        $alertType = 'error';
+        $alertMsg = "❌ Password exceeds 128 characters.";
+    } elseif (!isset($_POST['terms_agreed'])) {
         $alertType = 'warning';
         $alertMsg = "⚠️ You must agree to the Confidentiality Pledge to login.";
     } else {
@@ -117,15 +123,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
                 <label class="form-label text-secondary">Username</label>
                 <div class="input-group">
                     <span class="input-group-text bg-light"><i class="bi bi-person"></i></span>
-                    <input type="text" name="username" class="form-control" placeholder="Enter username" required>
+                    <input type="text" name="username" class="form-control" placeholder="Enter username" required maxlength="50">
                 </div>
+                <div class="form-text text-muted small">Special characters are not allowed.</div>
             </div>
 
             <div class="mb-3">
                 <label class="form-label text-secondary">Password</label>
                 <div class="input-group">
                     <span class="input-group-text bg-light"><i class="bi bi-key"></i></span>
-                    <input type="password" name="password" id="loginPass" class="form-control" placeholder="Enter password" required minlength="6">
+                    <input type="password" name="password" id="loginPass" class="form-control" placeholder="Enter password" required minlength="6" maxlength="128">
                     <button class="btn btn-outline-secondary" type="button" onclick="toggleLoginPass(this)"><i class="bi bi-eye"></i></button>
                 </div>
                 <div id="capsLockWarning" class="form-text text-danger fw-bold mt-1" style="display: none;">

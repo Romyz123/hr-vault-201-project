@@ -24,6 +24,9 @@ $REQUIRED_DOCS = [
 // 3. GET FILTERS
 $dept = isset($_GET['dept']) ? trim($_GET['dept']) : '';
 $search = isset($_GET['search']) ? trim($_GET['search']) : '';
+// [SECURITY] Limit & Sanitize Search
+if (strlen($search) > 50) $search = substr($search, 0, 50);
+$search = preg_replace('/[^a-zA-Z0-9\-_ ]/', '', $search);
 
 // 4. FETCH EMPLOYEES
 $sql = "SELECT emp_id, first_name, last_name, dept, job_title, status FROM employees WHERE 1=1";
@@ -117,7 +120,7 @@ foreach ($allDocs as $d) {
                     </select>
                 </div>
                 <div class="col-auto ms-auto">
-                    <input type="text" name="search" class="form-control form-control-sm" placeholder="Search Name..." value="<?php echo htmlspecialchars($search); ?>">
+                    <input type="text" name="search" class="form-control form-control-sm" placeholder="Search Name..." value="<?php echo htmlspecialchars($search); ?>" maxlength="50" pattern="[a-zA-Z0-9\-_ ]+" title="Allowed: Letters, Numbers, Spaces, Dashes, Underscores">
                 </div>
                 <div class="col-auto">
                     <button type="submit" class="btn btn-primary btn-sm">Search</button>

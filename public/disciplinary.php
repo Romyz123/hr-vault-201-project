@@ -36,6 +36,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     if (!empty($_FILES['attachment']['name'])) {
         
         $targetDir = "uploads/"; 
+        if (!is_dir($targetDir)) mkdir($targetDir, 0755, true); // [FIX] Ensure folder exists
         $originalName = basename($_FILES['attachment']['name']);
 
         // [SECURITY] Validate File Type (Allow only PDF & Images)
@@ -55,7 +56,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             $dbFilePath = $fileName;
 
          // [FIX] STANDARD UUID GENERATION (MD5)
-          $file_uuid = md5(uniqid(rand(), true));;
+          $file_uuid = md5(uniqid(rand(), true));
 
             try {
                 // Check columns to prevent crash
@@ -110,6 +111,33 @@ if (isset($_GET['close_id'])) {
     exit;
 }
 
+// 4. DELETE CASE (Cleanup)
+if (isset($_GET['delete_id'])) {
+    $delId = $_GET['delete_id'];
+    
+    // Fetch info to delete file
+    $stmt = $pdo->prepare("SELECT attachment_path FROM disciplinary_cases WHERE id = ?");
+    $stmt->execute([$delId]);
+    $case = $stmt->fetch();
+
+    if ($case) {
+        // A. Delete Physical File
+        if (!empty($case['attachment_path'])) {
+            $filePath = __DIR__ . "/uploads/" . $case['attachment_path'];
+            if (file_exists($filePath)) unlink($filePath);
+            
+            // B. Remove from Documents Sync (if it exists there)
+            $pdo->prepare("DELETE FROM documents WHERE file_path = ? AND category = 'Disciplinary'")->execute([$case['attachment_path']]);
+        }
+
+        // C. Delete Record
+        $pdo->prepare("DELETE FROM disciplinary_cases WHERE id = ?")->execute([$delId]);
+        
+        header("Location: disciplinary.php?msg=Deleted Successfully");
+        exit;
+    }
+}
+
 // 4. FETCH DATA
 $search = isset($_GET['search']) ? trim($_GET['search']) : '';
 // [SECURITY] Limit & Sanitize Search
@@ -130,6 +158,12 @@ $cases->execute($params);
 $cases = $cases->fetchAll(PDO::FETCH_ASSOC);
 
 $emps = $pdo->query("SELECT emp_id, last_name, first_name FROM employees ORDER BY last_name ASC")->fetchAll();
+
+// Capture Success Message
+if (isset($_GET['msg'])) {
+    $alertType = 'success';
+    $alertMsg = htmlspecialchars($_GET['msg']);
+}
 ?>
 
 <!DOCTYPE html>
@@ -193,6 +227,11 @@ $emps = $pdo->query("SELECT emp_id, last_name, first_name FROM employees ORDER B
                             <?php if ($c['status'] == 'Open'): ?>
                                 <a href="disciplinary.php?close_id=<?php echo $c['id']; ?>" class="btn btn-sm btn-success">Close</a>
                             <?php endif; ?>
+                            <a href="disciplinary.php?delete_id=<?php echo $c['id']; ?>" 
+                               class="btn btn-sm btn-outline-danger ms-1" 
+                               onclick="return confirm('Permanently delete this case and file?');">
+                                <i class="bi bi-trash"></i>
+                            </a>
                         </td>
                     </tr>
                     <?php endforeach; ?>
