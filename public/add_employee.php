@@ -21,10 +21,20 @@ if (!isset($_SESSION['user_id'])) {
 }
 
 // ---------------- Helpers ----------------
-function h($v): string { return htmlspecialchars((string)$v, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); }
-function post($key, $default = '') { return isset($_POST[$key]) ? trim((string)$_POST[$key]) : $default; }
+function h($v): string
+{
+    return htmlspecialchars((string)$v, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+}
+function post($key, $default = '')
+{
+    return isset($_POST[$key]) ? trim((string)$_POST[$key]) : $default;
+}
 $old = $_POST ?? [];
-function old($key, $default='') { global $old; return h($old[$key] ?? $default); }
+function old($key, $default = '')
+{
+    global $old;
+    return h($old[$key] ?? $default);
+}
 
 $security = new Security($pdo);
 $logger   = new Logger($pdo);
@@ -37,27 +47,27 @@ $security->checkRateLimit($_SERVER['REMOTE_ADDR'] ?? '0.0.0.0', 120, 60);
 // No acronyms or duplicates here. Only the official names.
 $deptMap = [
     // SQP & Admin have real sub-sections
-    "SQP"     => ["SAFETY", "QA", "PLANNING", "IT"], 
-    "ADMIN"   => ["ADMIN","GAG", "TKG", "PCG", "ACG", "MED", "OP", "CLEANERS/HOUSE KEEPING"],
-    
+    "SQP"     => ["SAFETY", "QA", "PLANNING", "IT"],
+    "ADMIN"   => ["ADMIN", "GAG", "TKG", "PCG", "ACG", "MED", "OP", "CLEANERS/HOUSE KEEPING"],
+
     // OPERATIONS - Combined into single official names
-    "SIGCOM"  => ["SIGNALING & COMMUNICATION"], 
+    "SIGCOM"  => ["SIGNALING & COMMUNICATION"],
     "PSS"     => ["POWER SUPPLY SECTION"],
     "OCS"     => ["OVERHEAD CATENARY SYSTEM"],
-    
+
     // MAINTENANCE
     "HMS"     => ["HEAVY MAINTENANCE SECTION"],
     "RAS"     => ["ROOT CAUSE ANALYSIS "],
     "TRS"     => ["TECHNICAL RESEARCH SECTION"],
     "LMS"     => ["LIGHT MAINTENANCE SECTION"],
     "DOS"     => ["DEPARTMENT OPERATIONS SECTION"],
-    
+
     // FACILITIES
     "CTS"     => ["CIVIL TRACKS SECTION"],
     "BFS"     => ["BUILDING FACILITIES SECTION"],
     "WHS"     => ["WAREHOUSE SECTION"],
     "GUNJIN"  => ["EMT", "SECURITY"],
-    
+
     // OTHERS
     "SUBCONS-OTHERS" => ["OTHERS"]
 ];
@@ -88,8 +98,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // 2. Collect Inputs & Force Capitalization (FIXED LOGIC)
     $emp_id           = post('emp_id');
     // FIXED: Correctly assign the capitalized value back to variable
-    $job_title        = ucwords(strtolower(post('job_title'))); 
-    
+    $job_title        = ucwords(strtolower(post('job_title')));
+
     $dept             = post('dept');
     $section          = post('section');
     $input_selection  = post('employment_type');
@@ -101,13 +111,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $first_name       = ucwords(strtolower(post('first_name')));
     $middle_name      = ucwords(strtolower(post('middle_name')));
     $last_name        = ucwords(strtolower(post('last_name')));
-    
+
     $gender           = post('gender');
     $birth_date       = post('birth_date');
     $contact_number   = post('contact_number');
     $email            = post('email');
     $present_address  = post('present_address');
-    $permanent_address= post('permanent_address');
+    $permanent_address = post('permanent_address');
 
     // Govt IDs
     $sss_no           = post('sss_no');
@@ -117,8 +127,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // Emergency
     $emergency_name   = ucwords(strtolower(post('emergency_name')));
-    $emergency_contact= post('emergency_contact');
-    $emergency_address= post('emergency_address');
+    $emergency_contact = post('emergency_contact');
+    $emergency_address = post('emergency_address');
+
+    // Qualifications
+    $education  = post('education');
+    $experience = post('experience');
+    $skills     = post('skills');
+    $licenses   = post('licenses');
 
     // 3. Logic: Map Employment Type
     if (!in_array($input_selection, $agencies, true)) {
@@ -155,6 +171,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'emergency_name'    => 100,
         'emergency_contact' => 20,
         'emergency_address' => 200,
+        'education'         => 1000,
+        'experience'        => 1000,
+        'skills'            => 1000,
+        'licenses'          => 1000,
     ];
 
     foreach ($max as $k => $limit) {
@@ -171,9 +191,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($gender === '' || !in_array($gender, $allowedGenders, true)) $errors[] = "Gender is required.";
 
     // [SECURITY] Name Validation (Letters, spaces, dots, dashes only)
-    if (!preg_match("/^[a-zA-Z\s\-\.]+$/", $first_name)) $errors[] = "First Name contains invalid characters.";
-    if ($middle_name !== '' && !preg_match("/^[a-zA-Z\s\-\.]+$/", $middle_name)) $errors[] = "Middle Name contains invalid characters.";
-    if (!preg_match("/^[a-zA-Z\s\-\.]+$/", $last_name)) $errors[] = "Last Name contains invalid characters.";
+    if (!preg_match("/^[a-zA-Z\s\-\.]+$/", $first_name)) $errors[] = "First Name contains invalid characters. Allowed: Letters, spaces, dots, dashes.";
+    if ($middle_name !== '' && !preg_match("/^[a-zA-Z\s\-\.]+$/", $middle_name)) $errors[] = "Middle Name contains invalid characters. Allowed: Letters, spaces, dots, dashes.";
+    if (!preg_match("/^[a-zA-Z\s\-\.]+$/", $last_name)) $errors[] = "Last Name contains invalid characters. Allowed: Letters, spaces, dots, dashes.";
 
     if ($dept === '' || !array_key_exists($dept, $deptMap)) $errors[] = "Valid Department is required.";
     if ($section === '' || !($dept && in_array($section, $deptMap[$dept] ?? [], true))) $errors[] = "Valid Section is required for the selected Department.";
@@ -208,6 +228,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($emergency_contact !== '' && !preg_match($phonePattern, $emergency_contact)) {
         $errors[] = "Emergency Contact contains invalid characters.";
     }
+
+    // [SECURITY] Qualifications Validation (Alphanumeric + basic punctuation)
+    $qualRegex = "/^[a-zA-Z0-9\s\.,\-\(\)\/&]*$/";
+    if (!preg_match($qualRegex, $education))  $errors[] = "Education contains invalid characters.";
+    if (!preg_match($qualRegex, $experience)) $errors[] = "Experience contains invalid characters.";
+    if (!preg_match($qualRegex, $skills))     $errors[] = "Skills contains invalid characters.";
+    if (!preg_match($qualRegex, $licenses))   $errors[] = "Licenses contains invalid characters.";
 
     // 5. Check Duplicate ID
     if (empty($errors)) {
@@ -277,6 +304,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'emergency_name'    => $emergency_name,
             'emergency_contact' => $emergency_contact,
             'emergency_address' => $emergency_address,
+            'education'         => $education,
+            'experience'        => $experience,
+            'skills'            => $skills,
+            'licenses'          => $licenses,
             'status'            => 'Active',
             'avatar_path'       => $avatar_path
         ];
@@ -319,7 +350,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 $logger->log($_SESSION['user_id'], 'REQUEST_HIRE', "Requested hire: $first_name $last_name");
                 $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
-                
+
                 header("Location: index.php?msg=" . urlencode("📝 Request Submitted for Approval"));
                 exit;
             }
@@ -332,6 +363,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <title>Add New Employee</title>
@@ -339,312 +371,355 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
     <style>
-        body { background: #f4f6f9; }
-        .card-header { font-weight: bold; letter-spacing: 0.5px; }
-        .section-header { border-bottom: 2px solid #e9ecef; margin-bottom: 1rem; padding-bottom: 0.5rem; color: #495057; font-weight: 600; }
+        body {
+            background: #f4f6f9;
+        }
+
+        .card-header {
+            font-weight: bold;
+            letter-spacing: 0.5px;
+        }
+
+        .section-header {
+            border-bottom: 2px solid #e9ecef;
+            margin-bottom: 1rem;
+            padding-bottom: 0.5rem;
+            color: #495057;
+            font-weight: 600;
+        }
     </style>
 </head>
+
 <body class="bg-light">
 
-<div class="container mt-5 mb-5">
-    <div class="card shadow">
-        <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
-            <span class="fs-5">➕ Add New Employee</span>
-            <a href="index.php" class="btn btn-sm btn-light text-success fw-bold">Back to Dashboard</a>
-        </div>
-        <div class="card-body">
+    <div class="container mt-5 mb-5">
+        <div class="card shadow">
+            <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
+                <span class="fs-5">➕ Add New Employee</span>
+                <a href="index.php" class="btn btn-sm btn-light text-success fw-bold">Back to Dashboard</a>
+            </div>
+            <div class="card-body">
 
-            <?php if (!empty($errors)): ?>
-                <div class="alert alert-danger">
-                    <ul class="mb-0">
-                        <?php foreach ($errors as $err): ?>
-                            <li><?php echo h($err); ?></li>
-                        <?php endforeach; ?>
-                    </ul>
-                </div>
-            <?php endif; ?>
-
-            <form method="POST" enctype="multipart/form-data" autocomplete="off" novalidate>
-                <input type="hidden" name="csrf_token" value="<?php echo h($_SESSION['csrf_token']); ?>">
-
-                <h5 class="section-header">🏢 Work Information</h5>
-                <div class="row g-3 mb-4">
-                    <div class="col-md-3">
-                        <label class="form-label">Employee ID <span class="text-danger">*</span></label>
-                        <input type="text" name="emp_id" class="form-control" required maxlength="20"
-                               placeholder="e.g. 2026-001" value="<?php echo old('emp_id'); ?>"
-                               autocomplete="off" pattern="[A-Za-z0-9\-_]{1,20}">
-                        <div class="form-text extra-small">Allowed: Letters, Numbers, - and _</div>
-                    </div>
-                    <div class="col-md-3">
-                        <label class="form-label">Job Title <span class="text-danger">*</span></label>
-                        <input type="text" name="job_title" class="form-control" required maxlength="50"
-                               placeholder="e.g. Accountant" value="<?php echo old('job_title'); ?>">
-                    </div>
-                    <div class="col-md-3">
-                        <label class="form-label">Department <span class="text-danger">*</span></label>
-                        <select name="dept" id="dept" class="form-select" required>
-                            <option value="">-- Select --</option>
-                            <?php foreach ($deptMap as $d => $secs): ?>
-                                <option value="<?php echo h($d); ?>" <?php echo (old('dept') == $d) ? 'selected' : ''; ?>>
-                                    <?php echo h($d); ?>
-                                </option>
+                <?php if (!empty($errors)): ?>
+                    <div class="alert alert-danger">
+                        <ul class="mb-0">
+                            <?php foreach ($errors as $err): ?>
+                                <li><?php echo h($err); ?></li>
                             <?php endforeach; ?>
-                        </select>
+                        </ul>
                     </div>
-                    <div class="col-md-3">
-                        <label class="form-label">Section <span class="text-danger">*</span></label>
-                        <select name="section" id="section" class="form-select" required>
-                            <option value="">-- Select --</option>
-                        </select>
-                    </div>
-
-
-                    
-                    <div class="col-md-6">
-                        <label class="form-label">Employment Type <span class="text-danger">*</span></label>
-                        <select name="employment_type" class="form-select" required>
-                            <option value="" disabled selected>-- Select --</option>
-                            <?php foreach($agencies as $a): ?>
-                                <option value="<?php echo h($a); ?>" <?php echo (old('employment_type')==$a)?'selected':''; ?>>
-                                    <?php echo h($a); ?>
-                                </option>
-                            <?php endforeach; ?>
-                        </select>
-                    </div>
-                    <div class="col-md-3">
-                        <label class="form-label">Hire Date <span class="text-danger">*</span></label>
-                        <input type="date" name="hire_date" class="form-control" required
-                               value="<?php echo old('hire_date'); ?>">
-                    </div>
-                    <div class="col-md-3">
-                        <label class="form-label">Company</label>
-                        <input type="text" name="company_name" class="form-control" maxlength="50"
-                               placeholder="e.g. TES Philippines" value="<?php echo old('company_name','TES Philippines'); ?>">
-                    </div>
-                    <div class="col-12">
-                        <label class="form-label">Previous Company</label>
-                        <input type="text" name="previous_company" class="form-control" maxlength="100"
-                               placeholder="e.g. ABC Manufacturing Inc." value="<?php echo old('previous_company'); ?>">
-                    </div>
-                </div>
-
-                <h5 class="section-header">👤 Personal Details</h5>
-                <div class="row g-3 mb-4">
-                    <div class="col-md-4">
-                        <label class="form-label">First Name <span class="text-danger">*</span></label>
-                        <input type="text" name="first_name" class="form-control" required maxlength="50"
-                               placeholder="e.g. Juan" value="<?php echo old('first_name'); ?>" autocomplete="given-name">
-                    </div>
-                    <div class="col-md-4">
-                        <label class="form-label">Middle Name</label>
-                        <input type="text" name="middle_name" class="form-control" maxlength="50"
-                               placeholder="e.g. Santos" value="<?php echo old('middle_name'); ?>" autocomplete="additional-name">
-                    </div>
-                    <div class="col-md-4">
-                        <label class="form-label">Last Name <span class="text-danger">*</span></label>
-                        <input type="text" name="last_name" class="form-control" required maxlength="50"
-                               placeholder="e.g. Dela Cruz" value="<?php echo old('last_name'); ?>" autocomplete="family-name">
-                    </div>
-
-                    <div class="col-md-3">
-                        <label class="form-label">Gender <span class="text-danger">*</span></label>
-                        <select name="gender" class="form-select" required>
-                            <option value="">-- Select --</option>
-                            <option value="Male"   <?php echo (old('gender')=='Male')?'selected':''; ?>>Male</option>
-                            <option value="Female" <?php echo (old('gender')=='Female')?'selected':''; ?>>Female</option>
-                        </select>
-                    </div>
-                    <div class="col-md-3">
-                        <label class="form-label">Date of Birth <span class="text-danger">*</span></label>
-                        <input type="date" name="birth_date" class="form-control" required value="<?php echo old('birth_date'); ?>">
-                    </div>
-
-                    <div class="col-md-3">
-                        <label class="form-label">Contact Number</label>
-                        <input type="text" name="contact_number" class="form-control" maxlength="20"
-                               placeholder="e.g. 0912-345-6789"
-                               value="<?php echo old('contact_number'); ?>"
-                               inputmode="tel" pattern="[0-9+\-\s()\/]{0,20}">
-                        <div class="form-text extra-small">Allowed: Numbers, +, -, /, ( )</div>
-                    </div>
-                    <div class="col-md-3">
-                        <label class="form-label">Email</label>
-                        <input type="email" name="email" class="form-control" maxlength="100"
-                               placeholder="juan@example.com" value="<?php echo old('email'); ?>" autocomplete="email">
-                    </div>
-                    <div class="col-12">
-                        <label class="form-label">Present Address <span class="text-danger">*</span></label>
-                        <input type="text" name="present_address" class="form-control" required maxlength="200"
-                               placeholder="House No, Street, Barangay, City, Province, ZIP"
-                               value="<?php echo old('present_address'); ?>" autocomplete="street-address">
-                    </div>
-                    <div class="col-12">
-                        <label class="form-label">Permanent Address</label>
-                        <input type="text" name="permanent_address" class="form-control" maxlength="200"
-                               placeholder="If different from present address"
-                               value="<?php echo old('permanent_address'); ?>">
-                    </div>
-                    <div class="col-12">
-                        <label class="form-label">Photo (Optional)</label>
-                        <input type="file" name="avatar" class="form-control" accept=".jpg,.png,.webp">
-                    </div>
-                </div>
-
-                <h5 class="section-header">🆔 Government Numbers</h5>
-                <div class="row g-3 mb-4">
-                    <div class="col-md-3">
-                        <label class="form-label">SSS</label>
-                        <input type="text" name="sss_no" class="form-control" maxlength="20"
-                               placeholder="00-0000000-0" value="<?php echo old('sss_no'); ?>">
-                    </div>
-                    <div class="col-md-3">
-                        <label class="form-label">TIN</label>
-                        <input type="text" name="tin_no" class="form-control" maxlength="20"
-                               placeholder="000-000-000-000" value="<?php echo old('tin_no'); ?>">
-                    </div>
-                    <div class="col-md-3">
-                        <label class="form-label">PhilHealth</label>
-                        <input type="text" name="philhealth_no" class="form-control" maxlength="20"
-                               placeholder="e.g. 12-345678901-2" value="<?php echo old('philhealth_no'); ?>">
-                    </div>
-                    <div class="col-md-3">
-                        <label class="form-label">Pag-IBIG</label>
-                        <input type="text" name="pagibig_no" class="form-control" maxlength="20"
-                               placeholder="e.g. 1234-5678-9012" value="<?php echo old('pagibig_no'); ?>">
-                    </div>
-                </div>
-
-                <h5 class="section-header">🚨 Emergency Contact</h5>
-                <div class="row g-3 mb-4">
-                    <div class="col-md-6">
-                        <label class="form-label">Contact Person</label>
-                        <input type="text" name="emergency_name" class="form-control" maxlength="100"
-                               placeholder="Full Name" value="<?php echo old('emergency_name'); ?>">
-                    </div>
-                    <div class="col-md-6">
-                        <label class="form-label">Contact Number</label>
-                        <input type="text" name="emergency_contact" class="form-control" maxlength="20"
-                               placeholder="Mobile/Landline" value="<?php echo old('emergency_contact'); ?>"
-                               inputmode="tel" pattern="[0-9+\-\s()\/]{0,20}">
-                        <div class="form-text extra-small">Allowed: Numbers, +, -, /, ( )</div>
-                    </div>
-                    <div class="col-12">
-                        <label class="form-label">Address</label>
-                        <input type="text" name="emergency_address" class="form-control" maxlength="200"
-                               placeholder="Full Address" value="<?php echo old('emergency_address'); ?>">
-                    </div>
-                </div>
-
-                <?php if (($_SESSION['role'] ?? '') === 'STAFF'): ?>
-                <div class="alert alert-warning">
-                    <label class="form-label fw-bold"><i class="bi bi-chat-text"></i> Note for Admin</label>
-                    <textarea name="request_note" class="form-control" rows="2" maxlength="250"
-                              placeholder="Add any details for the admin..."><?php echo old('request_note'); ?></textarea>
-                </div>
                 <?php endif; ?>
 
-                <div class="d-grid gap-2">
-                    <button type="submit" class="btn btn-success btn-lg">
-                        <?php echo (($_SESSION['role'] ?? '')==='STAFF') ? 'Submit Request' : 'Save Employee'; ?>
-                    </button>
-                    <a href="index.php" class="btn btn-secondary">Cancel</a>
-                </div>
-            </form>
+                <form method="POST" enctype="multipart/form-data" autocomplete="off" novalidate>
+                    <input type="hidden" name="csrf_token" value="<?php echo h($_SESSION['csrf_token']); ?>">
+
+                    <h5 class="section-header">🏢 Work Information</h5>
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-3">
+                            <label class="form-label">Employee ID <span class="text-danger">*</span></label>
+                            <input type="text" name="emp_id" class="form-control" required maxlength="20"
+                                placeholder="e.g. 2026-001" value="<?php echo old('emp_id'); ?>"
+                                autocomplete="off" pattern="[A-Za-z0-9\-_]+" title="Allowed: Letters, Numbers, - and _" oninput="this.value = this.value.replace(/[^A-Za-z0-9\-_]/g, '')">
+                            <div class="form-text extra-small">Allowed: Letters, Numbers, - and _</div>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Job Title <span class="text-danger">*</span></label>
+                            <input type="text" name="job_title" class="form-control" required maxlength="50"
+                                placeholder="e.g. Accountant" value="<?php echo old('job_title'); ?>">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Department <span class="text-danger">*</span></label>
+                            <select name="dept" id="dept" class="form-select" required>
+                                <option value="">-- Select --</option>
+                                <?php foreach ($deptMap as $d => $secs): ?>
+                                    <option value="<?php echo h($d); ?>" <?php echo (old('dept') == $d) ? 'selected' : ''; ?>>
+                                        <?php echo h($d); ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Section <span class="text-danger">*</span></label>
+                            <select name="section" id="section" class="form-select" required>
+                                <option value="">-- Select --</option>
+                            </select>
+                        </div>
+
+
+
+                        <div class="col-md-6">
+                            <label class="form-label">Employment Type <span class="text-danger">*</span></label>
+                            <select name="employment_type" class="form-select" required>
+                                <option value="" disabled selected>-- Select --</option>
+                                <?php foreach ($agencies as $a): ?>
+                                    <option value="<?php echo h($a); ?>" <?php echo (old('employment_type') == $a) ? 'selected' : ''; ?>>
+                                        <?php echo h($a); ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Hire Date <span class="text-danger">*</span></label>
+                            <input type="date" name="hire_date" class="form-control" required
+                                value="<?php echo old('hire_date'); ?>">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Company</label>
+                            <input type="text" name="company_name" class="form-control" maxlength="50"
+                                placeholder="e.g. TES Philippines" value="<?php echo old('company_name', 'TES Philippines'); ?>">
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Previous Company</label>
+                            <input type="text" name="previous_company" class="form-control" maxlength="100"
+                                placeholder="e.g. ABC Manufacturing Inc." value="<?php echo old('previous_company'); ?>">
+                        </div>
+                    </div>
+
+                    <h5 class="section-header">👤 Personal Details</h5>
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-4">
+                            <label class="form-label">First Name <span class="text-danger">*</span></label>
+                            <input type="text" name="first_name" class="form-control" required maxlength="50"
+                                placeholder="e.g. Juan" value="<?php echo old('first_name'); ?>" autocomplete="given-name"
+                                pattern="[a-zA-Z\s\-\.]+" title="Allowed: Letters, spaces, dots, dashes" oninput="this.value = this.value.replace(/[^a-zA-Z\s\-\.]/g, '')">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Middle Name</label>
+                            <input type="text" name="middle_name" class="form-control" maxlength="50"
+                                placeholder="e.g. Santos" value="<?php echo old('middle_name'); ?>" autocomplete="additional-name"
+                                pattern="[a-zA-Z\s\-\.]+" title="Allowed: Letters, spaces, dots, dashes" oninput="this.value = this.value.replace(/[^a-zA-Z\s\-\.]/g, '')">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Last Name <span class="text-danger">*</span></label>
+                            <input type="text" name="last_name" class="form-control" required maxlength="50"
+                                placeholder="e.g. Dela Cruz" value="<?php echo old('last_name'); ?>" autocomplete="family-name"
+                                pattern="[a-zA-Z\s\-\.]+" title="Allowed: Letters, spaces, dots, dashes" oninput="this.value = this.value.replace(/[^a-zA-Z\s\-\.]/g, '')">
+                        </div>
+
+                        <div class="col-md-3">
+                            <label class="form-label">Gender <span class="text-danger">*</span></label>
+                            <select name="gender" class="form-select" required>
+                                <option value="">-- Select --</option>
+                                <option value="Male" <?php echo (old('gender') == 'Male') ? 'selected' : ''; ?>>Male</option>
+                                <option value="Female" <?php echo (old('gender') == 'Female') ? 'selected' : ''; ?>>Female</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Date of Birth <span class="text-danger">*</span></label>
+                            <input type="date" name="birth_date" class="form-control" required value="<?php echo old('birth_date'); ?>">
+                        </div>
+
+                        <div class="col-md-3">
+                            <label class="form-label">Contact Number</label>
+                            <input type="text" name="contact_number" class="form-control" maxlength="20"
+                                placeholder="e.g. 0912-345-6789"
+                                value="<?php echo old('contact_number'); ?>"
+                                inputmode="tel" pattern="[0-9+\-\s()\/]+" title="Allowed: Numbers, +, -, /, ( )" oninput="this.value = this.value.replace(/[^0-9+\-\s()\/]/g, '')">
+                            <div class="form-text extra-small">Allowed: Numbers, +, -, /, ( )</div>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Email</label>
+                            <input type="email" name="email" class="form-control" maxlength="100"
+                                placeholder="juan@example.com" value="<?php echo old('email'); ?>" autocomplete="email">
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Present Address <span class="text-danger">*</span></label>
+                            <input type="text" name="present_address" class="form-control" required maxlength="200"
+                                placeholder="House No, Street, Barangay, City, Province, ZIP"
+                                value="<?php echo old('present_address'); ?>" autocomplete="street-address">
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Permanent Address</label>
+                            <input type="text" name="permanent_address" class="form-control" maxlength="200"
+                                placeholder="If different from present address"
+                                value="<?php echo old('permanent_address'); ?>">
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Photo (Optional)</label>
+                            <input type="file" name="avatar" class="form-control" accept=".jpg,.png,.webp">
+                        </div>
+                    </div>
+
+                    <h5 class="section-header">🆔 Government Numbers</h5>
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-3">
+                            <label class="form-label">SSS</label>
+                            <input type="text" name="sss_no" class="form-control" maxlength="20"
+                                placeholder="00-0000000-0" value="<?php echo old('sss_no'); ?>">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">TIN</label>
+                            <input type="text" name="tin_no" class="form-control" maxlength="20"
+                                placeholder="000-000-000-000" value="<?php echo old('tin_no'); ?>">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">PhilHealth</label>
+                            <input type="text" name="philhealth_no" class="form-control" maxlength="20"
+                                placeholder="e.g. 12-345678901-2" value="<?php echo old('philhealth_no'); ?>">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Pag-IBIG</label>
+                            <input type="text" name="pagibig_no" class="form-control" maxlength="20"
+                                placeholder="e.g. 1234-5678-9012" value="<?php echo old('pagibig_no'); ?>">
+                        </div>
+                    </div>
+
+                    <h5 class="section-header">🚨 Emergency Contact</h5>
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-6">
+                            <label class="form-label">Contact Person</label>
+                            <input type="text" name="emergency_name" class="form-control" maxlength="100"
+                                placeholder="Full Name" value="<?php echo old('emergency_name'); ?>">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Contact Number</label>
+                            <input type="text" name="emergency_contact" class="form-control" maxlength="20"
+                                placeholder="Mobile/Landline" value="<?php echo old('emergency_contact'); ?>"
+                                inputmode="tel" pattern="[0-9+\-\s()\/]+" title="Allowed: Numbers, +, -, /, ( )" oninput="this.value = this.value.replace(/[^0-9+\-\s()\/]/g, '')">
+                            <div class="form-text extra-small">Allowed: Numbers, +, -, /, ( )</div>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Address</label>
+                            <input type="text" name="emergency_address" class="form-control" maxlength="200"
+                                placeholder="Full Address" value="<?php echo old('emergency_address'); ?>">
+                        </div>
+                    </div>
+
+                    <h5 class="section-header mt-4">🎓 Qualifications & Educational Background</h5>
+                    <div class="row g-3 mb-4">
+                        <div class="col-12">
+                            <label class="form-label">Education <small class="text-muted">(Degrees, Certifications)</small></label>
+                            <textarea name="education" class="form-control" rows="2" maxlength="1000" placeholder="e.g. BS Computer Science, Certified CPA" oninput="this.value = this.value.replace(/[^a-zA-Z0-9\s\.,\-\(\)\/&]/g, '')"><?php echo old('education'); ?></textarea>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Experience <small class="text-muted">(Relevant Work History)</small></label>
+                            <textarea name="experience" class="form-control" rows="2" maxlength="1000" placeholder="e.g. 5 years as Senior Dev at Tech Corp" oninput="this.value = this.value.replace(/[^a-zA-Z0-9\s\.,\-\(\)\/&]/g, '')"><?php echo old('experience'); ?></textarea>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Skills <small class="text-muted">(Technical & Soft Skills)</small></label>
+                            <textarea name="skills" class="form-control" rows="2" maxlength="1000" placeholder="e.g. PHP, Leadership, Communication" oninput="this.value = this.value.replace(/[^a-zA-Z0-9\s\.,\-\(\)\/&]/g, '')"><?php echo old('skills'); ?></textarea>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Licenses / Certifications</label>
+                            <textarea name="licenses" class="form-control" rows="2" maxlength="1000" placeholder="e.g. Driver's License, PRC License" oninput="this.value = this.value.replace(/[^a-zA-Z0-9\s\.,\-\(\)\/&]/g, '')"><?php echo old('licenses'); ?></textarea>
+                            <div class="form-text extra-small">Type N/A if not applicable.</div>
+                        </div>
+                    </div>
+
+                    <?php if (($_SESSION['role'] ?? '') === 'STAFF'): ?>
+                        <div class="alert alert-warning">
+                            <label class="form-label fw-bold"><i class="bi bi-chat-text"></i> Note for Admin</label>
+                            <textarea name="request_note" class="form-control" rows="2" maxlength="250"
+                                placeholder="Add any details for the admin..."><?php echo old('request_note'); ?></textarea>
+                        </div>
+                    <?php endif; ?>
+
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-success btn-lg">
+                            <?php echo (($_SESSION['role'] ?? '') === 'STAFF') ? 'Submit Request' : 'Save Employee'; ?>
+                        </button>
+                        <a href="index.php" class="btn btn-secondary">Cancel</a>
+                    </div>
+                </form>
+            </div>
         </div>
     </div>
-</div>
 
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-<script>
-// 1. SAFE DATA LOADING
-const deptMap = <?php echo json_encode($deptMap, JSON_HEX_QUOT | JSON_HEX_APOS); ?>;
-const oldSection = "<?php echo htmlspecialchars($old['section'] ?? '', ENT_QUOTES); ?>";
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // 1. SAFE DATA LOADING
+        const deptMap = <?php echo json_encode($deptMap, JSON_HEX_QUOT | JSON_HEX_APOS); ?>;
+        const oldSection = "<?php echo htmlspecialchars($old['section'] ?? '', ENT_QUOTES); ?>";
 
-// 2. ELEMENT SELECTORS
-const deptSelect = document.getElementById('dept');
-const sectionSelect = document.getElementById('section');
+        // 2. ELEMENT SELECTORS
+        const deptSelect = document.getElementById('dept');
+        const sectionSelect = document.getElementById('section');
 
-// 3. DYNAMIC DROPDOWN LOGIC
-function updateSections() {
-    const dept = deptSelect.value;
-    sectionSelect.innerHTML = '<option value="">-- Select --</option>';
-    
-    if (dept && deptMap[dept]) {
-        deptMap[dept].forEach(sec => {
-            const opt = document.createElement('option');
-            opt.value = sec;
-            opt.textContent = sec;
-            if (sec === oldSection) { opt.selected = true; }
-            sectionSelect.appendChild(opt);
-        });
-    }
-}
+        // 3. DYNAMIC DROPDOWN LOGIC
+        function updateSections() {
+            const dept = deptSelect.value;
+            sectionSelect.innerHTML = '<option value="">-- Select --</option>';
 
-// 4. AUTO-CAPITALIZE LOGIC
-function capitalize(input) {
-    let words = input.value.split(' ');
-    for (let i = 0; i < words.length; i++) {
-        if (words[i].length > 0) {
-            words[i] = words[i].charAt(0).toUpperCase() + words[i].slice(1).toLowerCase();
+            if (dept && deptMap[dept]) {
+                deptMap[dept].forEach(sec => {
+                    const opt = document.createElement('option');
+                    opt.value = sec;
+                    opt.textContent = sec;
+                    if (sec === oldSection) {
+                        opt.selected = true;
+                    }
+                    sectionSelect.appendChild(opt);
+                });
+            }
         }
-    }
-    input.value = words.join(' ');
-}
 
-// 5. ATTACH EVENTS
-if (deptSelect && sectionSelect) {
-    deptSelect.addEventListener('change', updateSections);
-    updateSections(); // Run once on load
-}
-
-// 6. ATTACH CAPITALIZATION
-document.addEventListener("DOMContentLoaded", function() {
-    const fieldsToCap = ['first_name', 'middle_name', 'last_name', 'job_title', 'emergency_name'];
-    fieldsToCap.forEach(name => {
-        const input = document.querySelector(`[name="${name}"]`);
-        if (input) {
-            input.addEventListener('input', function() { capitalize(this); });
+        // 4. AUTO-CAPITALIZE LOGIC
+        function capitalize(input) {
+            let words = input.value.split(' ');
+            for (let i = 0; i < words.length; i++) {
+                if (words[i].length > 0) {
+                    words[i] = words[i].charAt(0).toUpperCase() + words[i].slice(1).toLowerCase();
+                }
+            }
+            input.value = words.join(' ');
         }
-    });
 
-    // 7. AUTO-SAVE DRAFT (Protects against Session Timeout)
-    const form = document.querySelector('form');
-    const draftKey = 'hr_add_emp_draft';
+        // 5. ATTACH EVENTS
+        if (deptSelect && sectionSelect) {
+            deptSelect.addEventListener('change', updateSections);
+            updateSections(); // Run once on load
+        }
 
-    // A. Restore on Load
-    const savedDraft = localStorage.getItem(draftKey);
-    const firstInput = document.querySelector('input[name="first_name"]');
-    
-    // Only restore if the form is empty (don't overwrite PHP validation errors)
-    if (savedDraft && firstInput && !firstInput.value) {
-        try {
-            const data = JSON.parse(savedDraft);
-            Object.keys(data).forEach(key => {
-                const el = document.querySelector(`[name="${key}"]`);
-                if (el && el.type !== 'file' && el.type !== 'hidden') el.value = data[key];
+        // 6. ATTACH CAPITALIZATION
+        document.addEventListener("DOMContentLoaded", function() {
+            const fieldsToCap = ['first_name', 'middle_name', 'last_name', 'job_title', 'emergency_name'];
+            fieldsToCap.forEach(name => {
+                const input = document.querySelector(`[name="${name}"]`);
+                if (input) {
+                    input.addEventListener('input', function() {
+                        capitalize(this);
+                    });
+                }
             });
-            // Notify user
-            const alertDiv = document.createElement('div');
-            alertDiv.className = 'alert alert-info alert-dismissible fade show mt-3';
-            alertDiv.innerHTML = '<i class="bi bi-arrow-counterclockwise"></i> <strong>Draft Restored:</strong> We recovered your unsaved work from the last session. <button type="button" class="btn-close" data-bs-dismiss="alert"></button>';
-            document.querySelector('.card-body').prepend(alertDiv);
-        } catch(e) {}
-    }
 
-    // B. Save on Typing
-    form.addEventListener('input', () => {
-        const formData = new FormData(form);
-        const data = {};
-        formData.forEach((value, key) => {
-            if (key !== 'csrf_token' && key !== 'avatar') data[key] = value;
+            // 7. AUTO-SAVE DRAFT (Protects against Session Timeout)
+            const form = document.querySelector('form');
+            const draftKey = 'hr_add_emp_draft';
+
+            // A. Restore on Load
+            const savedDraft = localStorage.getItem(draftKey);
+            const firstInput = document.querySelector('input[name="first_name"]');
+
+            // Only restore if the form is empty (don't overwrite PHP validation errors)
+            if (savedDraft && firstInput && !firstInput.value) {
+                try {
+                    const data = JSON.parse(savedDraft);
+                    Object.keys(data).forEach(key => {
+                        const el = document.querySelector(`[name="${key}"]`);
+                        if (el && el.type !== 'file' && el.type !== 'hidden') el.value = data[key];
+                    });
+                    // Notify user
+                    const alertDiv = document.createElement('div');
+                    alertDiv.className = 'alert alert-info alert-dismissible fade show mt-3';
+                    alertDiv.innerHTML = '<i class="bi bi-arrow-counterclockwise"></i> <strong>Draft Restored:</strong> We recovered your unsaved work from the last session. <button type="button" class="btn-close" data-bs-dismiss="alert"></button>';
+                    document.querySelector('.card-body').prepend(alertDiv);
+                } catch (e) {}
+            }
+
+            // B. Save on Typing
+            form.addEventListener('input', () => {
+                const formData = new FormData(form);
+                const data = {};
+                formData.forEach((value, key) => {
+                    if (key !== 'csrf_token' && key !== 'avatar') data[key] = value;
+                });
+                localStorage.setItem(draftKey, JSON.stringify(data));
+            });
+
+            // C. Clear on Submit (Optional: You can leave it to persist until manually cleared)
+            // form.addEventListener('submit', () => localStorage.removeItem(draftKey));
         });
-        localStorage.setItem(draftKey, JSON.stringify(data));
-    });
-
-    // C. Clear on Submit (Optional: You can leave it to persist until manually cleared)
-    // form.addEventListener('submit', () => localStorage.removeItem(draftKey));
-});
-</script>
+    </script>
 </body>
+
 </html>

@@ -20,7 +20,18 @@ $logger   = new Logger($pdo);
 
 // 2. FETCH EMPLOYEE
 $id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
-if ($id <= 0) { header("Location: index.php"); exit; }
+if ($id <= 0) {
+    header("Location: index.php");
+    exit;
+}
+
+// [NEW] Handle Evaluation Deletion (Admin/HR Only)
+if (isset($_GET['delete_eval_id']) && in_array($_SESSION['role'], ['ADMIN', 'HR'])) {
+    $delEvalId = (int)$_GET['delete_eval_id'];
+    $pdo->prepare("DELETE FROM performance_evaluations WHERE id = ?")->execute([$delEvalId]);
+    header("Location: edit_employee.php?id=$id&msg=" . urlencode("✅ Evaluation Deleted"));
+    exit;
+}
 
 $stmt = $pdo->prepare("SELECT * FROM employees WHERE id = ?");
 $stmt->execute([$id]);
@@ -33,10 +44,29 @@ $docStmt = $pdo->prepare("SELECT * FROM documents WHERE employee_id = ? AND dele
 $docStmt->execute([$emp['emp_id']]);
 $myDocs = $docStmt->fetchAll(PDO::FETCH_ASSOC);
 
+// [NEW] Fetch Evaluations
+$evals = [];
+try {
+    $evalStmt = $pdo->prepare("SELECT * FROM performance_evaluations WHERE employee_id = ? ORDER BY eval_date DESC");
+    $evalStmt->execute([$id]);
+    $evals = $evalStmt->fetchAll(PDO::FETCH_ASSOC);
+} catch (PDOException $e) {
+    // Table doesn't exist yet. Ignore to prevent crash.
+}
+
+// [CHART DATA] Prepare for Performance Graph
+$chartLabels = [];
+$chartScores = [];
+$reversedEvals = array_reverse($evals); // Chronological order for line chart
+foreach ($reversedEvals as $ev) {
+    $chartLabels[] = date('M Y', strtotime($ev['eval_date']));
+    $chartScores[] = (int)$ev['score'];
+}
+
 // 3. CONFIGURATION
 
 $deptMap = [
-    "SQP"     => [ "SAFETY", "QA", "PLANNING", "IT"], 
+    "SQP"     => ["SAFETY", "QA", "PLANNING", "IT"],
     "SIGCOM"  => ["SIGNALING & COMMUNICATION"],
     "PSS"     => ["POWER SUPPLY SECTION",],
     "OCS"     => ["OVERHEAD CATENARY SYSTEMS",],
@@ -46,7 +76,7 @@ $deptMap = [
     "TRS"     => ["TECHNICAL RESEARCH SECTION",],
     "LMS"     => ["LIGHT MAINTENANCE SECTION",],
     "DOS"     => ["DEPARTMENT OPERATIONS SECTION"],
-    "CTS"     => ["CIVIL TRACKS SECTION", ],
+    "CTS"     => ["CIVIL TRACKS SECTION",],
     "BFS"     => ["BUILDING FACILITIES",],
     "WHS"     => ["WAREHOUSE SECTION",],
     "GUNJIN"  => ["EMT", "SECURITY", "GUNJIN"],
@@ -56,13 +86,55 @@ $deptMap = [
 $emp_options    = ["TESP DIRECT", "GUNJIN", "JORATECH", "UNLISOLUTIONS", "OTHERS - SUBCONS"];
 
 // Helpers
-function h($v) { return htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8'); }
-function post($k, $d='') { return isset($_POST[$k]) ? trim((string)$_POST[$k]) : $d; }
-function val($key) { global $emp; return h($_POST[$key] ?? $emp[$key] ?? ''); }
-function raw($key) { global $emp; return (string)($_POST[$key] ?? $emp[$key] ?? ''); }
+function h($v)
+{
+    return htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
+}
+function post($k, $d = '')
+{
+    return isset($_POST[$k]) ? trim((string)$_POST[$k]) : $d;
+}
+function val($key)
+{
+    global $emp;
+    return h($_POST[$key] ?? $emp[$key] ?? '');
+}
+function raw($key)
+{
+    global $emp;
+    return (string)($_POST[$key] ?? $emp[$key] ?? '');
+}
 
 // 4. HANDLE SUBMIT
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+
+    // [NEW] Handle Performance Evaluation
+    if (isset($_POST['action']) && $_POST['action'] === 'add_eval') {
+        $eval_date = $_POST['eval_date'];
+        $score     = (int)$_POST['score'];
+        $remarks   = trim($_POST['remarks']);
+        $evaluator = $_SESSION['username'] ?? 'Admin';
+
+        // [VALIDATION] Score Limit (0-100)
+        if ($score < 0 || $score > 100) {
+            header("Location: edit_employee.php?id=$id&error=" . urlencode("❌ Invalid Score: Must be between 0 and 100."));
+            exit;
+        }
+
+        // Auto-Rating Logic
+        $rating = 'Poor';
+        if ($score >= 90) $rating = 'Excellent';
+        elseif ($score >= 80) $rating = 'Very Good';
+        elseif ($score >= 70) $rating = 'Satisfactory';
+        elseif ($score >= 60) $rating = 'Needs Improvement';
+
+        $stmt = $pdo->prepare("INSERT INTO performance_evaluations (employee_id, eval_date, score, rating, remarks, evaluator) VALUES (?, ?, ?, ?, ?, ?)");
+        $stmt->execute([$id, $eval_date, $score, $rating, $remarks, $evaluator]);
+
+        header("Location: edit_employee.php?id=$id&msg=" . urlencode("✅ Evaluation Added"));
+        exit;
+    }
+
     $new_emp_id = post('emp_id', $emp['emp_id']);
     $first_name = ucwords(strtolower(post('first_name', $emp['first_name'])));
     $middle_name = ucwords(strtolower(post('middle_name', $emp['middle_name'])));
@@ -91,12 +163,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $emergency_contact = post('emergency_contact', $emp['emergency_contact']);
     $emergency_address = post('emergency_address', $emp['emergency_address']);
 
+    $education  = post('education', $emp['education'] ?? '');
+    $experience = post('experience', $emp['experience'] ?? '');
+    $skills     = post('skills', $emp['skills'] ?? '');
+    $licenses   = post('licenses', $emp['licenses'] ?? '');
+
     // Employment Type Logic
     $input_selection = post('employment_type', '');
     if ($input_selection === 'TESP DIRECT') {
-        $employment_type = 'TESP Direct'; $agency_name = 'TESP';
+        $employment_type = 'TESP Direct';
+        $agency_name = 'TESP';
     } else {
-        $employment_type = 'Agency'; $agency_name = $input_selection ?: ($emp['agency_name'] ?? '');
+        $employment_type = 'Agency';
+        $agency_name = $input_selection ?: ($emp['agency_name'] ?? '');
     }
 
     $errors = [];
@@ -121,6 +200,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'emergency_name'    => 100,
         'emergency_contact' => 20,
         'emergency_address' => 200,
+        'education'         => 1000,
+        'experience'        => 1000,
+        'skills'            => 1000,
+        'licenses'          => 1000,
     ];
 
     foreach ($max as $k => $limit) {
@@ -140,9 +223,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     // [SECURITY] Name Validation
-    if (!preg_match("/^[a-zA-Z\s\-\.]+$/", $first_name)) $errors[] = "First Name contains invalid characters.";
-    if ($middle_name !== '' && !preg_match("/^[a-zA-Z\s\-\.]+$/", $middle_name)) $errors[] = "Middle Name contains invalid characters.";
-    if (!preg_match("/^[a-zA-Z\s\-\.]+$/", $last_name)) $errors[] = "Last Name contains invalid characters.";
+    if (!preg_match("/^[a-zA-Z\s\-\.]+$/", $first_name)) $errors[] = "First Name contains invalid characters. Allowed: Letters, spaces, dots, dashes.";
+    if ($middle_name !== '' && !preg_match("/^[a-zA-Z\s\-\.]+$/", $middle_name)) $errors[] = "Middle Name contains invalid characters. Allowed: Letters, spaces, dots, dashes.";
+    if (!preg_match("/^[a-zA-Z\s\-\.]+$/", $last_name)) $errors[] = "Last Name contains invalid characters. Allowed: Letters, spaces, dots, dashes.";
 
     // [SECURITY] Contact & Email Validation
     if ($email !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
@@ -155,6 +238,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($emergency_contact !== '' && !preg_match($phonePattern, $emergency_contact)) {
         $errors[] = "Emergency Contact contains invalid characters.";
     }
+
+    // [SECURITY] Qualifications Validation
+    $qualRegex = "/^[a-zA-Z0-9\s\.,\-\(\)\/&]*$/";
+    if (!preg_match($qualRegex, $education))  $errors[] = "Education contains invalid characters.";
+    if (!preg_match($qualRegex, $experience)) $errors[] = "Experience contains invalid characters.";
+    if (!preg_match($qualRegex, $skills))     $errors[] = "Skills contains invalid characters.";
+    if (!preg_match($qualRegex, $licenses))   $errors[] = "Licenses contains invalid characters.";
 
     // [SECURITY] Date Validation
     $validHire  = DateTime::createFromFormat('Y-m-d', $hire_date) ?: false;
@@ -178,7 +268,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $final_avatar_path = $emp['avatar_path'];
     if (isset($_FILES['avatar']) && $_FILES['avatar']['error'] === UPLOAD_ERR_OK) {
         $file = $_FILES['avatar'];
-        $allowed = ['image/jpeg'=>'jpg', 'image/png'=>'png', 'image/webp'=>'webp'];
+        $allowed = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/webp' => 'webp'];
         $finfo = new finfo(FILEINFO_MIME_TYPE);
         $mime = $finfo->file($file['tmp_name']);
         if (array_key_exists($mime, $allowed)) {
@@ -192,34 +282,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // 5. UPDATE DATABASE
     if (empty($errors)) {
-        
+
         $updateData = [
-            'emp_id' => $new_emp_id, 
-            'first_name' => $first_name, 
+            'emp_id' => $new_emp_id,
+            'first_name' => $first_name,
             'middle_name' => $middle_name,
-            'last_name' => $last_name, 
-            'job_title' => $job_title, 
-            'dept' => $dept, 
+            'last_name' => $last_name,
+            'job_title' => $job_title,
+            'dept' => $dept,
             'section' => $section,
-            'employment_type' => $employment_type, 
+            'employment_type' => $employment_type,
             'agency_name' => $agency_name,
-            'company_name' => $company_name, 
+            'company_name' => $company_name,
             'previous_company' => $previous_company,
-            'hire_date' => $hire_date, 
-            'gender' => $gender, 
+            'hire_date' => $hire_date,
+            'gender' => $gender,
             'birth_date' => $birth_date,
-            'contact_number' => $contact_number, 
+            'contact_number' => $contact_number,
             'email' => $email,
-            'present_address' => $present_address, 
+            'present_address' => $present_address,
             'permanent_address' => $permanent_address,
-            'sss_no' => $sss_no, 
-            'tin_no' => $tin_no, 
-            'philhealth_no' => $philhealth_no, 
+            'sss_no' => $sss_no,
+            'tin_no' => $tin_no,
+            'philhealth_no' => $philhealth_no,
             'pagibig_no' => $pagibig_no,
-            'emergency_name' => $emergency_name, 
-            'emergency_contact' => $emergency_contact, 
+            'emergency_name' => $emergency_name,
+            'emergency_contact' => $emergency_contact,
             'emergency_address' => $emergency_address,
-            'status' => $status, 
+            'education' => $education,
+            'experience' => $experience,
+            'skills' => $skills,
+            'licenses' => $licenses,
+            'status' => $status,
             'exit_date' => $exit_date,
             'exit_reason' => $exit_reason, // <--- SAVING THE REASON
             'avatar_path' => $final_avatar_path
@@ -232,7 +326,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $payload = json_encode($updateData, JSON_UNESCAPED_UNICODE);
             $pdo->prepare("INSERT INTO requests (user_id, request_type, target_id, json_payload) VALUES (?, 'EDIT_PROFILE', ?, ?)")
                 ->execute([$_SESSION['user_id'], $id, $payload]);
-            
+
             header("Location: index.php?msg=" . urlencode("📝 Edit Request Submitted"));
             exit;
         } else {
@@ -261,596 +355,896 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <title>Edit Employee</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <style>
-        body { background: #f4f6f9; }
-        .avatar-preview { width: 120px; height: 120px; object-fit: cover; border-radius: 50%; border: 4px solid #fff; box-shadow: 0 4px 8px rgba(0,0,0,0.1); background: #fff; }
-        .exit-field { display: none; } /* Default hidden */
+        body {
+            background: #f4f6f9;
+        }
+
+        .avatar-preview {
+            width: 120px;
+            height: 120px;
+            object-fit: cover;
+            border-radius: 50%;
+            border: 4px solid #fff;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            background: #fff;
+        }
+
+        .exit-field {
+            display: none;
+        }
+
+        /* Default hidden */
     </style>
 </head>
+
 <body class="bg-light">
 
-<div class="container mt-5 mb-5">
-    <!-- DEBUG: Force Show Document Buttons -->
-    <div class="alert alert-warning text-center shadow-sm">
-        <strong>🛠️ DEBUG TOOLS:</strong> 
-        <a href="generate_document.php?id=<?php echo $id; ?>&type=probationary_lms" target="_blank" class="btn btn-sm btn-dark ms-2">Test Probationary Contract</a>
-        <a href="generate_document.php?id=<?php echo $id; ?>&type=confidentiality" target="_blank" class="btn btn-sm btn-dark ms-2">Test NDA</a>
-    </div>
-
-    <div class="card shadow">
-        <div class="card-header bg-warning text-dark d-flex justify-content-between align-items-center">
-            <h5 class="mb-0">✏️ Edit: <?php echo h($emp['first_name'] . ' ' . $emp['last_name']); ?></h5>
-            <a href="index.php" class="btn btn-sm btn-dark">Back</a>
+    <div class="container mt-5 mb-5">
+        <!-- DEBUG: Force Show Document Buttons -->
+        <div class="alert alert-warning text-center shadow-sm">
+            <strong>🛠️ DEBUG TOOLS:</strong>
+            <a href="generate_document.php?id=<?php echo $id; ?>&type=probationary_lms" target="_blank" class="btn btn-sm btn-dark ms-2">Test Probationary Contract</a>
+            <a href="generate_document.php?id=<?php echo $id; ?>&type=confidentiality" target="_blank" class="btn btn-sm btn-dark ms-2">Test NDA</a>
         </div>
-        <div class="card-body">
-            
-            <?php if (!empty($errors)): ?>
-                <div class="alert alert-danger">
-                    <ul class="mb-0"><?php foreach ($errors as $e) echo "<li>$e</li>"; ?></ul>
-                </div>
-            <?php endif; ?>
 
-            <div class="d-flex align-items-center gap-3 mb-4">
-             <img src="uploads/avatars/<?php echo h($emp['avatar_path'] ?: 'default.png'); ?>" 
-                 class="avatar-preview" 
-                 alt="Profile Photo"
-                 onerror="this.onerror=null; this.src='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI1MCIgZmlsbD0iI2UzZTNlMyIvPjxwYXRoIGQ9Ik01MCA1MCBhMjAgMjAgMCAxIDAgMC00MCAyMCAyMCAwIDEgMCAwIDQwIHptMCAxMCBjLTE1IDAtMzUgMTAtMzUgMzAgdjEwIGg3MCB2LTEwIGMtMC0yMC0yMC0zMC0zNS0zMCIgZmlsbD0iI2FhYSIvPjwvc3ZnPg==';">
-                <div>
-                    <div class="fw-bold"><?php echo h($emp['emp_id']); ?></div>
-                    <div class="text-muted small"><?php echo h($emp['job_title']); ?></div>
-                    <div class="text-muted small"><?php echo h($emp['dept'] . ' / ' . $emp['section']); ?></div>
-                </div>
+        <div class="card shadow">
+            <div class="card-header bg-warning text-dark d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">✏️ Edit: <?php echo h($emp['first_name'] . ' ' . $emp['last_name']); ?></h5>
+                <a href="index.php" class="btn btn-sm btn-dark">Back</a>
             </div>
+            <div class="card-body">
 
-            <!-- TABS NAVIGATION -->
-            <ul class="nav nav-tabs mb-4" id="profileTabs" role="tablist">
-                <li class="nav-item"><button class="nav-link active fw-bold" id="details-tab" data-bs-toggle="tab" data-bs-target="#details" type="button"><i class="bi bi-person-vcard"></i> Personal Details</button></li>
-                <li class="nav-item"><button class="nav-link fw-bold" id="docs-tab" data-bs-toggle="tab" data-bs-target="#docs" type="button"><i class="bi bi-folder2-open"></i> Digital 201 File <span class="badge bg-secondary rounded-pill ms-1"><?php echo count($myDocs); ?></span></button></li>
-            </ul>
-
-            <div class="tab-content" id="profileTabsContent">
-                <!-- TAB 1: PERSONAL DETAILS -->
-                <div class="tab-pane fade show active" id="details" role="tabpanel">
-                    <form method="POST" enctype="multipart/form-data">
-                
-                <h6 class="text-secondary border-bottom pb-2 mb-3">Work Information</h6>
-                <div class="row g-3">
-
-                
-                    <div class="col-md-3">
-                        <label class="form-label">Employee ID</label>
-                        <input type="text" name="emp_id" class="form-control" value="<?php echo val('emp_id'); ?>" required oninput="this.value=this.value.toUpperCase()">
-                        <div class="form-text small">Allowed: Letters, Numbers, - and _</div>
+                <?php if (!empty($errors)): ?>
+                    <div class="alert alert-danger">
+                        <ul class="mb-0"><?php foreach ($errors as $e) echo "<li>$e</li>"; ?></ul>
                     </div>
-                    <div class="col-md-3">
-                        <label class="form-label">Job Title</label>
-                        <input type="text" name="job_title" class="form-control" value="<?php echo val('job_title'); ?>" required oninput="capitalize(this)">
-                    </div>
-                    <div class="col-md-3">
-                        <label class="form-label">Department</label>
-                        <select name="dept" id="dept" class="form-select" required>
-                            <?php foreach ($deptMap as $d => $s): ?>
-                                <option value="<?php echo h($d); ?>" <?php echo ($emp['dept'] == $d) ? 'selected' : ''; ?>><?php echo h($d); ?></option>
-                            <?php endforeach; ?>
-                        </select>
-                    </div>
-                    <div class="col-md-3">
-                        <label class="form-label">Section</label>
-                        <select name="section" id="section" class="form-select" required></select>
-                    </div>
-                    <div class="col-md-6">
-                        <label class="form-label">Employment Type</label>
-                        <select name="employment_type" class="form-select">
-                            <?php foreach ($emp_options as $opt): ?>
-                                <option value="<?php echo h($opt); ?>" 
-                                    <?php echo ($emp['agency_name'] == $opt || ($opt=='TESP DIRECT' && $emp['employment_type']=='TESP Direct')) ? 'selected' : ''; ?>>
-                                    <?php echo h($opt); ?>
-                                </option>
-                            <?php endforeach; ?>
-                        </select>
-                    </div>
-                    <div class="col-md-6">
-                        <label class="form-label">Hire Date</label>
-                        <input type="date" name="hire_date" class="form-control" value="<?php echo val('hire_date'); ?>">
-                    </div>
-                    <div class="col-md-6">
-                        <label class="form-label">Company Name</label>
-                        <input type="text" name="company_name" class="form-control" value="<?php echo val('company_name'); ?>">
-                    </div>
-                    <div class="col-md-6">
-                        <label class="form-label">Previous Company</label>
-                        <input type="text" name="previous_company" class="form-control" value="<?php echo val('previous_company'); ?>">
-                    </div>
-                </div>
-
-                <div class="row mb-3 mt-4 p-3 bg-light border rounded">
-                    
-                    <div class="col-md-3">
-                        <label class="form-label fw-bold">Current Status</label>
-                        <select name="status" id="statusSelect" class="form-select border-primary fw-bold" onchange="toggleExitFields()">
-                            <option value="Active" <?php if($emp['status']=='Active') echo 'selected'; ?>>Active</option>
-                            <option value="Resigned" <?php if($emp['status']=='Resigned') echo 'selected'; ?>>Resigned</option>
-                            <option value="Terminated" <?php if($emp['status']=='Terminated') echo 'selected'; ?>>Terminated</option>
-                            <option value="AWOL" <?php if($emp['status']=='AWOL') echo 'selected'; ?>>AWOL</option>
-                            <option value="Retired" <?php if($emp['status']=='Retired') echo 'selected'; ?>>Retired</option>
-                        </select>
-                    </div>
-
-                    <div class="col-md-3 exit-field">
-                        <label class="form-label fw-bold text-danger">Date of Exit</label>
-                        <input type="date" name="exit_date" class="form-control border-danger text-danger fw-bold" 
-                               value="<?php echo $emp['exit_date'] ?? ''; ?>">
-                    </div>
-
-                    <div class="col-md-6 exit-field">
-                        <label class="form-label fw-bold text-danger">Reason for Leaving</label>
-                        <input type="text" name="exit_reason" class="form-control border-danger" 
-                               placeholder="e.g. Found better opportunity, Family reasons..." 
-                               value="<?php echo htmlspecialchars($emp['exit_reason'] ?? ''); ?>">
-                    </div>
-                </div>
-                <h6 class="text-secondary border-bottom pb-2 mb-3 mt-4">Personal Details</h6>
-                <div class="row g-3">
-                    <div class="col-md-4">
-                        <label class="form-label">First Name</label>
-                        <input type="text" name="first_name" class="form-control" value="<?php echo val('first_name'); ?>" required oninput="capitalize(this)">
-                    </div>
-                    <div class="col-md-4">
-                        <label class="form-label">Middle Name</label>
-                        <input type="text" name="middle_name" class="form-control" value="<?php echo val('middle_name'); ?>" oninput="capitalize(this)">
-                    </div>
-                    <div class="col-md-4">
-                        <label class="form-label">Last Name</label>
-                        <input type="text" name="last_name" class="form-control" value="<?php echo val('last_name'); ?>" required oninput="capitalize(this)">
-                    </div>
-                    <div class="col-md-3">
-                        <label class="form-label">Gender</label>
-                        <select name="gender" class="form-select">
-                            <option value="Male" <?php echo (raw('gender')=='Male')?'selected':''; ?>>Male</option>
-                            <option value="Female" <?php echo (raw('gender')=='Female')?'selected':''; ?>>Female</option>
-                        </select>
-                    </div>
-                    <div class="col-md-3">
-                        <label class="form-label">Birth Date</label>
-                        <input type="date" name="birth_date" class="form-control" value="<?php echo val('birth_date'); ?>">
-                    </div>
-                    <div class="col-md-6">
-                        <label class="form-label">Contact Number</label>
-                        <input type="text" name="contact_number" class="form-control" value="<?php echo val('contact_number'); ?>">
-                        <div class="form-text small">Allowed: Numbers, +, -, /, ( )</div>
-                    </div>
-                    <div class="col-md-6">
-                        <label class="form-label">Email</label>
-                        <input type="email" name="email" class="form-control" value="<?php echo val('email'); ?>">
-                    </div>
-                    <div class="col-12">
-                        <label class="form-label">Present Address</label>
-                        <input type="text" name="present_address" class="form-control" value="<?php echo val('present_address'); ?>">
-                    </div>
-                    <div class="col-12">
-                        <label class="form-label">Permanent Address</label>
-                        <input type="text" name="permanent_address" class="form-control" value="<?php echo val('permanent_address'); ?>">
-                    </div>
-                    <div class="col-12">
-                         <label class="form-label">Change Photo</label>
-                         <input type="file" name="avatar" class="form-control" accept="image/*">
-                    </div>
-                </div>
-
-                <h6 class="text-secondary border-bottom pb-2 mb-3 mt-4">Government IDs</h6>
-                <div class="row g-3">
-                    <div class="col-md-3">
-                        <label class="form-label">SSS No</label>
-                        <input type="text" name="sss_no" class="form-control" value="<?php echo val('sss_no'); ?>">
-                    </div>
-                    <div class="col-md-3">
-                        <label class="form-label">TIN No</label>
-                        <input type="text" name="tin_no" class="form-control" value="<?php echo val('tin_no'); ?>">
-                    </div>
-                    <div class="col-md-3">
-                        <label class="form-label">PhilHealth</label>
-                        <input type="text" name="philhealth_no" class="form-control" value="<?php echo val('philhealth_no'); ?>">
-                    </div>
-                    <div class="col-md-3">
-                        <label class="form-label">Pag-IBIG</label>
-                        <input type="text" name="pagibig_no" class="form-control" value="<?php echo val('pagibig_no'); ?>">
-                    </div>
-                </div>
-
-                <h6 class="text-secondary border-bottom pb-2 mb-3 mt-4">Emergency Contact</h6>
-                <div class="row g-3">
-                    <div class="col-md-6">
-                        <label class="form-label">Name</label>
-                        <input type="text" name="emergency_name" class="form-control" value="<?php echo val('emergency_name'); ?>" oninput="capitalize(this)">
-                    </div>
-                    <div class="col-md-6">
-                        <label class="form-label">Contact No</label>
-                        <input type="text" name="emergency_contact" class="form-control" value="<?php echo val('emergency_contact'); ?>">
-                        <div class="form-text small">Allowed: Numbers, +, -, /, ( )</div>
-                    </div>
-                    <div class="col-12">
-                        <label class="form-label">Address</label>
-                        <input type="text" name="emergency_address" class="form-control" value="<?php echo val('emergency_address'); ?>">
-                    </div>
-                </div>
-
-                <?php if (($_SESSION['role'] ?? '') === 'STAFF'): ?>
-                <div class="alert alert-warning mt-3">
-                    <label class="form-label fw-bold">Note for Admin</label>
-                    <textarea name="request_note" class="form-control" rows="2" placeholder="Reason for changes..."></textarea>
-                </div>
                 <?php endif; ?>
 
-                <div class="mt-4 d-grid gap-2">
-                    <button type="submit" class="btn btn-warning btn-lg">Save Changes</button>
-                    <a href="index.php" class="btn btn-secondary">Cancel</a>
-            </div>
-                    </form>
-
-                    <?php if (in_array($_SESSION['role'], ['ADMIN', 'HR', 'STAFF'])): ?>
-                        <hr class="my-4">
-                        <div class="card border-primary shadow-sm">
-                            <div class="card-body d-flex justify-content-between align-items-center">
-                                <div>
-                                    <h6 class="fw-bold text-primary mb-1">📄 Document Generator</h6>
-                                    <small class="text-muted">Create legal PDFs for this employee instantly.</small>
-                                </div>
-                                <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#docModal">
-                                    <i class="bi bi-file-earmark-pdf-fill"></i> Generate Document
-                                </button>
-                            </div>
-                        </div>
-                    <?php endif; ?>
-            
-                    <?php if (in_array($_SESSION['role'], ['ADMIN', 'HR'])): ?>
-                        <hr class="my-5">
-                        <div class="card border-danger shadow-sm">
-                            <div class="card-body d-flex justify-content-between align-items-center">
-                                <div class="text-danger fw-bold">⚠️ Danger Zone</div>
-                                <button type="button" class="btn btn-outline-danger btn-sm" onclick="confirmDelete(<?php echo $id; ?>)">Delete Employee</button>
-                            </div>
-                        </div>
-                    <?php endif; ?>
+                <div class="d-flex align-items-center gap-3 mb-4">
+                    <img src="uploads/avatars/<?php echo h($emp['avatar_path'] ?: 'default.png'); ?>"
+                        class="avatar-preview"
+                        alt="Profile Photo"
+                        onerror="this.onerror=null; this.src='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI1MCIgZmlsbD0iI2UzZTNlMyIvPjxwYXRoIGQ9Ik01MCA1MCBhMjAgMjAgMCAxIDAgMC00MCAyMCAyMCAwIDEgMCAwIDQwIHptMCAxMCBjLTE1IDAtMzUgMTAtMzUgMzAgdjEwIGg3MCB2LTEwIGMtMC0yMC0yMC0zMC0zNS0zMCIgZmlsbD0iI2FhYSIvPjwvc3ZnPg==';">
+                    <div>
+                        <div class="fw-bold"><?php echo h($emp['emp_id']); ?></div>
+                        <div class="text-muted small"><?php echo h($emp['job_title']); ?></div>
+                        <div class="text-muted small"><?php echo h($emp['dept'] . ' / ' . $emp['section']); ?></div>
+                    </div>
                 </div>
 
-                <!-- TAB 2: DIGITAL 201 FILE -->
-                <div class="tab-pane fade" id="docs" role="tabpanel">
-                    <div class="d-flex justify-content-between align-items-center mb-3">
-                        <h6 class="fw-bold text-primary mb-0">📂 Uploaded Documents</h6>
-                        <a href="upload_form.php?emp_id=<?php echo h($emp['emp_id']); ?>" class="btn btn-sm btn-success"><i class="bi bi-cloud-upload-fill"></i> Upload New</a>
-                    </div>
-                    
-                    <?php if(empty($myDocs)): ?>
-                        <div class="alert alert-light text-center border border-dashed p-5">
-                            <i class="bi bi-folder-x fs-1 text-muted"></i>
-                            <p class="text-muted mt-2">No documents found in this Digital 201 File.</p>
-                        </div>
-                    <?php else: ?>
-                        <div class="list-group">
-                            <?php foreach($myDocs as $d): ?>
-                                <div class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
-                                    <div>
-                                        <div class="fw-bold text-dark">
-                                            <i class="bi bi-file-earmark-text me-2 text-secondary"></i>
-                                            <a href="view_doc.php?id=<?php echo $d['file_uuid']; ?>" target="_blank" class="text-decoration-none text-dark stretched-link">
-                                                <?php echo h($d['original_name']); ?>
-                                            </a>
-                                        </div>
-                                        <small class="text-muted">
-                                            <span class="badge bg-light text-dark border"><?php echo h($d['category']); ?></span> 
-                                            • Uploaded <?php echo date('M d, Y', strtotime($d['uploaded_at'])); ?>
-                                        </small>
-                                    </div>
-                                    <a href="view_doc.php?id=<?php echo $d['file_uuid']; ?>" target="_blank" class="btn btn-sm btn-outline-primary position-relative z-2">View</a>
+                <!-- TABS NAVIGATION -->
+                <ul class="nav nav-tabs mb-4" id="profileTabs" role="tablist">
+                    <li class="nav-item"><button class="nav-link active fw-bold" id="details-tab" data-bs-toggle="tab" data-bs-target="#details" type="button"><i class="bi bi-person-vcard"></i> Personal Details</button></li>
+                    <li class="nav-item"><button class="nav-link fw-bold" id="docs-tab" data-bs-toggle="tab" data-bs-target="#docs" type="button"><i class="bi bi-folder2-open"></i> Digital 201 File <span class="badge bg-secondary rounded-pill ms-1"><?php echo count($myDocs); ?></span></button></li>
+                    <li class="nav-item"><button class="nav-link fw-bold" id="eval-tab" data-bs-toggle="tab" data-bs-target="#eval" type="button"><i class="bi bi-graph-up-arrow"></i> Performance</button></li>
+                </ul>
+
+                <div class="tab-content" id="profileTabsContent">
+                    <!-- TAB 1: PERSONAL DETAILS -->
+                    <div class="tab-pane fade show active" id="details" role="tabpanel">
+                        <form method="POST" enctype="multipart/form-data">
+
+                            <h6 class="text-secondary border-bottom pb-2 mb-3">Work Information</h6>
+                            <div class="row g-3">
+
+
+                                <div class="col-md-3">
+                                    <label class="form-label">Employee ID</label>
+                                    <input type="text" name="emp_id" class="form-control" value="<?php echo val('emp_id'); ?>" required oninput="this.value=this.value.toUpperCase().replace(/[^A-Z0-9\-_]/g, '')" pattern="[A-Z0-9\-_]+" title="Allowed: Letters, Numbers, - and _">
+                                    <div class="form-text small">Allowed: Letters, Numbers, - and _</div>
                                 </div>
-                            <?php endforeach; ?>
+                                <div class="col-md-3">
+                                    <label class="form-label">Job Title</label>
+                                    <input type="text" name="job_title" class="form-control" value="<?php echo val('job_title'); ?>" required oninput="capitalize(this)">
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label">Department</label>
+                                    <select name="dept" id="dept" class="form-select" required>
+                                        <?php foreach ($deptMap as $d => $s): ?>
+                                            <option value="<?php echo h($d); ?>" <?php echo ($emp['dept'] == $d) ? 'selected' : ''; ?>><?php echo h($d); ?></option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label">Section</label>
+                                    <select name="section" id="section" class="form-select" required></select>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Employment Type</label>
+                                    <select name="employment_type" class="form-select">
+                                        <?php foreach ($emp_options as $opt): ?>
+                                            <option value="<?php echo h($opt); ?>"
+                                                <?php echo ($emp['agency_name'] == $opt || ($opt == 'TESP DIRECT' && $emp['employment_type'] == 'TESP Direct')) ? 'selected' : ''; ?>>
+                                                <?php echo h($opt); ?>
+                                            </option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Hire Date</label>
+                                    <input type="date" name="hire_date" class="form-control" value="<?php echo val('hire_date'); ?>">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Company Name</label>
+                                    <input type="text" name="company_name" class="form-control" value="<?php echo val('company_name'); ?>">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Previous Company</label>
+                                    <input type="text" name="previous_company" class="form-control" value="<?php echo val('previous_company'); ?>">
+                                </div>
+                            </div>
+
+                            <div class="row mb-3 mt-4 p-3 bg-light border rounded">
+
+                                <div class="col-md-3">
+                                    <label class="form-label fw-bold">Current Status</label>
+                                    <select name="status" id="statusSelect" class="form-select border-primary fw-bold" onchange="toggleExitFields()">
+                                        <option value="Active" <?php if ($emp['status'] == 'Active') echo 'selected'; ?>>Active</option>
+                                        <option value="Resigned" <?php if ($emp['status'] == 'Resigned') echo 'selected'; ?>>Resigned</option>
+                                        <option value="Terminated" <?php if ($emp['status'] == 'Terminated') echo 'selected'; ?>>Terminated</option>
+                                        <option value="AWOL" <?php if ($emp['status'] == 'AWOL') echo 'selected'; ?>>AWOL</option>
+                                        <option value="Retired" <?php if ($emp['status'] == 'Retired') echo 'selected'; ?>>Retired</option>
+                                    </select>
+                                </div>
+
+                                <div class="col-md-3 exit-field">
+                                    <label class="form-label fw-bold text-danger">Date of Exit</label>
+                                    <input type="date" name="exit_date" class="form-control border-danger text-danger fw-bold"
+                                        value="<?php echo $emp['exit_date'] ?? ''; ?>">
+                                </div>
+
+                                <div class="col-md-6 exit-field">
+                                    <label class="form-label fw-bold text-danger">Reason for Leaving</label>
+                                    <input type="text" name="exit_reason" class="form-control border-danger"
+                                        placeholder="e.g. Found better opportunity, Family reasons..."
+                                        value="<?php echo htmlspecialchars($emp['exit_reason'] ?? ''); ?>">
+                                </div>
+                            </div>
+                            <h6 class="text-secondary border-bottom pb-2 mb-3 mt-4">Personal Details</h6>
+                            <div class="row g-3">
+                                <div class="col-md-4">
+                                    <label class="form-label">First Name</label>
+                                    <input type="text" name="first_name" class="form-control" value="<?php echo val('first_name'); ?>" required oninput="this.value = this.value.replace(/[^a-zA-Z\s\-\.]/g, ''); capitalize(this)" pattern="[a-zA-Z\s\-\.]+" title="Allowed: Letters, spaces, dots, dashes">
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Middle Name</label>
+                                    <input type="text" name="middle_name" class="form-control" value="<?php echo val('middle_name'); ?>" oninput="this.value = this.value.replace(/[^a-zA-Z\s\-\.]/g, ''); capitalize(this)" pattern="[a-zA-Z\s\-\.]+" title="Allowed: Letters, spaces, dots, dashes">
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Last Name</label>
+                                    <input type="text" name="last_name" class="form-control" value="<?php echo val('last_name'); ?>" required oninput="this.value = this.value.replace(/[^a-zA-Z\s\-\.]/g, ''); capitalize(this)" pattern="[a-zA-Z\s\-\.]+" title="Allowed: Letters, spaces, dots, dashes">
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label">Gender</label>
+                                    <select name="gender" class="form-select">
+                                        <option value="Male" <?php echo (raw('gender') == 'Male') ? 'selected' : ''; ?>>Male</option>
+                                        <option value="Female" <?php echo (raw('gender') == 'Female') ? 'selected' : ''; ?>>Female</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label">Birth Date</label>
+                                    <input type="date" name="birth_date" class="form-control" value="<?php echo val('birth_date'); ?>">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Contact Number</label>
+                                    <input type="text" name="contact_number" class="form-control" value="<?php echo val('contact_number'); ?>" oninput="this.value = this.value.replace(/[^0-9+\-\s()\/]/g, '')" pattern="[0-9+\-\s()\/]+" title="Allowed: Numbers, +, -, /, ( )">
+                                    <div class="form-text small">Allowed: Numbers, +, -, /, ( )</div>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Email</label>
+                                    <input type="email" name="email" class="form-control" value="<?php echo val('email'); ?>">
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label">Present Address</label>
+                                    <input type="text" name="present_address" class="form-control" value="<?php echo val('present_address'); ?>">
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label">Permanent Address</label>
+                                    <input type="text" name="permanent_address" class="form-control" value="<?php echo val('permanent_address'); ?>">
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label">Change Photo</label>
+                                    <input type="file" name="avatar" class="form-control" accept="image/*">
+                                </div>
+                            </div>
+
+                            <h6 class="text-secondary border-bottom pb-2 mb-3 mt-4">Government IDs</h6>
+                            <div class="row g-3">
+                                <div class="col-md-3">
+                                    <label class="form-label">SSS No</label>
+                                    <input type="text" name="sss_no" class="form-control" value="<?php echo val('sss_no'); ?>">
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label">TIN No</label>
+                                    <input type="text" name="tin_no" class="form-control" value="<?php echo val('tin_no'); ?>">
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label">PhilHealth</label>
+                                    <input type="text" name="philhealth_no" class="form-control" value="<?php echo val('philhealth_no'); ?>">
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label">Pag-IBIG</label>
+                                    <input type="text" name="pagibig_no" class="form-control" value="<?php echo val('pagibig_no'); ?>">
+                                </div>
+                            </div>
+
+                            <h6 class="text-secondary border-bottom pb-2 mb-3 mt-4">Emergency Contact</h6>
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label class="form-label">Name</label>
+                                    <input type="text" name="emergency_name" class="form-control" value="<?php echo val('emergency_name'); ?>" oninput="capitalize(this)">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Contact No</label>
+                                    <input type="text" name="emergency_contact" class="form-control" value="<?php echo val('emergency_contact'); ?>" oninput="this.value = this.value.replace(/[^0-9+\-\s()\/]/g, '')" pattern="[0-9+\-\s()\/]+" title="Allowed: Numbers, +, -, /, ( )">
+                                    <div class="form-text small">Allowed: Numbers, +, -, /, ( )</div>
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label">Address</label>
+                                    <input type="text" name="emergency_address" class="form-control" value="<?php echo val('emergency_address'); ?>">
+                                </div>
+                            </div>
+
+                            <h6 class="text-secondary border-bottom pb-2 mb-3 mt-4">Qualifications & EducationalBackground</h6>
+                            <div class="row g-3">
+                                <div class="col-12">
+                                    <label class="form-label">Education</label>
+                                    <textarea name="education" class="form-control" rows="2" maxlength="1000" oninput="this.value = this.value.replace(/[^a-zA-Z0-9\s\.,\-\(\)\/&]/g, '')"><?php echo val('education'); ?></textarea>
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label">Experience</label>
+                                    <textarea name="experience" class="form-control" rows="2" maxlength="1000" oninput="this.value = this.value.replace(/[^a-zA-Z0-9\s\.,\-\(\)\/&]/g, '')"><?php echo val('experience'); ?></textarea>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Skills</label>
+                                    <textarea name="skills" class="form-control" rows="2" maxlength="1000" oninput="this.value = this.value.replace(/[^a-zA-Z0-9\s\.,\-\(\)\/&]/g, '')"><?php echo val('skills'); ?></textarea>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Licenses / Certifications</label>
+                                    <textarea name="licenses" class="form-control" rows="2" maxlength="1000" oninput="this.value = this.value.replace(/[^a-zA-Z0-9\s\.,\-\(\)\/&]/g, '')"><?php echo val('licenses'); ?></textarea>
+                                    <div class="form-text small">Type N/A if not applicable.</div>
+                                </div>
+                            </div>
+
+                            <?php if (($_SESSION['role'] ?? '') === 'STAFF'): ?>
+                                <div class="alert alert-warning mt-3">
+                                    <label class="form-label fw-bold">Note for Admin</label>
+                                    <textarea name="request_note" class="form-control" rows="2" placeholder="Reason for changes..."></textarea>
+                                </div>
+                            <?php endif; ?>
+
+                            <div class="mt-4 d-grid gap-2">
+                                <button type="submit" class="btn btn-warning btn-lg">Save Changes</button>
+                                <a href="index.php" class="btn btn-secondary">Cancel</a>
+                            </div>
+                        </form>
+
+                        <?php if (in_array($_SESSION['role'], ['ADMIN', 'HR', 'STAFF']) && ($emp['employment_type'] === 'TESP Direct' || $emp['agency_name'] === 'TESP')): ?>
+                            <hr class="my-4">
+                            <div class="card border-primary shadow-sm">
+                                <div class="card-body d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <h6 class="fw-bold text-primary mb-1">📄 Document Generator</h6>
+                                        <small class="text-muted">Create legal PDFs for this employee instantly.</small>
+                                    </div>
+                                    <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#docModal">
+                                        <i class="bi bi-file-earmark-pdf-fill"></i> Generate Document
+                                    </button>
+                                </div>
+                            </div>
+                        <?php endif; ?>
+
+                        <?php if (in_array($_SESSION['role'], ['ADMIN', 'HR'])): ?>
+                            <hr class="my-5">
+                            <div class="card border-danger shadow-sm">
+                                <div class="card-body d-flex justify-content-between align-items-center">
+                                    <div class="text-danger fw-bold">⚠️ Danger Zone</div>
+                                    <button type="button" class="btn btn-outline-danger btn-sm" onclick="confirmDelete(<?php echo $id; ?>)">Delete Employee</button>
+                                </div>
+                            </div>
+                        <?php endif; ?>
+                    </div>
+
+                    <!-- TAB 2: DIGITAL 201 FILE -->
+                    <div class="tab-pane fade" id="docs" role="tabpanel">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h6 class="fw-bold text-primary mb-0">📂 Uploaded Documents</h6>
+                            <a href="upload_form.php?emp_id=<?php echo h($emp['emp_id']); ?>" class="btn btn-sm btn-success"><i class="bi bi-cloud-upload-fill"></i> Upload New</a>
                         </div>
-                    <?php endif; ?>
+
+                        <?php if (empty($myDocs)): ?>
+                            <div class="alert alert-light text-center border border-dashed p-5">
+                                <i class="bi bi-folder-x fs-1 text-muted"></i>
+                                <p class="text-muted mt-2">No documents found in this Digital 201 File.</p>
+                            </div>
+                        <?php else: ?>
+                            <div class="list-group">
+                                <?php foreach ($myDocs as $d): ?>
+                                    <div class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+                                        <div>
+                                            <div class="fw-bold text-dark">
+                                                <i class="bi bi-file-earmark-text me-2 text-secondary"></i>
+                                                <a href="view_doc.php?id=<?php echo $d['file_uuid']; ?>" target="_blank" class="text-decoration-none text-dark stretched-link">
+                                                    <?php echo h($d['original_name']); ?>
+                                                </a>
+                                            </div>
+                                            <small class="text-muted">
+                                                <span class="badge bg-light text-dark border"><?php echo h($d['category']); ?></span>
+                                                • Uploaded <?php echo date('M d, Y', strtotime($d['uploaded_at'])); ?>
+                                            </small>
+                                        </div>
+                                        <a href="view_doc.php?id=<?php echo $d['file_uuid']; ?>" target="_blank" class="btn btn-sm btn-outline-primary position-relative z-2">View</a>
+                                    </div>
+                                <?php endforeach; ?>
+                            </div>
+                        <?php endif; ?>
+                    </div>
+
+                    <!-- TAB 3: PERFORMANCE EVALUATION -->
+                    <div class="tab-pane fade" id="eval" role="tabpanel">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h6 class="fw-bold text-primary mb-0">📊 Performance Reviews</h6>
+                            <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#addEvalModal"><i class="bi bi-plus-circle"></i> Add Evaluation</button>
+                        </div>
+
+                        <?php if (!empty($evals)): ?>
+                            <div class="card mb-4 border-0 shadow-sm">
+                                <div class="card-body" style="height: 300px;">
+                                    <canvas id="perfChart"></canvas>
+                                </div>
+                            </div>
+                        <?php endif; ?>
+
+                        <div class="table-responsive">
+                            <table class="table table-hover align-middle">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Date</th>
+                                        <th>Score</th>
+                                        <th>Rating</th>
+                                        <th>Evaluator</th>
+                                        <th>Remarks</th>
+                                        <th>Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php foreach ($evals as $ev):
+                                        $badge = 'bg-secondary';
+                                        if ($ev['score'] >= 90) $badge = 'bg-success';
+                                        elseif ($ev['score'] >= 75) $badge = 'bg-info';
+                                        elseif ($ev['score'] >= 60) $badge = 'bg-warning';
+                                        else $badge = 'bg-danger';
+                                    ?>
+                                        <tr>
+                                            <td><?php echo date('M d, Y', strtotime($ev['eval_date'])); ?></td>
+                                            <td><span class="badge <?php echo $badge; ?> fs-6"><?php echo $ev['score']; ?>%</span></td>
+                                            <td><?php echo htmlspecialchars($ev['rating']); ?></td>
+                                            <td class="small text-muted"><?php echo htmlspecialchars($ev['evaluator']); ?></td>
+                                            <td class="small text-muted fst-italic"><?php echo htmlspecialchars($ev['remarks']); ?></td>
+                                            <td>
+                                                <a href="print_evaluation.php?id=<?php echo $ev['id']; ?>" target="_blank" class="btn btn-sm btn-outline-dark" title="Print Report"><i class="bi bi-printer"></i></a>
+                                                <?php if (in_array($_SESSION['role'], ['ADMIN', 'HR'])): ?>
+                                                    <a href="edit_employee.php?id=<?php echo $id; ?>&delete_eval_id=<?php echo $ev['id']; ?>"
+                                                        class="btn btn-sm btn-outline-danger ms-1"
+                                                        onclick="return confirm('Are you sure you want to delete this evaluation?');"
+                                                        title="Delete Evaluation">
+                                                        <i class="bi bi-trash"></i>
+                                                    </a>
+                                                <?php endif; ?>
+                                            </td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                    <?php if (empty($evals)): ?>
+                                        <tr>
+                                            <td colspan="6" class="text-center text-muted py-4">No evaluations recorded yet.</td>
+                                        </tr>
+                                    <?php endif; ?>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
-</div>
 
-<form id="deleteForm" action="delete_employee.php" method="POST" style="display:none;"><input type="hidden" name="id" id="deleteId"></form>
+    <form id="deleteForm" action="delete_employee.php" method="POST" style="display:none;"><input type="hidden" name="id" id="deleteId"></form>
 
-<!-- DOCUMENT GENERATION MODAL -->
-<div class="modal fade" id="docModal" tabindex="-1">
-  <div class="modal-dialog">
-    <div class="modal-content">
-      <div class="modal-header bg-primary text-white">
-        <h5 class="modal-title"><i class="bi bi-printer"></i> Generate Document</h5>
-        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-      </div>
-      <div class="modal-body">
-        <form id="docForm" target="_blank" action="generate_document.php" method="GET">
-          <input type="hidden" name="id" value="<?php echo $id; ?>">
-          
-          <div class="mb-3">
-            <!-- [SMART FILTER STEP 1] The "Filter" Dropdown -->
-            <!-- This dropdown triggers the filterDocuments() function when changed. -->
-            <!-- It acts as the "Parent" that controls the options available in the next dropdown. -->
-            <label class="form-label fw-bold text-success">1. Select Employee Category</label>
-            <select class="form-select" id="jobCategory" onchange="filterDocuments()">
-                <option value="" selected disabled>-- Choose Role --</option>
-                <option value="lms_tech">LMS Technician</option>
-                <option value="office">Office Staff / Admin</option>
-                <option value="general">General (All Employees)</option>
-            </select>
-            <div class="form-text">This filters which documents are available below.</div>
-          </div>
+    <!-- DOCUMENT GENERATION MODAL -->
+    <div class="modal fade" id="docModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title"><i class="bi bi-printer"></i> Generate Document</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="docForm" target="_blank" action="generate_document.php" method="GET">
+                        <input type="hidden" name="id" value="<?php echo $id; ?>">
 
-          <div class="mb-3">
-            <!-- [SMART FILTER STEP 2] The "Result" Dropdown -->
-            <!-- This is initially disabled. It gets populated by JavaScript based on Step 1. -->
-            <label class="form-label fw-bold">2. Select Document Template</label>
-            <select class="form-select" name="type" id="docType" onchange="toggleDateFields()" disabled>
-                <option value="" selected>-- Select Category First --</option>
-            </select>
-            <div class="form-text text-muted" id="docHelp"></div>
-          </div>
+                        <div class="mb-3">
+                            <!-- [SMART FILTER STEP 1] The "Filter" Dropdown -->
+                            <!-- This dropdown triggers the filterDocuments() function when changed. -->
+                            <!-- It acts as the "Parent" that controls the options available in the next dropdown. -->
+                            <label class="form-label fw-bold text-success">1. Select Employee Category</label>
+                            <select class="form-select" id="jobCategory" onchange="filterDocuments()">
+                                <option value="" selected disabled>-- Choose Role --</option>
+                                <option value="lms_tech">LMS Technician</option>
+                                <option value="office">Office Staff / Admin</option>
+                                <option value="general">General (All Employees)</option>
+                            </select>
+                            <div class="form-text">This filters which documents are available below.</div>
+                        </div>
 
-          <!-- Date Selection (Hidden for NDA) -->
-          <div id="dateFields" class="p-3 bg-light border rounded mb-3" style="display:none;">
-            <h6 class="text-primary fw-bold mb-3">Contract Validity (Longevity)</h6>
-            
-            <div class="mb-2">
-                <label class="form-label small fw-bold">Effectivity Date (Start)</label>
-                <input type="date" name="start_date" id="startDate" class="form-control" value="<?php echo $emp['hire_date']; ?>" onchange="calcEndDate()">
-            </div>
-            
-            <div class="mb-2">
-                <div class="row g-2">
-                    <div class="col-8">
-                        <label class="form-label small fw-bold">Duration Preset</label>
-                        <select id="durationSelect" class="form-select form-select-sm" onchange="updateDuration()">
-                            <option value="6">6 Months (Probationary)</option>
-                            <option value="3">3 Months (Extension)</option>
-                            <option value="custom">Custom / Manual Edit</option>
-                        </select>
-                    </div>
-                    <div class="col-4">
-                        <label class="form-label small fw-bold">Months</label>
-                        <input type="number" name="duration" id="durationInput" class="form-control form-control-sm" value="6" min="1" max="12" oninput="validateDuration(this); calcEndDate()">
-                    </div>
+                        <div class="mb-3">
+                            <!-- [SMART FILTER STEP 2] The "Result" Dropdown -->
+                            <!-- This is initially disabled. It gets populated by JavaScript based on Step 1. -->
+                            <label class="form-label fw-bold">2. Select Document Template</label>
+                            <select class="form-select" name="type" id="docType" onchange="toggleDateFields()" disabled>
+                                <option value="" selected>-- Select Category First --</option>
+                            </select>
+                            <div class="form-text text-muted" id="docHelp"></div>
+                        </div>
+
+                        <!-- [NEW] Project Name Field -->
+                        <div id="projectFields" style="display:none;" class="mb-3">
+                            <label class="form-label fw-bold">Project Name</label>
+                            <input type="text" name="project_name" id="projectNameInput" class="form-control" placeholder="e.g. MRT-3 Rehabilitation Project">
+                        </div>
+
+                        <!-- Date Selection (Hidden for NDA) -->
+                        <div id="dateFields" class="p-3 bg-light border rounded mb-3" style="display:none;">
+                            <h6 class="text-primary fw-bold mb-3">Contract Validity (Longevity)</h6>
+
+                            <div class="mb-2">
+                                <label class="form-label small fw-bold">Effectivity Date (Start)</label>
+                                <input type="date" name="start_date" id="startDate" class="form-control" value="<?php echo date('Y-m-d'); ?>" min="<?php echo date('Y-m-d'); ?>" onchange="calcEndDate()">
+                            </div>
+
+                            <div class="mb-2">
+                                <div class="row g-2">
+                                    <div class="col-8">
+                                        <label class="form-label small fw-bold">Duration Preset</label>
+                                        <select id="durationSelect" class="form-select form-select-sm" onchange="updateDuration()">
+                                            <option value="6">6 Months (Probationary)</option>
+                                            <option value="3">3 Months (Probationary)</option>
+                                            <option value="custom">Custom / Manual Edit</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-4">
+                                        <label class="form-label small fw-bold">Months</label>
+                                        <input type="number" name="duration" id="durationInput" class="form-control form-control-sm" value="06" min="1" max="99" oninput="validateDuration(this); calcEndDate()" readonly>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="mb-0">
+                                <label class="form-label small fw-bold">Validity Until (End)</label>
+                                <input type="date" name="end_date" id="endDate" class="form-control">
+                            </div>
+                        </div>
+
+                        <div class="d-grid">
+                            <button type="submit" class="btn btn-success btn-lg" id="generateBtn" disabled onclick="return validateDocForm()">Generate PDF</button>
+                        </div>
+                    </form>
                 </div>
             </div>
-
-            <div class="mb-0">
-                <label class="form-label small fw-bold">Validity Until (End)</label>
-                <input type="date" name="end_date" id="endDate" class="form-control">
-            </div>
-          </div>
-          
-          <div class="d-grid">
-            <button type="submit" class="btn btn-success btn-lg" id="generateBtn" disabled>Generate PDF</button>
-          </div>
-        </form>
-      </div>
+        </div>
     </div>
-  </div>
-</div>
 
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-<script>
-// Logic for Sections and Auto-Capitalize
-const deptMap = <?php echo json_encode($deptMap); ?>;
-const currentSection = "<?php echo h($emp['section']); ?>";
-const deptSelect = document.getElementById('dept');
-const sectionSelect = document.getElementById('section');
+    <!-- ADD EVALUATION MODAL -->
+    <div class="modal fade" id="addEvalModal" tabindex="-1">
+        <div class="modal-dialog">
+            <form class="modal-content" method="POST">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title">Add Performance Review</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" name="action" value="add_eval">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Evaluation Date</label>
+                        <input type="date" name="eval_date" class="form-control" value="<?php echo date('Y-m-d'); ?>" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Score (0-100)</label>
+                        <input type="number" name="score" class="form-control" min="0" max="100" placeholder="e.g. 85" required oninput="if(this.value>100)this.value=100; if(this.value<0)this.value=0;">
 
-function updateSections() {
-    const d = deptSelect.value;
-    sectionSelect.innerHTML = '<option value="">-- Select --</option>';
-    if (deptMap[d]) {
-        deptMap[d].forEach(s => {
-            const opt = document.createElement('option');
-            opt.value = s;
-            opt.textContent = s;
-            if (s === currentSection) opt.selected = true;
-            sectionSelect.appendChild(opt);
-        });
-    }
-}
-function capitalize(input) {
-    let words = input.value.split(' ');
-    for (let i = 0; i < words.length; i++) {
-        if (words[i].length > 0) words[i] = words[i].charAt(0).toUpperCase() + words[i].slice(1).toLowerCase();
-    }
-    input.value = words.join(' ');
-}
-function confirmDelete(id) {
-    Swal.fire({
-        title: 'Are you sure?',
-        text: "This action cannot be undone. All related documents will be unlinked.",
-        icon: 'warning',
-        showCancelButton: true,
-        confirmButtonColor: '#dc3545',
-        confirmButtonText: 'Yes, delete it!'
-    }).then((result) => {
-        if (result.isConfirmed) {
-            document.getElementById('deleteId').value = id;
-            document.getElementById('deleteForm').submit();
+                        <div class="mt-2 p-2 bg-light border rounded small">
+                            <h6 class="fw-bold mb-1 text-primary">🎯 Promotion & Qualification Guide</h6>
+                            <ul class="list-unstyled mb-0 ps-1">
+                                <li><span class="badge bg-success">90 - 100</span> <strong>Excellent</strong> (Ready for Promotion)</li>
+                                <li><span class="badge bg-primary">80 - 89</span> <strong>Very Good</strong> (Qualified for Regularization)</li>
+                                <li><span class="badge bg-info text-dark">70 - 79</span> <strong>Satisfactory</strong> (Retain)</li>
+                                <li><span class="badge bg-warning text-dark">60 - 69</span> <strong>Needs Improvement</strong> (PIP Required)</li>
+                                <li><span class="badge bg-danger">0 - 59</span> <strong>Poor</strong> (Risk of Termination)</li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Remarks / Comments</label>
+                        <textarea name="remarks" class="form-control" rows="3" placeholder="Strengths, weaknesses, areas for improvement..."></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save Review</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Logic for Sections and Auto-Capitalize
+        const deptMap = <?php echo json_encode($deptMap); ?>;
+        const currentSection = "<?php echo h($emp['section']); ?>";
+        const deptSelect = document.getElementById('dept');
+        const sectionSelect = document.getElementById('section');
+
+        function updateSections() {
+            const d = deptSelect.value;
+            sectionSelect.innerHTML = '<option value="">-- Select --</option>';
+            if (deptMap[d]) {
+                deptMap[d].forEach(s => {
+                    const opt = document.createElement('option');
+                    opt.value = s;
+                    opt.textContent = s;
+                    if (s === currentSection) opt.selected = true;
+                    sectionSelect.appendChild(opt);
+                });
+            }
         }
-    });
-}
 
-// TOGGLE EXIT FIELDS LOGIC
-function toggleExitFields() {
-    const statusSelect = document.getElementById('statusSelect');
-    if (!statusSelect) return; // Guard clause
-
-    const status = statusSelect.value;
-    const fields = document.querySelectorAll('.exit-field'); 
-
-    // If status is ANYTHING other than 'Active', show the exit fields
-    if (status !== 'Active') {
-        fields.forEach(field => field.style.display = 'block');
-    } else {
-        fields.forEach(field => field.style.display = 'none');
-    }
-}
-
-// Arrays contain the allowed documents for that category.
-const docLibrary = {
-    'lms_tech': [
-        { val: 'probationary_lms', text: '📄 Probationary Contract (LMS)' },
-        { val: 'tool_clearance', text: '🛠️ Tool Clearance' },
-        { val: 'confidentiality', text: '🔒 Confidentiality Agreement (NDA)' }, // [ADDED]
-        { val: 'memo_general', text: '⚠️ General Memo' } // [ADDED]
-    ],
-    'office': [
-        { val: 'contract_office', text: '📄 Office Contract' },
-        { val: 'memo_office', text: '⚠️ Office Memo' },
-        { val: 'confidentiality', text: '🔒 Confidentiality Agreement (NDA)' } // [ADDED]
-    ],
-    'general': [
-        { val: 'confidentiality', text: '🔒 Confidentiality Agreement (NDA)' }
-    ]
-};
-
-// [SMART FILTER LOGIC]
-// This function runs whenever the Category dropdown changes.
-function filterDocuments() {
-    const category = document.getElementById('jobCategory').value;
-    const docSelect = document.getElementById('docType');
-    const btn = document.getElementById('generateBtn');
-
-    // 1. Reset the second dropdown (Clear old options)
-    docSelect.innerHTML = '<option value="" selected disabled>-- Select Document --</option>';
-    
-    if (category && docLibrary[category]) {
-        // 3. Enable the dropdown
-        docSelect.disabled = false;
-        
-        // 4. Loop through the allowed documents and create <option> tags
-        docLibrary[category].forEach(doc => {
-            const option = document.createElement('option');
-            option.value = doc.val;
-            option.text = doc.text;
-            docSelect.appendChild(option);
-        });
-    } else {
-        // Disable if no category
-        docSelect.disabled = true;
-    }
-    
-    // 5. Reset the date fields visibility since the document selection changed
-    toggleDateFields();
-}
-
-// DOCUMENT MODAL LOGIC
-function toggleDateFields() {
-    const type = document.getElementById('docType').value;
-    const dateDiv = document.getElementById('dateFields');
-    const help = document.getElementById('docHelp');
-    const btn = document.getElementById('generateBtn');
-
-    if (type) btn.disabled = false;
-
-    // Show Dates ONLY for Contracts
-    if (type.includes('probationary') || type.includes('contract')) {
-        dateDiv.style.display = 'block';
-        if (type === 'probationary_lms') {
-            document.getElementById('durationSelect').value = '6';
-            document.getElementById('durationInput').value = '6';
-            help.innerText = "Standard 6-month probationary contract for LMS Technicians.";
+        function capitalize(input) {
+            let words = input.value.split(' ');
+            for (let i = 0; i < words.length; i++) {
+                if (words[i].length > 0) words[i] = words[i].charAt(0).toUpperCase() + words[i].slice(1).toLowerCase();
+            }
+            input.value = words.join(' ');
         }
-        calcEndDate();
-    } else {
-        dateDiv.style.display = 'none';
-        help.innerText = "";
-    }
-}
 
-function updateDuration() {
-    const select = document.getElementById('durationSelect');
-    const input = document.getElementById('durationInput');
-    if (select.value !== 'custom') {
-        input.value = select.value;
-        calcEndDate();
-    }
-}
+        function confirmDelete(id) {
+            Swal.fire({
+                title: 'Are you sure?',
+                text: "This action cannot be undone. All related documents will be unlinked.",
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#dc3545',
+                confirmButtonText: 'Yes, delete it!'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    document.getElementById('deleteId').value = id;
+                    document.getElementById('deleteForm').submit();
+                }
+            });
+        }
 
-function validateDuration(input) {
-    if (input.value > 12) input.value = 12;
-    if (input.value !== '' && input.value < 1) input.value = 1;
-}
+        // TOGGLE EXIT FIELDS LOGIC
+        function toggleExitFields() {
+            const statusSelect = document.getElementById('statusSelect');
+            if (!statusSelect) return; // Guard clause
 
-function calcEndDate() {
-    const startVal = document.getElementById('startDate').value;
-    const duration = document.getElementById('durationInput').value;
-    const endInput = document.getElementById('endDate');
+            const status = statusSelect.value;
+            const fields = document.querySelectorAll('.exit-field');
 
-    if (!startVal || !duration) return;
+            // If status is ANYTHING other than 'Active', show the exit fields
+            if (status !== 'Active') {
+                fields.forEach(field => field.style.display = 'block');
+            } else {
+                fields.forEach(field => field.style.display = 'none');
+            }
+        }
 
-    const date = new Date(startVal);
-    // Add months
-    date.setMonth(date.getMonth() + parseInt(duration));
-    // Format YYYY-MM-DD
-    const yyyy = date.getFullYear();
-    const mm = String(date.getMonth() + 1).padStart(2, '0');
-    const dd = String(date.getDate()).padStart(2, '0');
-    endInput.value = `${yyyy}-${mm}-${dd}`;
-}
+        // Arrays contain the allowed documents for that category.
+        const docLibrary = {
+            'lms_tech': [{
+                    val: 'probationary_lms',
+                    text: '📄 LMS Technician Probationary'
+                },
+                {
+                    val: 'tool_clearance',
+                    text: '🛠️ Tool Clearance'
+                },
+                {
+                    val: 'confidentiality',
+                    text: '🔒 Confidentiality Agreement (NDA)'
+                }, // [ADDED]
+                {
+                    val: 'memo_general',
+                    text: '⚠️ General Memo'
+                },
+                {
+                    val: 'project',
+                    text: '📄 Project Employment Contract'
+                }
+            ],
+            'office': [{
+                    val: 'contract_office',
+                    text: '📄 Office Contract'
+                },
+                {
+                    val: 'memo_office',
+                    text: '⚠️ Office Memo'
+                },
+                {
+                    val: 'confidentiality',
+                    text: '🔒 Confidentiality Agreement (NDA)'
+                },
+                {
+                    val: 'project',
+                    text: '📄 Project Employment Contract'
+                }
+            ],
+            'general': [{
+                    val: 'confidentiality',
+                    text: '🔒 Confidentiality Agreement (NDA)'
+                },
+                {
+                    val: 'project',
+                    text: '📄 Project Employment Contract'
+                }
+            ]
+        };
 
-// Run functions on load
-if(deptSelect) { 
-    deptSelect.addEventListener('change', updateSections); 
-    updateSections(); 
-}
+        // [SMART FILTER LOGIC]
+        // This function runs whenever the Category dropdown changes.
+        function filterDocuments() {
+            const category = document.getElementById('jobCategory').value;
+            const docSelect = document.getElementById('docType');
+            const btn = document.getElementById('generateBtn');
 
-// TOGGLE EXIT FIELDS LOGIC
-function toggleExitFields() {
-    const statusSelect = document.getElementById('statusSelect');
-    if (!statusSelect) return;
-    const status = statusSelect.value;
-    const fields = document.querySelectorAll('.exit-field'); 
-    if (status !== 'Active') {
-        fields.forEach(field => field.style.display = 'block');
-    } else {
-        fields.forEach(field => field.style.display = 'none');
-    }
-}
+            // 1. Reset the second dropdown (Clear old options)
+            docSelect.innerHTML = '<option value="" selected disabled>-- Select Document --</option>';
 
-document.addEventListener("DOMContentLoaded", () => {
-    toggleExitFields();
+            if (category && docLibrary[category]) {
+                // 3. Enable the dropdown
+                docSelect.disabled = false;
 
-    // AUTO-DETECT EMPLOYEE ROLE ON LOAD
-    // 1. Get Employee Data from PHP
-    const section = "<?php echo strtolower($emp['section']); ?>";
-    const job = "<?php echo strtolower($emp['job_title']); ?>";
-    const categorySelect = document.getElementById('jobCategory');
+                // 4. Loop through the allowed documents and create <option> tags
+                docLibrary[category].forEach(doc => {
+                    const option = document.createElement('option');
+                    option.value = doc.val;
+                    option.text = doc.text;
+                    docSelect.appendChild(option);
+                });
+            } else {
+                // Disable if no category
+                docSelect.disabled = true;
+            }
 
-    // 2. Logic to pick the Category
-    let autoCategory = 'general'; // Default fallback
+            // 5. Reset the date fields visibility since the document selection changed
+            toggleDateFields();
+        }
 
-    // If 'light maintenance' or 'technician' is in their data -> LMS
-    if (section.includes('light maintenance') || section.includes('lms') || job.includes('technician')) {
-        autoCategory = 'lms_tech';
-    } 
-    // If 'sqp', 'admin', 'finance', 'hr' -> OFFICE
-    else if (section.includes('sqp') || section.includes('admin') || section.includes('finance')) {
-        autoCategory = 'office';
-    }
+        // DOCUMENT MODAL LOGIC
+        function toggleDateFields() {
+            const type = document.getElementById('docType').value;
+            const dateDiv = document.getElementById('dateFields');
+            const projectDiv = document.getElementById('projectFields');
+            const help = document.getElementById('docHelp');
+            const btn = document.getElementById('generateBtn');
 
-    // 3. Set the Dropdown & Trigger Filter
-    if(categorySelect) {
-        categorySelect.value = autoCategory;
-        // [STRICT MODE] Lock the category so they can't switch to wrong contracts
-        categorySelect.disabled = true; 
-        filterDocuments(); // This updates the document list immediately
-    }
-    
-    // 4. Also calculate dates
-    calculateEndDate();
-});
-</script>
+            if (type) btn.disabled = false;
+
+            // Show Dates ONLY for Contracts
+            if (type.includes('probationary') || type.includes('contract') || type.includes('project')) {
+                dateDiv.style.display = 'block';
+                if (type === 'probationary_lms') {
+                    document.getElementById('durationSelect').value = '6';
+                    document.getElementById('durationInput').value = '6';
+                    document.getElementById('durationInput').readOnly = true;
+                    help.innerText = "Standard 6-month probationary contract for LMS Technicians.";
+                }
+                calcEndDate();
+            } else {
+                dateDiv.style.display = 'none';
+                help.innerText = "";
+                // Reset to default state if hidden
+                document.getElementById('durationInput').readOnly = true;
+            }
+
+            // Show Project Name field only for project contract
+            if (type === 'project') {
+                projectDiv.style.display = 'block';
+            } else {
+                projectDiv.style.display = 'none';
+            }
+        }
+
+        function validateDocForm() {
+            const type = document.getElementById('docType').value;
+            const projInput = document.getElementById('projectNameInput');
+
+            if (type === 'project' && projInput.value.trim() === '') {
+                alert('Please enter a Project Name.');
+                projInput.focus();
+                return false; // Prevent submission
+            }
+            return true;
+        }
+
+        function updateDuration() {
+            const select = document.getElementById('durationSelect');
+            const input = document.getElementById('durationInput');
+            if (select.value !== 'custom') {
+                input.value = select.value;
+                input.readOnly = true;
+                calcEndDate();
+            } else {
+                input.readOnly = false;
+            }
+        }
+
+        function validateDuration(input) {
+            // Allow any 2 digit number
+            if (input.value > 99) input.value = 99;
+            if (input.value !== '' && input.value < 1) input.value = 1;
+            // Pad with zero if single digit for display consistency (optional)
+        }
+
+        function calcEndDate() {
+            const startVal = document.getElementById('startDate').value;
+            const duration = document.getElementById('durationInput').value;
+            const endInput = document.getElementById('endDate');
+
+            if (!startVal || !duration) return;
+
+            const date = new Date(startVal);
+            // Add months
+            date.setMonth(date.getMonth() + parseInt(duration));
+            // Format YYYY-MM-DD
+            const yyyy = date.getFullYear();
+            const mm = String(date.getMonth() + 1).padStart(2, '0');
+            const dd = String(date.getDate()).padStart(2, '0');
+            endInput.value = `${yyyy}-${mm}-${dd}`;
+        }
+
+        // Run functions on load
+        if (deptSelect) {
+            deptSelect.addEventListener('change', updateSections);
+            updateSections();
+        }
+
+        // TOGGLE EXIT FIELDS LOGIC
+        function toggleExitFields() {
+            const statusSelect = document.getElementById('statusSelect');
+            if (!statusSelect) return;
+            const status = statusSelect.value;
+            const fields = document.querySelectorAll('.exit-field');
+            if (status !== 'Active') {
+                fields.forEach(field => field.style.display = 'block');
+            } else {
+                fields.forEach(field => field.style.display = 'none');
+            }
+        }
+
+        document.addEventListener("DOMContentLoaded", () => {
+            toggleExitFields();
+
+            // [NEW] Handle URL Messages (Success/Error)
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.has('msg')) {
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Success',
+                    text: urlParams.get('msg'),
+                    timer: 2500,
+                    showConfirmButton: false
+                });
+                window.history.replaceState({}, document.title, window.location.pathname + "?id=<?php echo $id; ?>");
+            }
+            if (urlParams.has('error')) {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error',
+                    text: urlParams.get('error')
+                });
+                window.history.replaceState({}, document.title, window.location.pathname + "?id=<?php echo $id; ?>");
+            }
+
+            // AUTO-DETECT EMPLOYEE ROLE ON LOAD
+            // 1. Get Employee Data from PHP
+            const section = "<?php echo strtolower($emp['section']); ?>";
+            const job = "<?php echo strtolower($emp['job_title']); ?>";
+            const categorySelect = document.getElementById('jobCategory');
+
+            // 2. Logic to pick the Category
+            let autoCategory = 'general'; // Default fallback
+
+            // 1. LMS / TECHNICAL GROUP
+            // Includes: LMS, HMS, RAS, TRS, CTS, PSS, OCS, SIGCOM, BFS, WHS
+            if (
+                section.includes('light maintenance') || section.includes('lms') ||
+                section.includes('heavy maintenance') || section.includes('hms') ||
+                section.includes('root cause') || section.includes('ras') ||
+                section.includes('technical research') || section.includes('trs') ||
+                section.includes('civil tracks') || section.includes('cts') ||
+                section.includes('power supply') || section.includes('pss') ||
+                section.includes('overhead catenary') || section.includes('ocs') ||
+                section.includes('signaling') || section.includes('sigcom') ||
+                section.includes('building facilities') || section.includes('bfs') ||
+                section.includes('warehouse') || section.includes('whs') ||
+                job.includes('technician')
+            ) {
+                autoCategory = 'lms_tech';
+            }
+            // 2. OFFICE / ADMIN GROUP
+            // Includes: SQP, ADMIN, DOS, Finance, HR
+            else if (section.includes('sqp') || section.includes('admin') || section.includes('finance') || section.includes('dos') || section.includes('department operations')) {
+                autoCategory = 'office';
+            }
+
+            // 3. Set the Dropdown & Trigger Filter
+            if (categorySelect) {
+                categorySelect.value = autoCategory;
+                // [STRICT MODE] Lock the category so they can't switch to wrong contracts
+                // categorySelect.disabled = true;
+                filterDocuments(); // This updates the document list immediately
+            }
+
+            // 4. Also calculate dates
+            calcEndDate();
+
+            // PERFORMANCE CHART
+            <?php if (!empty($evals)): ?>
+                const ctxPerf = document.getElementById('perfChart');
+                if (ctxPerf) {
+                    new Chart(ctxPerf, {
+                        type: 'line',
+                        data: {
+                            labels: <?php echo json_encode($chartLabels); ?>,
+                            datasets: [{
+                                label: 'Score',
+                                data: <?php echo json_encode($chartScores); ?>,
+                                borderColor: '#0d6efd',
+                                backgroundColor: 'rgba(13, 110, 253, 0.1)',
+                                borderWidth: 2,
+                                fill: true,
+                                tension: 0.3,
+                                pointBackgroundColor: '#fff',
+                                pointBorderColor: '#0d6efd',
+                                pointRadius: 5
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            scales: {
+                                y: {
+                                    beginAtZero: true,
+                                    max: 100,
+                                    grid: {
+                                        borderDash: [2, 2]
+                                    }
+                                },
+                                x: {
+                                    grid: {
+                                        display: false
+                                    }
+                                }
+                            },
+                            plugins: {
+                                legend: {
+                                    display: false
+                                }
+                            }
+                        }
+                    });
+                }
+            <?php endif; ?>
+        });
+    </script>
 </body>
+
 </html>
