@@ -2,7 +2,7 @@
 // [FILE] public/api/get_updates.php
 // [STATUS] MERGED: Notifications + Chart + Live Dashboard Stats
 
-require '../../config/db.php'; 
+require '../../config/db.php';
 session_start();
 header('Content-Type: application/json');
 
@@ -27,7 +27,7 @@ try {
     // [NEW] Check Pending Requests (For Admin/HR)
     $pendingHtml = '';
     $userRole = $_SESSION['role'] ?? '';
-    if (in_array($userRole, ['ADMIN', 'HR'])) {
+    if (in_array($userRole, ['ADMIN', 'MANAGER', 'HR'])) {
         $pCount = $pdo->query("SELECT COUNT(*) FROM requests")->fetchColumn();
         if ($pCount > 0) {
             $notifCount++;
@@ -38,7 +38,7 @@ try {
                         <i class="bi bi-clipboard-data-fill text-primary fs-5 me-2"></i>
                         <div style="line-height: 1.2;">
                             <small class="fw-bold d-block">Approval Center</small>
-                            <span class="extra-small fw-bold text-primary">'.$pCount.' Request(s) Pending</span>
+                            <span class="extra-small fw-bold text-primary">' . $pCount . ' Request(s) Pending</span>
                         </div>
                     </div>
                 </a>
@@ -56,19 +56,19 @@ try {
             $color = ($days < 0) ? 'text-danger' : 'text-warning';
             $msg = ($days < 0) ? "EXPIRED" : "Expiring in $days days";
             $icon = ($days < 0) ? 'bi-exclamation-octagon-fill' : 'bi-exclamation-triangle-fill';
-            
+
             echo '
             <li class="border-bottom py-2 px-3">
                 <div class="d-flex justify-content-between align-items-center">
-                    <a href="index.php?search='.htmlspecialchars($notif['emp_id']).'" class="text-decoration-none text-dark w-100">
+                    <a href="index.php?search=' . htmlspecialchars($notif['emp_id']) . '" class="text-decoration-none text-dark w-100">
                         <div class="d-flex align-items-center">
-                            <i class="bi '.$icon.' '.$color.' fs-5 me-2"></i>
+                            <i class="bi ' . $icon . ' ' . $color . ' fs-5 me-2"></i>
                             <div style="line-height: 1.2;">
-                                <small class="fw-bold d-block">'.htmlspecialchars($notif['first_name'] . ' ' . $notif['last_name']).'</small>
+                                <small class="fw-bold d-block">' . htmlspecialchars($notif['first_name'] . ' ' . $notif['last_name']) . '</small>
                                 <span class="text-muted" style="font-size: 0.75rem;">
-                                    '.htmlspecialchars($notif['category']).': <em class="text-dark">'.htmlspecialchars($notif['original_name']).'</em>
+                                    ' . htmlspecialchars($notif['category']) . ': <em class="text-dark">' . htmlspecialchars($notif['original_name']) . '</em>
                                 </span>
-                                <br><span class="extra-small fw-bold '.$color.'">'.$msg.'</span>
+                                <br><span class="extra-small fw-bold ' . $color . '">' . $msg . '</span>
                             </div>
                         </div>
                     </a>
@@ -83,7 +83,7 @@ try {
     // ============================================================
     // PART 2: LIVE DASHBOARD STATS (The New Feature)
     // ============================================================
-    
+
     // A. Active Headcount
     $headStmt = $pdo->query("SELECT COUNT(*) FROM employees WHERE status = 'Active'");
     $activeHeadcount = $headStmt->fetchColumn();
@@ -95,7 +95,7 @@ try {
     // ============================================================
     // PART 3: OUTPUT EVERYTHING
     // ============================================================
-    
+
     // Your existing chart logic
     $statsQuery = $pdo->query("
         SELECT COALESCE(NULLIF(TRIM(category), ''), 'Documents for Employee'), COUNT(*) 
@@ -116,8 +116,6 @@ try {
         'chartLabels' => array_keys($stats),
         'chartValues' => array_values($stats)
     ]);
-
 } catch (Exception $e) {
     echo json_encode(['status' => 'error', 'message' => $e->getMessage()]);
 }
-?>

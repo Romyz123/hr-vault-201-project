@@ -4,7 +4,7 @@ require '../src/Security.php';
 session_start();
 
 // 1. SECURITY: Admin/HR Only
-if (!isset($_SESSION['user_id']) || !in_array($_SESSION['role'], ['ADMIN', 'HR'])) {
+if (!isset($_SESSION['user_id']) || !in_array($_SESSION['role'], ['ADMIN', 'MANAGER', 'HR'])) {
     header("Location: index.php"); exit;
 }
 

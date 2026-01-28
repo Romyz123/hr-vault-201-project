@@ -3,6 +3,21 @@ require '../config/db.php';
 require '../src/Security.php';
 session_start();
 
+// [SECURITY] Require Login
+if (!isset($_SESSION['user_id'])) {
+    header("Location: login.php");
+    exit;
+}
+
+// [SECURITY] Check Maintenance Mode
+if (($_SESSION['role'] ?? '') !== 'ADMIN') {
+    $chkMaint = $pdo->query("SELECT setting_value FROM system_settings WHERE setting_key = 'maintenance_mode'")->fetchColumn();
+    if ($chkMaint === '1') {
+        header("Location: login.php?msg=" . urlencode("🛠️ System is under maintenance."));
+        exit;
+    }
+}
+
 // --- LOGIC: CHECK IF PRE-SELECTED EMPLOYEE EXISTS ---
 $preFilledID = '';
 $preFilledName = '';
@@ -83,21 +98,22 @@ if (isset($_GET['emp_id'])) {
 
                             <div class="mb-3">
                                 <label class="form-label">Custom Filename (Optional)</label>
-                                <input type="text" name="custom_filename" class="form-control" placeholder="e.g. 2024_Medical_Cert"
+                                <input type="text" name="custom_filename" class="form-control" placeholder="e.g. 2024_Medical_Cert" list="filename_suggestions">
+                                <datalist id="filename_suggestions">
                                     <option value="Medical Certificate">
-                                <option value="NBI Clearance">
-                                <option value="Police Clearance">
-                                <option value="Barangay Clearance">
-                                <option value="Birth Certificate">
-                                <option value="Marriage Contract">
-                                <option value="Diploma / TOR">
-                                <option value="Certificate of Employment">
-                                <option value="SSS Static Info">
-                                <option value="PhilHealth MDR">
-                                <option value="Pag-IBIG MDF">
-                                <option value="TIN ID">
-                                    </datalist>
-                                    <div class="form-text">Leave blank to auto-generate name. <strong>Tip:</strong> Include keywords like 'Medical', 'NBI', or 'Contract' to satisfy requirements.</div>
+                                    <option value="NBI Clearance">
+                                    <option value="Police Clearance">
+                                    <option value="Barangay Clearance">
+                                    <option value="Birth Certificate">
+                                    <option value="Marriage Contract">
+                                    <option value="Diploma / TOR">
+                                    <option value="Certificate of Employment">
+                                    <option value="SSS Static Info">
+                                    <option value="PhilHealth MDR">
+                                    <option value="Pag-IBIG MDF">
+                                    <option value="TIN ID">
+                                </datalist>
+                                <div class="form-text">Leave blank to auto-generate name. <strong>Tip:</strong> Include keywords like 'Medical', 'NBI', or 'Contract' to satisfy requirements.</div>
                             </div>
 
                             <div class="row">

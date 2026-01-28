@@ -16,6 +16,15 @@ if (!isset($_SESSION['user_id']) || !in_array($_SESSION['role'], ['ADMIN', 'HR']
     exit;
 }
 
+// [SECURITY] Check Maintenance Mode
+if (($_SESSION['role'] ?? '') !== 'ADMIN') {
+    $chkMaint = $pdo->query("SELECT setting_value FROM system_settings WHERE setting_key = 'maintenance_mode'")->fetchColumn();
+    if ($chkMaint === '1') {
+        header("Location: login.php?msg=" . urlencode("🛠️ System is under maintenance."));
+        exit;
+    }
+}
+
 $logger = new Logger($pdo);
 $alertType = "";
 $alertMsg = "";
@@ -27,15 +36,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     $date       = $_POST['incident_date'];
     $action     = $_POST['action_taken'];
     $desc       = trim($_POST['description']);
-    
-    $dbFilePath = null; 
+
+    $dbFilePath = null;
     $syncStatus = "Skipped (No File)";
     $isValid    = true; // Flag to control execution
 
     // --- FILE UPLOAD LOGIC ---
     if (!empty($_FILES['attachment']['name'])) {
-        
-        $targetDir = "uploads/"; 
+
+        $targetDir = "uploads/";
         if (!is_dir($targetDir)) mkdir($targetDir, 0755, true); // [FIX] Ensure folder exists
         $originalName = basename($_FILES['attachment']['name']);
 
@@ -46,23 +55,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             $alertMsg = "❌ <strong>Upload Failed:</strong> Only PDF, JPG, or PNG files are allowed.";
             $isValid = false; // Stop the process
         }
-        
+
         // Clean filename to prevent issues
         $cleanName = preg_replace('/[^a-zA-Z0-9._-]/', '', $originalName);
         $fileName  = "DISCIPLINARY_" . time() . "_" . $cleanName;
         $targetFile = $targetDir . $fileName;
-        
+
         if ($isValid && move_uploaded_file($_FILES['attachment']['tmp_name'], $targetFile)) {
             $dbFilePath = $fileName;
 
-         // [FIX] STANDARD UUID GENERATION (MD5)
-          $file_uuid = md5(uniqid(rand(), true));
+            // [FIX] STANDARD UUID GENERATION (MD5)
+            $file_uuid = md5(uniqid(rand(), true));
 
             try {
                 // Check columns to prevent crash
                 $cols = $pdo->query("SHOW COLUMNS FROM documents LIKE 'uploaded_by'")->fetchAll();
                 $hasUploader = count($cols) > 0;
-                
+
                 $cols2 = $pdo->query("SHOW COLUMNS FROM documents LIKE 'file_uuid'")->fetchAll();
                 $hasUUID = count($cols2) > 0;
 
@@ -90,17 +99,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
     // INSERT CASE RECORD
     if ($isValid) {
-    try {
-        $stmt = $pdo->prepare("INSERT INTO disciplinary_cases (employee_id, violation_type, incident_date, action_taken, description, attachment_path) VALUES (?, ?, ?, ?, ?, ?)");
-        if ($stmt->execute([$emp_id, $type, $date, $action, $desc, $dbFilePath])) {
-            $logger->log($_SESSION['user_id'], 'CASE_ADD', "Filed case: $type");
-            $alertType = 'success';
-            $alertMsg = "<strong>Case Filed Successfully!</strong><br>File Sync Status: <b>$syncStatus</b>";
+        try {
+            $stmt = $pdo->prepare("INSERT INTO disciplinary_cases (employee_id, violation_type, incident_date, action_taken, description, attachment_path) VALUES (?, ?, ?, ?, ?, ?)");
+            if ($stmt->execute([$emp_id, $type, $date, $action, $desc, $dbFilePath])) {
+                $logger->log($_SESSION['user_id'], 'CASE_ADD', "Filed case: $type");
+                $alertType = 'success';
+                $alertMsg = "<strong>Case Filed Successfully!</strong><br>File Sync Status: <b>$syncStatus</b>";
+            }
+        } catch (PDOException $e) {
+            $alertType = 'error';
+            $alertMsg = "Database Error: " . $e->getMessage();
         }
-    } catch (PDOException $e) {
-        $alertType = 'error';
-        $alertMsg = "Database Error: " . $e->getMessage();
-    }
     }
 }
 
@@ -114,7 +123,7 @@ if (isset($_GET['close_id'])) {
 // 4. DELETE CASE (Cleanup)
 if (isset($_GET['delete_id'])) {
     $delId = $_GET['delete_id'];
-    
+
     // Fetch info to delete file
     $stmt = $pdo->prepare("SELECT attachment_path FROM disciplinary_cases WHERE id = ?");
     $stmt->execute([$delId]);
@@ -125,14 +134,14 @@ if (isset($_GET['delete_id'])) {
         if (!empty($case['attachment_path'])) {
             $filePath = __DIR__ . "/uploads/" . $case['attachment_path'];
             if (file_exists($filePath)) unlink($filePath);
-            
+
             // B. Remove from Documents Sync (if it exists there)
             $pdo->prepare("DELETE FROM documents WHERE file_path = ? AND category = 'Disciplinary'")->execute([$case['attachment_path']]);
         }
 
         // C. Delete Record
         $pdo->prepare("DELETE FROM disciplinary_cases WHERE id = ?")->execute([$delId]);
-        
+
         header("Location: disciplinary.php?msg=Deleted Successfully");
         exit;
     }
@@ -168,6 +177,7 @@ if (isset($_GET['msg'])) {
 
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <title>Disciplinary Management</title>
@@ -175,133 +185,147 @@ if (isset($_GET['msg'])) {
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <style>
-        .status-Open { background-color: #ffeeba; color: #856404; }
-        .status-Closed { background-color: #d4edda; color: #155724; }
+        .status-Open {
+            background-color: #ffeeba;
+            color: #856404;
+        }
+
+        .status-Closed {
+            background-color: #d4edda;
+            color: #155724;
+        }
     </style>
 </head>
+
 <body class="bg-light">
-<nav class="navbar navbar-dark bg-dark mb-4">
-  <div class="container-fluid px-4">
-    <a class="navbar-brand" href="index.php">⬅ Back</a>
-    <span class="navbar-text text-white">Disciplinary Console</span>
-  </div>
-</nav>
-
-<div class="container">
-    <div class="row mb-4">
-        <div class="col-md-12 text-end">
-            <button class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#addCaseModal">
-                <i class="bi bi-file-earmark-medical"></i> File New Case
-            </button>
-        </div>
-    </div>
-
-    <div class="card shadow-sm">
-        <div class="card-body p-0">
-            <table class="table table-hover mb-0 align-middle">
-                <thead class="table-light">
-                    <tr>
-                        <th>Date</th>
-                        <th>Employee</th>
-                        <th>Violation</th>
-                        <th>Action</th>
-                        <th>Status</th>
-                        <th>Evidence</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <?php foreach ($cases as $c): ?>
-                    <tr>
-                        <td><?php echo date('M d', strtotime($c['incident_date'])); ?></td>
-                        <td>
-                            <strong><?php echo htmlspecialchars($c['last_name']); ?></strong>, <?php echo htmlspecialchars($c['first_name']); ?>
-                            <br><small class="text-muted"><?php echo htmlspecialchars($c['dept']); ?></small>
-                        </td>
-                        <td><?php echo htmlspecialchars($c['violation_type']); ?></td>
-                        <td><span class="badge bg-secondary"><?php echo $c['action_taken']; ?></span></td>
-                        <td><span class="badge status-<?php echo $c['status']; ?>"><?php echo $c['status']; ?></span></td>
-                        <td>
-                            <?php if ($c['attachment_path']): ?>
-                                <a href="uploads/<?php echo $c['attachment_path']; ?>" target="_blank" class="btn btn-sm btn-primary">View PDF</a>
-                            <?php else: ?> - <?php endif; ?>
-                            <?php if ($c['status'] == 'Open'): ?>
-                                <a href="disciplinary.php?close_id=<?php echo $c['id']; ?>" class="btn btn-sm btn-success">Close</a>
-                            <?php endif; ?>
-                            <a href="disciplinary.php?delete_id=<?php echo $c['id']; ?>" 
-                               class="btn btn-sm btn-outline-danger ms-1" 
-                               onclick="return confirm('Permanently delete this case and file?');">
-                                <i class="bi bi-trash"></i>
-                            </a>
-                        </td>
-                    </tr>
-                    <?php endforeach; ?>
-                </tbody>
-            </table>
-        </div>
-    </div>
-</div>
-
-<div class="modal fade" id="addCaseModal" tabindex="-1">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header bg-danger text-white">
-                <h5 class="modal-title">File Case</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+    <nav class="navbar navbar-dark bg-dark mb-4">
+        <div class="container-fluid px-4">
+            <div class="d-flex align-items-center">
+                <a class="navbar-brand" href="index.php">⬅ Back</a>
+                <span class="navbar-text text-white ms-3 border-start ps-3">Disciplinary Console</span>
             </div>
-            <form method="POST" enctype="multipart/form-data">
-                <div class="modal-body">
-                    <input type="hidden" name="action" value="add_case">
-                    <div class="mb-3">
-                        <label>Select Employee</label>
-                        <select name="employee_id" class="form-select" required>
-                            <?php foreach ($emps as $e): ?>
-                                <option value="<?php echo $e['emp_id']; ?>">
-                                    <?php echo htmlspecialchars($e['last_name'] . ', ' . $e['first_name']); ?>
-                                </option>
-                            <?php endforeach; ?>
-                        </select>
-                    </div>
-                    <div class="mb-3">
-                        <label>Violation</label>
-                        <input type="text" name="violation_type" class="form-control" required placeholder="Tardiness">
-                    </div>
-                    <div class="mb-3">
-                        <label>Date</label>
-                        <input type="date" name="incident_date" class="form-control" value="<?php echo date('Y-m-d'); ?>">
-                    </div>
-                    <div class="mb-3">
-                        <label>Action</label>
-                        <select name="action_taken" class="form-select">
-                            <option>Pending</option>
-                            <option>Written Warning</option>
-                            <option>Suspension</option>
-                        </select>
-                    </div>
-                    <div class="mb-3">
-                        <label>Description</label>
-                        <textarea name="description" class="form-control"></textarea>
-                    </div>
-                    <div class="mb-3 border p-2 bg-warning bg-opacity-10">
-                        <label class="fw-bold">Attach Evidence</label>
-                        <input type="file" name="attachment" class="form-control">
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="submit" class="btn btn-danger">Submit</button>
-                </div>
-            </form>
+            <?php if (in_array($_SESSION['role'], ['ADMIN', 'HR'])): ?>
+                <a href="settings.php" class="btn btn-outline-light btn-sm"><i class="bi bi-gear-fill"></i> Settings</a>
+            <?php endif; ?>
+        </div>
+    </nav>
+
+    <div class="container">
+        <div class="row mb-4">
+            <div class="col-md-12 text-end">
+                <button class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#addCaseModal">
+                    <i class="bi bi-file-earmark-medical"></i> File New Case
+                </button>
+            </div>
+        </div>
+
+        <div class="card shadow-sm">
+            <div class="card-body p-0">
+                <table class="table table-hover mb-0 align-middle">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Date</th>
+                            <th>Employee</th>
+                            <th>Violation</th>
+                            <th>Action</th>
+                            <th>Status</th>
+                            <th>Evidence</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php foreach ($cases as $c): ?>
+                            <tr>
+                                <td><?php echo date('M d', strtotime($c['incident_date'])); ?></td>
+                                <td>
+                                    <strong><?php echo htmlspecialchars($c['last_name']); ?></strong>, <?php echo htmlspecialchars($c['first_name']); ?>
+                                    <br><small class="text-muted"><?php echo htmlspecialchars($c['dept']); ?></small>
+                                </td>
+                                <td><?php echo htmlspecialchars($c['violation_type']); ?></td>
+                                <td><span class="badge bg-secondary"><?php echo $c['action_taken']; ?></span></td>
+                                <td><span class="badge status-<?php echo $c['status']; ?>"><?php echo $c['status']; ?></span></td>
+                                <td>
+                                    <?php if ($c['attachment_path']): ?>
+                                        <a href="uploads/<?php echo $c['attachment_path']; ?>" target="_blank" class="btn btn-sm btn-primary">View PDF</a>
+                                    <?php else: ?> - <?php endif; ?>
+                                    <?php if ($c['status'] == 'Open'): ?>
+                                        <a href="disciplinary.php?close_id=<?php echo $c['id']; ?>" class="btn btn-sm btn-success">Close</a>
+                                    <?php endif; ?>
+                                    <a href="disciplinary.php?delete_id=<?php echo $c['id']; ?>"
+                                        class="btn btn-sm btn-outline-danger ms-1"
+                                        onclick="return confirm('Permanently delete this case and file?');">
+                                        <i class="bi bi-trash"></i>
+                                    </a>
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
         </div>
     </div>
-</div>
 
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-<script>
-<?php if ($alertMsg): ?>
-Swal.fire({
-    icon: '<?php echo $alertType; ?>',
-    html: <?php echo json_encode($alertMsg); ?>
-});
-<?php endif; ?>
-</script>
+    <div class="modal fade" id="addCaseModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header bg-danger text-white">
+                    <h5 class="modal-title">File Case</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <form method="POST" enctype="multipart/form-data">
+                    <div class="modal-body">
+                        <input type="hidden" name="action" value="add_case">
+                        <div class="mb-3">
+                            <label>Select Employee</label>
+                            <select name="employee_id" class="form-select" required>
+                                <?php foreach ($emps as $e): ?>
+                                    <option value="<?php echo $e['emp_id']; ?>">
+                                        <?php echo htmlspecialchars($e['last_name'] . ', ' . $e['first_name']); ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label>Violation</label>
+                            <input type="text" name="violation_type" class="form-control" required placeholder="Tardiness">
+                        </div>
+                        <div class="mb-3">
+                            <label>Date</label>
+                            <input type="date" name="incident_date" class="form-control" value="<?php echo date('Y-m-d'); ?>">
+                        </div>
+                        <div class="mb-3">
+                            <label>Action</label>
+                            <select name="action_taken" class="form-select">
+                                <option>Pending</option>
+                                <option>Written Warning</option>
+                                <option>Suspension</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label>Description</label>
+                            <textarea name="description" class="form-control"></textarea>
+                        </div>
+                        <div class="mb-3 border p-2 bg-warning bg-opacity-10">
+                            <label class="fw-bold">Attach Evidence</label>
+                            <input type="file" name="attachment" class="form-control">
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="submit" class="btn btn-danger">Submit</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        <?php if ($alertMsg): ?>
+            Swal.fire({
+                icon: '<?php echo $alertType; ?>',
+                html: <?php echo json_encode($alertMsg); ?>
+            });
+        <?php endif; ?>
+    </script>
 </body>
+
 </html>

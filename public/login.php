@@ -7,13 +7,6 @@ session_start();
 $alertType = '';
 $alertMsg = '';
 
-// 1. Handle "Unlock System" Request
-if (isset($_POST['unlock_system'])) {
-    $pdo->query("TRUNCATE TABLE rate_limits");
-    $alertType = 'success';
-    $alertMsg = "✅ System Unlocked! You can login now.";
-}
-
 // Capture success messages (e.g. from Reset Password)
 if (isset($_GET['msg'])) {
     $alertType = 'success';
@@ -41,7 +34,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
         // Check Rate Limit
         if (!$security->checkRateLimit($_SERVER['REMOTE_ADDR'])) {
             $alertType = 'error';
-            $alertMsg = "<strong>⛔ Too Many Requests!</strong><br>You are temporarily locked out.<form method='POST' class='mt-2'><button type='submit' name='unlock_system' class='btn btn-warning btn-sm w-100'><i class='bi bi-unlock-fill'></i> Dev Mode: Force Unlock</button></form>";
+            $alertMsg = "<strong>⛔ Too Many Requests!</strong><br>You are temporarily locked out. Please try again in a minute.";
         } else {
             // Normal Login Logic
             $stmt = $pdo->prepare("SELECT * FROM users WHERE username = ?");
@@ -49,17 +42,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
             $user = $stmt->fetch();
 
             if ($user && password_verify($password, $user['password'])) {
-                $_SESSION['user_id'] = $user['id'];
-                $_SESSION['username'] = $user['username'];
-                $_SESSION['role'] = $user['role'];
 
-                // [LOGGING] Record the login event
-                $logger = new Logger($pdo);
-                $logger->log($user['id'], 'LOGIN', "User logged in (IP: " . $_SERVER['REMOTE_ADDR'] . ")");
+                // [CHECK] Maintenance Mode
+                $maintStmt = $pdo->query("SELECT setting_value FROM system_settings WHERE setting_key = 'maintenance_mode'");
+                $isMaint = ($maintStmt->fetchColumn() === '1');
 
-                header("Location: index.php");
-                exit;
+                if ($isMaint && $user['role'] !== 'ADMIN') {
+                    $alertType = 'warning';
+                    $alertMsg = "🛠️ <strong>System Under Maintenance</strong><br>Only Administrators can log in at this time. Please try again later.";
+                } else {
+                    $_SESSION['user_id'] = $user['id'];
+                    $_SESSION['username'] = $user['username'];
+                    $_SESSION['role'] = $user['role'];
+
+                    // [LOGGING] Record the login event
+                    $logger = new Logger($pdo);
+                    $logger->log($user['id'], 'LOGIN', "User logged in (IP: " . $_SERVER['REMOTE_ADDR'] . ")");
+
+                    header("Location: index.php");
+                    exit;
+                }
             } else {
+                // [NEW] Log Failed Attempt
+                $logger = new Logger($pdo);
+                // If user exists (wrong password), log ID. If not (wrong username), log 0.
+                $failedId = $user ? $user['id'] : 0;
+                $failDetails = $user ? "Failed login (Wrong Password)" : "Failed login (Unknown User: $username)";
+                $logger->log($failedId, 'LOGIN_FAILED', $failDetails);
+
                 $alertType = 'error';
                 $alertMsg = "❌ Invalid Username or Password";
             }

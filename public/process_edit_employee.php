@@ -4,7 +4,7 @@ session_start();
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     
-    if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'ADMIN') {
+    if (!isset($_SESSION['user_id']) || !in_array($_SESSION['role'], ['ADMIN', 'MANAGER'])) {
         die("ACCESS DENIED");
     }
 

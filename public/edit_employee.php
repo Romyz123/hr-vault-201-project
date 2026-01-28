@@ -15,6 +15,15 @@ if (!isset($_SESSION['user_id'])) {
     exit;
 }
 
+// [SECURITY] Check Maintenance Mode
+if (($_SESSION['role'] ?? '') !== 'ADMIN') {
+    $chkMaint = $pdo->query("SELECT setting_value FROM system_settings WHERE setting_key = 'maintenance_mode'")->fetchColumn();
+    if ($chkMaint === '1') {
+        header("Location: login.php?msg=" . urlencode("🛠️ System is under maintenance."));
+        exit;
+    }
+}
+
 $security = new Security($pdo);
 $logger   = new Logger($pdo);
 
@@ -26,7 +35,7 @@ if ($id <= 0) {
 }
 
 // [NEW] Handle Evaluation Deletion (Admin/HR Only)
-if (isset($_GET['delete_eval_id']) && in_array($_SESSION['role'], ['ADMIN', 'HR'])) {
+if (isset($_GET['delete_eval_id']) && in_array($_SESSION['role'], ['ADMIN', 'MANAGER', 'HR'])) {
     $delEvalId = (int)$_GET['delete_eval_id'];
     $pdo->prepare("DELETE FROM performance_evaluations WHERE id = ?")->execute([$delEvalId]);
     header("Location: edit_employee.php?id=$id&msg=" . urlencode("✅ Evaluation Deleted"));
@@ -628,7 +637,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             </div>
                         </form>
 
-                        <?php if (in_array($_SESSION['role'], ['ADMIN', 'HR', 'STAFF']) && ($emp['employment_type'] === 'TESP Direct' || $emp['agency_name'] === 'TESP')): ?>
+                        <?php if (in_array($_SESSION['role'], ['ADMIN', 'MANAGER', 'HR', 'STAFF']) && ($emp['employment_type'] === 'TESP Direct' || $emp['agency_name'] === 'TESP')): ?>
                             <hr class="my-4">
                             <div class="card border-primary shadow-sm">
                                 <div class="card-body d-flex justify-content-between align-items-center">
@@ -643,7 +652,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             </div>
                         <?php endif; ?>
 
-                        <?php if (in_array($_SESSION['role'], ['ADMIN', 'HR'])): ?>
+                        <?php if (in_array($_SESSION['role'], ['ADMIN', 'MANAGER'])): ?>
                             <hr class="my-5">
                             <div class="card border-danger shadow-sm">
                                 <div class="card-body d-flex justify-content-between align-items-center">
@@ -732,7 +741,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                             <td class="small text-muted fst-italic"><?php echo htmlspecialchars($ev['remarks']); ?></td>
                                             <td>
                                                 <a href="print_evaluation.php?id=<?php echo $ev['id']; ?>" target="_blank" class="btn btn-sm btn-outline-dark" title="Print Report"><i class="bi bi-printer"></i></a>
-                                                <?php if (in_array($_SESSION['role'], ['ADMIN', 'HR'])): ?>
+                                                <?php if (in_array($_SESSION['role'], ['ADMIN', 'MANAGER', 'HR'])): ?>
                                                     <a href="edit_employee.php?id=<?php echo $id; ?>&delete_eval_id=<?php echo $ev['id']; ?>"
                                                         class="btn btn-sm btn-outline-danger ms-1"
                                                         onclick="return confirm('Are you sure you want to delete this evaluation?');"

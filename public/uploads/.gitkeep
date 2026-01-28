@@ -10,7 +10,15 @@ public/uploads/*
 backups/*
 
 # One-time Setup & Utility Scripts
-public/utils/*
+public/install.php
+public/reset_login.php
+public/reset_system.php
+public/setup_users.php
+public/setup_maintenance.php
+public/update_schema*.php
+public/fix_*.php
+public/test_email.php
+public/check_role.php
 
 # OS Files
 .DS_Store

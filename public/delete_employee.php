@@ -5,15 +5,15 @@ require '../src/Logger.php';
 session_start();
 
 // 1. SECURITY: Admin/HR Only
-if (!isset($_SESSION['role']) || !in_array($_SESSION['role'], ['ADMIN', 'HR'])) {
+if (!isset($_SESSION['role']) || !in_array($_SESSION['role'], ['ADMIN', 'MANAGER', 'HR'])) {
     die("ACCESS DENIED");
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $id = $_POST['id'] ?? 0;
-    
+
     // 2. GET EMPLOYEE INFO (To log the name)
-    $stmt = $pdo->prepare("SELECT first_name, last_name, emp_id FROM employees WHERE id = ?");
+    $stmt = $pdo->prepare("SELECT * FROM employees WHERE id = ?");
     $stmt->execute([$id]);
     $emp = $stmt->fetch();
 
@@ -27,7 +27,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             // 4. LOG IT
             $logger = new Logger($pdo);
-            $logger->log($_SESSION['user_id'], 'DELETE_EMPLOYEE', "Deleted: " . $emp['emp_id']);
+            // [IMPROVEMENT] Save full data snapshot for recovery
+            $snapshot = json_encode($emp);
+            $logger->log($_SESSION['user_id'], 'DELETE_EMPLOYEE', "Deleted: " . $emp['emp_id'] . " | DATA: " . $snapshot);
 
             header("Location: index.php?msg=" . urlencode("✅ Employee Deleted Successfully"));
             exit;

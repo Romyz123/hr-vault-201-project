@@ -20,6 +20,15 @@ if (!isset($_SESSION['user_id'])) {
     exit;
 }
 
+// [SECURITY] Check Maintenance Mode
+if (($_SESSION['role'] ?? '') !== 'ADMIN') {
+    $chkMaint = $pdo->query("SELECT setting_value FROM system_settings WHERE setting_key = 'maintenance_mode'")->fetchColumn();
+    if ($chkMaint === '1') {
+        header("Location: login.php?msg=" . urlencode("🛠️ System is under maintenance."));
+        exit;
+    }
+}
+
 // ---------------- Helpers ----------------
 function h($v): string
 {
@@ -313,7 +322,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         ];
 
         try {
-            if (in_array($_SESSION['role'] ?? '', ['ADMIN', 'HR'], true)) {
+            if (in_array($_SESSION['role'] ?? '', ['ADMIN', 'MANAGER', 'HR'], true)) {
                 $columns = implode(", ", array_keys($empData));
                 $placeholders = implode(", ", array_map(fn($k) => ":$k", array_keys($empData)));
 
@@ -322,6 +331,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmt->execute($empData);
 
                 // [NEW] Send Welcome Email
+                $emailStatus = " (Email Skipped)";
                 if (!empty($email)) {
                     $subject = "Welcome to TES Philippines!";
                     $body    = "<h3>Hi " . h($first_name) . ",</h3>";
@@ -334,13 +344,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $headers .= "Content-type:text/html;charset=UTF-8" . "\r\n";
                     $headers .= "From: HR System <no-reply@hrsystem.com>" . "\r\n";
 
-                    @mail($email, $subject, $body, $headers);
+                    if (@mail($email, $subject, $body, $headers)) {
+                        $emailStatus = " & 📧 Welcome Email Sent";
+                    } else {
+                        $emailStatus = " but ❌ Email Failed";
+                    }
                 }
 
                 $logger->log($_SESSION['user_id'], 'ADD_EMPLOYEE', "Added $first_name $last_name ($emp_id)");
                 $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 
-                header("Location: index.php?msg=" . urlencode("✅ Employee Added Successfully"));
+                header("Location: index.php?msg=" . urlencode("✅ Employee Added Successfully" . $emailStatus));
                 exit;
             } else {
                 $empData['request_note'] = post('request_note');

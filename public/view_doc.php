@@ -61,30 +61,74 @@ $ext = strtolower(pathinfo($fullPath, PATHINFO_EXTENSION));
 $mime_type = 'application/octet-stream'; // Default
 
 switch ($ext) {
-    case 'pdf': $mime_type = 'application/pdf'; break;
-    case 'jpg': 
-    case 'jpeg': $mime_type = 'image/jpeg'; break;
-    case 'png': $mime_type = 'image/png'; break;
+    case 'pdf':
+        $mime_type = 'application/pdf';
+        break;
+    case 'jpg':
+    case 'jpeg':
+        $mime_type = 'image/jpeg';
+        break;
+    case 'png':
+        $mime_type = 'image/png';
+        break;
 }
 
 // 8. UI WRAPPER (If not embedding or downloading)
 if (!$embed && !$download) {
-    ?>
+?>
     <!DOCTYPE html>
     <html lang="en">
+
     <head>
         <meta charset="UTF-8">
         <title><?php echo htmlspecialchars($file['original_name']); ?></title>
         <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
         <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
         <style>
-            body { margin: 0; height: 100vh; display: flex; flex-direction: column; background: #333; overflow: hidden; }
-            .toolbar { background: #212529; color: white; padding: 10px 20px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 5px rgba(0,0,0,0.2); z-index: 10; }
-            .viewer-container { flex-grow: 1; position: relative; background: #555; display: flex; justify-content: center; align-items: center; overflow: auto; }
-            iframe { width: 100%; height: 100%; border: none; }
-            .img-preview { max-width: 100%; max-height: 100%; box-shadow: 0 0 20px rgba(0,0,0,0.5); }
+            body {
+                margin: 0;
+                height: 100vh;
+                display: flex;
+                flex-direction: column;
+                background: #333;
+                overflow: hidden;
+            }
+
+            .toolbar {
+                background: #212529;
+                color: white;
+                padding: 10px 20px;
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+                z-index: 10;
+            }
+
+            .viewer-container {
+                flex-grow: 1;
+                position: relative;
+                background: #555;
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                overflow: auto;
+            }
+
+            iframe {
+                width: 100%;
+                height: 100%;
+                border: none;
+            }
+
+            .img-preview {
+                max-width: 100%;
+                max-height: 100%;
+                box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+            }
         </style>
     </head>
+
     <body>
         <div class="toolbar">
             <div class="d-flex align-items-center gap-2">
@@ -111,18 +155,22 @@ if (!$embed && !$download) {
             <?php endif; ?>
         </div>
     </body>
+
     </html>
-    <?php
+<?php
     exit;
 }
 
 // 9. STREAM THE FILE (Download or Embed)
 header('Content-Type: ' . $mime_type);
 
+// Sanitize filename for header (remove quotes and newlines)
+$safeName = str_replace(['"', "\r", "\n"], '', $file['original_name']);
+
 if ($download) {
-    header('Content-Disposition: attachment; filename="' . $file['original_name'] . '"');
+    header('Content-Disposition: attachment; filename="' . $safeName . '"');
 } else {
-    header('Content-Disposition: inline; filename="' . $file['original_name'] . '"');
+    header('Content-Disposition: inline; filename="' . $safeName . '"');
 }
 
 header('Content-Length: ' . filesize($fullPath));

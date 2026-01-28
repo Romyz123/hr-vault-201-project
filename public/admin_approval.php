@@ -5,7 +5,7 @@ require '../src/Logger.php';
 session_start();
 
 // SECURITY: Admin/HR Only
-if (!in_array($_SESSION['role'], ['ADMIN', 'HR'])) {
+if (!in_array($_SESSION['role'], ['ADMIN', 'MANAGER', 'HR'])) {
     header("Location: index.php");
     exit;
 }

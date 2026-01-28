@@ -14,6 +14,15 @@ if (!isset($_SESSION['user_id'])) {
     exit;
 }
 
+// [SECURITY] Check Maintenance Mode
+if (($_SESSION['role'] ?? '') !== 'ADMIN') {
+    $chkMaint = $pdo->query("SELECT setting_value FROM system_settings WHERE setting_key = 'maintenance_mode'")->fetchColumn();
+    if ($chkMaint === '1') {
+        header("Location: login.php?msg=" . urlencode("🛠️ System is under maintenance."));
+        exit;
+    }
+}
+
 // 2. CONFIGURATION
 // Define the "Mandatory" categories you want to track
 $REQUIRED_DOCS = [
@@ -24,7 +33,7 @@ $REQUIRED_DOCS = [
     'Clearance'    => ['NBI', 'Police', 'Barangay']
 ];
 // 2. HANDLE ACTIONS (Add/Edit/Delete Requirements)
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($_SESSION['role'], ['ADMIN', 'HR'])) {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($_SESSION['role'], ['ADMIN', 'MANAGER', 'HR'])) {
     if (isset($_POST['action'])) {
         if ($_POST['action'] === 'add_req') {
             try {
@@ -107,7 +116,18 @@ if (strlen($search) > 50) $search = substr($search, 0, 50);
 $search = preg_replace('/[^a-zA-Z0-9\-_ ]/', '', $search);
 
 // 4. FETCH EMPLOYEES
-$sql = "SELECT emp_id, first_name, last_name, dept, job_title, status, email FROM employees WHERE 1=1";
+// [FIX] Check if last_reminded column exists to prevent crash
+$hasLastReminded = false;
+try {
+    $chk = $pdo->query("SHOW COLUMNS FROM employees LIKE 'last_reminded'");
+    if ($chk->rowCount() > 0) $hasLastReminded = true;
+} catch (Exception $e) {
+}
+
+$selectCols = "emp_id, first_name, last_name, dept, job_title, status, email";
+if ($hasLastReminded) $selectCols .= ", last_reminded";
+
+$sql = "SELECT $selectCols FROM employees WHERE 1=1";
 $params = [];
 
 if (!empty($dept)) {
@@ -167,6 +187,16 @@ foreach ($allDocs as $d) {
     }
 }
 
+// [NEW] FETCH EXEMPTIONS
+$exemptMap = [];
+try {
+    $exStmt = $pdo->query("SELECT employee_id, requirement_name FROM document_exemptions");
+    while ($row = $exStmt->fetch(PDO::FETCH_ASSOC)) {
+        $exemptMap[$row['employee_id']][$row['requirement_name']] = true;
+    }
+} catch (Exception $e) {
+}
+
 // 6. FILTER BY COMPLIANCE (PHP Side)
 if ($compliance !== '') {
     $filtered = [];
@@ -175,7 +205,7 @@ if ($compliance !== '') {
         $have = 0;
         $totalReq = count($REQUIRED_DOCS);
         foreach ($REQUIRED_DOCS as $reqKey => $keywords) {
-            if (isset($docsMap[$id][$reqKey])) $have++;
+            if (isset($docsMap[$id][$reqKey]) || isset($exemptMap[$id][$reqKey])) $have++;
         }
         $percent = ($totalReq > 0) ? ($have / $totalReq) * 100 : 0;
 
@@ -227,6 +257,14 @@ if ($compliance !== '') {
         .table-hover tbody tr:hover {
             background-color: #f1f1f1;
         }
+
+        .cursor-pointer {
+            cursor: pointer;
+        }
+
+        .icon-cross:hover {
+            opacity: 1;
+        }
     </style>
 </head>
 
@@ -234,8 +272,13 @@ if ($compliance !== '') {
 
     <nav class="navbar navbar-dark bg-dark mb-4">
         <div class="container-fluid px-4">
-            <a class="navbar-brand" href="index.php">⬅ Back to Dashboard</a>
-            <span class="navbar-text text-white">Missing Document Tracker</span>
+            <div class="d-flex align-items-center">
+                <a class="navbar-brand" href="index.php">⬅ Back to Dashboard</a>
+                <span class="navbar-text text-white ms-3 border-start ps-3">Missing Document Tracker</span>
+            </div>
+            <?php if (in_array($_SESSION['role'], ['ADMIN', 'MANAGER', 'HR'])): ?>
+                <a href="settings.php" class="btn btn-outline-light btn-sm"><i class="bi bi-gear-fill"></i> Settings</a>
+            <?php endif; ?>
         </div>
     </nav>
 
@@ -264,12 +307,17 @@ if ($compliance !== '') {
                         </select>
                     </div>
                     <div class="col-auto ms-auto">
-                        <input type="text" name="search" class="form-control form-control-sm" placeholder="Search Name..." value="<?php echo htmlspecialchars($search); ?>" maxlength="50" pattern="[a-zA-Z0-9\-_ ]+" title="Allowed: Letters, Numbers, Spaces, Dashes, Underscores">
+                        <input type="text" name="search" class="form-control form-control-sm" placeholder="Search Name..." value="<?php echo htmlspecialchars($search); ?>" maxlength="50" pattern="[a-zA-Z0-9\-_ ]+" title="Allowed: Letters, Numbers, Spaces, Dashes, Underscores" list="search_suggestions" oninput="this.value = this.value.replace(/[^a-zA-Z0-9\-_ ]/g, '')">
+                        <datalist id="search_suggestions">
+                            <?php foreach ($employees as $empSugg): ?>
+                                <option value="<?php echo htmlspecialchars($empSugg['last_name'] . ', ' . $empSugg['first_name']); ?>">
+                                <?php endforeach; ?>
+                        </datalist>
                     </div>
                     <div class="col-auto">
                         <button type="submit" class="btn btn-primary btn-sm">Search</button>
                     </div>
-                    <?php if (in_array($_SESSION['role'], ['ADMIN', 'HR'])): ?>
+                    <?php if (in_array($_SESSION['role'], ['ADMIN', 'MANAGER', 'HR'])): ?>
                         <div class="col-auto ms-2 border-start ps-3">
                             <button type="button" class="btn btn-outline-dark btn-sm" data-bs-toggle="modal" data-bs-target="#manageReqModal"><i class="bi bi-gear-fill"></i> Manage Requirements</button>
                         </div>
@@ -307,8 +355,14 @@ if ($compliance !== '') {
                             // Check each requirement
                             foreach ($REQUIRED_DOCS as $reqKey => $keywords) {
                                 $isPresent = isset($docsMap[$id][$reqKey]);
-                                if ($isPresent) $have++;
-                                $rowCells[] = $isPresent;
+                                $isExempt  = isset($exemptMap[$id][$reqKey]);
+
+                                if ($isPresent || $isExempt) $have++;
+
+                                // Determine Cell Status
+                                if ($isPresent) $rowCells[$reqKey] = 'ok';
+                                elseif ($isExempt) $rowCells[$reqKey] = 'na';
+                                else $rowCells[$reqKey] = 'missing';
                             }
 
                             $percent = ($totalReq > 0) ? ($have / $totalReq) * 100 : 0;
@@ -331,8 +385,16 @@ if ($compliance !== '') {
                                         </div>
                                     </div>
                                 </td>
-                                <?php foreach ($rowCells as $has): ?>
-                                    <td><?php echo $has ? '<i class="bi bi-check-circle-fill icon-check"></i>' : '<i class="bi bi-x-circle-fill icon-cross"></i>'; ?></td>
+                                <?php foreach ($rowCells as $reqName => $status): ?>
+                                    <td class="align-middle">
+                                        <?php if ($status === 'ok'): ?>
+                                            <i class="bi bi-check-circle-fill icon-check" title="Submitted"></i>
+                                        <?php elseif ($status === 'na'): ?>
+                                            <span class="badge bg-secondary cursor-pointer" onclick="toggleExempt('<?php echo $id; ?>', '<?php echo htmlspecialchars($reqName); ?>')" title="Click to mark as Required">N/A</span>
+                                        <?php else: ?>
+                                            <i class="bi bi-x-circle-fill icon-cross cursor-pointer" onclick="toggleExempt('<?php echo $id; ?>', '<?php echo htmlspecialchars($reqName); ?>')" title="Missing. Click to mark as Can't Comply (N/A)"></i>
+                                        <?php endif; ?>
+                                    </td>
                                 <?php endforeach; ?>
                                 <td>
                                     <?php if ($percent == 100): ?>
@@ -343,12 +405,23 @@ if ($compliance !== '') {
                                         <span class="badge bg-warning text-dark">INCOMPLETE</span>
                                     <?php endif; ?>
 
-                                    <?php if ($percent < 100 && in_array($_SESSION['role'], ['ADMIN', 'HR'])): ?>
-                                        <form method="POST" class="d-inline ms-1" onsubmit="return confirm('Send email reminder to <?php echo htmlspecialchars($emp['first_name']); ?>?');">
-                                            <input type="hidden" name="action" value="send_reminder">
-                                            <input type="hidden" name="emp_id" value="<?php echo htmlspecialchars($emp['emp_id']); ?>">
-                                            <button type="submit" class="btn btn-sm btn-outline-primary py-0 px-1" title="Email Reminder"><i class="bi bi-envelope"></i></button>
-                                        </form>
+                                    <?php if ($percent < 100 && in_array($_SESSION['role'], ['ADMIN', 'MANAGER', 'HR'])): ?>
+                                        <?php if (empty($emp['email'])): ?>
+                                            <span class="badge bg-light text-muted border ms-1" title="No Email Address">No Email</span>
+                                        <?php else: ?>
+                                            <form method="POST" class="d-inline ms-1" onsubmit="return confirm('Send official reminder to <?php echo htmlspecialchars($emp['first_name']); ?>?');">
+                                                <input type="hidden" name="action" value="send_reminder">
+                                                <input type="hidden" name="emp_id" value="<?php echo htmlspecialchars($emp['emp_id']); ?>">
+                                                <button type="submit" class="btn btn-sm btn-outline-primary py-0 px-1" title="Send Reminder">
+                                                    <i class="bi bi-envelope"></i>
+                                                </button>
+                                            </form>
+                                            <?php if ($hasLastReminded && !empty($emp['last_reminded'])): ?>
+                                                <div style="font-size: 0.65rem;" class="text-muted mt-1">
+                                                    Sent: <?php echo date('M d', strtotime($emp['last_reminded'])); ?>
+                                                </div>
+                                            <?php endif; ?>
+                                        <?php endif; ?>
                                     <?php endif; ?>
                                 </td>
                             </tr>
@@ -437,6 +510,12 @@ if ($compliance !== '') {
         <input type="hidden" name="req_keywords" id="addReqKeys">
     </form>
 
+    <form id="exemptForm" method="POST" style="display:none;">
+        <input type="hidden" name="action" value="toggle_exempt">
+        <input type="hidden" name="emp_id" id="exemptEmpId">
+        <input type="hidden" name="req_name" id="exemptReqName">
+    </form>
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script>
@@ -466,6 +545,13 @@ if ($compliance !== '') {
             } else {
                 Swal.fire('Error', 'Please fill in both Name and Keywords.', 'warning');
             }
+        }
+
+        function toggleExempt(empId, reqName) {
+            // Simple toggle without confirmation for speed, or add confirm if preferred
+            document.getElementById('exemptEmpId').value = empId;
+            document.getElementById('exemptReqName').value = reqName;
+            document.getElementById('exemptForm').submit();
         }
 
         // [NEW] Show Error Alerts (e.g. Duplicates)

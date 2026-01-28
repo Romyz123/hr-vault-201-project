@@ -10,7 +10,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $stmt->execute([$user]);
     $account = $stmt->fetch();
 
-    if ($account && password_verify($pass, $account['password_hash'])) {
+    if ($account && password_verify($pass, $account['password'])) {
         // LOGIN SUCCESS
         $_SESSION['user_id'] = $account['id'];
         $_SESSION['username'] = $account['username']; // We will use this for uploads!
@@ -23,4 +23,3 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 }
-?>
