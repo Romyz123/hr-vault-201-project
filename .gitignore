@@ -1,0 +1,17 @@
+# Configuration & Secrets
+config/config.php
+.env
+
+# Data Directories (Ignore contents, keep folders)
+vault/*
+!vault/.gitkeep
+public/uploads/*
+!public/uploads/.gitkeep
+backups/*
+
+# One-time Setup & Utility Scripts
+public/utils/*
+
+# OS Files
+.DS_Store
+Thumbs.db

@@ -1,0 +1,57 @@
+<?php
+class EmployeeService
+{
+    private $pdo;
+    private $logger;
+
+    public function __construct($pdo, $logger = null)
+    {
+        $this->pdo = $pdo;
+        $this->logger = $logger;
+    }
+
+    public function validate($data)
+    {
+        $errors = [];
+        if (empty($data['emp_id'])) $errors[] = "Employee ID is required.";
+        if (empty($data['first_name']) || empty($data['last_name'])) $errors[] = "First and Last Name are required.";
+        if (empty($data['job_title'])) $errors[] = "Job Title is required.";
+
+        if (!empty($data['email']) && !filter_var($data['email'], FILTER_VALIDATE_EMAIL)) {
+            $errors[] = "Invalid email format.";
+        }
+
+        // Check duplicate ID
+        if (!empty($data['emp_id'])) {
+            $stmt = $this->pdo->prepare("SELECT id FROM employees WHERE emp_id = ?");
+            $stmt->execute([$data['emp_id']]);
+            if ($stmt->fetch()) {
+                $errors[] = "Employee ID '" . $data['emp_id'] . "' is already in use.";
+            }
+        }
+
+        return $errors;
+    }
+
+    public function create($data, $creatorId)
+    {
+        // Remove non-database fields if any
+        unset($data['request_note']);
+
+        $cols = array_keys($data);
+        $colsStr = implode(", ", $cols);
+        $valsStr = implode(", ", array_fill(0, count($cols), "?"));
+
+        $sql = "INSERT INTO employees ($colsStr) VALUES ($valsStr)";
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute(array_values($data));
+
+        $id = $this->pdo->lastInsertId();
+
+        if ($this->logger) {
+            $this->logger->log($creatorId, 'ADD_EMPLOYEE', "Added employee: " . $data['emp_id']);
+        }
+
+        return $id;
+    }
+}

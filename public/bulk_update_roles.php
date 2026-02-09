@@ -1,0 +1,506 @@
+<?php
+// ======================================================
+// [FILE] public/bulk_update_roles.php
+// [PURPOSE] Bulk update System Roles and Job Titles
+// ======================================================
+
+require '../config/db.php';
+require '../src/Security.php';
+require '../src/Logger.php';
+session_start();
+
+// 1. SECURITY: Admin, Manager & HR Only
+if (!isset($_SESSION['user_id']) || !in_array($_SESSION['role'], ['ADMIN', 'MANAGER', 'HR'])) {
+    header("Location: index.php");
+    exit;
+}
+
+$logger = new Logger($pdo);
+$msg = "";
+$error = "";
+
+// [NEW] Load Centralized Options
+require __DIR__ . '/options.php';
+
+// [SECURITY] Generate CSRF Token
+if (empty($_SESSION['csrf_token'])) {
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+}
+
+// 2. HANDLE BULK UPDATE
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_roles'])) {
+    // CSRF Check
+    if (empty($_POST['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'])) {
+        die("Security Error: Invalid Token.");
+    }
+
+    $ids = $_POST['employee_ids'] ?? [];
+    // Validate $ids: filter for numeric values and cast to int
+    $ids = array_filter($ids, function ($id) {
+        return is_numeric($id);
+    });
+    $ids = array_map('intval', $ids);
+
+    $new_role = trim($_POST['new_system_role'] ?? '');
+    $new_job  = trim($_POST['new_job_title'] ?? '');
+    $new_dept = trim($_POST['new_dept'] ?? '');
+    $new_section = trim($_POST['new_section'] ?? '');
+    $new_gender = trim($_POST['new_gender'] ?? '');
+
+    // Validate against allowlists
+    $allowedRoles = array_keys($system_roles);
+    $allowedGenders = ['Male', 'Female', 'Other'];
+    $allowedDepts = array_keys($deptMap);
+
+    if (!empty($new_role) && !in_array($new_role, $allowedRoles)) {
+        $error = "❌ Invalid role selected.";
+    } elseif (!empty($new_gender) && !in_array($new_gender, $allowedGenders)) {
+        $error = "❌ Invalid gender selected.";
+    } elseif (!empty($new_dept) && !in_array($new_dept, $allowedDepts)) {
+        $error = "❌ Invalid department selected.";
+    }
+
+    if (empty($ids)) {
+        $error = "❌ No employees selected.";
+    } else {
+        // Validation
+        $valid = true;
+        if ($new_job !== '') {
+            if (strlen($new_job) > 50) {
+                $error = "❌ Job Title is too long (Max 50 chars).";
+                $valid = false;
+            } elseif (!preg_match('/^[a-zA-Z0-9\s\-\.\,\(\)\/]+$/', $new_job)) {
+                $error = "❌ Job Title contains invalid characters.";
+                $valid = false;
+            }
+        }
+
+        if ($valid) {
+            try {
+                $pdo->beginTransaction();
+
+                $sql = "UPDATE employees SET ";
+                $params = [];
+                $updates = [];
+
+                if (!empty($new_role)) {
+                    $updates[] = "system_role = ?";
+                    $params[] = $new_role;
+                }
+                if ($new_job !== '') {
+                    $updates[] = "job_title = ?";
+                    $params[] = ucwords(strtolower($new_job)); // Auto-capitalize
+                }
+                if (!empty($new_dept)) {
+                    $updates[] = "dept = ?";
+                    $params[] = $new_dept;
+                }
+                if (!empty($new_section)) {
+                    $updates[] = "section = ?";
+                    $params[] = $new_section;
+                }
+                if (!empty($new_gender)) {
+                    $updates[] = "gender = ?";
+                    $params[] = $new_gender;
+                }
+
+                if (empty($updates)) {
+                    $error = "⚠️ No changes specified. Please select a field to update.";
+                    $pdo->rollBack();
+                } else {
+                    $updates[] = "updated_at = NOW()";
+                    $sql .= implode(", ", $updates);
+                    $sql .= " WHERE id = ?";
+
+                    $stmt = $pdo->prepare($sql);
+                    $count = 0;
+                    foreach ($ids as $id) {
+                        $execParams = $params;
+                        $execParams[] = $id;
+                        $stmt->execute($execParams);
+                        $count++;
+                    }
+                    $placeholders = implode(',', array_fill(0, count($ids), '?'));
+                    +$sql .= " WHERE id IN ($placeholders)";
+
+                    $pdo->commit();
+                    $logger->log($_SESSION['user_id'], 'BULK_UPDATE_ROLE', "Updated details for $count employees.");
+                    $msg = "✅ Successfully updated $count employees.";
+                }
+            } catch (Exception $e) {
+                $pdo->rollBack();
+                // Log the full error server-side
+                error_log('Bulk update error: ' . $e->getMessage());
+                // Show generic error to user
+                $error = "An internal error occurred while updating roles. Please try again later.";
+            }
+        }
+    }
+}
+
+// 3. FETCH EMPLOYEES
+$search = isset($_GET['search']) ? trim($_GET['search']) : '';
+// [SECURITY] Sanitize search input
+$search = substr(preg_replace('/[^a-zA-Z0-9\-_ ]/', '', $search), 0, 50);
+
+$dept = isset($_GET['dept']) ? $_GET['dept'] : '';
+
+$sql = "SELECT id, emp_id, first_name, last_name, job_title, dept, section, system_role FROM employees WHERE status = 'Active'";
+$params = [];
+
+if ($search) {
+    $sql .= " AND (emp_id LIKE ? OR first_name LIKE ? OR last_name LIKE ?)";
+    $term = "%$search%";
+    $params[] = $term;
+    $params[] = $term;
+    $params[] = $term;
+}
+
+if ($dept) {
+    $sql .= " AND dept = ?";
+    $params[] = $dept;
+}
+
+$sql .= " ORDER BY last_name ASC LIMIT 100"; // Limit for performance
+
+$stmt = $pdo->prepare($sql);
+$stmt->execute($params);
+$employees = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+// Departments for filter
+$depts = $pdo->query("SELECT DISTINCT dept FROM employees WHERE status='Active' ORDER BY dept")->fetchAll(PDO::FETCH_COLUMN);
+
+// Fetch History Logs
+$historyLogs = $pdo->query("SELECT a.*, u.username FROM activity_logs a LEFT JOIN users u ON a.user_id = u.id WHERE action = 'BULK_UPDATE_ROLE' ORDER BY created_at DESC LIMIT 5")->fetchAll(PDO::FETCH_ASSOC);
+?>
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Bulk Update Roles</title>
+    <link href="assets/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="assets/icons/bootstrap-icons.css">
+    <script src="assets/sweetalert2.all.min.js"></script>
+</head>
+
+<body class="bg-light">
+    <nav class="navbar navbar-dark bg-dark mb-4">
+        <div class="container">
+            <a class="navbar-brand" href="index.php">⬅ Back to Dashboard</a>
+            <span class="navbar-text text-white fw-bold"><i class="bi bi-people-fill"></i> Bulk Update Roles</span>
+        </div>
+    </nav>
+
+    <div class="container">
+        <!-- FILTERS -->
+        <div class="card shadow-sm mb-4">
+            <div class="card-body py-2">
+                <form method="GET" class="row g-2 align-items-center">
+                    <div class="col-md-3">
+                        <select name="dept" class="form-select form-select-sm" onchange="this.form.submit()">
+                            <option value="">All Departments</option>
+                            <?php foreach ($depts as $d): ?>
+                                <option value="<?php echo htmlspecialchars($d); ?>" <?php echo ($dept === $d) ? 'selected' : ''; ?>><?php echo htmlspecialchars($d); ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <input type="text" name="search" class="form-control form-control-sm" placeholder="Search Name or ID..." value="<?php echo htmlspecialchars($search); ?>" maxlength="50" pattern="[a-zA-Z0-9\-_ ]+" title="Allowed: Letters, Numbers, Spaces, Dashes, Underscores" oninput="this.value = this.value.replace(/[^a-zA-Z0-9\-_ ]/g, '')">
+                    </div>
+                    <div class="col-md-2">
+                        <button type="submit" class="btn btn-primary btn-sm w-100">Search</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <form method="POST" id="bulkUpdateForm">
+            <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
+
+            <!-- UPDATE PANEL -->
+            <div class="card shadow-sm mb-4 border-warning">
+                <div class="card-header bg-warning text-dark fw-bold">
+                    <i class="bi bi-pencil-square"></i> Update Selected Employees
+                </div>
+                <div class="card-body bg-white">
+                    <div class="row g-3 align-items-end">
+                        <div class="col-md-2">
+                            <label class="form-label fw-bold">New System Role</label>
+                            <select name="new_system_role" class="form-select">
+                                <option value="">-- No Change --</option>
+                                <?php foreach ($system_roles as $role): ?>
+                                    <option value="<?php echo htmlspecialchars($role); ?>"><?php echo htmlspecialchars($role); ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label fw-bold">New Job Title</label>
+                            <input type="text" name="new_job_title" class="form-control" placeholder="Leave blank to keep current" maxlength="50" pattern="[a-zA-Z0-9\s\-\.\,\(\)\/]+" title="Allowed: Alphanumeric and basic punctuation" oninput="this.value = this.value.replace(/[^a-zA-Z0-9\s\-\.\,\(\)\/]/g, '')">
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label fw-bold">New Department(s)</label>
+                            <div class="input-group">
+                                <input type="text" name="new_dept" id="new_dept" class="form-control bg-white" readonly placeholder="No Change">
+                                <button class="btn btn-outline-secondary" type="button" onclick="document.getElementById('new_dept').value = ''; updateNewSections();"><i class="bi bi-x-lg"></i></button>
+                            </div>
+                            <select id="deptPicker" class="form-select mt-1 form-select-sm text-muted" onchange="addDept(this.value)">
+                                <option value="">+ Add Department...</option>
+                                <?php foreach (array_keys($deptMap) as $d): ?>
+                                    <option value="<?php echo htmlspecialchars($d); ?>"><?php echo htmlspecialchars($d); ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label fw-bold">New Section(s)</label>
+                            <div class="input-group">
+                                <input type="text" name="new_section" id="new_section" class="form-control bg-white" readonly placeholder="No Change" maxlength="255">
+                                <button class="btn btn-outline-secondary" type="button" onclick="document.getElementById('new_section').value = ''"><i class="bi bi-x-lg"></i></button>
+                            </div>
+                            <select id="sectionPicker" class="form-select mt-1 form-select-sm text-muted" onchange="addSection(this.value)">
+                                <option value="">+ Add Section...</option>
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label fw-bold">New Gender</label>
+                            <select name="new_gender" class="form-select">
+                                <option value="">-- No Change --</option>
+                                <option value="Male">Male</option>
+                                <option value="Female">Female</option>
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <button type="submit" name="update_roles" id="applyBtn" class="btn btn-success w-100 fw-bold">Apply Changes</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TABLE -->
+            <div class="card shadow-sm">
+                <div class="card-body p-0">
+                    <table class="table table-hover mb-0 align-middle">
+                        <thead class="table-light">
+                            <tr>
+                                <th style="width: 40px;"><input type="checkbox" class="form-check-input" onclick="document.querySelectorAll('.emp-check').forEach(c => c.checked = this.checked)"></th>
+                                <th>Name</th>
+                                <th>ID</th>
+                                <th>Dept</th>
+                                <th>Section</th>
+                                <th>Current Job Title</th>
+                                <th>Current Role</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php if (empty($employees)): ?>
+                                <tr>
+                                    <td colspan="7" class="text-center p-4 text-muted">No employees found.</td>
+                                </tr>
+                            <?php else: ?>
+                                <?php foreach ($employees as $e): ?>
+                                    <tr>
+                                        <td><input type="checkbox" name="employee_ids[]" value="<?php echo $e['id']; ?>" class="form-check-input emp-check"></td>
+                                        <td class="fw-bold"><?php echo htmlspecialchars($e['last_name'] . ', ' . $e['first_name']); ?></td>
+                                        <td><?php echo htmlspecialchars($e['emp_id']); ?></td>
+                                        <td><?php echo htmlspecialchars($e['dept']); ?></td>
+                                        <td><?php echo htmlspecialchars($e['section']); ?></td>
+                                        <td><?php echo htmlspecialchars($e['job_title']); ?></td>
+                                        <td><span class="badge bg-secondary"><?php echo htmlspecialchars($e['system_role']); ?></span></td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            <?php endif; ?>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </form>
+
+        <!-- HISTORY LOG -->
+        <?php if (!empty($historyLogs)): ?>
+            <div class="card shadow-sm mt-4">
+                <div class="card-header bg-secondary text-white">
+                    <h6 class="mb-0"><i class="bi bi-clock-history"></i> Recent Bulk Updates</h6>
+                </div>
+                <div class="card-body p-0">
+                    <table class="table table-sm table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Date</th>
+                                <th>User</th>
+                                <th>Details</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($historyLogs as $log): ?>
+                                <tr>
+                                    <td><?php echo date('M d, Y h:i A', strtotime($log['created_at'])); ?></td>
+                                    <td><?php echo htmlspecialchars($log['username']); ?></td>
+                                    <td><?php echo htmlspecialchars($log['details']); ?></td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        <?php endif; ?>
+    </div>
+
+    <script src="assets/bootstrap.bundle.min.js"></script>
+    <script>
+        <?php if ($msg): ?>
+            Swal.fire('Success', <?php echo json_encode($msg); ?>, 'success');
+            if (window.history.replaceState) {
+                window.history.replaceState(null, null, window.location.pathname);
+            }
+        <?php endif; ?>
+        <?php if ($error): ?>
+            Swal.fire('Error', <?php echo json_encode($error); ?>, 'error');
+            if (window.history.replaceState) {
+                window.history.replaceState(null, null, window.location.pathname);
+            }
+        <?php endif; ?>
+
+        // Dynamic Section Logic
+        const deptMap = <?php echo json_encode($deptMap); ?>;
+
+        // [NEW] Multi-Department Logic
+        function addDept(val) {
+            if (!val) return;
+            const input = document.getElementById('new_dept');
+            let current = input.value;
+            if (current) {
+                if (!current.includes(val)) input.value = current + ', ' + val;
+            } else {
+                input.value = val;
+            }
+            document.getElementById('deptPicker').value = "";
+            updateNewSections(); // Refresh sections based on new dept list
+        }
+
+        function updateNewSections() {
+            const depts = document.getElementById('new_dept').value.split(',').map(s => s.trim()).filter(s => s !== '');
+            const sect = document.getElementById('sectionPicker');
+            sect.innerHTML = '<option value="">+ Add Section...</option>';
+
+            // Loop through ALL selected departments
+            depts.forEach(dept => {
+                if (dept && deptMap[dept]) {
+                    // Add Optgroup for clarity
+                    const group = document.createElement('optgroup');
+                    group.label = dept;
+
+                    deptMap[dept].forEach(s => {
+                        const opt = document.createElement('option');
+                        opt.value = s;
+                        opt.text = s;
+                        group.appendChild(opt);
+                    });
+                    sect.appendChild(group);
+                }
+            });
+
+            // [NEW] Add Custom Option
+            const otherOpt = document.createElement('option');
+            otherOpt.value = 'custom';
+            otherOpt.text = '-- Other (Type Custom) --';
+            otherOpt.style.color = '#dc3545';
+            sect.appendChild(otherOpt);
+        }
+
+        function addSection(val) {
+            const picker = document.getElementById('sectionPicker');
+
+            if (val === 'custom') {
+                Swal.fire({
+                    title: 'Enter Custom Section',
+                    input: 'text',
+                    inputPlaceholder: 'e.g. Special Projects',
+                    showCancelButton: true,
+                    confirmButtonText: 'Add',
+                    inputAttributes: {
+                        maxlength: 50,
+                        pattern: '[a-zA-Z0-9\\s\\-\\.]+'
+                    },
+                    inputValidator: (value) => {
+                        if (!value) return 'Please enter a section name';
+                        if (value.length > 50) return 'Section name too long (Max 50 chars)';
+                        if (!/^[a-zA-Z0-9\s\-\.]+$/.test(value)) return 'Invalid characters allowed: Letters, Numbers, Spaces, Dots, Dashes';
+                    }
+                }).then((result) => {
+                    if (result.isConfirmed) {
+                        appendSectionValue(result.value.toUpperCase());
+                    }
+                    picker.value = "";
+                });
+                return;
+            }
+
+            if (val) appendSectionValue(val);
+            picker.value = "";
+        }
+
+        function appendSectionValue(text) {
+            const input = document.getElementById('new_section');
+            let current = input.value;
+            if (current) {
+                if (!current.includes(text)) input.value = current + ', ' + text;
+            } else {
+                input.value = text;
+            }
+        }
+
+        // [NEW] Confirmation Popup Logic
+        document.getElementById('applyBtn').addEventListener('click', function(e) {
+            e.preventDefault();
+
+            const form = document.getElementById('bulkUpdateForm');
+            const checkboxes = document.querySelectorAll('input[name="employee_ids[]"]:checked');
+
+            if (checkboxes.length === 0) {
+                Swal.fire('No Selection', 'Please select at least one employee.', 'warning');
+                return;
+            }
+
+            const role = document.querySelector('select[name="new_system_role"]').value;
+            const job = document.querySelector('input[name="new_job_title"]').value.trim();
+            const dept = document.querySelector('input[name="new_dept"]').value;
+            const section = document.querySelector('input[name="new_section"]').value;
+            const gender = document.querySelector('select[name="new_gender"]').value;
+
+            if (!role && !job && !dept && !section && !gender) {
+                Swal.fire('No Changes', 'Please select at least one field to update.', 'warning');
+                return;
+            }
+
+            let summary = `<ul class="text-start">`;
+            if (role) summary += `<li><strong>Role:</strong> ${document.createElement('div').appendChild(document.createTextNode(role)).parentNode.textContent}</li>`;
+            if (job) summary += `<li><strong>Job Title:</strong> ${document.createElement('div').appendChild(document.createTextNode(job)).parentNode.textContent}</li>`;
+            if (dept) summary += `<li><strong>Department:</strong> ${document.createElement('div').appendChild(document.createTextNode(dept)).parentNode.textContent}</li>`;
+            if (section) summary += `<li><strong>Section:</strong> ${document.createElement('div').appendChild(document.createTextNode(section)).parentNode.textContent}</li>`;
+            if (gender) summary += `<li><strong>Gender:</strong> ${document.createElement('div').appendChild(document.createTextNode(gender)).parentNode.textContent}</li>`;
+            summary += `</ul>`;
+
+            Swal.fire({
+                title: `Update ${checkboxes.length} Employees?`,
+                html: `<p>The following changes will be applied:</p>${summary}<p class="text-danger small mt-2">This action cannot be undone.</p>`,
+                icon: 'question',
+                showCancelButton: true,
+                confirmButtonColor: '#198754',
+                cancelButtonColor: '#6c757d',
+                confirmButtonText: 'Yes, Apply Updates'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    // Create hidden input to simulate button click
+                    const hiddenInput = document.createElement('input');
+                    hiddenInput.type = 'hidden';
+                    hiddenInput.name = 'update_roles';
+                    hiddenInput.value = '1';
+                    form.appendChild(hiddenInput);
+                    form.submit();
+                }
+            });
+        });
+    </script>
+</body>
+
+</html>
