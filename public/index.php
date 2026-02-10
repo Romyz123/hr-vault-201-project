@@ -608,142 +608,147 @@ $diskPercent = ($diskTotal > 0) ? round((($diskTotal - $diskFree) / $diskTotal) 
         <div class="container-fluid">
             <a class="navbar-brand" href="index.php"><i class="bi bi-building"></i> TES Philippines HR</a>
 
-            <div class="d-flex align-items-center">
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarContent" aria-controls="navbarContent" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
 
-                <!-- Session Timer -->
-                <div class="text-white me-3 small d-none d-md-block" title="Time until auto-logout">
-                    <i class="bi bi-hourglass-split"></i> <span id="sessionTimer" class="fw-bold font-monospace">15:00</span>
-                </div>
+            <div class="collapse navbar-collapse" id="navbarContent">
+                <div class="d-flex align-items-center ms-auto mt-3 mt-lg-0">
+                    <!-- Session Timer -->
+                    <div class="text-white me-3 small d-none d-md-block" title="Time until auto-logout">
+                        <i class="bi bi-hourglass-split"></i> <span id="sessionTimer" class="fw-bold font-monospace">15:00</span>
+                    </div>
 
-                <!-- Auto-Refresh Toggle -->
-                <button id="refreshToggle" class="btn btn-sm btn-outline-light me-3 border-0" title="Pause Dashboard Updates">
-                    <i class="bi bi-pause-circle"></i>
-                </button>
+                    <!-- Auto-Refresh Toggle -->
+                    <button id="refreshToggle" class="btn btn-sm btn-outline-light me-3 border-0" title="Pause Dashboard Updates">
+                        <i class="bi bi-pause-circle"></i>
+                    </button>
 
-                <!-- [NEW] Sync Spinner -->
-                <div id="sync-spinner" class="spinner-border spinner-border-sm text-warning me-3" role="status" style="display:none;" title="Syncing Data...">
-                    <span class="visually-hidden">Loading...</span>
-                </div>
+                    <!-- [NEW] Sync Spinner -->
+                    <div id="sync-spinner" class="spinner-border spinner-border-sm text-warning me-3" role="status" style="display:none;" title="Syncing Data...">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
 
-                <!-- Notifications dropdown -->
-                <div class="dropdown me-3">
-                    <a class="text-white position-relative" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                        <i class="bi bi-bell-fill fs-5"></i>
-                        <?php if ($notifCount > 0): ?>
-                            <span id="notifyBadge" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">
-                                <?php echo (int)$notifCount; ?>
-                            </span>
-                        <?php else: ?>
-                            <span id="notifyBadge" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style="display:none">0</span>
-                        <?php endif; ?>
-                    </a>
-
-                    <ul id="notifyList" class="dropdown-menu dropdown-menu-end shadow" style="width: 350px; max-height: 400px; overflow-y: auto;">
-                        <li class="dropdown-header d-flex justify-content-between align-items-center">
-                            <span>Notifications</span>
+                    <!-- Notifications dropdown -->
+                    <div class="dropdown me-3">
+                        <a class="text-white position-relative" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="bi bi-bell-fill fs-5"></i>
                             <?php if ($notifCount > 0): ?>
-                                <form method="POST" class="m-0">
-                                    <input type="hidden" name="csrf_token" value="<?php echo h($_SESSION['csrf_token']); ?>">
-                                    <button name="clear_notifs" class="btn btn-link btn-sm text-decoration-none p-0" style="font-size: 0.8rem;">Clear Messages</button>
-                                </form>
+                                <span id="notifyBadge" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">
+                                    <?php echo (int)$notifCount; ?>
+                                </span>
+                            <?php else: ?>
+                                <span id="notifyBadge" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style="display:none">0</span>
                             <?php endif; ?>
-                        </li>
-                        <li>
-                            <hr class="dropdown-divider">
-                        </li>
+                        </a>
 
-                        <?php if ($notifCount > 0): ?>
-                            <?php foreach ($all_notifications as $n): ?>
-                                <?php
-                                if (($n['source'] ?? '') === 'expiry') {
-                                    $icon = "bi-exclamation-triangle-fill text-warning";
-                                    $link = "index.php?search=" . urlencode($n['emp_search']) . "&resolve_doc=" . urlencode((string)$n['link_id']) . "&doc_name=" . urlencode($n['doc_name']);
-                                    $clickableClass = "list-group-item-action";
-                                } elseif (($n['source'] ?? '') === 'request') {
-                                    $icon = "bi-clipboard-data-fill text-primary";
-                                    $link = "admin_approval.php";
-                                    $clickableClass = "list-group-item-action";
-                                } elseif (($n['type'] ?? '') === 'success') {
-                                    $icon = "bi-check-circle-fill text-success";
-                                    $link = "#";
-                                    $clickableClass = "";
+                        <ul id="notifyList" class="dropdown-menu dropdown-menu-end shadow" style="width: 350px; max-height: 400px; overflow-y: auto;">
+                            <li class="dropdown-header d-flex justify-content-between align-items-center">
+                                <span>Notifications</span>
+                                <?php if ($notifCount > 0): ?>
+                                    <form method="POST" class="m-0">
+                                        <input type="hidden" name="csrf_token" value="<?php echo h($_SESSION['csrf_token']); ?>">
+                                        <button name="clear_notifs" class="btn btn-link btn-sm text-decoration-none p-0" style="font-size: 0.8rem;">Clear Messages</button>
+                                    </form>
+                                <?php endif; ?>
+                            </li>
+                            <li>
+                                <hr class="dropdown-divider">
+                            </li>
 
-                                    // [NEW] Check for Backup Notification to add Restore Button
-                                    $backupFile = null;
-                                    if (strpos($n['title'], 'Backup') !== false && preg_match('/:\s*([a-zA-Z0-9_\-\.]+\.zip)/', $n['message'], $matches)) {
-                                        $backupFile = $matches[1];
+                            <?php if ($notifCount > 0): ?>
+                                <?php foreach ($all_notifications as $n): ?>
+                                    <?php
+                                    if (($n['source'] ?? '') === 'expiry') {
+                                        $icon = "bi-exclamation-triangle-fill text-warning";
+                                        $link = "index.php?search=" . urlencode($n['emp_search']) . "&resolve_doc=" . urlencode((string)$n['link_id']) . "&doc_name=" . urlencode($n['doc_name']);
+                                        $clickableClass = "list-group-item-action";
+                                    } elseif (($n['source'] ?? '') === 'request') {
+                                        $icon = "bi-clipboard-data-fill text-primary";
+                                        $link = "admin_approval.php";
+                                        $clickableClass = "list-group-item-action";
+                                    } elseif (($n['type'] ?? '') === 'success') {
+                                        $icon = "bi-check-circle-fill text-success";
+                                        $link = "#";
+                                        $clickableClass = "";
+
+                                        // [NEW] Check for Backup Notification to add Restore Button
+                                        $backupFile = null;
+                                        if (strpos($n['title'], 'Backup') !== false && preg_match('/:\s*([a-zA-Z0-9_\-\.]+\.zip)/', $n['message'], $matches)) {
+                                            $backupFile = $matches[1];
+                                        }
+                                    } else {
+                                        $icon = "bi-info-circle-fill text-info";
+                                        $link = "#";
+                                        $clickableClass = "";
                                     }
-                                } else {
-                                    $icon = "bi-info-circle-fill text-info";
-                                    $link = "#";
-                                    $clickableClass = "";
-                                }
-                                ?>
-                                <li>
-                                    <div class="dropdown-item white-space-normal <?php echo $clickableClass; ?>">
-                                        <div class="d-flex align-items-start">
-                                            <i class="bi <?php echo $icon; ?> fs-4 me-2"></i>
-                                            <div class="w-100">
-                                                <h6 class="mb-0 small fw-bold"><?php echo h($n['title']); ?></h6>
-                                                <p class="mb-1 small text-muted" style="font-size: 0.85rem;"><?php echo h($n['message']); ?></p>
-                                                <div class="d-flex justify-content-between align-items-center">
-                                                    <small class="text-secondary" style="font-size: 0.7rem;">
-                                                        <?php echo (($n['source'] ?? '') === 'expiry') ? 'Action Required' : date('M d, h:i A', strtotime($n['created_at'])); ?>
-                                                    </small>
-                                                    <?php if ($backupFile && $userRole === 'ADMIN'): ?>
-                                                        <a href="manager_user.php?restore_target=<?php echo urlencode($backupFile); ?>" class="btn btn-sm btn-outline-danger py-0 px-2" style="font-size: 0.7rem;">
-                                                            <i class="bi bi-arrow-counterclockwise"></i> Restore
-                                                        </a>
-                                                    <?php endif; ?>
+                                    ?>
+                                    <li>
+                                        <div class="dropdown-item white-space-normal <?php echo $clickableClass; ?>">
+                                            <div class="d-flex align-items-start">
+                                                <i class="bi <?php echo $icon; ?> fs-4 me-2"></i>
+                                                <div class="w-100">
+                                                    <h6 class="mb-0 small fw-bold"><?php echo h($n['title']); ?></h6>
+                                                    <p class="mb-1 small text-muted" style="font-size: 0.85rem;"><?php echo h($n['message']); ?></p>
+                                                    <div class="d-flex justify-content-between align-items-center">
+                                                        <small class="text-secondary" style="font-size: 0.7rem;">
+                                                            <?php echo (($n['source'] ?? '') === 'expiry') ? 'Action Required' : date('M d, h:i A', strtotime($n['created_at'])); ?>
+                                                        </small>
+                                                        <?php if ($backupFile && $userRole === 'ADMIN'): ?>
+                                                            <a href="manager_user.php?restore_target=<?php echo urlencode($backupFile); ?>" class="btn btn-sm btn-outline-danger py-0 px-2" style="font-size: 0.7rem;">
+                                                                <i class="bi bi-arrow-counterclockwise"></i> Restore
+                                                            </a>
+                                                        <?php endif; ?>
+                                                    </div>
                                                 </div>
                                             </div>
                                         </div>
-                                    </div>
-                                </li>
+                                    </li>
+                                    <li>
+                                        <hr class="dropdown-divider">
+                                    </li>
+                                <?php endforeach; ?>
+                            <?php else: ?>
+                                <li class="p-3 text-center text-muted"><small>No new notifications</small></li>
+                            <?php endif; ?>
+                        </ul>
+                    </div>
+
+                    <!-- User Menu -->
+                    <div class="dropdown">
+                        <a href="#" class="d-flex align-items-center text-white text-decoration-none dropdown-toggle" data-bs-toggle="dropdown">
+                            <strong><?php echo h($_SESSION['username'] ?? 'User'); ?></strong>
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-end shadow">
+                            <?php if (in_array($userRole, ['ADMIN', 'MANAGER'])): ?>
+                                <li><a class="dropdown-item fw-bold text-primary" href="manager_dashboard.php"><i class="bi bi-speedometer2 me-2"></i> Manager Dashboard</a></li>
                                 <li>
                                     <hr class="dropdown-divider">
                                 </li>
-                            <?php endforeach; ?>
-                        <?php else: ?>
-                            <li class="p-3 text-center text-muted"><small>No new notifications</small></li>
-                        <?php endif; ?>
-                    </ul>
-                </div>
-
-                <!-- User Menu -->
-                <div class="dropdown">
-                    <a href="#" class="d-flex align-items-center text-white text-decoration-none dropdown-toggle" data-bs-toggle="dropdown">
-                        <strong><?php echo h($_SESSION['username'] ?? 'User'); ?></strong>
-                    </a>
-                    <ul class="dropdown-menu dropdown-menu-end shadow">
-                        <?php if (in_array($userRole, ['ADMIN', 'MANAGER'])): ?>
-                            <li><a class="dropdown-item fw-bold text-primary" href="manager_dashboard.php"><i class="bi bi-speedometer2 me-2"></i> Manager Dashboard</a></li>
+                            <?php endif; ?>
+                            <?php if (in_array($userRole, ['ADMIN', 'MANAGER'])): ?>
+                                <li><a class="dropdown-item" href="settings.php"><i class="bi bi-sliders me-2"></i> System Settings</a></li>
+                            <?php endif; ?>
+                            <li><a class="dropdown-item" href="profile_settings.php"><i class="bi bi-gear me-2"></i> Change Password</a></li>
+                            <?php if ($userRole === 'ADMIN'): ?>
+                                <li>
+                                    <hr class="dropdown-divider">
+                                </li>
+                                <li><a class="dropdown-item" href="manager_user.php"><i class="bi bi-people-fill me-2"></i> Manage Users</a></li>
+                            <?php endif; ?>
+                            <?php if (in_array($userRole, ['ADMIN', 'MANAGER'])): ?>
+                                <li><a class="dropdown-item" href="activity_logs.php"><i class="bi bi-shield-lock-fill me-2 text-danger"></i> Activity Logs</a></li>
+                            <?php endif; ?>
+                            <?php if ($userRole === 'STAFF'): ?>
+                                <li><a class="dropdown-item" href="my_requests.php"><i class="bi bi-clock-history me-2 text-primary"></i> My Requests</a></li>
+                            <?php endif; ?>
+                            <li><a class="dropdown-item" href="help.php"><i class="bi bi-question-circle-fill me-2 text-info"></i> User Manual</a></li>
                             <li>
                                 <hr class="dropdown-divider">
                             </li>
-                        <?php endif; ?>
-                        <?php if (in_array($userRole, ['ADMIN', 'MANAGER'])): ?>
-                            <li><a class="dropdown-item" href="settings.php"><i class="bi bi-sliders me-2"></i> System Settings</a></li>
-                        <?php endif; ?>
-                        <li><a class="dropdown-item" href="profile_settings.php"><i class="bi bi-gear me-2"></i> Change Password</a></li>
-                        <?php if ($userRole === 'ADMIN'): ?>
-                            <li>
-                                <hr class="dropdown-divider">
-                            </li>
-                            <li><a class="dropdown-item" href="manager_user.php"><i class="bi bi-people-fill me-2"></i> Manage Users</a></li>
-                        <?php endif; ?>
-                        <?php if (in_array($userRole, ['ADMIN', 'MANAGER'])): ?>
-                            <li><a class="dropdown-item" href="activity_logs.php"><i class="bi bi-shield-lock-fill me-2 text-danger"></i> Activity Logs</a></li>
-                        <?php endif; ?>
-                        <?php if ($userRole === 'STAFF'): ?>
-                            <li><a class="dropdown-item" href="my_requests.php"><i class="bi bi-clock-history me-2 text-primary"></i> My Requests</a></li>
-                        <?php endif; ?>
-                        <li><a class="dropdown-item" href="help.php"><i class="bi bi-question-circle-fill me-2 text-info"></i> User Manual</a></li>
-                        <li>
-                            <hr class="dropdown-divider">
-                        </li>
-                        <li><a class="dropdown-item text-danger" href="logout.php"><i class="bi bi-box-arrow-right me-2"></i> Logout</a></li>
-                    </ul>
+                            <li><a class="dropdown-item text-danger" href="logout.php"><i class="bi bi-box-arrow-right me-2"></i> Logout</a></li>
+                        </ul>
+                    </div>
                 </div>
             </div>
         </div>

@@ -197,6 +197,7 @@ $refreshInt  = $settings['auto_refresh_interval'] ?? '60';
 <head>
     <meta charset="UTF-8">
     <title>System Settings</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <link href="assets/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="assets/icons/bootstrap-icons.css">
     <script src="assets/sweetalert2.all.min.js"></script>

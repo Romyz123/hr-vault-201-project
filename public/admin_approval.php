@@ -261,6 +261,7 @@ $tickets  = $pdo->query("SELECT r.*, u.username FROM requests r LEFT JOIN users 
 <head>
     <meta charset="UTF-8">
     <title>Approvals</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <link href="assets/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="assets/icons/bootstrap-icons.css">
 </head>
@@ -298,7 +299,7 @@ $tickets  = $pdo->query("SELECT r.*, u.username FROM requests r LEFT JOIN users 
                 </ul>
             </div>
 
-            <div class="card-body p-0">
+            <div class="card-body p-0 table-responsive">
                 <div class="tab-content">
                     <div class="tab-pane fade show active" id="tab-hires"><?php renderTable($newHires, 'hire'); ?></div>
                     <div class="tab-pane fade" id="tab-edits"><?php renderTable($edits, 'edit'); ?></div>

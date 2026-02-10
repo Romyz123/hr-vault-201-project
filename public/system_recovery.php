@@ -629,6 +629,7 @@ $vaultChecked = ($bkVaultSetting === '1') ? 'checked' : '';
 <head>
     <meta charset="UTF-8">
     <title>System Recovery Console</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <link href="assets/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="assets/icons/bootstrap-icons.css">
 </head>
@@ -686,7 +687,7 @@ $vaultChecked = ($bkVaultSetting === '1') ? 'checked' : '';
                             </div>
                         <?php endif; ?>
                     </div>
-                    <div class="card-body p-0">
+                    <div class="card-body p-0 table-responsive">
                         <table class="table table-hover mb-0">
                             <thead class="table-light">
                                 <tr>
@@ -739,7 +740,7 @@ $vaultChecked = ($bkVaultSetting === '1') ? 'checked' : '';
                         <i class="bi bi-person-x"></i> <strong>Recycle Bin: Employees</strong>
                         <small class="d-block text-light">Restore employees or permanently delete them (including files).</small>
                     </div>
-                    <div class="card-body p-0">
+                    <div class="card-body p-0 table-responsive">
                         <table class="table table-hover mb-0 align-middle">
                             <thead>
                                 <tr>
@@ -799,7 +800,7 @@ $vaultChecked = ($bkVaultSetting === '1') ? 'checked' : '';
                             </form>
                         <?php endif; ?>
                     </div>
-                    <div class="card-body p-0">
+                    <div class="card-body p-0 table-responsive">
                         <table class="table table-hover mb-0">
                             <thead class="table-light">
                                 <tr>
@@ -848,7 +849,7 @@ $vaultChecked = ($bkVaultSetting === '1') ? 'checked' : '';
                             <button type="button" onclick="submitPruneGhosts()" class="btn btn-sm btn-danger fw-bold">🧟 Prune Selected</button>
                         <?php endif; ?>
                     </div>
-                    <div class="card-body p-0">
+                    <div class="card-body p-0 table-responsive">
                         <table class="table table-hover mb-0">
                             <thead class="table-light">
                                 <tr>
@@ -896,7 +897,7 @@ $vaultChecked = ($bkVaultSetting === '1') ? 'checked' : '';
                         <i class="bi bi-files"></i> <strong>Duplicate Uploads</strong>
                         <small class="d-block text-white-50">Documents with the same Name and Category for the same Employee.</small>
                     </div>
-                    <div class="card-body p-0">
+                    <div class="card-body p-0 table-responsive">
                         <table class="table table-hover mb-0">
                             <thead class="table-light">
                                 <tr>

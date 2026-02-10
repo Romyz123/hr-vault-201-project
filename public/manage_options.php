@@ -258,6 +258,7 @@ while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
 <head>
     <meta charset="UTF-8">
     <title>Manage Options</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <link href="assets/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="assets/icons/bootstrap-icons.css">
     <script src="assets/sweetalert2.all.min.js"></script>
@@ -301,37 +302,39 @@ while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
                                 <button type="submit" class="btn btn-success w-100"><i class="bi bi-plus-lg"></i> Add</button>
                             </div>
                         </form>
-                        <table class="table table-hover align-middle">
-                            <thead class="table-light">
-                                <tr>
-                                    <th>Agency Name</th>
-                                    <th class="text-end">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <?php foreach ($agencies as $a): ?>
+                        <div class="table-responsive">
+                            <table class="table table-hover align-middle">
+                                <thead class="table-light">
                                     <tr>
-                                        <td>
-                                            <form method="POST" class="d-flex gap-2">
-                                                <input type="hidden" name="csrf_token" value="<?php echo $_SESSION['csrf_token']; ?>">
-                                                <input type="hidden" name="action" value="edit_agency">
-                                                <input type="hidden" name="id" value="<?php echo $a['id']; ?>">
-                                                <input type="text" name="name" class="form-control form-control-sm" value="<?php echo htmlspecialchars($a['name']); ?>" required maxlength="50">
-                                                <button type="submit" class="btn btn-sm btn-outline-primary"><i class="bi bi-save"></i></button>
-                                            </form>
-                                        </td>
-                                        <td class="text-end">
-                                            <form method="POST" onsubmit="return confirm('Delete this agency?');">
-                                                <input type="hidden" name="csrf_token" value="<?php echo $_SESSION['csrf_token']; ?>">
-                                                <input type="hidden" name="action" value="delete_agency">
-                                                <input type="hidden" name="id" value="<?php echo $a['id']; ?>">
-                                                <button type="submit" class="btn btn-sm btn-danger"><i class="bi bi-trash"></i></button>
-                                            </form>
-                                        </td>
+                                        <th>Agency Name</th>
+                                        <th class="text-end">Actions</th>
                                     </tr>
-                                <?php endforeach; ?>
-                            </tbody>
-                        </table>
+                                </thead>
+                                <tbody>
+                                    <?php foreach ($agencies as $a): ?>
+                                        <tr>
+                                            <td>
+                                                <form method="POST" class="d-flex gap-2">
+                                                    <input type="hidden" name="csrf_token" value="<?php echo $_SESSION['csrf_token']; ?>">
+                                                    <input type="hidden" name="action" value="edit_agency">
+                                                    <input type="hidden" name="id" value="<?php echo $a['id']; ?>">
+                                                    <input type="text" name="name" class="form-control form-control-sm" value="<?php echo htmlspecialchars($a['name']); ?>" required maxlength="50">
+                                                    <button type="submit" class="btn btn-sm btn-outline-primary"><i class="bi bi-save"></i></button>
+                                                </form>
+                                            </td>
+                                            <td class="text-end">
+                                                <form method="POST" onsubmit="return confirm('Delete this agency?');">
+                                                    <input type="hidden" name="csrf_token" value="<?php echo $_SESSION['csrf_token']; ?>">
+                                                    <input type="hidden" name="action" value="delete_agency">
+                                                    <input type="hidden" name="id" value="<?php echo $a['id']; ?>">
+                                                    <button type="submit" class="btn btn-sm btn-danger"><i class="bi bi-trash"></i></button>
+                                                </form>
+                                            </td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
             </div>

@@ -329,6 +329,7 @@ $vaultChecked = ($bkVaultSetting === '1') ? 'checked' : '';
 <head>
     <meta charset="UTF-8">
     <title>Manage System Users</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <link href="assets/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="assets/icons/bootstrap-icons.css">
     <script src="assets/sweetalert2.all.min.js"></script>
@@ -396,7 +397,7 @@ $vaultChecked = ($bkVaultSetting === '1') ? 'checked' : '';
                         <div class="card-header bg-secondary text-white">
                             <h5 class="mb-0"><i class="bi bi-clock-history"></i> Available Auto-Backups (Server)</h5>
                         </div>
-                        <div class="card-body p-0">
+                        <div class="card-body p-0 table-responsive">
                             <table class="table table-hover mb-0">
                                 <thead>
                                     <tr>
@@ -570,7 +571,7 @@ $vaultChecked = ($bkVaultSetting === '1') ? 'checked' : '';
                     <div class="card-header bg-white border-bottom">
                         <h5 class="mb-0 text-primary"><i class="bi bi-people-fill"></i> Authorized Users</h5>
                     </div>
-                    <div class="card-body p-0">
+                    <div class="card-body p-0 table-responsive">
                         <table class="table table-hover mb-0 align-middle">
                             <thead class="table-light">
                                 <tr>

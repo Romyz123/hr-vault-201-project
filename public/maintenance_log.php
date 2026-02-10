@@ -204,6 +204,7 @@ $emps = $pdo->query("SELECT emp_id, first_name, last_name FROM employees WHERE s
 <head>
     <meta charset="UTF-8">
     <title>Hardware Maintenance Log</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <link href="assets/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="assets/icons/bootstrap-icons.css">
 </head>
@@ -243,7 +244,7 @@ $emps = $pdo->query("SELECT emp_id, first_name, last_name FROM employees WHERE s
         </div>
 
         <div class="card shadow-sm">
-            <div class="card-body p-0">
+            <div class="card-body p-0 table-responsive">
                 <table class="table table-hover mb-0 align-middle">
                     <thead class="table-light">
                         <tr>
@@ -328,7 +329,7 @@ $emps = $pdo->query("SELECT emp_id, first_name, last_name FROM employees WHERE s
                     <h5 class="modal-title"><i class="bi bi-shield-lock"></i> Supply Chain Audit Log</h5>
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                 </div>
-                <div class="modal-body p-0">
+                <div class="modal-body p-0 table-responsive">
                     <table class="table table-striped table-sm mb-0 small">
                         <thead class="table-secondary sticky-top">
                             <tr>

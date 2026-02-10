@@ -467,6 +467,7 @@ $history = $pdo->query("SELECT import_batch, agency_name, COUNT(*) as count, MAX
 <head>
     <meta charset="UTF-8">
     <title>Import Employees</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <link href="assets/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="assets/icons/bootstrap-icons.css">
     <script src="assets/sweetalert2.all.min.js"></script>
@@ -587,7 +588,7 @@ $history = $pdo->query("SELECT import_batch, agency_name, COUNT(*) as count, MAX
                 <div class="card-header bg-danger text-white">
                     <h6 class="mb-0">Undo Recent Imports</h6>
                 </div>
-                <div class="card-body p-0">
+                <div class="card-body p-0 table-responsive">
                     <table class="table table-striped mb-0">
                         <thead>
                             <tr>

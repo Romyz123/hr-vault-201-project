@@ -672,6 +672,7 @@ if ($compliance !== '') {
 <head>
     <meta charset="UTF-8">
     <title>Document Tracker - TES HR</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <link href="assets/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="assets/icons/bootstrap-icons.css">
     <style>
@@ -789,10 +790,10 @@ if ($compliance !== '') {
             <!-- FILTERS -->
             <div class="card-body py-3">
                 <form class="row g-3 align-items-center">
-                    <div class="col-auto">
+                    <div class="col-12 col-md-auto">
                         <label class="fw-bold">Filter Dept:</label>
                     </div>
-                    <div class="col-auto">
+                    <div class="col-12 col-md-auto">
                         <select name="dept" class="form-select form-select-sm" onchange="this.form.submit()">
                             <option value="">All Departments</option>
                             <?php
@@ -805,7 +806,7 @@ if ($compliance !== '') {
                             ?>
                         </select>
                     </div>
-                    <div class="col-auto">
+                    <div class="col-12 col-md-auto">
                         <select name="type" class="form-select form-select-sm" onchange="this.form.submit()">
                             <option value="">All Agencies</option>
                             <?php
@@ -823,7 +824,7 @@ if ($compliance !== '') {
                             ?>
                         </select>
                     </div>
-                    <div class="col-auto">
+                    <div class="col-12 col-md-auto">
                         <select name="compliance" class="form-select form-select-sm" onchange="this.form.submit()">
                             <option value="">All Statuses</option>
                             <option value="complete" <?php echo ($compliance == 'complete' ? 'selected' : ''); ?>>✅ Complete (100%)</option>
@@ -832,7 +833,7 @@ if ($compliance !== '') {
                             <option value="empty" <?php echo ($compliance == 'empty' ? 'selected' : ''); ?>>❌ No Documents (0%)</option>
                         </select>
                     </div>
-                    <div class="col-auto ms-auto">
+                    <div class="col-12 col-md-auto ms-auto">
                         <!-- [FIX] Added comma to regex and pattern to allow "Last, First" -->
                         <input type="text" name="search" id="trackerSearch" class="form-control form-control-sm" placeholder="Search Name..." value="<?php echo htmlspecialchars($search); ?>" maxlength="50" pattern="[a-zA-Z0-9\-_ ,]+" title="Allowed: Letters, Numbers, Spaces, Dashes, Underscores, Comma" list="search_suggestions" oninput="this.value = this.value.replace(/[^a-zA-Z0-9\-_ ,]/g, '')">
                         <datalist id="search_suggestions">
@@ -841,23 +842,23 @@ if ($compliance !== '') {
                                 <?php endforeach; ?>
                         </datalist>
                     </div>
-                    <div class="col-auto">
+                    <div class="col-6 col-md-auto">
                         <button type="submit" class="btn btn-primary btn-sm">Search</button>
                     </div>
-                    <div class="col-auto">
+                    <div class="col-6 col-md-auto">
                         <button type="submit" formaction="print_tracker.php" formtarget="_blank" class="btn btn-dark btn-sm"><i class="bi bi-printer"></i> Print List</button>
                     </div>
-                    <div class="col-auto">
+                    <div class="col-12 col-md-auto">
                         <button type="button" class="btn btn-outline-primary btn-sm" onclick="submitBulkReminders()"><i class="bi bi-envelope-fill"></i> Send Bulk Reminders</button>
                     </div>
-                    <div class="col-auto">
+                    <div class="col-12 col-md-auto">
                         <button type="button" class="btn btn-outline-warning btn-sm" data-bs-toggle="modal" data-bs-target="#misclassifiedModal"><i class="bi bi-exclamation-triangle"></i> Misclassified Report</button>
                     </div>
                     <?php if (in_array($_SESSION['role'], ['ADMIN', 'MANAGER', 'HR'])): ?>
-                        <div class="col-auto ms-auto">
+                        <div class="col-12 col-md-auto ms-auto">
                             <a href="tracker.php" class="btn btn-outline-secondary btn-sm">Reset Filters</a>
                         </div>
-                        <div class="col-auto ms-2 border-start ps-3">
+                        <div class="col-12 col-md-auto ms-2 border-start ps-3">
                             <button type="button" class="btn btn-outline-dark btn-sm" data-bs-toggle="modal" data-bs-target="#manageReqModal"><i class="bi bi-gear-fill"></i> Manage Requirements</button>
                         </div>
                     <?php endif; ?>
