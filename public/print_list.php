@@ -6,6 +6,7 @@
 
 require '../config/db.php';
 require '../src/Security.php';
+require '../src/Validator.php';
 session_start();
 
 if (!isset($_SESSION['user_id'])) {
@@ -16,7 +17,7 @@ if (!isset($_SESSION['user_id'])) {
 $filter_status = isset($_GET['status']) ? trim($_GET['status']) : '';
 $filter_type   = isset($_GET['type'])   ? trim($_GET['type'])   : '';
 $filter_dept   = isset($_GET['dept'])   ? trim($_GET['dept'])   : '';
-$search_query  = isset($_GET['search']) ? trim($_GET['search']) : '';
+$search_query  = Validator::sanitizeSearch($_GET['search'] ?? '');
 
 // 2. BUILD QUERY
 // [FIX 1] Added 'agency_name' to the SELECT list so we can display it.
@@ -45,12 +46,12 @@ if (!empty($filter_dept)) {
 if (!empty($search_query)) {
     $terms = preg_split('/[\s,]+/', $search_query, -1, PREG_SPLIT_NO_EMPTY);
     foreach ($terms as $term) {
-        $sql .= " AND (emp_id LIKE ? OR first_name LIKE ? OR last_name LIKE ?)";
-        $t = "%$term%";
+        $sql .= " AND (emp_id LIKE ? ESCAPE '\\' OR first_name LIKE ? ESCAPE '\\' OR last_name LIKE ? ESCAPE '\\')";
+        $escaped = addcslashes($term, '%_');
+        $t = "%$escaped%";
         array_push($params, $t, $t, $t);
     }
 }
-
 $sql .= " ORDER BY last_name ASC";
 
 $stmt = $pdo->prepare($sql);

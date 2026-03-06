@@ -6,6 +6,7 @@
 
 require '../config/db.php';
 require '../src/Logger.php';
+require '../src/Validator.php';
 session_start();
 
 // 1. SECURITY CHECK
@@ -17,7 +18,7 @@ if (!isset($_SESSION['user_id'])) {
 $filter_status = isset($_GET['status']) ? trim($_GET['status']) : '';
 $filter_type   = isset($_GET['type'])   ? trim($_GET['type'])   : '';
 $filter_dept   = isset($_GET['dept'])   ? trim($_GET['dept'])   : '';
-$search_query  = isset($_GET['search']) ? trim($_GET['search']) : '';
+$search_query  = Validator::sanitizeSearch($_GET['search'] ?? '');
 
 // 3. BUILD QUERY
 $where = ['1=1'];

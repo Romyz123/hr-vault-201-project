@@ -9,6 +9,9 @@ if (!isset($_SESSION['user_id']) || !in_array($_SESSION['role'], ['ADMIN', 'MANA
     exit;
 }
 
+$security = new Security($pdo);
+$csrf_token = $security->generateCSRF();
+
 // 2. FETCH DELETED FILES (Last 30 Days)
 // We can also implement an auto-cleanup cron job later to actually delete files older than 30 days.
 $sql = "SELECT d.*, e.first_name, e.last_name, e.emp_id AS real_emp_id 
@@ -39,10 +42,12 @@ $deletedDocs = $stmt->fetchAll(PDO::FETCH_ASSOC);
             <div>
                 <?php if (!empty($deletedDocs)): ?>
                     <form action="delete_document.php" method="POST" class="d-inline" onsubmit="confirmForm(event, 'Are you sure you want to restore ALL files to their original locations?')">
+                        <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token); ?>">
                         <input type="hidden" name="action" value="restore_all">
                         <button type="submit" class="btn btn-success me-2"><i class="bi bi-arrow-counterclockwise"></i> Restore All</button>
                     </form>
                     <form action="delete_document.php" method="POST" class="d-inline" onsubmit="confirmForm(event, 'WARNING: This will permanently delete ALL files in the Recycle Bin. This cannot be undone. Proceed?')">
+                        <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token); ?>">
                         <input type="hidden" name="action" value="empty_bin">
                         <button type="submit" class="btn btn-danger me-2"><i class="bi bi-fire"></i> Empty Bin</button>
                     </form>
@@ -86,6 +91,7 @@ $deletedDocs = $stmt->fetchAll(PDO::FETCH_ASSOC);
                                     <td class="text-end">
                                         <!-- RESTORE -->
                                         <form action="delete_document.php" method="POST" class="d-inline">
+                                            <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token); ?>">
                                             <input type="hidden" name="file_uuid" value="<?php echo $doc['file_uuid']; ?>">
                                             <input type="hidden" name="action" value="restore">
                                             <button type="submit" class="btn btn-sm btn-success" title="Restore">
@@ -95,6 +101,7 @@ $deletedDocs = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
                                         <!-- PERMANENT DELETE -->
                                         <form action="delete_document.php" method="POST" class="d-inline" onsubmit="confirmForm(event, 'Permanently delete this file? This cannot be undone.')">
+                                            <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token); ?>">
                                             <input type="hidden" name="file_uuid" value="<?php echo $doc['file_uuid']; ?>">
                                             <input type="hidden" name="action" value="permanent_delete">
                                             <button type="submit" class="btn btn-sm btn-outline-danger ms-1" title="Delete Forever">

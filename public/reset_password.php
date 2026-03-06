@@ -1,5 +1,6 @@
 <?php
 require '../config/db.php';
+session_start();
 $msg = '';
 $error = '';
 $step = 'verify'; // Default step: Ask for code
@@ -16,14 +17,21 @@ if ($token) {
 
     if ($user) {
         $step = 'reset'; // Token is valid, move to reset step
-    } else {
-        $error = "Invalid or expired code. Please try again.";
-        $step = 'verify'; // Stay on verify step
+        // generate CSRF token for reset form
+        $_SESSION['reset_csrf'] = bin2hex(random_bytes(32));
     }
 }
 
-// 3. HANDLE PASSWORD UPDATE
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'save_pass') {
+    // CSRF validation for password reset form
+    $csrfPosted = $_POST['csrf_token'] ?? '';
+    if (empty($_SESSION['reset_csrf']) || !hash_equals($_SESSION['reset_csrf'], $csrfPosted)) {
+        $error = "Security token mismatch. Please try again.";
+        $step = 'reset';
+    }
+    // clear token whether valid or not to prevent reuse
+    unset($_SESSION['reset_csrf']);
+
     $pass = $_POST['password'];
     $confirm = $_POST['confirm'];
     $validToken = $_POST['token_check']; // Hidden field
@@ -37,7 +45,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         if ($pass !== $confirm) {
             $error = "Passwords do not match.";
             $step = 'reset';
-        } elseif (strlen($pass) < 12 || !preg_match('/[a-zA-Z]/', $pass) || !preg_match('/[0-9]/', $pass) || !preg_match('/[\W_]/', $pass)) {
+        } elseif (strlen($pass) < 12 || strlen($pass) > 128 || !preg_match('/[a-zA-Z]/', $pass) || !preg_match('/[0-9]/', $pass) || !preg_match('/[\W_]/', $pass)) {
             $error = "Password must be 12+ chars, with a letter, number & symbol.";
             $step = 'reset';
         } else {
@@ -50,6 +58,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         $error = "Session expired. Please request a new code.";
         $step = 'verify';
     }
+}
+
+// regenerate CSRF token for reset step if it was cleared earlier
+if ($step === 'reset' && empty($_SESSION['reset_csrf'])) {
+    $_SESSION['reset_csrf'] = bin2hex(random_bytes(32));
 }
 ?>
 <!DOCTYPE html>
@@ -136,7 +149,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         </div>
 
         <div class="card-body px-4 pb-4">
-            <?php if ($error): ?><div class="alert alert-danger py-2 small text-center"><?php echo $error; ?></div><?php endif; ?>
+            <?php if ($error): ?><div class="alert alert-danger py-2 small text-center"><?php echo htmlspecialchars($error, ENT_QUOTES, 'UTF-8'); ?></div><?php endif; ?>
+
             <?php if (isset($_GET['sent'])): ?><div class="alert alert-success py-2 small text-center">📧 Code sent to your email!</div><?php endif; ?>
 
             <!-- STEP 1: ENTER CODE -->
@@ -162,6 +176,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 <form method="POST" id="resetForm">
                     <input type="hidden" name="action" value="save_pass">
                     <input type="hidden" name="token_check" value="<?php echo htmlspecialchars($token); ?>">
+                    <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['reset_csrf'] ?? ''); ?>">
 
                     <div class="mb-3">
                         <label class="form-label fw-bold small text-secondary text-uppercase">New Password</label>
@@ -224,7 +239,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             const rules = {
                 len: {
                     el: document.getElementById('rule-len'),
-                    regex: /.{12,}/
+                    regex: /^.{12,128}$/
                 },
                 let: {
                     el: document.getElementById('rule-let'),

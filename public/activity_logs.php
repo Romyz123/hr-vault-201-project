@@ -1,6 +1,7 @@
 <?php
 require '../config/db.php';
 require '../src/Security.php';
+require '../src/Validator.php';
 session_start();
 
 // 1. SECURITY: Only ADMIN and MANAGER can access
@@ -9,11 +10,21 @@ if (!isset($_SESSION['user_id']) || !in_array($_SESSION['role'], ['ADMIN', 'MANA
     exit;
 }
 
+$security = new Security($pdo);
+$csrf_token = $security->generateCSRF();
+
 // [NEW] HANDLE MANUAL LOG ENTRY
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_manual_log'])) {
+    if (!isset($_POST['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'])) {
+        die("Invalid CSRF Token");
+    }
+
     $action  = strtoupper(trim($_POST['log_action']));
     $details = trim($_POST['log_details']);
     $logDate = $_POST['log_date'];
+
+    if (strlen($action) > 50) die("Action type too long (Max 50 chars)");
+    if (strlen($details) > 1000) die("Details too long (Max 1000 chars)");
 
     if ($action && $details && $logDate) {
         $stmt = $pdo->prepare("INSERT INTO activity_logs (user_id, action, details, ip_address, created_at) VALUES (?, ?, ?, ?, ?)");
@@ -25,6 +36,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_manual_log'])) {
 
 // [NEW] HANDLE ARCHIVING (Admin Only)
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['archive_logs']) && $_SESSION['role'] === 'ADMIN') {
+    if (!isset($_POST['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'])) {
+        die("Invalid CSRF Token");
+    }
+
     try {
         // 1. Create Archive Table if not exists
         $pdo->exec("CREATE TABLE IF NOT EXISTS activity_logs_archive LIKE activity_logs");
@@ -52,6 +67,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['archive_logs']) && $_
 
 // [NEW] HANDLE CLEAR OLD LOGS (Admin Only)
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['clear_old_logs']) && $_SESSION['role'] === 'ADMIN') {
+    if (!isset($_POST['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'])) {
+        die("Invalid CSRF Token");
+    }
+
     try {
         // Define Cutoff (30 Days Ago)
         $cutoff = date('Y-m-d H:i:s', strtotime('-30 days'));
@@ -76,13 +95,9 @@ $topUser = $topUserStmt->fetch(PDO::FETCH_ASSOC);
 $topUserName = $topUser ? $topUser['username'] : 'N/A';
 
 // 3. PAGINATION, SEARCH & FILTER LOGIC
-$search = $_GET['search'] ?? '';
+$search = Validator::sanitizeSearch($_GET['search'] ?? '');
 $start_date = $_GET['start_date'] ?? '';
 $end_date   = $_GET['end_date'] ?? '';
-
-// [SECURITY] Limit & Sanitize Search
-if (strlen($search) > 50) $search = substr($search, 0, 50);
-$search = preg_replace('/[^a-zA-Z0-9\-_ ]/', '', $search);
 
 $page   = max(1, (int)($_GET['page'] ?? 1));
 $perPage = 20;
@@ -227,10 +242,12 @@ $logs = $stmt->fetchAll();
             <div>
                 <?php if ($_SESSION['role'] === 'ADMIN'): ?>
                     <form method="POST" class="d-inline" onsubmit="return confirm('This will move logs older than 1 year to the archive table. Proceed?');">
+                        <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token); ?>">
                         <input type="hidden" name="archive_logs" value="1">
                         <button type="submit" class="btn btn-outline-secondary me-2"><i class="bi bi-archive-fill"></i> Archive Old</button>
                     </form>
                     <form method="POST" class="d-inline" onsubmit="return confirm('This will PERMANENTLY DELETE logs older than 30 days. This cannot be undone. Proceed?');">
+                        <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token); ?>">
                         <input type="hidden" name="clear_old_logs" value="1">
                         <button type="submit" class="btn btn-outline-danger me-2"><i class="bi bi-trash3-fill"></i> Clear >30 Days</button>
                     </form>
@@ -421,11 +438,12 @@ $logs = $stmt->fetchAll();
                     <div class="alert alert-info small">
                         Use this to document offline actions (e.g., "Restored DB via phpMyAdmin") or system events that weren't captured automatically.
                     </div>
+                    <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token); ?>">
                     <input type="hidden" name="add_manual_log" value="1">
 
                     <div class="mb-3">
                         <label class="form-label fw-bold">Action Type</label>
-                        <input type="text" name="log_action" class="form-control" list="action_suggestions" placeholder="e.g. SYSTEM_RESTORE" required>
+                        <input type="text" name="log_action" class="form-control" list="action_suggestions" placeholder="e.g. SYSTEM_RESTORE" required maxlength="50" pattern="[A-Z0-9_]+">
                         <datalist id="action_suggestions">
                             <option value="SYSTEM_RESTORE">
                             <option value="MANUAL_FIX">
@@ -441,7 +459,7 @@ $logs = $stmt->fetchAll();
 
                     <div class="mb-3">
                         <label class="form-label fw-bold">Details</label>
-                        <textarea name="log_details" class="form-control" rows="3" placeholder="Describe what happened..." required></textarea>
+                        <textarea name="log_details" class="form-control" rows="3" placeholder="Describe what happened..." required maxlength="1000"></textarea>
                     </div>
                 </div>
                 <div class="modal-footer">

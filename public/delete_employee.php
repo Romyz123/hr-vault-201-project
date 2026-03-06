@@ -2,6 +2,7 @@
 // public/delete_employee.php
 require '../config/db.php';
 require '../src/Logger.php';
+require '../src/Security.php';
 session_start();
 
 // 1. SECURITY: Admin/HR Only
@@ -10,6 +11,13 @@ if (!isset($_SESSION['role']) || !in_array($_SESSION['role'], ['ADMIN', 'MANAGER
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $security = new Security($pdo);
+    if (!isset($_POST['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'])) {
+        $_SESSION['error'] = "Security Token Mismatch.";
+        header("Location: index.php");
+        exit;
+    }
+
     $id = $_POST['id'] ?? 0;
 
     // 2. GET EMPLOYEE INFO (To log the name)

@@ -34,36 +34,6 @@ if ($id <= 0) {
     exit;
 }
 
-// [NEW] Handle Evaluation Deletion (Admin/HR Only) - Convert to POST with CSRF
-if (isset($_POST['action']) && $_POST['action'] === 'delete_eval') {
-    // Verify CSRF token
-    if (empty($_POST['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'])) {
-        header("Location: edit_employee.php?id=$id&tab=eval&error=" . urlencode("❌ Security Error: Invalid Session Token."));
-        exit;
-    }
-
-    if (in_array($_SESSION['role'], ['ADMIN', 'MANAGER', 'HR'])) {
-        $delEvalId = (int)$_POST['eval_id'];
-        try {
-            // Only delete if it belongs to this employee
-            $stmt = $pdo->prepare("DELETE FROM performance_evaluations WHERE id = ? AND employee_id = ?");
-            $result = $stmt->execute([$delEvalId, $id]);
-
-            if ($result && $stmt->rowCount() > 0) {
-                header("Location: edit_employee.php?id=$id&tab=eval&msg=" . urlencode("✅ Evaluation Deleted"));
-                exit;
-            } else {
-                header("Location: edit_employee.php?id=$id&tab=eval&error=" . urlencode("❌ Evaluation not found."));
-                exit;
-            }
-        } catch (PDOException $e) {
-            error_log('Error deleting evaluation: ' . $e->getMessage());
-            header("Location: edit_employee.php?id=$id&tab=eval&error=" . urlencode("❌ Database error. Please try again."));
-            exit;
-        }
-    }
-}
-
 $stmt = $pdo->prepare("SELECT * FROM employees WHERE id = ?");
 $stmt->execute([$id]);
 $emp = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -80,23 +50,13 @@ $docStmt = $pdo->prepare("
 $docStmt->execute([$emp['emp_id']]);
 $myDocs = $docStmt->fetchAll(PDO::FETCH_ASSOC);
 
-// [NEW] Fetch Evaluations
+// [NEW] Fetch Evaluations (Legacy)
 $evals = [];
 try {
     $evalStmt = $pdo->prepare("SELECT * FROM performance_evaluations WHERE employee_id = ? ORDER BY eval_date DESC");
     $evalStmt->execute([$id]);
     $evals = $evalStmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (PDOException $e) {
-    // Table doesn't exist yet. Ignore to prevent crash.
-}
-
-// [CHART DATA] Prepare for Performance Graph
-$chartLabels = [];
-$chartScores = [];
-$reversedEvals = array_reverse($evals); // Chronological order for line chart
-foreach ($reversedEvals as $ev) {
-    $chartLabels[] = date('M Y', strtotime($ev['eval_date']));
-    $chartScores[] = (int)$ev['score'];
 }
 
 // 3. CONFIGURATION
@@ -138,61 +98,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         die("❌ Security Error: Invalid Session Token. Please refresh the page and try again.");
     }
 
-    // [NEW] Handle Performance Evaluation
+    // [NEW] Handle Add Evaluation
     if (isset($_POST['action']) && $_POST['action'] === 'add_eval') {
-        // Validate eval_date format and range
-        $eval_date = $_POST['eval_date'] ?? '';
-        if (empty($eval_date)) {
-            header("Location: edit_employee.php?id=$id&tab=eval&error=" . urlencode("❌ Evaluation date is required."));
+        $eval_date = $_POST['eval_date'];
+        $score = (int)$_POST['score'];
+        $remarks = trim($_POST['remarks']);
+        $evaluator = trim($_POST['evaluator']);
+
+        // [SECURITY] Validation
+        if ($score < 1 || $score > 100) {
+            header("Location: edit_employee.php?id=$id&tab=eval&error=" . urlencode("❌ Score must be between 1 and 100."));
+            exit;
+        }
+        if (strlen($evaluator) > 100) {
+            header("Location: edit_employee.php?id=$id&tab=eval&error=" . urlencode("❌ Evaluator name is too long (Max 100 chars)."));
+            exit;
+        }
+        if (!preg_match('/^[a-zA-Z\s\-\.\,]+$/', $evaluator)) {
+            header("Location: edit_employee.php?id=$id&tab=eval&error=" . urlencode("❌ Evaluator name contains invalid characters (Letters only)."));
+            exit;
+        }
+        if (strlen($remarks) > 1000) {
+            header("Location: edit_employee.php?id=$id&tab=eval&error=" . urlencode("❌ Remarks are too long (Max 1000 chars)."));
             exit;
         }
 
-        // Parse and validate date
-        $dateObj = DateTime::createFromFormat('Y-m-d', $eval_date);
-        if (!$dateObj || $dateObj->format('Y-m-d') !== $eval_date) {
-            header("Location: edit_employee.php?id=$id&tab=eval&error=" . urlencode("❌ Invalid date format. Use YYYY-MM-DD."));
-            exit;
-        }
-
-        // Check for future dates
-        $today = new DateTime();
-        if ($dateObj > $today) {
-            header("Location: edit_employee.php?id=$id&tab=eval&error=" . urlencode("❌ Evaluation date cannot be in the future."));
-            exit;
-        }
-
-        // Check minimum date (e.g., not before 1900-01-01 or before hire date)
-        $minDate = DateTime::createFromFormat('Y-m-d', '1900-01-01');
-        if ($dateObj < $minDate) {
-            header("Location: edit_employee.php?id=$id&tab=eval&error=" . urlencode("❌ Evaluation date is too far in the past."));
-            exit;
-        }
-
-        $score     = (int)$_POST['score'];
-        $remarks   = trim($_POST['remarks']);
-        $evaluator = trim($_POST['evaluator'] ?? ($_SESSION['username'] ?? 'Admin'));
-
-        // [VALIDATION] Evaluator Name (No numbers/special chars)
-        if (!preg_match("/^[a-zA-Z\s\-\.]+$/", $evaluator)) {
-            header("Location: edit_employee.php?id=$id&tab=eval&error=" . urlencode("❌ Invalid Evaluator Name. Allowed: Letters, spaces, dots, dashes."));
-            exit;
-        }
-        if (strlen($evaluator) > 50) {
-            header("Location: edit_employee.php?id=$id&tab=eval&error=" . urlencode("❌ Evaluator Name too long (Max 50 chars)."));
-            exit;
-        }
-        if (strlen($remarks) > 200) {
-            header("Location: edit_employee.php?id=$id&tab=eval&error=" . urlencode("❌ Remarks too long (Max 200 chars)."));
-            exit;
-        }
-
-        // [VALIDATION] Score Limit (0-100)
-        if ($score < 0 || $score > 100) {
-            header("Location: edit_employee.php?id=$id&tab=eval&error=" . urlencode("❌ Invalid Score: Must be between 0 and 100."));
-            exit;
-        }
-
-        // Auto-Rating Logic
+        // Auto-Rating
         $rating = 'Poor';
         if ($score >= 90) $rating = 'Excellent';
         elseif ($score >= 80) $rating = 'Very Good';
@@ -201,9 +132,49 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         $stmt = $pdo->prepare("INSERT INTO performance_evaluations (employee_id, eval_date, score, rating, remarks, evaluator) VALUES (?, ?, ?, ?, ?, ?)");
         $stmt->execute([$id, $eval_date, $score, $rating, $remarks, $evaluator]);
-
         header("Location: edit_employee.php?id=$id&tab=eval&msg=" . urlencode("✅ Evaluation Added"));
         exit;
+    }
+
+    // [NEW] Handle Edit Evaluation
+    if (isset($_POST['action']) && $_POST['action'] === 'edit_eval') {
+        $eval_id = (int)$_POST['eval_id'];
+        $eval_date = $_POST['eval_date'];
+        $score = (int)$_POST['score'];
+        $remarks = trim($_POST['remarks']);
+        $evaluator = trim($_POST['evaluator']);
+
+        // [SECURITY] Validation
+        if ($score < 1 || $score > 100) {
+            header("Location: edit_employee.php?id=$id&tab=eval&error=" . urlencode("❌ Score must be between 1 and 100."));
+            exit;
+        }
+        if (!preg_match('/^[a-zA-Z\s\-\.\,]+$/', $evaluator)) {
+            header("Location: edit_employee.php?id=$id&tab=eval&error=" . urlencode("❌ Evaluator name contains invalid characters (Letters only)."));
+            exit;
+        }
+
+        // Auto-Rating
+        $rating = 'Poor';
+        if ($score >= 90) $rating = 'Excellent';
+        elseif ($score >= 80) $rating = 'Very Good';
+        elseif ($score >= 70) $rating = 'Satisfactory';
+        elseif ($score >= 60) $rating = 'Needs Improvement';
+
+        $stmt = $pdo->prepare("UPDATE performance_evaluations SET eval_date = ?, score = ?, rating = ?, remarks = ?, evaluator = ? WHERE id = ?");
+        $stmt->execute([$eval_date, $score, $rating, $remarks, $evaluator, $eval_id]);
+        header("Location: edit_employee.php?id=$id&tab=eval&msg=" . urlencode("✅ Evaluation Updated"));
+        exit;
+    }
+
+    // [NEW] Handle Delete Evaluation
+    if (isset($_POST['action']) && $_POST['action'] === 'delete_eval') {
+        if (in_array($_SESSION['role'], ['ADMIN', 'MANAGER', 'HR'])) {
+            $delEvalId = (int)$_POST['eval_id'];
+            $pdo->prepare("DELETE FROM performance_evaluations WHERE id = ?")->execute([$delEvalId]);
+            header("Location: edit_employee.php?id=$id&tab=eval&msg=" . urlencode("✅ Evaluation Deleted"));
+            exit;
+        }
     }
 
     // [NEW] Handle Delete All Documents
@@ -451,7 +422,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($emergency_name !== '' && !preg_match("/^[a-zA-Z\s\-\.]+$/", $emergency_name)) $errors[] = "Emergency Contact Name contains invalid characters.";
 
     // [SECURITY] Qualifications Validation
-    $qualRegex = "/^[a-zA-Z0-9\s\.,\-\(\)\/]*$/";
+    $qualRegex = "/^[a-zA-Z0-9\s\.,\-\(\)\/\':]*$/";
     if (!preg_match($qualRegex, $education))  $errors[] = "Education contains invalid characters.";
     if (!preg_match($qualRegex, $experience)) $errors[] = "Experience contains invalid characters.";
     if (!preg_match($qualRegex, $skills))     $errors[] = "Skills contains invalid characters.";
@@ -648,14 +619,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </style>
 </head>
 
-<body class="bg-light">
+<body class="bg-body-tertiary">
 
     <div class="container mt-5 mb-5">
 
         <div class="card shadow">
             <div class="card-header bg-warning text-dark d-flex justify-content-between align-items-center">
                 <h5 class="mb-0">✏️ Edit: <?php echo h($emp['first_name'] . ' ' . $emp['last_name']); ?></h5>
-                <a href="index.php" class="btn btn-sm btn-dark">Back</a>
+                <div class="d-flex align-items-center gap-2">
+                    <button id="darkModeToggle" class="btn btn-sm btn-outline-dark border-0" title="Toggle Dark Mode">
+                        <i class="bi bi-moon-stars-fill"></i>
+                    </button>
+                    <a href="performance_review.php?search=<?php echo h($emp['emp_id']); ?>" class="btn btn-sm btn-primary me-1"><i class="bi bi-clipboard2-data-fill"></i> Performance Reviews</a>
+                    <a href="index.php" class="btn btn-sm btn-dark">Back</a>
+                </div>
             </div>
             <div class="card-body">
 
@@ -681,7 +658,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <ul class="nav nav-tabs mb-4" id="profileTabs" role="tablist">
                     <li class="nav-item"><button class="nav-link active fw-bold" id="details-tab" data-bs-toggle="tab" data-bs-target="#details" type="button"><i class="bi bi-person-vcard"></i> Personal Details</button></li>
                     <li class="nav-item"><button class="nav-link fw-bold" id="docs-tab" data-bs-toggle="tab" data-bs-target="#docs" type="button"><i class="bi bi-folder2-open"></i> Digital 201 File <span class="badge bg-secondary rounded-pill ms-1"><?php echo count($myDocs); ?></span></button></li>
-                    <li class="nav-item"><button class="nav-link fw-bold" id="eval-tab" data-bs-toggle="tab" data-bs-target="#eval" type="button"><i class="bi bi-graph-up-arrow"></i> Performance</button></li>
+                    <li class="nav-item"><button class="nav-link fw-bold" id="eval-tab" data-bs-toggle="tab" data-bs-target="#eval" type="button"><i class="bi bi-graph-up-arrow"></i> Evaluation</button></li>
                 </ul>
 
                 <div class="tab-content" id="profileTabsContent">
@@ -882,22 +859,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             <div class="row g-3">
                                 <div class="col-12">
                                     <label class="form-label">Education</label>
-                                    <textarea name="education" class="form-control" rows="2" maxlength="1000" spellcheck="true" lang="en" style="text-align: center; white-space: pre-wrap; word-wrap: break-word;" oninput="this.value = this.value.replace(/[^a-zA-Z0-9\s\.,\-\(\)\/]/g, '')"><?php echo val('education'); ?></textarea>
+                                    <textarea name="education" class="form-control" rows="2" maxlength="1000" spellcheck="true" lang="en" style="text-align: center; white-space: pre-wrap; word-wrap: break-word;" oninput="this.value = this.value.replace(/[^a-zA-Z0-9\s\.,\-\(\)\/\':]/g, '')"><?php echo val('education'); ?></textarea>
                                     <div class="form-text small text-center">Max 1000 chars. Text auto-wraps. Press Enter for new lines.</div>
                                 </div>
                                 <div class="col-12">
                                     <label class="form-label">Experience</label>
-                                    <textarea name="experience" class="form-control" rows="2" maxlength="1000" spellcheck="true" lang="en" style="text-align: center; white-space: pre-wrap; word-wrap: break-word;" oninput="this.value = this.value.replace(/[^a-zA-Z0-9\s\.,\-\(\)\/]/g, '')"><?php echo val('experience'); ?></textarea>
+                                    <textarea name="experience" class="form-control" rows="2" maxlength="1000" spellcheck="true" lang="en" style="text-align: center; white-space: pre-wrap; word-wrap: break-word;" oninput="this.value = this.value.replace(/[^a-zA-Z0-9\s\.,\-\(\)\/\':]/g, '')"><?php echo val('experience'); ?></textarea>
                                     <div class="form-text small text-center">Max 1000 chars. Text auto-wraps. Press Enter for new lines.</div>
                                 </div>
                                 <div class="col-md-6">
                                     <label class="form-label">Skills</label>
-                                    <textarea name="skills" class="form-control" rows="2" maxlength="1000" spellcheck="true" lang="en" style="text-align: center; white-space: pre-wrap; word-wrap: break-word;" oninput="this.value = this.value.replace(/[^a-zA-Z0-9\s\.,\-\(\)\/]/g, '')"><?php echo val('skills'); ?></textarea>
+                                    <textarea name="skills" class="form-control" rows="2" maxlength="1000" spellcheck="true" lang="en" style="text-align: center; white-space: pre-wrap; word-wrap: break-word;" oninput="this.value = this.value.replace(/[^a-zA-Z0-9\s\.,\-\(\)\/\':]/g, '')"><?php echo val('skills'); ?></textarea>
                                     <div class="form-text small text-center">Max 1000 chars. Text auto-wraps. Press Enter for new lines.</div>
                                 </div>
                                 <div class="col-md-6">
                                     <label class="form-label">Licenses / Certifications</label>
-                                    <textarea name="licenses" class="form-control" rows="2" maxlength="1000" spellcheck="true" lang="en" style="text-align: center; white-space: pre-wrap; word-wrap: break-word;" oninput="this.value = this.value.replace(/[^a-zA-Z0-9\s\.,\-\(\)\/]/g, '')"><?php echo val('licenses'); ?></textarea>
+                                    <textarea name="licenses" class="form-control" rows="2" maxlength="1000" spellcheck="true" lang="en" style="text-align: center; white-space: pre-wrap; word-wrap: break-word;" oninput="this.value = this.value.replace(/[^a-zA-Z0-9\s\.,\-\(\)\/\':]/g, '')"><?php echo val('licenses'); ?></textarea>
                                     <div class="form-text small">Max 1000 chars. Type N/A if not applicable. Press Enter for new lines.</div>
                                 </div>
                             </div>
@@ -1005,21 +982,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <?php endif; ?>
                     </div>
 
-                    <!-- TAB 3: PERFORMANCE EVALUATION -->
+                    <!-- TAB 3: EVALUATION -->
                     <div class="tab-pane fade" id="eval" role="tabpanel">
                         <div class="d-flex justify-content-between align-items-center mb-3">
-                            <h6 class="fw-bold text-primary mb-0">📊 Performance Reviews</h6>
+                            <h6 class="fw-bold text-primary mb-0">📊 Evaluation History</h6>
                             <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#addEvalModal"><i class="bi bi-plus-circle"></i> Add Evaluation</button>
                         </div>
-
-                        <?php if (!empty($evals)): ?>
-                            <div class="card mb-4 border-0 shadow-sm">
-                                <div class="card-body" style="height: 300px;">
-                                    <canvas id="perfChart"></canvas>
-                                </div>
-                            </div>
-                        <?php endif; ?>
-
                         <div class="table-responsive">
                             <table class="table table-hover align-middle">
                                 <thead class="table-light">
@@ -1042,34 +1010,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                     ?>
                                         <tr>
                                             <td><?php echo htmlspecialchars(date('M d, Y', strtotime($ev['eval_date']))); ?></td>
-                                            <td><span class="badge <?php echo $badge; ?> fs-6"><?php echo $ev['score']; ?>%</span></td>
+                                            <td><span class="badge <?php echo $badge; ?>"><?php echo $ev['score']; ?>%</span></td>
                                             <td><?php echo htmlspecialchars($ev['rating']); ?></td>
-                                            <td class="small text-muted"><?php echo htmlspecialchars($ev['evaluator']); ?></td>
-                                            <td class="small text-muted fst-italic" style="text-align: center; white-space: pre-wrap; word-wrap: break-word;"><?php echo htmlspecialchars($ev['remarks']); ?></td>
+                                            <td><?php echo htmlspecialchars($ev['evaluator']); ?></td>
+                                            <td class="small text-muted"><?php echo htmlspecialchars($ev['remarks']); ?></td>
                                             <td>
-                                                <a href="print_evaluation.php?id=<?php echo $ev['id']; ?>" target="_blank" class="btn btn-sm btn-outline-dark" title="Print Report"><i class="bi bi-printer"></i></a>
-                                                <?php if (in_array($_SESSION['role'], ['ADMIN', 'MANAGER', 'HR'])): ?>
-                                                    <form method="POST" class="d-inline" onsubmit="return confirm('Are you sure you want to delete this evaluation?');">
-                                                        <input type="hidden" name="action" value="delete_eval">
-                                                        <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
-                                                        <input type="hidden" name="eval_id" value="<?php echo $ev['id']; ?>">
-                                                        <button type="submit" class="btn btn-sm btn-outline-danger ms-1" title="Delete Evaluation">
-                                                            <i class="bi bi-trash"></i>
-                                                        </button>
-                                                    </form>
-                                                <?php endif; ?>
+                                                <a href="print_evaluation.php?id=<?php echo $ev['id']; ?>" target="_blank" class="btn btn-sm btn-outline-dark" title="Print"><i class="bi bi-printer"></i></a>
+                                                <button type="button" class="btn btn-sm btn-outline-primary"
+                                                    onclick='openEditEvalModal(<?php echo $ev['id']; ?>, <?php echo json_encode($ev['eval_date']); ?>, <?php echo $ev['score']; ?>, <?php echo json_encode($ev['evaluator'], JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP); ?>, <?php echo json_encode($ev['remarks'], JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP); ?>)'>
+                                                    <i class="bi bi-pencil"></i>
+                                                </button>
+                                                <form method="POST" class="d-inline" onsubmit="confirmDeleteEval(event, this)">
+                                                    <input type="hidden" name="action" value="delete_eval">
+                                                    <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
+                                                    <input type="hidden" name="eval_id" value="<?php echo $ev['id']; ?>">
+                                                    <button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
+                                                </form>
                                             </td>
                                         </tr>
                                     <?php endforeach; ?>
-                                    <?php if (empty($evals)): ?>
-                                        <tr>
-                                            <td colspan="6" class="text-center text-muted py-4">No evaluations recorded yet.</td>
-                                        </tr>
-                                    <?php endif; ?>
                                 </tbody>
                             </table>
                         </div>
                     </div>
+
                 </div>
             </div>
         </div>
@@ -1140,6 +1104,93 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
                     <button type="submit" class="btn btn-warning">Save Changes</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- ADD EVALUATION MODAL -->
+    <div class="modal fade" id="addEvalModal" tabindex="-1">
+        <div class="modal-dialog">
+            <form class="modal-content" method="POST">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title">Add Evaluation</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" name="action" value="add_eval">
+                    <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Evaluation Date</label>
+                        <input type="date" name="eval_date" class="form-control" value="<?php echo date('Y-m-d'); ?>" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Evaluator Name</label>
+                        <input type="text" name="evaluator" class="form-control" value="<?php echo h($_SESSION['username'] ?? ''); ?>" required maxlength="100"
+                            pattern="[a-zA-Z\s\-\.\,]+" title="Allowed: Letters, spaces, dots, dashes, commas"
+                            oninput="this.value = this.value.replace(/[^a-zA-Z\s\-\.\,]/g, '')">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Score (1-100)</label>
+                        <input type="number" name="score" class="form-control" min="1" max="100" placeholder="e.g. 85" required
+                            oninput="this.value = this.value.slice(0, 3); if(this.value > 100) this.value = 100;"
+                            onkeypress="return event.charCode >= 48 && event.charCode <= 57">
+                        <div class="mt-2 p-2 bg-light border rounded small">
+                            <h6 class="fw-bold mb-1 text-primary">🎯 Promotion & Qualification Guide</h6>
+                            <ul class="list-unstyled mb-0 ps-1">
+                                <li><span class="badge bg-success">90 - 100</span> <strong>Excellent</strong> (Ready for Promotion)</li>
+                                <li><span class="badge bg-primary">80 - 89</span> <strong>Very Good</strong> (Qualified for Regularization)</li>
+                                <li><span class="badge bg-info text-dark">70 - 79</span> <strong>Satisfactory</strong> (Retain)</li>
+                                <li><span class="badge bg-warning text-dark">60 - 69</span> <strong>Needs Improvement</strong> (PIP Required)</li>
+                                <li><span class="badge bg-danger">0 - 59</span> <strong>Poor</strong> (Risk of Termination)</li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Remarks / Comments</label>
+                        <textarea name="remarks" class="form-control" rows="3" maxlength="1000" placeholder="Strengths, weaknesses, areas for improvement..."></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- EDIT EVALUATION MODAL -->
+    <div class="modal fade" id="editEvalModal" tabindex="-1">
+        <div class="modal-dialog">
+            <form class="modal-content" method="POST">
+                <div class="modal-header bg-warning text-dark">
+                    <h5 class="modal-title">Edit Evaluation</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" name="action" value="edit_eval">
+                    <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
+                    <input type="hidden" name="eval_id" id="edit_eval_id">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Evaluation Date</label>
+                        <input type="date" name="eval_date" id="edit_eval_date" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Evaluator Name</label>
+                        <input type="text" name="evaluator" id="edit_evaluator" class="form-control" required maxlength="100" pattern="[a-zA-Z\s\-\.\,]+" title="Allowed: Letters, spaces, dots, dashes, commas" oninput="this.value = this.value.replace(/[^a-zA-Z\s\-\.\,]/g, '')">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Score (1-100)</label>
+                        <input type="number" name="score" id="edit_score" class="form-control" min="1" max="100" required oninput="this.value = this.value.slice(0, 3); if(this.value > 100) this.value = 100;">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Remarks</label>
+                        <textarea name="remarks" id="edit_remarks" class="form-control" rows="3" maxlength="1000"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-warning">Update</button>
                 </div>
             </form>
         </div>
@@ -1325,55 +1376,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         </div>
     </div>
 
-    <!-- ADD EVALUATION MODAL -->
-    <div class="modal fade" id="addEvalModal" tabindex="-1">
-        <div class="modal-dialog">
-            <form class="modal-content" method="POST">
-                <div class="modal-header bg-primary text-white">
-                    <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
-                    <h5 class="modal-title">Add Performance Review</h5>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body">
-                    <input type="hidden" name="action" value="add_eval">
-                    <div class="mb-3">
-                        <label class="form-label fw-bold">Evaluation Date</label>
-                        <input type="date" name="eval_date" class="form-control" value="<?php echo date('Y-m-d'); ?>" required>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label fw-bold">Evaluator Name</label>
-                        <input type="text" name="evaluator" class="form-control" value="<?php echo h($_SESSION['username'] ?? ''); ?>" placeholder="Name of Evaluator" required pattern="[a-zA-Z\s\-\.]+" title="Allowed: Letters, spaces, dots, dashes" oninput="this.value = this.value.replace(/[^a-zA-Z\s\-\.]/g, '')" maxlength="50">
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label fw-bold">Score (0-100)</label>
-                        <input type="number" name="score" class="form-control" min="0" max="100" placeholder="e.g. 85" required oninput="if(this.value>100)this.value=100; if(this.value<0)this.value=0;">
-
-                        <div class="mt-2 p-2 bg-light border rounded small">
-                            <h6 class="fw-bold mb-1 text-primary">🎯 Promotion & Qualification Guide</h6>
-                            <ul class="list-unstyled mb-0 ps-1">
-                                <li><span class="badge bg-success">90 - 100</span> <strong>Excellent</strong> (Ready for Promotion)</li>
-                                <li><span class="badge bg-primary">80 - 89</span> <strong>Very Good</strong> (Qualified for Regularization)</li>
-                                <li><span class="badge bg-info text-dark">70 - 79</span> <strong>Satisfactory</strong> (Retain)</li>
-                                <li><span class="badge bg-warning text-dark">60 - 69</span> <strong>Needs Improvement</strong> (PIP Required)</li>
-                                <li><span class="badge bg-danger">0 - 59</span> <strong>Poor</strong> (Risk of Termination)</li>
-                            </ul>
-                        </div>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Remarks / Comments</label>
-                        <textarea name="remarks" class="form-control" rows="3" placeholder="Strengths, weaknesses, areas for improvement..." spellcheck="true" lang="en" maxlength="200" style="text-align: center; white-space: pre-wrap; word-wrap: break-word;"></textarea>
-                        <div class="form-text text-end small">Max 200 characters. Press Enter for new lines.</div>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-primary">Save Review</button>
-                </div>
-            </form>
-        </div>
-    </div>
-
     <script src="assets/bootstrap.bundle.min.js"></script>
+    <script src="dark_mode.js"></script>
     <script>
         // Logic for Sections and Auto-Capitalize
         const sectionMap = <?php echo json_encode($sectionFriendlyMap); ?>;
@@ -1504,6 +1508,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     if (form) form.submit();
                 }
             });
+        }
+
+        function confirmDeleteEval(e, form) {
+            e.preventDefault();
+            Swal.fire({
+                title: 'Delete Evaluation?',
+                text: "This action cannot be undone.",
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#dc3545',
+                confirmButtonText: 'Yes, delete it!'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    form.submit();
+                }
+            });
+        }
+
+        function openEditEvalModal(id, date, score, evaluator, remarks) {
+            document.getElementById('edit_eval_id').value = id;
+            document.getElementById('edit_eval_date').value = date;
+            document.getElementById('edit_score').value = score;
+            document.getElementById('edit_evaluator').value = evaluator;
+            document.getElementById('edit_remarks').value = remarks;
+            new bootstrap.Modal(document.getElementById('editEvalModal')).show();
         }
 
         // [NEW] Tab Persistence Logic
@@ -1874,54 +1903,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             // 4. Also calculate dates
             calcEndDate();
-
-            // PERFORMANCE CHART
-            <?php if (!empty($evals)): ?>
-                const ctxPerf = document.getElementById('perfChart');
-                if (ctxPerf) {
-                    new Chart(ctxPerf, {
-                        type: 'line',
-                        data: {
-                            labels: <?php echo json_encode($chartLabels); ?>,
-                            datasets: [{
-                                label: 'Score',
-                                data: <?php echo json_encode($chartScores); ?>,
-                                borderColor: '#0d6efd',
-                                backgroundColor: 'rgba(13, 110, 253, 0.1)',
-                                borderWidth: 2,
-                                fill: true,
-                                tension: 0.3,
-                                pointBackgroundColor: '#fff',
-                                pointBorderColor: '#0d6efd',
-                                pointRadius: 5
-                            }]
-                        },
-                        options: {
-                            responsive: true,
-                            maintainAspectRatio: false,
-                            scales: {
-                                y: {
-                                    beginAtZero: true,
-                                    max: 100,
-                                    grid: {
-                                        borderDash: [2, 2]
-                                    }
-                                },
-                                x: {
-                                    grid: {
-                                        display: false
-                                    }
-                                }
-                            },
-                            plugins: {
-                                legend: {
-                                    display: false
-                                }
-                            }
-                        }
-                    });
-                }
-            <?php endif; ?>
         });
 
         // [NEW] Auto-Resize Textareas (On Input, On Load, On Modal Show)

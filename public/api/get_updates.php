@@ -32,8 +32,8 @@ try {
         if ($pCount > 0) {
             $notifCount++;
             $pendingHtml = '
-            <li class="border-bottom py-2 px-3 bg-light">
-                <a href="admin_approval.php" class="text-decoration-none text-dark d-block">
+            <li class="border-bottom py-2 px-3 bg-body-tertiary">
+                <a href="admin_approval.php" class="text-decoration-none text-body d-block">
                     <div class="d-flex align-items-center">
                         <i class="bi bi-clipboard-data-fill text-primary fs-5 me-2"></i>
                         <div style="line-height: 1.2;">
@@ -49,7 +49,7 @@ try {
     // Generate HTML for Dropdown
     ob_start();
     if ($notifCount > 0) {
-        echo '<li><h6 class="dropdown-header bg-light border-bottom fw-bold">Notifications</h6></li>';
+        echo '<li><h6 class="dropdown-header bg-body-tertiary border-bottom fw-bold">Notifications</h6></li>';
         echo $pendingHtml; // Show pending requests at the top
         foreach ($notifications as $notif) {
             $days = ceil((strtotime($notif['expiry_date']) - time()) / (60 * 60 * 24));
@@ -60,13 +60,13 @@ try {
             echo '
             <li class="border-bottom py-2 px-3">
                 <div class="d-flex justify-content-between align-items-center">
-                    <a href="index.php?search=' . htmlspecialchars($notif['emp_id']) . '" class="text-decoration-none text-dark w-100">
+                    <a href="index.php?search=' . htmlspecialchars($notif['emp_id']) . '" class="text-decoration-none text-body w-100">
                         <div class="d-flex align-items-center">
                             <i class="bi ' . $icon . ' ' . $color . ' fs-5 me-2"></i>
                             <div style="line-height: 1.2;">
                                 <small class="fw-bold d-block">' . htmlspecialchars($notif['first_name'] . ' ' . $notif['last_name']) . '</small>
                                 <span class="text-muted" style="font-size: 0.75rem;">
-                                    ' . htmlspecialchars($notif['category']) . ': <em class="text-dark">' . htmlspecialchars($notif['original_name']) . '</em>
+                                    ' . htmlspecialchars($notif['category']) . ': <em class="text-body">' . htmlspecialchars($notif['original_name']) . '</em>
                                 </span>
                                 <br><span class="extra-small fw-bold ' . $color . '">' . $msg . '</span>
                             </div>

@@ -13,10 +13,20 @@ if (!isset($_SESSION['partial_user_id'])) {
 $error = "";
 $success = "";
 $logger = new Logger($pdo);
+$security = new Security($pdo); // [NEW] Init Security
+$csrf_token = $security->generateCSRF(); // [SECURITY] Generate Token
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    // [SECURITY] Rate Limit IP (15 req/min) to slow down automated attacks
+    if (!$security->checkRateLimit($_SERVER['REMOTE_ADDR'], 15, 60)) {
+        $error = "⛔ Too many requests. Please wait a minute.";
+    }
+    // [SECURITY] CSRF Check
+    elseif (empty($_POST['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'])) {
+        $error = "❌ Security Token Mismatch. Please refresh and try again.";
+    }
     // [NEW] Handle Resend Request
-    if (isset($_POST['action']) && $_POST['action'] === 'resend') {
+    elseif (isset($_POST['action']) && $_POST['action'] === 'resend') {
         $userId = $_SESSION['partial_user_id'];
         // [FIX] Use DB time difference to avoid Timezone issues (PHP time vs MySQL NOW)
         $stmt = $pdo->prepare("SELECT email, TIMESTAMPDIFF(SECOND, NOW(), otp_expires) as seconds_remaining FROM users WHERE id = ?");
@@ -43,41 +53,60 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $error = "❌ Error: Email not found.";
         }
     } elseif (isset($_POST['otp_code'])) {
-        $code = trim($_POST['otp_code']);
-        $userId = $_SESSION['partial_user_id'];
+        // [SECURITY] Max Attempts Check (Brute Force Protection)
+        if (!isset($_SESSION['otp_attempts'])) $_SESSION['otp_attempts'] = 0;
 
-        // Verify OTP
-        $stmt = $pdo->prepare("SELECT * FROM users WHERE id = ? AND otp_code = ? AND otp_expires > NOW()");
-        $stmt->execute([$userId, $code]);
-        $user = $stmt->fetch();
-
-        if ($user) {
-            // SUCCESS: Log them in fully
-            $_SESSION['user_id'] = $user['id'];
-            $_SESSION['username'] = $user['username'];
-            $_SESSION['role'] = $user['role'];
-
-            // Clear OTP
-            $sql = "UPDATE users SET otp_code = NULL, otp_expires = NULL";
-
-            // [NEW] Handle "Trust Device" (Remember Me)
-            if (isset($_POST['trust_device'])) {
-                $token = bin2hex(random_bytes(32));
-                $hash = hash('sha256', $token);
-                $expires = date('Y-m-d H:i:s', time() + (30 * 24 * 60 * 60)); // 30 Days
-                $sql .= ", trusted_device_token = '$hash', trusted_device_expires = '$expires'";
-                setcookie('hr_trust_device', $token, time() + (30 * 24 * 60 * 60), "/", "", false, true);
-            }
-
-            $pdo->prepare("$sql WHERE id = ?")->execute([$userId]);
-            unset($_SESSION['partial_user_id']);
-
-            $logger->log($user['id'], 'LOGIN_2FA', "2FA Verified Successfully");
-            header("Location: index.php");
+        if ($_SESSION['otp_attempts'] >= 5) {
+            $logger->log($_SESSION['partial_user_id'], 'OTP_FAIL_LIMIT', "Exceeded max OTP attempts");
+            unset($_SESSION['partial_user_id']); // Invalidate session
+            unset($_SESSION['otp_attempts']);
+            header("Location: login.php?error=" . urlencode("❌ Too many failed attempts. Please login again."));
             exit;
+        }
+
+        $code = trim($_POST['otp_code'] ?? '');
+        // must be exactly 6 digits
+        if (strlen($code) !== 6 || !ctype_digit($code)) {
+            $error = "❌ Invalid OTP Code.";
         } else {
-            $error = "❌ Invalid or Expired OTP Code.";
-            $logger->log($userId, 'LOGIN_FAIL_2FA', "Failed 2FA attempt");
+            $userId = $_SESSION['partial_user_id'];
+
+            // Verify OTP
+            $stmt = $pdo->prepare("SELECT * FROM users WHERE id = ? AND otp_code = ? AND otp_expires > NOW()");
+            $stmt->execute([$userId, $code]);
+            $user = $stmt->fetch();
+
+            if ($user) {
+                // SUCCESS: Log them in fully
+                $_SESSION['user_id'] = $user['id'];
+                $_SESSION['username'] = $user['username'];
+                $_SESSION['role'] = $user['role'];
+                unset($_SESSION['otp_attempts']); // [SECURITY] Reset counter on success
+
+                // Clear OTP
+                $sql = "UPDATE users SET otp_code = NULL, otp_expires = NULL";
+
+                // [NEW] Handle "Trust Device" (Remember Me)
+                if (isset($_POST['trust_device'])) {
+                    $token = bin2hex(random_bytes(32));
+                    $hash = hash('sha256', $token);
+                    $expires = date('Y-m-d H:i:s', time() + (30 * 24 * 60 * 60)); // 30 Days
+                    $sql .= ", trusted_device_token = '$hash', trusted_device_expires = '$expires'";
+                    setcookie('hr_trust_device', $token, time() + (30 * 24 * 60 * 60), "/", "", false, true);
+                }
+
+                $pdo->prepare("$sql WHERE id = ?")->execute([$userId]);
+                unset($_SESSION['partial_user_id']);
+
+                $logger->log($user['id'], 'LOGIN_2FA', "2FA Verified Successfully");
+                header("Location: index.php");
+                exit;
+            } else {
+                $_SESSION['otp_attempts']++;
+                $remaining = 5 - $_SESSION['otp_attempts'];
+                $error = "❌ Invalid or Expired OTP Code. ($remaining attempts remaining)";
+                $logger->log($userId, 'LOGIN_FAIL_2FA', "Failed 2FA attempt");
+            }
         }
     }
 }
@@ -132,6 +161,7 @@ if ($secondsRemaining > 840) {
         <?php endif; ?>
 
         <form method="POST">
+            <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token); ?>">
             <div class="mb-3">
                 <label class="form-label fw-bold">Enter OTP Code</label>
                 <input type="text" name="otp_code" class="form-control text-center fs-4 letter-spacing-2" maxlength="6" placeholder="123456" required autofocus pattern="[0-9]*" inputmode="numeric" oninput="this.value = this.value.replace(/[^0-9]/g, '')">
@@ -146,6 +176,7 @@ if ($secondsRemaining > 840) {
         </form>
         <form method="POST" class="text-center mt-3">
             <input type="hidden" name="action" value="resend">
+            <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token); ?>">
             <button type="submit" id="resendBtn" class="btn btn-link text-decoration-none p-0 small">Resend Code</button>
         </form>
         <div class="text-center mt-3">

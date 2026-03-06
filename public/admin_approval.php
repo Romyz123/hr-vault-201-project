@@ -50,7 +50,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 
     // Capture rejection reason if sent (trim but don't escape yet - escape at render time)
     $reject_reason = trim($_POST['reject_reason'] ?? '');
-
+    if (mb_strlen($reject_reason, 'UTF-8') > 255) {
+        die('Rejection reason too long (Max 255 chars)');
+    }
     // FETCH DETAILS
     $stmt = $pdo->prepare("SELECT * FROM requests WHERE id = ?");
     $stmt->execute([$req_id]);
@@ -266,12 +268,17 @@ $tickets  = $pdo->query("SELECT r.*, u.username FROM requests r LEFT JOIN users 
     <link rel="stylesheet" href="assets/icons/bootstrap-icons.css">
 </head>
 
-<body class="bg-light">
+<body class="bg-body-tertiary">
 
     <nav class="navbar navbar-dark bg-dark mb-4">
         <div class="container">
             <a class="navbar-brand" href="index.php">⬅ Dashboard</a>
-            <span class="navbar-text text-white">Approval Center</span>
+            <div class="d-flex align-items-center gap-2">
+                <button id="darkModeToggle" class="btn btn-sm btn-outline-light border-0" title="Toggle Dark Mode">
+                    <i class="bi bi-moon-stars-fill"></i>
+                </button>
+                <span class="navbar-text text-white">Approval Center</span>
+            </div>
         </div>
     </nav>
 
@@ -419,6 +426,7 @@ $tickets  = $pdo->query("SELECT r.*, u.username FROM requests r LEFT JOIN users 
     ?>
 
     <script src="assets/bootstrap.bundle.min.js"></script>
+    <script src="dark_mode.js"></script>
     <script>
         document.addEventListener("DOMContentLoaded", function() {
             const urlParams = new URLSearchParams(window.location.search);

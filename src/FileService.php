@@ -6,7 +6,7 @@ class FileService
     private $vaultPath;
     private $manifestFile;
     // [SECURITY] Encryption Key (In production, move this to config.php or .env)
-    private $key = 'hr201_vault_secure_key_change_me_immediately';
+    private $key;
     private $cipher = 'aes-256-cbc';
 
     public function __construct($vaultPath)
@@ -16,6 +16,20 @@ class FileService
 
         // The Fail-Safe Map (Text file)
         $this->manifestFile = $this->vaultPath . 'manifest_DO_NOT_DELETE.txt';
+
+        // [SECURITY] Load Key from Environment (MHI Requirement)
+        // You must add 'VAULT_KEY' => 'your-secret-key' to config/config.php
+        if (!empty($_ENV['VAULT_KEY'])) {
+            $this->key = $_ENV['VAULT_KEY'];
+        } else {
+            // In production, refuse to operate without a proper key
+            if (($_ENV['APP_ENV'] ?? 'production') === 'production') {
+                throw new RuntimeException("VAULT_KEY environment variable is required.");
+            }
+            // Fallback for local development only
+            $this->key = 'hr201_vault_secure_key_change_me_immediately';
+            error_log("SECURITY WARNING: Using hardcoded encryption key. Please set VAULT_KEY in config.php.");
+        }
     }
 
     private function encrypt($data)
@@ -83,8 +97,9 @@ class FileService
         $content = file_get_contents($path);
         $decrypted = $this->decrypt($content);
 
-        // Fallback: If decryption fails, it might be an old unencrypted file
-        return ($decrypted !== false) ? $decrypted : $content;
+        // [SECURITY] Strict Mode: Return false if decryption fails.
+        // Do NOT return raw content as fallback, as it masks encryption errors.
+        return $decrypted;
     }
 
     private function logToManifest($storedName, $realName)

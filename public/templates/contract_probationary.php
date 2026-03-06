@@ -481,7 +481,7 @@ if (file_exists($logo_path)) {
                         <tr>
                             <td>
                                 <div class="sig-line"></div>
-                                <div class="sig-name">GAKU KONDO</div>
+                                <div class="sig-name">JUNJI FURUYA</div>
                                 <div>EMPLOYER</div>
                             </td>
 

@@ -268,7 +268,7 @@ if (file_exists($logo_path)) {
                             <br>
                             <br>
                             <div class="sig-line"></div>
-                            <div class="bold">GAKU KONDO</div>
+                            <div class="bold">JUNJI FURUYA</div>
                             <div>President</div>
                         </div>
                         <div class="sig-block">

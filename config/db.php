@@ -4,6 +4,20 @@
 // Load settings directly from PHP file instead of .env to avoid permission errors
 $_ENV = require 'config.php';
 
+// [MHI 5.4] Enforce HTTPS (Skip for Localhost to avoid ERR_SSL_PROTOCOL_ERROR)
+$isLocal = in_array($_SERVER['SERVER_NAME'], ['localhost', '127.0.0.1', '::1']);
+if (!$isLocal && (empty($_SERVER['HTTPS']) || $_SERVER['HTTPS'] === "off")) {
+    $location = 'https://' . $_SERVER['SERVER_NAME'] . $_SERVER['REQUEST_URI'];
+    header('HTTP/1.1 301 Moved Permanently');
+    header('Location: ' . $location);
+    exit;
+}
+
+// [MHI 5.3] Secure Session Parameters (HttpOnly, Secure, SameSite)
+ini_set('session.cookie_httponly', 1);
+ini_set('session.cookie_secure', $isLocal ? 0 : 1);
+ini_set('session.cookie_samesite', 'Strict');
+ini_set('session.gc_maxlifetime', 1800); // 30 Minutes
 try {
     $options = [
         PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,

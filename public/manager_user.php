@@ -64,12 +64,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } elseif (!preg_match('/^[a-zA-Z0-9]+$/', $username)) {
             $alertType = 'error';
             $alertMsg = "❌ Username must be alphanumeric (letters & numbers only).";
-        } elseif (!preg_match('/[0-9]/', $password)) {
+        } elseif (!preg_match('/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_])/', $password)) {
             $alertType = 'error';
-            $alertMsg = "❌ Password must contain at least one number.";
-        } elseif (!preg_match('/[\W_]/', $password)) {
-            $alertType = 'error';
-            $alertMsg = "❌ Password must contain at least one symbol (!@#$%).";
+            $alertMsg = "❌ Password must contain Uppercase, Lowercase, Number, and Symbol.";
         } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
             $alertType = 'error';
             $alertMsg = "❌ Invalid email format.";
@@ -119,9 +116,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             // If password changed, validate and hash it
             if (!empty($new_pass)) {
-                if (strlen($new_pass) < 12 || !preg_match('/[0-9]/', $new_pass) || !preg_match('/[\W_]/', $new_pass)) {
+                if (strlen($new_pass) < 12 || !preg_match('/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_])/', $new_pass)) {
                     $alertType = 'error';
-                    $alertMsg = "❌ Update Failed: New password is too weak (Min 12 chars, 1 number, 1 symbol).";
+                    $alertMsg = "❌ Update Failed: Password must contain Uppercase, Lowercase, Number, and Symbol.";
                 } else {
                     $sql = "UPDATE users SET username = ?, email = ?, role = ?, is_2fa_enabled = ?, password = ? WHERE id = ?";
                     $params = [$username, $email, $role, $is_2fa, password_hash($new_pass, PASSWORD_BCRYPT), $id];
@@ -440,6 +437,7 @@ $vaultChecked = ($bkVaultSetting === '1') ? 'checked' : '';
                         <h5 class="modal-title">Download Database Backup</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                     </div>
                     <div class="modal-body">
+                        <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
                         <div class="form-check mb-3">
                             <input class="form-check-input" type="checkbox" name="include_vault" value="1" id="dlVault" <?php echo $vaultChecked; ?>>
                             <label class="form-check-label fw-bold" for="dlVault">Include Vault Files (Images/PDFs)</label>
@@ -461,6 +459,7 @@ $vaultChecked = ($bkVaultSetting === '1') ? 'checked' : '';
                         <h5 class="modal-title">Save Backup to Server</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                     </div>
                     <div class="modal-body">
+                        <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
                         <p>This will save a backup to the configured server paths. This is recommended for automated recovery.</p>
                         <div class="form-check mb-3">
                             <input class="form-check-input" type="checkbox" name="include_vault" value="1" id="svVault" <?php echo $vaultChecked; ?>>
@@ -544,8 +543,8 @@ $vaultChecked = ($bkVaultSetting === '1') ? 'checked' : '';
                                 <label class="form-label fw-bold">Password</label>
                                 <input type="password" name="password" class="form-control" placeholder="Enter strong password..." required
                                     minlength="12" maxlength="128"
-                                    pattern="(?=.*\d)(?=.*[\W_]).{12,}" title="Must be at least 12 characters, contain 1 number and 1 symbol.">
-                                <div class="form-text text-muted small">Requirements: 12-128 characters, at least one number (0-9) and one symbol (!@#$%).</div>
+                                    pattern="(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).{12,}" title="Must be at least 12 characters, contain Uppercase, Lowercase, Number, and Symbol.">
+                                <div class="form-text text-muted small">Requirements: 12+ chars, Uppercase, Lowercase, Number, Symbol.</div>
                             </div>
                             <div class="mb-3">
                                 <label class="form-label fw-bold">Role Permission</label>
@@ -675,8 +674,8 @@ $vaultChecked = ($bkVaultSetting === '1') ? 'checked' : '';
                                                             <label class="form-label text-danger fw-bold">Reset Password (Optional)</label>
                                                             <input type="password" name="password" class="form-control" placeholder="New Password (Min 12 chars)"
                                                                 minlength="12" maxlength="128"
-                                                                pattern="(?=.*\d)(?=.*[\W_]).{12,}" title="Must be at least 12 characters, contain 1 number and 1 symbol.">
-                                                            <div class="form-text">Optional. Requirements: 12-128 chars, 1 number, 1 symbol.</div>
+                                                                pattern="(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).{12,}" title="Must be at least 12 characters, contain Uppercase, Lowercase, Number, and Symbol.">
+                                                            <div class="form-text">Optional. Requirements: 12+ chars, Upper, Lower, #, Symbol.</div>
                                                         </div>
                                                     </div>
                                                     <div class="modal-footer">

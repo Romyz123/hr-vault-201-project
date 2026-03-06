@@ -8,6 +8,9 @@ if (!isset($_SESSION['user_id'])) {
     exit;
 }
 
+$security = new Security($pdo);
+$csrf_token = $security->generateCSRF();
+
 $alertType = "";
 $alertMsg = "";
 
@@ -19,6 +22,12 @@ $currentEmail = $currentUser['email'] ?? '';
 
 // 2. HANDLE EMAIL UPDATE
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'update_email') {
+    if (!isset($_POST['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'])) {
+        $alertType = "error";
+        $alertMsg = "❌ Security Token Mismatch. Please refresh.";
+        goto end_post;
+    }
+
     $new_email = trim($_POST['email']);
     if (strlen($new_email) > 100) {
         $alertType = "error";
@@ -44,6 +53,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
 // 3. HANDLE PASSWORD UPDATE
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'change_pass') {
+    if (!isset($_POST['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'])) {
+        $alertType = "error";
+        $alertMsg = "❌ Security Token Mismatch. Please refresh.";
+        goto end_post;
+    }
+
     $current_pass = $_POST['current_password'];
     $new_pass     = $_POST['new_password'];
     $confirm_pass = $_POST['confirm_password'];
@@ -67,12 +82,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 } elseif (strlen($new_pass) > 128) {
                     $alertType = "error";
                     $alertMsg = "Password is too long (Max 128 characters).";
-                } elseif (!preg_match('/[0-9]/', $new_pass)) {
+                } elseif (!preg_match('/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_])/', $new_pass)) {
                     $alertType = "error";
-                    $alertMsg = "Password must contain at least one number.";
-                } elseif (!preg_match('/[\W]/', $new_pass)) {
-                    $alertType = "error";
-                    $alertMsg = "Password must contain at least one symbol (!@#$%).";
+                    $alertMsg = "Password must contain Uppercase, Lowercase, Number, and Symbol.";
                 } else {
                     // 5. Update Password
                     $new_hash = password_hash($new_pass, PASSWORD_BCRYPT);
@@ -92,6 +104,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         }
     }
 }
+
+end_post:
 ?>
 
 <!DOCTYPE html>
@@ -126,6 +140,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                     <div class="card-body">
                         <form method="POST">
                             <input type="hidden" name="action" value="update_email">
+                            <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token); ?>">
                             <div class="input-group">
                                 <input type="email" name="email" class="form-control" placeholder="Enter your email..." value="<?php echo htmlspecialchars($currentEmail); ?>" maxlength="100" required>
                                 <button class="btn btn-info text-white" type="submit">Save Email</button>
@@ -144,6 +159,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
                         <form method="POST">
                             <input type="hidden" name="action" value="change_pass">
+                            <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token); ?>">
                             <div class="mb-3">
                                 <label class="form-label fw-bold">Current Password</label>
                                 <div class="input-group">
@@ -155,7 +171,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                             <div class="mb-3">
                                 <label class="form-label fw-bold">New Password</label>
                                 <div class="input-group">
-                                    <input type="password" name="new_password" id="newPass" class="form-control" minlength="12" maxlength="128" required>
+                                    <input type="password" name="new_password" id="newPass" class="form-control" minlength="12" maxlength="128" required pattern="(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).{12,}" title="Must be at least 12 characters, contain Uppercase, Lowercase, Number, and Symbol.">
                                     <button class="btn btn-outline-secondary" type="button" onclick="togglePass('newPass')"><i class="bi bi-eye"></i></button>
                                 </div>
                             </div>

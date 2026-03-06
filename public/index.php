@@ -8,8 +8,19 @@
 require '../config/db.php';
 require '../src/Security.php';
 require '../src/Logger.php';
+require '../src/Validator.php';
+require '../src/SearchHelper.php';
 require 'options.php'; // [NEW] Load dynamic options
 session_start();
+
+// [MHI 5.3] Strict Server-Side Session Timeout (30 Minutes)
+if (isset($_SESSION['last_activity']) && (time() - $_SESSION['last_activity'] > 1800)) {
+    session_unset();
+    session_destroy();
+    header("Location: login.php?msg=" . urlencode("Session expired due to inactivity."));
+    exit;
+}
+$_SESSION['last_activity'] = time();
 
 // Redirect guests to login
 if (!isset($_SESSION['user_id'])) {
@@ -125,7 +136,7 @@ if ($userRole === 'ADMIN') {
         if ($zip->open($zipFile, ZipArchive::CREATE) === TRUE) {
             // Add SQL
             $zip->addFromString($sqlFilename, $content);
-            if ($zipPass) $zip->setEncryptionName($sqlFilename, ZipArchive::EM_TRAD_PKWARE, $zipPass);
+            if ($zipPass) $zip->setEncryptionName($sqlFilename, ZipArchive::EM_AES_256, $zipPass);
 
             // Add Vault (if enabled)
             if ($incVault) {
@@ -137,17 +148,10 @@ if ($userRole === 'ADMIN') {
                             $filePath = $file->getRealPath();
                             $relativePath = 'vault/' . substr($filePath, strlen($vaultPath) + 1);
                             $zip->addFile($filePath, $relativePath);
-                            if ($zipPass) $zip->setEncryptionName($relativePath, ZipArchive::EM_TRAD_PKWARE, $zipPass);
+                            if ($zipPass) $zip->setEncryptionName($relativePath, ZipArchive::EM_AES_256, $zipPass);
                         }
                     }
                 }
-            }
-
-            // [CRITICAL] Backup the FileService.php because it contains the Encryption Key!
-            $keyFile = realpath(__DIR__ . '/../src/FileService.php');
-            if ($keyFile) {
-                $zip->addFile($keyFile, 'src/FileService.php');
-                if ($zipPass) $zip->setEncryptionName('src/FileService.php', ZipArchive::EM_TRAD_PKWARE, $zipPass);
             }
 
             $zip->close();
@@ -212,11 +216,27 @@ $filter_status = getQueryParamSafe('status', 24, '');
 $filter_type   = getQueryParamSafe('type',   40, ''); // can match employment_type or agency_name
 $filter_dept   = getQueryParamSafe('dept',   32, '');
 $filter_section = getQueryParamSafe('section', 50, '');
-$search_query  = getQueryParamSafe('search', 50, '');
+$search_query  = Validator::sanitizeSearch($_GET['search'] ?? '');
 $filter_doc_cat = getQueryParamSafe('doc_cat', 50, '');
-// [SECURITY] Strict validation: Allow alphanumeric, spaces, dashes, underscores, and commas
-$search_query = preg_replace('/[^a-zA-Z0-9\-_ ,]/', '', $search_query);
 $sort_option   = getQueryParamSafe('sort',   24, 'newest');
+
+// [NEW] Recent Searches Logic (Cookie-based)
+$recentSearches = isset($_COOKIE['recent_searches']) ? json_decode($_COOKIE['recent_searches'], true) : [];
+if (!is_array($recentSearches)) $recentSearches = [];
+
+if ($search_query !== '') {
+    // Remove if exists (to move to top)
+    $key = array_search($search_query, $recentSearches);
+    if ($key !== false) {
+        unset($recentSearches[$key]);
+    }
+    // Add to front
+    array_unshift($recentSearches, $search_query);
+    // Limit to 5
+    $recentSearches = array_slice($recentSearches, 0, 5);
+    // Save cookie (30 days)
+    setcookie('recent_searches', json_encode($recentSearches), time() + (86400 * 30), "/");
+}
 
 // Sort whitelist (prevents SQL injection)
 // [FIX] Handle empty hire_date by pushing them to the end (CASE WHEN)
@@ -268,6 +288,44 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['clear_notifs'])) {
         header('Location: index.php');
         exit;
     }
+}
+
+// [NEW] Handle Dev File Cleanup (Admin Only)
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['cleanup_dev_files']) && $userRole === 'ADMIN') {
+    // CSRF validation
+    $formToken = $_POST['csrf_token'] ?? '';
+    if (!hash_equals($_SESSION['csrf_token'], $formToken)) {
+        die("Invalid CSRF token");
+    }
+
+    $filesToDelete = [
+        'utils/install.php',
+        'auth_login.php',
+        'test_vault.php',
+        'debug_whitespace.php',
+        'test_system.php',
+        'test_email.php',
+        'test_email_alert.php',
+        'test_zip_password.php',
+        'debug_vault.php',
+        'debug_upload.php',
+        'ValidatorTest.php',
+        'download_assets.php',
+        'stress_test_backup.php',
+        'system_diagnostics.php'
+    ];
+
+    $deletedCount = 0;
+    foreach ($filesToDelete as $f) {
+        if (file_exists($f)) {
+            @unlink($f);
+            $deletedCount++;
+        }
+    }
+
+    $logger->log($_SESSION['user_id'], 'CLEANUP_DEV', "Deleted $deletedCount development files.");
+    header("Location: index.php?msg=" . urlencode("✅ Cleanup Complete: $deletedCount files removed."));
+    exit;
 }
 
 // (Source 1) User-specific DB notifications
@@ -426,6 +484,17 @@ $empStmt->bindValue($paramIndex++, $offset,  PDO::PARAM_INT);
 $empStmt->execute();
 $employees = $empStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
+// [NEW] Fuzzy Search Logic (Did you mean?)
+$didYouMean = null;
+$didYouMeanLink = "#";
+if (empty($employees) && !empty($search_query)) {
+    $closest = SearchHelper::findBestMatch($pdo, $search_query);
+    if ($closest) {
+        $didYouMean = $closest;
+        $didYouMeanLink = "index.php?search=" . urlencode($closest);
+    }
+}
+
 // ---------- 9) BATCH FETCH DOCUMENTS for visible employees ----------
 $filesByEmp = [];
 if (!empty($employees)) {
@@ -483,6 +552,12 @@ $diskPercent = ($diskTotal > 0) ? round((($diskTotal - $diskFree) / $diskTotal) 
             --bg: #f4f6f9;
             --card-border: #e9ecef;
             --accent: #2a5298;
+        }
+
+        [data-bs-theme=dark] {
+            --bg: #212529;
+            --card-border: #495057;
+            --accent: #6ea8fe;
         }
 
         body {
@@ -624,6 +699,11 @@ $diskPercent = ($diskTotal > 0) ? round((($diskTotal - $diskFree) / $diskTotal) 
                         <i class="bi bi-pause-circle"></i>
                     </button>
 
+                    <!-- Dark Mode Toggle -->
+                    <button id="darkModeToggle" class="btn btn-sm btn-outline-light me-3 border-0" title="Toggle Dark Mode">
+                        <i class="bi bi-moon-stars-fill"></i>
+                    </button>
+
                     <!-- [NEW] Sync Spinner -->
                     <div id="sync-spinner" class="spinner-border spinner-border-sm text-warning me-3" role="status" style="display:none;" title="Syncing Data...">
                         <span class="visually-hidden">Loading...</span>
@@ -659,6 +739,7 @@ $diskPercent = ($diskTotal > 0) ? round((($diskTotal - $diskFree) / $diskTotal) 
                             <?php if ($notifCount > 0): ?>
                                 <?php foreach ($all_notifications as $n): ?>
                                     <?php
+                                    $backupFile = null;
                                     if (($n['source'] ?? '') === 'expiry') {
                                         $icon = "bi-exclamation-triangle-fill text-warning";
                                         $link = "index.php?search=" . urlencode($n['emp_search']) . "&resolve_doc=" . urlencode((string)$n['link_id']) . "&doc_name=" . urlencode($n['doc_name']);
@@ -673,7 +754,6 @@ $diskPercent = ($diskTotal > 0) ? round((($diskTotal - $diskFree) / $diskTotal) 
                                         $clickableClass = "";
 
                                         // [NEW] Check for Backup Notification to add Restore Button
-                                        $backupFile = null;
                                         if (strpos($n['title'], 'Backup') !== false && preg_match('/:\s*([a-zA-Z0-9_\-\.]+\.zip)/', $n['message'], $matches)) {
                                             $backupFile = $matches[1];
                                         }
@@ -756,38 +836,55 @@ $diskPercent = ($diskTotal > 0) ? round((($diskTotal - $diskFree) / $diskTotal) 
 
     <div class="container">
 
-        <!-- [SECURITY] Check if install.php exists -->
-        <?php if (file_exists('utils/install.php') && $userRole === 'ADMIN'): ?>
-            <div class="alert alert-danger shadow-sm fw-bold d-flex align-items-center mb-4">
-                <i class="bi bi-shield-exclamation fs-4 me-3"></i>
-                <div>
-                    <strong>Security Risk!</strong> The file <code>utils/install.php</code> still exists.
-                    <br><span class="small fw-normal">Please delete it immediately to prevent accidental database resets.</span>
-                </div>
-            </div>
-        <?php endif; ?>
+        <!-- [SECURITY] Production Readiness & MHI Audit Checks -->
+        <?php if ($userRole === 'ADMIN'):
+            $riskFiles = [
+                'utils/install.php' => 'Installation script (Risk of reset)',
+                'auth_login.php' => 'Insecure login bypass (MHI Violation)',
+                'test_vault.php' => 'Vault test script (No Auth - Critical)',
+                'debug_whitespace.php' => 'Debug script (No Auth - Critical)',
+                'test_system.php' => 'System test script (Info Disclosure)',
+                'test_email.php' => 'Email test script',
+                'test_email_alert.php' => 'Email test script',
+                'test_zip_password.php' => 'Password test script',
+                'debug_vault.php' => 'Vault debug script',
+                'debug_upload.php' => 'Upload debug script',
+                'ValidatorTest.php' => 'Unit test script',
+                'download_assets.php' => 'Asset downloader',
+                'stress_test_backup.php' => 'Stress test script',
+                'system_diagnostics.php' => 'System diagnostics tool'
+            ];
 
-        <!-- [SECURITY] MHI Compliance: Check for Dead Code (auth_login.php) -->
-        <?php if (file_exists('auth_login.php') && $userRole === 'ADMIN'): ?>
-            <div class="alert alert-danger shadow-sm fw-bold d-flex align-items-center mb-4 border-danger border-3">
-                <i class="bi bi-shield-lock-fill fs-4 me-3"></i>
-                <div>
-                    <strong>MHI Compliance Alert!</strong> The insecure file <code>auth_login.php</code> was found.
-                    <br><span class="small fw-normal">This file bypasses 2FA and violates security protocols. <strong>Please delete it immediately.</strong></span>
+            $foundRisks = [];
+            foreach ($riskFiles as $file => $desc) {
+                if (file_exists($file)) {
+                    $foundRisks[] = "<strong>$file</strong>: $desc";
+                }
+            }
+            if (!empty($foundRisks)):
+        ?>
+                <div class="alert alert-danger shadow-sm fw-bold mb-4 border-danger border-3">
+                    <div class="d-flex align-items-center justify-content-between mb-2">
+                        <div class="d-flex align-items-center">
+                            <i class="bi bi-shield-exclamation fs-3 me-3"></i>
+                            <div>
+                                <h5 class="mb-0">Production Security Alert</h5>
+                                <span class="small fw-normal">The following development files must be deleted before production use:</span>
+                            </div>
+                        </div>
+                        <form method="POST">
+                            <input type="hidden" name="csrf_token" value="<?php echo h($_SESSION['csrf_token']); ?>">
+                            <button type="submit" name="cleanup_dev_files" class="btn btn-danger btn-sm fw-bold" onclick="return confirm('Are you sure? This will permanently delete these files.');">
+                                <i class="bi bi-trash-fill"></i> Delete All
+                            </button>
+                        </form>
+                    </div>
+                    <ul class="mb-0 small text-danger">
+                        <?php foreach ($foundRisks as $risk) echo "<li>$risk</li>"; ?>
+                    </ul>
                 </div>
-            </div>
-        <?php endif; ?>
-
-        <!-- [SECURITY] Check if test_email.php exists -->
-        <?php if (file_exists('test_email.php') && $userRole === 'ADMIN'): ?>
-            <div class="alert alert-danger shadow-sm fw-bold d-flex align-items-center mb-4">
-                <i class="bi bi-shield-exclamation fs-4 me-3"></i>
-                <div>
-                    <strong>Security Risk!</strong> The file <code>test_email.php</code> still exists.
-                    <br><span class="small fw-normal">Please delete it immediately to prevent unauthorized email testing.</span>
-                </div>
-            </div>
-        <?php endif; ?>
+        <?php endif;
+        endif; ?>
 
         <!-- [SECURITY] Password Expiry Warning (5 Days Notice) -->
         <?php
@@ -818,7 +915,6 @@ $diskPercent = ($diskTotal > 0) ? round((($diskTotal - $diskFree) / $diskTotal) 
                 <div class="card-header bg-info text-white fw-bold d-flex justify-content-between align-items-center">
                     <span><i class="bi bi-cpu-fill me-2"></i> System Health & Configuration</span>
                     <div>
-                        <a href="system_diagnostics.php" class="btn btn-sm btn-light text-info fw-bold me-2"><i class="bi bi-activity"></i> Run Diagnostics</a>
                         <a href="db_status.php" class="btn btn-sm btn-light text-info fw-bold"><i class="bi bi-arrow-repeat"></i> Check DB Updates</a>
                     </div>
                 </div>
@@ -826,19 +922,19 @@ $diskPercent = ($diskTotal > 0) ? round((($diskTotal - $diskFree) / $diskTotal) 
                     <div class="row text-center">
                         <div class="col-md-3 border-end">
                             <small class="text-muted d-block text-uppercase"><i class="bi bi-code-slash"></i> PHP Version</small>
-                            <span class="fw-bold text-dark"><?php echo phpversion(); ?></span>
+                            <span class="fw-bold"><?php echo phpversion(); ?></span>
                         </div>
                         <div class="col-md-3 border-end">
                             <small class="text-muted d-block text-uppercase"><i class="bi bi-cloud-arrow-up"></i> Max Upload</small>
-                            <span class="fw-bold text-dark"><?php echo ini_get('upload_max_filesize'); ?></span>
+                            <span class="fw-bold"><?php echo ini_get('upload_max_filesize'); ?></span>
                         </div>
                         <div class="col-md-3 border-end">
                             <small class="text-muted d-block text-uppercase"><i class="bi bi-file-earmark-arrow-up"></i> Max POST</small>
-                            <span class="fw-bold text-dark"><?php echo ini_get('post_max_size'); ?></span>
+                            <span class="fw-bold"><?php echo ini_get('post_max_size'); ?></span>
                         </div>
                         <div class="col-md-3">
                             <small class="text-muted d-block text-uppercase"><i class="bi bi-memory"></i> Memory Limit</small>
-                            <span class="fw-bold text-dark"><?php echo ini_get('memory_limit'); ?></span>
+                            <span class="fw-bold"><?php echo ini_get('memory_limit'); ?></span>
                         </div>
                     </div>
                 </div>
@@ -891,12 +987,20 @@ $diskPercent = ($diskTotal > 0) ? round((($diskTotal - $diskFree) / $diskTotal) 
                             <a href="tracker.php" class="btn btn-outline-info btn-sm">
                                 <i class="bi bi-kanban"></i> Missing Docs Tracker
                             </a>
+                            <a href="performance_review.php" class="btn btn-outline-primary btn-sm">
+                                <i class="bi bi-clipboard2-data"></i> Performance Reviews
+                            </a>
+                            <a href="evaluation_report.php" class="btn btn-outline-info btn-sm">
+                                <i class="bi bi-bar-chart-line"></i> Evaluation Report
+                            </a>
                             <a href="disciplinary.php" class="btn btn-outline-danger btn-sm">
                                 <i class="bi bi-exclamation-triangle"></i> Disciplinary Cases
                             </a>
-                            <a href="maintenance_log.php" class="btn btn-outline-secondary btn-sm">
-                                <i class="bi bi-tools"></i> Hardware Maintenance
-                            </a>
+                            <?php if ($userRole === 'ADMIN'): ?>
+                                <a href="maintenance_log.php" class="btn btn-outline-secondary btn-sm">
+                                    <i class="bi bi-tools"></i> Hardware Maintenance
+                                </a>
+                            <?php endif; ?>
                             <a href="bulk_update_roles.php" class="btn btn-outline-warning btn-sm">
                                 <i class="bi bi-people-fill"></i> Bulk Update Roles
                             </a>
@@ -1060,6 +1164,9 @@ $diskPercent = ($diskTotal > 0) ? round((($diskTotal - $diskFree) / $diskTotal) 
                             <input type="text" id="mainSearch" name="search" class="form-control"
                                 placeholder="Search by ID / First / Last..." value="<?php echo h($search_query); ?>"
                                 autocomplete="off" aria-label="Search employees" maxlength="50" pattern="[a-zA-Z0-9\-_ ,]+" title="Allowed: Letters, Numbers, Spaces, Dashes, Underscores, Commas">
+                            <?php if (!empty($search_query)): ?>
+                                <a href="index.php" class="btn btn-outline-secondary border-start-0" title="Clear Search"><i class="bi bi-x-lg"></i></a>
+                            <?php endif; ?>
                             <button class="btn btn-primary" type="submit" aria-label="Submit search"><i class="bi bi-search"></i></button>
 
                             <!-- Export dropdown trigger (uses current filters) -->
@@ -1097,6 +1204,12 @@ $diskPercent = ($diskTotal > 0) ? round((($diskTotal - $diskFree) / $diskTotal) 
         <!-- Results -->
         <?php if (empty($employees)): ?>
             <div class="alert alert-warning text-center shadow-sm">No employees found matching your search.</div>
+            <?php if ($didYouMean): ?>
+                <div class="alert alert-info text-center shadow-sm mt-2">
+                    <i class="bi bi-lightbulb-fill me-2"></i> Did you mean:
+                    <a href="<?php echo $didYouMeanLink; ?>" class="fw-bold text-dark text-decoration-underline"><?php echo h($didYouMean); ?></a>?
+                </div>
+            <?php endif; ?>
         <?php endif; ?>
 
         <?php if ($filter_doc_cat !== ''): ?>
@@ -1217,9 +1330,9 @@ $diskPercent = ($diskTotal > 0) ? round((($diskTotal - $diskFree) / $diskTotal) 
                                         <button type="button" class="btn-close btn-close-white align-self-start" data-bs-dismiss="modal" aria-label="Close"></button>
                                     </div>
                                 </div>
-                                <div class="modal-body bg-light p-0">
+                                <div class="modal-body p-0">
                                     <div class="d-flex h-100">
-                                        <div class="nav flex-column nav-pills p-3 bg-white border-end" style="width: 260px;">
+                                        <div class="nav flex-column nav-pills p-3 border-end" style="width: 260px;">
                                             <button class="nav-link active text-start mb-2" data-bs-toggle="pill" data-bs-target="#info-<?php echo (int)$emp['id']; ?>">Profile</button>
                                             <button class="nav-link text-start" data-bs-toggle="pill" data-bs-target="#files-<?php echo (int)$emp['id']; ?>">Documents (<?php echo (int)count($files); ?>)</button>
                                         </div>
@@ -1250,13 +1363,13 @@ $diskPercent = ($diskTotal > 0) ? round((($diskTotal - $diskFree) / $diskTotal) 
                                                                 $rowClass       = $isTarget ? 'highlight-target' : '';
                                                             ?>
                                                                 <div class="list-group-item list-group-item-action d-flex justify-content-between align-items-center p-2 <?php echo $rowClass; ?>">
-                                                                    <a href="javascript:void(0);" class="text-decoration-none text-dark text-truncate w-75"
+                                                                    <a href="javascript:void(0);" class="text-decoration-none text-body text-truncate w-75"
                                                                         onclick="showPreview('<?php echo h($previewUrl); ?>', '<?php echo h($type); ?>', '<?php echo h($previewTarget); ?>'); return false;">
                                                                         <?php if ($isTarget): ?>
                                                                             <span class="badge bg-danger me-1"><i class="bi bi-exclamation-triangle-fill"></i> ACTION REQUIRED</span>
                                                                         <?php endif; ?>
                                                                         <strong><?php echo h($file['original_name']); ?></strong><br>
-                                                                        <small class="text-muted"><?php echo h($file['category']); ?></small>
+                                                                        <small class="text-secondary"><?php echo h($file['category']); ?></small>
                                                                     </a>
 
                                                                     <?php if ((int)$file['is_resolved'] === 0 && !empty($file['expiry_date']) && $file['expiry_date'] <= date('Y-m-d', strtotime('+30 days'))): ?>
@@ -1549,6 +1662,7 @@ $diskPercent = ($diskTotal > 0) ? round((($diskTotal - $diskFree) / $diskTotal) 
 
     <!-- SINGLE Bootstrap bundle include -->
     <script src="assets/bootstrap.bundle.min.js"></script>
+    <script src="dark_mode.js"></script>
 
     <script>
         // ---------- Chart ----------
@@ -1618,6 +1732,27 @@ $diskPercent = ($diskTotal > 0) ? round((($diskTotal - $diskFree) / $diskTotal) 
                     }
                 }
             });
+
+            // [NEW] Dark Mode Adapter for Chart
+            function updateChartTheme() {
+                const isDark = document.documentElement.getAttribute('data-bs-theme') === 'dark';
+                const textColor = isDark ? '#adb5bd' : '#6c757d';
+                const gridColor = isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)';
+
+                if (window.hrChartInstance) {
+                    window.hrChartInstance.options.scales.x.ticks.color = textColor;
+                    window.hrChartInstance.options.scales.y.ticks.color = textColor;
+                    window.hrChartInstance.options.scales.y.grid.color = gridColor;
+                    window.hrChartInstance.update();
+                }
+            }
+
+            // Watch for theme changes
+            new MutationObserver(updateChartTheme).observe(document.documentElement, {
+                attributes: true,
+                attributeFilter: ['data-bs-theme']
+            });
+            updateChartTheme(); // Initial check
         });
 
         // ---------- Typeahead Suggestions (Directory Search) ----------
@@ -1626,13 +1761,37 @@ $diskPercent = ($diskTotal > 0) ? round((($diskTotal - $diskFree) / $diskTotal) 
             const suggestionBox = document.getElementById('suggestionBox');
             if (!searchInput || !suggestionBox) return;
 
+            // [NEW] Recent Searches Data
+            const recentSearches = <?php echo json_encode($recentSearches); ?>;
+
+            function showRecent() {
+                if (searchInput.value.trim() === '' && recentSearches.length > 0) {
+                    suggestionBox.innerHTML = '<div class="list-group-item list-group-item-secondary small fw-bold text-muted"><i class="bi bi-clock-history me-1"></i> Recent Searches</div>';
+                    recentSearches.forEach(term => {
+                        const a = document.createElement('a');
+                        a.href = `index.php?search=${encodeURIComponent(term)}`;
+                        a.className = 'list-group-item list-group-item-action small';
+                        a.textContent = term;
+                        suggestionBox.appendChild(a);
+                    });
+                    suggestionBox.style.display = 'block';
+                } else if (searchInput.value.trim() === '') {
+                    suggestionBox.style.display = 'none';
+                }
+            }
+
             let debounceTimer = null;
+
+            searchInput.addEventListener('focus', showRecent);
 
             searchInput.addEventListener('input', function() {
                 const q = this.value.trim();
                 if (q.length < 2) {
-                    suggestionBox.innerHTML = '';
-                    suggestionBox.style.display = 'none';
+                    if (q.length === 0) showRecent();
+                    else {
+                        suggestionBox.innerHTML = '';
+                        suggestionBox.style.display = 'none';
+                    }
                     return;
                 }
                 clearTimeout(debounceTimer);

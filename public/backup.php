@@ -1,12 +1,21 @@
 <?php
 // public/backup.php
+// [FIX] Start buffering immediately to catch any whitespace/BOM from includes
+ob_start();
 require '../config/db.php';
 require '../src/Logger.php';
+require '../src/Security.php';
 session_start();
 
 // 1. SECURITY: Only ADMIN can download backups
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'ADMIN') {
     die("ACCESS DENIED: You do not have permission to download backups.");
+}
+
+// [SECURITY] Verify CSRF Token
+$security = new Security($pdo);
+if (empty($_POST['csrf_token']) || !hash_equals($_SESSION['csrf_token'] ?? '', $_POST['csrf_token'])) {
+    die("Security Error: Invalid CSRF Token.");
 }
 
 // [NEW] Fetch System Settings
@@ -75,12 +84,11 @@ if (strlen($password) > 50) {
 
 $incVault = isset($_POST['include_vault']); // Checkbox from modal
 
-$final_content = $content;
-$final_filename = "TESP_HR_BACKUP_" . date("Y-m-d_H-i-s") . ".sql";
-$final_mimetype = 'application/octet-stream';
+$useZip = ($password || $incVault);
+$tempZipPath = '';
 
 // [FIX] Force ZIP if password is set OR if vault is included
-if ($password || $incVault) {
+if ($useZip) {
     $zip = new ZipArchive();
     $tempZipPath = tempnam(sys_get_temp_dir(), 'zip');
     // Use a consistent name inside the zip
@@ -88,7 +96,7 @@ if ($password || $incVault) {
 
     if ($zip->open($tempZipPath, ZipArchive::CREATE) === TRUE) {
         $zip->addFromString($sql_filename_in_zip, $content);
-        if ($password) $zip->setEncryptionName($sql_filename_in_zip, ZipArchive::EM_TRAD_PKWARE, $password);
+        if ($password) $zip->setEncryptionName($sql_filename_in_zip, ZipArchive::EM_AES_256, $password);
 
         // [NEW] Add Vault Files & Key
         if ($incVault) {
@@ -100,24 +108,15 @@ if ($password || $incVault) {
                         $filePath = $file->getRealPath();
                         $relativePath = 'vault/' . substr($filePath, strlen($vaultPath) + 1);
                         $zip->addFile($filePath, $relativePath);
-                        if ($password) $zip->setEncryptionName($relativePath, ZipArchive::EM_TRAD_PKWARE, $password);
+                        if ($password) $zip->setEncryptionName($relativePath, ZipArchive::EM_AES_256, $password);
                     }
                 }
-            }
-            // [CRITICAL] Backup Encryption Key
-            $keyFile = realpath(__DIR__ . '/../src/FileService.php');
-            if ($keyFile) {
-                $zip->addFile($keyFile, 'src/FileService.php');
-                if ($password) $zip->setEncryptionName('src/FileService.php', ZipArchive::EM_TRAD_PKWARE, $password);
             }
         }
         $zip->close();
 
-        $final_content = file_get_contents($tempZipPath);
         $final_filename = ($incVault ? "FULL_SYSTEM_" : "Encrypted_Backup_") . date("Y-m-d_H-i-s") . ".zip";
         $final_mimetype = 'application/zip';
-
-        unlink($tempZipPath);
     } else {
         $error_msg = "❌ Failed to create ZIP archive.";
         if ($mode === 'server') {
@@ -127,6 +126,9 @@ if ($password || $incVault) {
             die($error_msg);
         }
     }
+} else {
+    $final_filename = "TESP_HR_BACKUP_" . date("Y-m-d_H-i-s") . ".sql";
+    $final_mimetype = 'application/octet-stream';
 }
 
 $logger = new Logger($pdo);
@@ -138,13 +140,20 @@ if ($mode === 'server') {
     if (!is_dir($primaryPath)) @mkdir($primaryPath, 0755, true);
     $fullPath = rtrim($primaryPath, '/\\') . '/' . $final_filename;
 
-    if (file_put_contents($fullPath, $final_content) !== false) {
+    $saved = false;
+    if ($useZip && file_exists($tempZipPath)) {
+        $saved = copy($tempZipPath, $fullPath);
+    } else {
+        $saved = (file_put_contents($fullPath, $content) !== false);
+    }
+
+    if ($saved) {
         $msg = "✅ Backup saved to Primary: " . basename($fullPath);
         $secondaryPath = null; // Removed ENV dependency for consistency
         if ($secondaryPath) {
             if (!is_dir($secondaryPath)) @mkdir($secondaryPath, 0755, true);
             $secFile = rtrim($secondaryPath, '/\\') . '/' . $final_filename;
-            if (file_put_contents($secFile, $final_content) !== false) {
+            if ($useZip ? copy($tempZipPath, $secFile) : file_put_contents($secFile, $content)) {
                 $msg .= " AND Secondary Location.";
             }
         }
@@ -155,6 +164,9 @@ if ($mode === 'server') {
         header("Location: manager_user.php?error=" . urlencode("❌ Failed to write to backup path. Check folder permissions."));
         exit;
     }
+    if ($useZip && file_exists($tempZipPath)) {
+        unlink($tempZipPath);
+    }
 } else {
     $logger->log($_SESSION['user_id'], 'SYSTEM_BACKUP', 'Admin downloaded full database backup.');
 
@@ -164,7 +176,14 @@ if ($mode === 'server') {
     header('Content-Type: ' . $final_mimetype);
     header("Content-Transfer-Encoding: Binary");
     header("Content-disposition: attachment; filename=\"" . $final_filename . "\"");
-    header('Content-Length: ' . strlen($final_content));
-    echo $final_content;
+
+    if ($useZip && file_exists($tempZipPath)) {
+        header('Content-Length: ' . filesize($tempZipPath));
+        readfile($tempZipPath);
+        unlink($tempZipPath);
+    } else {
+        header('Content-Length: ' . strlen($content));
+        echo $content;
+    }
     exit;
 }

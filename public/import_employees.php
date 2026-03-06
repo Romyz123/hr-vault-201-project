@@ -240,7 +240,7 @@ if (isset($_POST['undo_batch'])) {
 // ======================================================
 // 3. HANDLE IMPORT ACTION
 // ======================================================
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['csv_file'])) {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['undo_batch'])) {
 
     // [SECURITY] Verify CSRF Token
     if (empty($_POST['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'])) {
@@ -249,165 +249,203 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['csv_file'])) {
 
     $agency = $_POST['agency_select'] ?? '';
 
-    if ($agency == "") {
+    if ($agency === "") {
         $error = "Please select an Agency first.";
-    } elseif ($_FILES['csv_file']['error'] == 0) {
-
-        $file = $_FILES['csv_file']['tmp_name'];
-        $handle = fopen($file, "r");
-
-        // [IMPROVEMENT] Auto-detect line endings and delimiter for robustness
-        ini_set('auto_detect_line_endings', true);
-        $firstLine = fgets($handle);
-        rewind($handle);
-        $delimiter = (substr_count($firstLine, ';') > substr_count($firstLine, ',')) ? ';' : ',';
-
-        $batch_id = "BATCH_" . date('Ymd_His');
-        $success_count = 0;
-
-        // Capture header for Custom mapping
-        $headerRow = fgetcsv($handle, 0, $delimiter);
-        if (isset($headerRow[0])) { // Remove BOM if present
-            $headerRow[0] = preg_replace('/^\xEF\xBB\xBF/', '', $headerRow[0]);
-        }
-
-        while (($data = fgetcsv($handle, 0, $delimiter)) !== FALSE) {
-            if (empty($data) || (count($data) === 1 && empty($data[0]))) continue; // Skip empty rows
-
-            // DEFAULT VARIABLES
-            $emp_id = "";
-            $first_name = ".";
-            $last_name = "";
-            $section_raw = "";
-            $contact_raw = "";
-            $birth_raw = "";
-            $hire_raw = "";
-            $sss_raw = "";
-            $tin_raw = "";
-            $pagibig_raw = "";
-            $phil_raw = "";
-            $job_title = "Staff";
-            $email = "";
-
-            // ----------------------------------------------------
-            // SWITCH LOGIC: MAP COLUMNS BASED ON AGENCY
-            // ----------------------------------------------------
-
-            if ($agency === 'JORATECH') {
-                // [JORATECH FORMAT]
-                // 0:NO | 1:SECTION | 2:POSITION | 3:HIRED | 4:NUM(Ignore) | 5:PIC(Ignore) | 6:NAME | 7:CODE | 8:CONTRACT
-
-                $emp_id      = trim($data[7] ?? ''); // CODE (Col H)
-                $section_raw = $data[1] ?? '';       // SECTION (Col B)
-                $job_title   = ucwords(strtolower(trim($data[2] ?? 'Staff'))); // POSITION (Col C)
-                $hire_raw    = $data[3] ?? '';       // DATE HIRED (Col D)
-
-                // NAME (Col 6 / G)
-                $full_name = trim($data[6] ?? '');
-                if (strpos($full_name, ',') !== false) {
-                    $parts = explode(',', $full_name);
-                    $last_name = ucwords(strtolower(trim($parts[0])));
-                    $first_name = ucwords(strtolower(trim($parts[1] ?? '')));
-                } else {
-                    $last_name = ucwords(strtolower($full_name));
-                    $first_name = ".";
-                }
-            } elseif ($agency === 'UNLISOLUTIONS') {
-                // [UNLISOLUTIONS FORMAT]
-                $emp_id = trim($data[1] ?? '');
-
-                $full_name = trim($data[3] ?? '');
-                $parts = explode(',', $full_name);
-                if (count($parts) >= 2) {
-                    $last_name = ucwords(strtolower(trim($parts[0])));
-                    $first_name = ucwords(strtolower(trim($parts[1])));
-                } else {
-                    $last_name = ucwords(strtolower($full_name));
-                }
-
-                $job_title   = ucwords(strtolower(trim($data[4] ?? 'Staff')));
-                $section_raw = $data[5] ?? '';
-                $contact_raw = $data[6] ?? '';
-                $birth_raw   = $data[7] ?? '';
-                $hire_raw    = $data[8] ?? '';
-                $sss_raw     = $data[9] ?? '';
-                $tin_raw     = $data[10] ?? '';
-                $pagibig_raw = $data[11] ?? '';
-                $phil_raw    = $data[12] ?? '';
-                $email       = strtolower(trim($data[14] ?? ''));
-            } elseif ($agency === 'CUSTOM') {
-                // [NEW] Dynamic Header Mapping
-                $h = array_map('strtoupper', array_map('trim', $headerRow));
-                $idx = function ($keys) use ($h) {
-                    foreach ($keys as $k) {
-                        $i = array_search($k, $h);
-                        if ($i !== false) return $i;
-                    }
-                    return -1;
-                };
-                $iID = $idx(['ID', 'EMP_ID', 'EMPLOYEE ID', 'CODE']);
-                $iName = $idx(['NAME', 'FULL NAME', 'EMPLOYEE NAME']);
-                $iPos = $idx(['POSITION', 'JOB TITLE', 'ROLE']);
-                $iSec = $idx(['SECTION', 'DEPT', 'DEPARTMENT']);
-                $iHired = $idx(['HIRED', 'DATE HIRED', 'JOIN DATE']);
-
-                $emp_id = ($iID >= 0) ? trim($data[$iID] ?? '') : '';
-                $job_title = ($iPos >= 0) ? ucwords(strtolower(trim($data[$iPos] ?? 'Staff'))) : 'Staff';
-                $section_raw = ($iSec >= 0) ? ($data[$iSec] ?? '') : '';
-                $hire_raw = ($iHired >= 0) ? ($data[$iHired] ?? '') : '';
-
-                if ($iName >= 0) {
-                    $full_name = trim($data[$iName] ?? '');
-                    $parts = explode(',', $full_name);
-                    $last_name = ucwords(strtolower(trim($parts[0] ?? '')));
-                    $first_name = ucwords(strtolower(trim($parts[1] ?? $full_name)));
-                }
+    } elseif (!isset($_FILES['csv_file']) || $_FILES['csv_file']['error'] !== UPLOAD_ERR_OK) {
+        $error = "File upload error. Please try again.";
+    } else {
+        $file = $_FILES['csv_file']['tmp_name'] ?? '';
+        if (empty($file) || !is_uploaded_file($file)) {
+            $error = "Invalid uploaded file.";
+        } else {
+            $handle = @fopen($file, "r");
+            if ($handle === false) {
+                error_log("Import failed: could not open uploaded file $file");
+                $error = "Unable to read uploaded file.";
             } else {
-                // [TESP / STANDARD FORMAT]
-                $emp_id = trim($data[1] ?? '');
+                // detect delimiter based on first line sample
+                $success_count = 0;
+                $firstLine = fgets($handle);
+                rewind($handle);
+                $delimiter = (substr_count($firstLine, ';') > substr_count($firstLine, ',')) ? ';' : ',';
 
-                $full_name = trim($data[3] ?? '');
-                $parts = explode(',', $full_name);
-                if (count($parts) >= 2) {
-                    $last_name = ucwords(strtolower(trim($parts[0])));
-                    $first_name = ucwords(strtolower(trim($parts[1])));
-                } else {
-                    $last_name = ucwords(strtolower($full_name));
+                $batch_id = "BATCH_" . date('Ymd_His');
+                $success_count = 0;
+
+                // Capture header for Custom mapping
+                $headerRow = fgetcsv($handle, 0, $delimiter);
+                if (isset($headerRow[0])) { // Remove BOM if present
+                    $headerRow[0] = preg_replace('/^\xEF\xBB\xBF/', '', $headerRow[0]);
                 }
 
-                $section_raw = $data[4] ?? '';
-                $contact_raw = $data[5] ?? '';
-                $birth_raw   = $data[6] ?? '';
-                $hire_raw    = $data[7] ?? '';
-                $sss_raw     = $data[8] ?? '';
-                $tin_raw     = $data[9] ?? '';
-                $pagibig_raw = $data[10] ?? '';
-                $phil_raw    = $data[11] ?? '';
-            }
+                while (($data = fgetcsv($handle, 0, $delimiter)) !== FALSE) {
+                    if (empty($data) || (count($data) === 1 && empty($data[0]))) continue; // Skip empty rows
 
-            // --- PROCESSING ---
-            $section = strtoupper(trim($section_raw));
-            $dept    = findDept($section, $deptMap);
+                    // DEFAULT VARIABLES
+                    $emp_id = "";
+                    $first_name = ".";
+                    $last_name = "";
+                    $section_raw = "";
+                    $contact_raw = "";
+                    $birth_raw = "";
+                    $hire_raw = "";
+                    $sss_raw = "";
+                    $tin_raw = "";
+                    $pagibig_raw = "";
+                    $phil_raw = "";
+                    $job_title = "Staff";
+                    $email = "";
 
-            $birth_date = parseDate(trim($birth_raw));
-            $hire_date  = parseDate(trim($hire_raw));
+                    // ----------------------------------------------------
+                    // SWITCH LOGIC: MAP COLUMNS BASED ON AGENCY
+                    // ----------------------------------------------------
 
-            // [SECURITY] Enforce Limits & Whitelist (Match Add/Edit Rules)
-            $emp_id     = substr(preg_replace('/[^a-zA-Z0-9\-_]/', '', $emp_id), 0, 20);
-            $first_name = substr(preg_replace('/[^a-zA-Z0-9\s\-\.\(\)]/', '', $first_name), 0, 50);
-            $last_name  = substr(preg_replace('/[^a-zA-Z0-9\s\-\.\(\)]/', '', $last_name), 0, 50);
-            $job_title  = substr(preg_replace('/[^a-zA-Z0-9\s\-\.\,\(\)]/', '', $job_title), 0, 50);
+                    if ($agency === 'JORATECH') {
+                        // [JORATECH FORMAT]
+                        // 0:NO | 1:SECTION | 2:POSITION | 3:HIRED | 4:NUM(Ignore) | 5:PIC(Ignore) | 6:NAME | 7:CODE | 8:CONTRACT
 
-            // Defaults
-            $gender = "Male";
-            $photo  = "default.png";
-            $status = "Active";
-            $address = "To be updated";
-            $empType = ($agency === 'TESP') ? 'TESP Direct' : 'Agency';
+                        $emp_id      = trim($data[7] ?? ''); // CODE (Col H)
+                        $section_raw = $data[1] ?? '';       // SECTION (Col B)
+                        $job_title   = ucwords(strtolower(trim($data[2] ?? 'Staff'))); // POSITION (Col C)
+                        $hire_raw    = $data[3] ?? '';       // DATE HIRED (Col D)
 
-            if ($emp_id != '') {
-                try {
-                    $sql = "INSERT INTO employees 
+                        // NAME (Col 6 / G)
+                        $full_name = trim($data[6] ?? '');
+                        if (strpos($full_name, ',') !== false) {
+                            $parts = explode(',', $full_name);
+                            $last_name = ucwords(strtolower(trim($parts[0])));
+                            $first_name = ucwords(strtolower(trim($parts[1] ?? '')));
+                        } else {
+                            // no comma, attempt to split on whitespace
+                            $words = preg_split('/\s+/', trim($full_name));
+                            if (count($words) > 1) {
+                                $first_name = ucwords(strtolower(array_shift($words)));
+                                $last_name = ucwords(strtolower(implode(' ', $words)));
+                            } else {
+                                $last_name = ucwords(strtolower($full_name));
+                                $first_name = '';
+                            }
+                        }
+                    } elseif ($agency === 'UNLISOLUTIONS') {
+                        // [UNLISOLUTIONS FORMAT]
+                        $emp_id = trim($data[1] ?? '');
+
+                        $full_name = trim($data[3] ?? '');
+                        $parts = explode(',', $full_name);
+                        if (count($parts) >= 2) {
+                            $last_name = ucwords(strtolower(trim($parts[0])));
+                            $first_name = ucwords(strtolower(trim($parts[1])));
+                        } else {
+                            $words = preg_split('/\s+/', trim($full_name));
+                            if (count($words) > 1) {
+                                $first_name = ucwords(strtolower(array_shift($words)));
+                                $last_name = ucwords(strtolower(implode(' ', $words)));
+                            } else {
+                                $last_name = ucwords(strtolower($full_name));
+                                $first_name = '';
+                            }
+                        }
+
+                        $job_title   = ucwords(strtolower(trim($data[4] ?? 'Staff')));
+                        $section_raw = $data[5] ?? '';
+                        $contact_raw = $data[6] ?? '';
+                        $birth_raw   = $data[7] ?? '';
+                        $hire_raw    = $data[8] ?? '';
+                        $sss_raw     = $data[9] ?? '';
+                        $tin_raw     = $data[10] ?? '';
+                        $pagibig_raw = $data[11] ?? '';
+                        $phil_raw    = $data[12] ?? '';
+                        $email       = strtolower(trim($data[14] ?? ''));
+                    } elseif ($agency === 'CUSTOM') {
+                        // [NEW] Dynamic Header Mapping
+                        $h = array_map('strtoupper', array_map('trim', $headerRow));
+                        $idx = function ($keys) use ($h) {
+                            foreach ($keys as $k) {
+                                $i = array_search($k, $h);
+                                if ($i !== false) return $i;
+                            }
+                            return -1;
+                        };
+                        $iID = $idx(['ID', 'EMP_ID', 'EMPLOYEE ID', 'CODE']);
+                        $iName = $idx(['NAME', 'FULL NAME', 'EMPLOYEE NAME']);
+                        $iPos = $idx(['POSITION', 'JOB TITLE', 'ROLE']);
+                        $iSec = $idx(['SECTION', 'DEPT', 'DEPARTMENT']);
+                        $iHired = $idx(['HIRED', 'DATE HIRED', 'JOIN DATE']);
+
+                        $emp_id = ($iID >= 0) ? trim($data[$iID] ?? '') : '';
+                        $job_title = ($iPos >= 0) ? ucwords(strtolower(trim($data[$iPos] ?? 'Staff'))) : 'Staff';
+                        $section_raw = ($iSec >= 0) ? ($data[$iSec] ?? '') : '';
+                        $hire_raw = ($iHired >= 0) ? ($data[$iHired] ?? '') : '';
+
+                        if ($iName >= 0) {
+                            $full_name = trim($data[$iName] ?? '');
+                            if (strpos($full_name, ',') !== false) {
+                                $parts = explode(',', $full_name);
+                                $last_name = ucwords(strtolower(trim($parts[0] ?? '')));
+                                $first_name = ucwords(strtolower(trim($parts[1] ?? $full_name)));
+                            } else {
+                                $words = preg_split('/\s+/', trim($full_name));
+                                if (count($words) > 1) {
+                                    $first_name = ucwords(strtolower(array_shift($words)));
+                                    $last_name = ucwords(strtolower(implode(' ', $words)));
+                                } else {
+                                    $last_name = ucwords(strtolower($full_name));
+                                    $first_name = '';
+                                }
+                            }
+                        }
+                    } else {
+                        // [TESP / STANDARD FORMAT]
+                        $emp_id = trim($data[1] ?? '');
+
+                        $full_name = trim($data[3] ?? '');
+                        $parts = explode(',', $full_name);
+                        if (count($parts) >= 2) {
+                            $last_name = ucwords(strtolower(trim($parts[0])));
+                            $first_name = ucwords(strtolower(trim($parts[1])));
+                        } else {
+                            $words = preg_split('/\s+/', trim($full_name));
+                            if (count($words) > 1) {
+                                $first_name = ucwords(strtolower(array_shift($words)));
+                                $last_name = ucwords(strtolower(implode(' ', $words)));
+                            } else {
+                                $last_name = ucwords(strtolower($full_name));
+                            }
+                        }
+
+                        $section_raw = $data[4] ?? '';
+                        $contact_raw = $data[5] ?? '';
+                        $birth_raw   = $data[6] ?? '';
+                        $hire_raw    = $data[7] ?? '';
+                        $sss_raw     = $data[8] ?? '';
+                        $tin_raw     = $data[9] ?? '';
+                        $pagibig_raw = $data[10] ?? '';
+                        $phil_raw    = $data[11] ?? '';
+                    }
+
+                    // --- PROCESSING ---
+                    $section = strtoupper(trim($section_raw));
+                    $dept    = findDept($section, $deptMap);
+
+                    $birth_date = parseDate(trim($birth_raw));
+                    $hire_date  = parseDate(trim($hire_raw));
+
+                    // [SECURITY] Enforce Limits & Whitelist (Match Add/Edit Rules)
+                    $emp_id     = substr(preg_replace('/[^a-zA-Z0-9\-_]/', '', $emp_id), 0, 20);
+                    $first_name = substr(preg_replace('/[^a-zA-Z0-9\s\-\.\(\)]/', '', $first_name), 0, 50);
+                    $last_name  = substr(preg_replace('/[^a-zA-Z0-9\s\-\.\(\)]/', '', $last_name), 0, 50);
+                    $job_title  = substr(preg_replace('/[^a-zA-Z0-9\s\-\.\,\(\)]/', '', $job_title), 0, 50);
+
+                    // Defaults
+                    $gender = "Male";
+                    $photo  = "default.png";
+                    $status = "Active";
+                    $address = "To be updated";
+                    $empType = ($agency === 'TESP') ? 'TESP Direct' : 'Agency';
+
+                    if ($emp_id != '') {
+                        try {
+                            $sql = "INSERT INTO employees 
                     (emp_id, first_name, last_name, dept, section, 
                      employment_type, agency_name, job_title, status, 
                      gender, birth_date, hire_date, contact_number, 
@@ -415,50 +453,51 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['csv_file'])) {
                      sss_no, tin_no, pagibig_no, philhealth_no, email) 
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
-                    $stmt = $pdo->prepare($sql);
-                    $stmt->execute([
-                        $emp_id,
-                        $first_name,
-                        $last_name,
-                        $dept,
-                        $section,
-                        $empType,
-                        $agency,
-                        $job_title,
-                        $status,
-                        $gender,
-                        $birth_date,
-                        $hire_date,
-                        trim($contact_raw),
-                        $address,
-                        $photo,
-                        $batch_id,
-                        trim($sss_raw),
-                        trim($tin_raw),
-                        trim($pagibig_raw),
-                        trim($phil_raw),
-                        $email
-                    ]);
-                    $success_count++;
-                } catch (Exception $e) {
-                    // Skip duplicates
+                            $stmt = $pdo->prepare($sql);
+                            $stmt->execute([
+                                $emp_id,
+                                $first_name,
+                                $last_name,
+                                $dept,
+                                $section,
+                                $empType,
+                                $agency,
+                                $job_title,
+                                $status,
+                                $gender,
+                                $birth_date,
+                                $hire_date,
+                                trim($contact_raw),
+                                $address,
+                                $photo,
+                                $batch_id,
+                                trim($sss_raw),
+                                trim($tin_raw),
+                                trim($pagibig_raw),
+                                trim($phil_raw),
+                                $email
+                            ]);
+                            $success_count++;
+                        } catch (Exception $e) {
+                            // Skip duplicates
+                        }
+                    }
                 }
+                fclose($handle);
+            }
+
+            if ($success_count > 0) {
+                $logger->log($_SESSION['user_id'], 'IMPORT_SUCCESS', "Imported $success_count ($agency)");
+                $msg = "✅ Success! Imported $success_count employees into $agency.";
+            } else {
+                $error = "No valid records found or all were duplicates.";
             }
         }
-        fclose($handle);
-
-        if ($success_count > 0) {
-            $logger->log($_SESSION['user_id'], 'IMPORT_SUCCESS', "Imported $success_count ($agency)");
-            $msg = "✅ Success! Imported $success_count employees into $agency.";
-        } else {
-            $error = "No valid records found or all were duplicates.";
-        }
-    } else {
-        $error = "File upload failed.";
     }
 }
 
-$history = $pdo->query("SELECT import_batch, agency_name, COUNT(*) as count, MAX(created_at) as time FROM employees WHERE import_batch IS NOT NULL GROUP BY import_batch ORDER BY time DESC LIMIT 5")->fetchAll();
+// Fetch history for the table below
+$history = $pdo->query("SELECT import_batch, agency_name, COUNT(*) as count, MAX(created_at) as time FROM employees WHERE import_batch IS NOT NULL GROUP BY import_batch ORDER BY time DESC LIMIT 5")->fetchAll(PDO::FETCH_ASSOC);
 ?>
 
 <!DOCTYPE html>

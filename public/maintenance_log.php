@@ -7,10 +7,11 @@
 require '../config/db.php';
 require '../src/Security.php';
 require '../src/Logger.php';
+require '../src/Validator.php';
 session_start();
 
-// 1. SECURITY: Admin & Manager Only
-if (!isset($_SESSION['user_id']) || !in_array($_SESSION['role'], ['ADMIN', 'MANAGER'])) {
+// 1. SECURITY: Admin Only
+if (!isset($_SESSION['user_id']) || ($_SESSION['role'] ?? '') !== 'ADMIN') {
     header("Location: index.php");
     exit;
 }
@@ -96,6 +97,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_log'])) {
             $msg = 'Please fill in the required fields.';
             $msgType = 'danger';
         }
+        // [SECURITY] Length Validation
+        elseif (strlen($equip) > 50) {
+            $msg = "Equipment type too long (Max 50 chars).";
+            $msgType = 'danger';
+        } elseif (strlen($issue) > 255) {
+            $msg = "Issue description too long (Max 255 chars).";
+            $msgType = 'danger';
+        } elseif (strlen($action) > 1000) {
+            $msg = "Action taken too long (Max 1000 chars).";
+            $msgType = 'danger';
+        } elseif (strlen($vendor) > 100) {
+            $msg = "Vendor name too long (Max 100 chars).";
+            $msgType = 'danger';
+        }
+
 
         // Validate date format
         $dateObj = DateTime::createFromFormat('Y-m-d', $date);
@@ -134,16 +150,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_log'])) {
                 }
             } else {
                 // [SECURITY] Enforce Password Age (45 Days) for sensitive actions
-                $lastChange = new DateTime($user['password_changed_at'] ?? $user['created_at']);
-                $today = new DateTime();
-                if ($today->diff($lastChange)->days > 45) {
-                    $msg = 'Action blocked: Your password has expired (older than 45 days). Please change it in Profile Settings.';
+                $lastChangeDate = $user['password_changed_at'] ?? $user['created_at'];
+                if (!$lastChangeDate) {
+                    $msg = 'Action blocked: Unable to verify password age. Please contact administrator.';
                     $msgType = 'danger';
+                } else {
+                    $lastChange = new DateTime($lastChangeDate);
+                    $today = new DateTime();
+                    if ($today->diff($lastChange)->days > 45) {
+                        $msg = 'Action blocked: Your password has expired (older than 45 days). Please change it in Profile Settings.';
+                        $msgType = 'danger';
+                    }
                 }
             }
         }
 
-        // If all checks pass, insert record inside a transaction and write an audit entry
+        $performedBy = $_SESSION['username'] ?? 'Unknown';
+        $ins->execute([$emp_id, $equip, $issue, $action, $date, $performedBy, $vendor]);
         if (empty($msg)) {
             try {
                 $pdo->beginTransaction();
@@ -173,7 +196,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_log'])) {
 }
 
 // 3. FETCH LOGS
-$search = $_GET['search'] ?? '';
+$search = Validator::sanitizeSearch($_GET['search'] ?? '');
 $sql = "SELECT m.*, e.first_name, e.last_name, e.dept 
         FROM maintenance_logs m 
         LEFT JOIN employees e ON m.employee_id = e.emp_id 
@@ -213,7 +236,7 @@ $emps = $pdo->query("SELECT emp_id, first_name, last_name FROM employees WHERE s
 
     <nav class="navbar navbar-dark bg-dark mb-4">
         <div class="container">
-            <a class="navbar-brand" href="manager_dashboard.php">⬅ Manager Dashboard</a>
+            <a class="navbar-brand" href="index.php">⬅ Back to Dashboard</a>
             <span class="navbar-text text-white"><i class="bi bi-tools"></i> Hardware Maintenance Log</span>
         </div>
     </nav>
@@ -293,7 +316,7 @@ $emps = $pdo->query("SELECT emp_id, first_name, last_name FROM employees WHERE s
                 </div>
                 <div class="modal-body">
                     <input type="hidden" name="add_log" value="1">
-                    <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token'] ?? $security->generateCSRF()); ?>">
+                    <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
                     <div class="mb-3">
                         <label class="form-label fw-bold">Employee</label>
                         <select name="employee_id" class="form-select" required>
@@ -303,11 +326,11 @@ $emps = $pdo->query("SELECT emp_id, first_name, last_name FROM employees WHERE s
                             <?php endforeach; ?>
                         </select>
                     </div>
-                    <div class="mb-3"><label class="form-label">Equipment</label><input type="text" name="equipment_type" class="form-control" placeholder="e.g. Laptop Dell Latitude" required></div>
-                    <div class="mb-3"><label class="form-label">Issue</label><input type="text" name="issue" class="form-control" placeholder="e.g. Slow performance, Battery replacement" required></div>
-                    <div class="mb-3"><label class="form-label">Action Taken</label><textarea name="action_taken" class="form-control" rows="2" placeholder="e.g. Replaced battery, Re-imaged OS"></textarea></div>
+                    <div class="mb-3"><label class="form-label">Equipment</label><input type="text" name="equipment_type" class="form-control" placeholder="e.g. Laptop Dell Latitude" required maxlength="50"></div>
+                    <div class="mb-3"><label class="form-label">Issue</label><input type="text" name="issue" class="form-control" placeholder="e.g. Slow performance, Battery replacement" required maxlength="255"></div>
+                    <div class="mb-3"><label class="form-label">Action Taken</label><textarea name="action_taken" class="form-control" rows="2" placeholder="e.g. Replaced battery, Re-imaged OS" maxlength="1000"></textarea></div>
                     <div class="mb-3"><label class="form-label">Date</label><input type="date" name="maintenance_date" class="form-control" value="<?php echo date('Y-m-d'); ?>" required></div>
-                    <div class="mb-3"><label class="form-label">External Vendor (Optional)</label><input type="text" name="vendor_name" class="form-control" placeholder="e.g. Dell Support, HP Technician"></div>
+                    <div class="mb-3"><label class="form-label">External Vendor (Optional)</label><input type="text" name="vendor_name" class="form-control" placeholder="e.g. Dell Support, HP Technician" maxlength="100"></div>
                     <div class="mb-3">
                         <label class="form-label">Confirm Password</label>
                         <input type="password" name="admin_password" class="form-control" placeholder="Enter your account password to confirm" required>

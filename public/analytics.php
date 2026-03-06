@@ -24,6 +24,18 @@ $genderFilter  = isset($_GET['gender']) ? trim($_GET['gender']) : '';
 $agencyFilter  = isset($_GET['agency_filter']) ? trim($_GET['agency_filter']) : '';
 $yearFilter    = isset($_GET['year']) ? (int)$_GET['year'] : (int)date('Y');
 $probMonths    = isset($_GET['prob_months']) ? (int)$_GET['prob_months'] : 6; // Default 6 months
+$dateFrom      = $_GET['date_from'] ?? '';
+$dateTo        = $_GET['date_to'] ?? '';
+
+// [NEW] Determine Date Range
+if (!empty($dateFrom) && !empty($dateTo)) {
+    $startDate = $dateFrom;
+    $endDate   = $dateTo;
+} else {
+    $startDate = "$yearFilter-01-01";
+    $endDate   = "$yearFilter-12-31";
+}
+
 $debug         = isset($_GET['debug']) ? (bool)$_GET['debug'] : false;
 $includeDeleted = isset($_GET['include_deleted']) ? (bool)$_GET['include_deleted'] : false;
 
@@ -32,8 +44,8 @@ $activeSQL = " WHERE status = 'Active' ";
 $params = [];
 
 $inactiveSQL = " WHERE status IN ('Resigned', 'Terminated', 'AWOL', 'Retired')
-                 AND (exit_date IS NOT NULL AND YEAR(exit_date) = ?) ";
-$inactiveParams = [$yearFilter];
+                 AND (exit_date BETWEEN ? AND ?) ";
+$inactiveParams = [$startDate, $endDate];
 
 // Apply Filters (to both active & inactive where applicable)
 if ($jobSearch !== '') {
@@ -70,10 +82,12 @@ $today       = new DateTime('today');
 $currentYear = (int)$today->format('Y');
 // If viewing a past year, compute tenure as of Dec 31 of that year.
 // If current/future, compute as of today.
-$asOf = ($yearFilter < $currentYear)
-    ? new DateTime($yearFilter . '-12-31')
-    : $today;
-
+if (!empty($dateTo)) {
+    $asOf = new DateTime($dateTo);
+    if ($asOf > $today) $asOf = $today;
+} else {
+    $asOf = ($yearFilter < $currentYear) ? new DateTime($yearFilter . '-12-31') : $today;
+}
 // ============================================================
 // DATA FETCHING
 // ============================================================
@@ -126,39 +140,53 @@ $reasonData = $reasonStmt->fetchAll(PDO::FETCH_ASSOC);
 
 // 5b) ATTRITION TREND (Monthly exits in selected year)
 $attrTrendSQL = "
-    SELECT MONTH(exit_date) AS month, COUNT(*) AS count
+    SELECT DATE_FORMAT(exit_date, '%Y-%m') AS ym, COUNT(*) AS count
     FROM employees
     $inactiveSQL
-    GROUP BY month
-    ORDER BY month ASC
+    GROUP BY ym
+    ORDER BY ym ASC
 ";
 // Re-use inactiveParams which already has the year bound
 $attrTrendStmt = $pdo->prepare($attrTrendSQL);
 $attrTrendStmt->execute($inactiveParams);
 $attrTrendRaw = $attrTrendStmt->fetchAll(PDO::FETCH_KEY_PAIR);
-$attrTrendData = [];
-for ($i = 1; $i <= 12; $i++) {
-    $attrTrendData[] = isset($attrTrendRaw[$i]) ? (int)$attrTrendRaw[$i] : 0;
-}
-$attrTrendCounts = json_encode($attrTrendData);
 
 // 6) HIRING TREND (Active with hire_date in selected year)
 $trendSQL = "
-    SELECT MONTH(hire_date) AS month, COUNT(*) AS count
+    SELECT DATE_FORMAT(hire_date, '%Y-%m') AS ym, COUNT(*) AS count
     FROM employees
     $activeSQL
-    AND YEAR(hire_date) = ?
-    GROUP BY month
-    ORDER BY month ASC
+    AND hire_date BETWEEN ? AND ?
+    GROUP BY ym
+    ORDER BY ym ASC
 ";
-$trendParams = array_merge($params, [$yearFilter]);
+$trendParams = array_merge($params, [$startDate, $endDate]);
 $trendStmt = $pdo->prepare($trendSQL);
 $trendStmt->execute($trendParams);
 $trendRaw = $trendStmt->fetchAll(PDO::FETCH_KEY_PAIR);
-$trendData = [];
-for ($i = 1; $i <= 12; $i++) {
-    $trendData[] = isset($trendRaw[$i]) ? (int)$trendRaw[$i] : 0;
+
+// [NEW] Generate Dynamic Labels for Trend Charts
+$trendLabelsArr = [];
+$trendDataArr   = [];
+$attrDataArr    = [];
+
+$start    = new DateTime($startDate);
+$end      = new DateTime($endDate);
+$interval = DateInterval::createFromDateString('1 month');
+$period   = new DatePeriod($start, $interval, $end->modify('+1 day')); // Inclusive
+
+foreach ($period as $dt) {
+    $key = $dt->format('Y-m');
+    $label = $dt->format('M Y'); // e.g. "Jan 2024"
+
+    $trendLabelsArr[] = $label;
+    $trendDataArr[]   = isset($trendRaw[$key]) ? (int)$trendRaw[$key] : 0;
+    $attrDataArr[]    = isset($attrTrendRaw[$key]) ? (int)$attrTrendRaw[$key] : 0;
 }
+
+$trendLabels     = json_encode($trendLabelsArr);
+$trendCounts     = json_encode($trendDataArr);
+$attrTrendCounts = json_encode($attrDataArr);
 
 // 7) PROBATIONARY VS REGULAR (New Logic)
 // Threshold: Dynamic months prior to the "As Of" date
@@ -178,11 +206,11 @@ $regCount = max(0, $totalHeadcount - $probCount);
 // Average Headcount = (Start of Year Headcount + End of Year Headcount) / 2
 
 // A. Total Exits in Selected Year
-$totalExits = array_sum($attrTrendData);
+$totalExits = array_sum($attrDataArr);
 
 // B. Headcount at Start of Year (Approximate: Current Active + Exits this year - Hires this year)
 // This is a simplified estimation. For exact precision, we'd need a daily snapshot table.
-$hiresThisYear = array_sum($trendData);
+$hiresThisYear = array_sum($trendDataArr);
 $startHeadcount = $totalHeadcount + $totalExits - $hiresThisYear;
 $endHeadcount   = $totalHeadcount; // Assuming current state is end state for calculation
 $avgHeadcount   = ($startHeadcount + $endHeadcount) / 2;
@@ -283,9 +311,6 @@ $agencyCounts = json_encode(array_values($agencyData));
 
 $turnLabels   = json_encode(array_keys($turnoverData));
 $turnCounts   = json_encode(array_values($turnoverData));
-
-$trendLabels  = json_encode(['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']);
-$trendCounts  = json_encode($trendData);
 
 $ageLabels    = json_encode(array_keys($ageBands));
 $ageCounts    = json_encode(array_values($ageBands));
@@ -530,26 +555,38 @@ if ($debug) {
     </style>
 </head>
 
-<body class="bg-light">
+<body class="bg-body-tertiary">
 
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4 no-print">
         <div class="container-fluid">
             <a class="navbar-brand" href="index.php"><i class="bi bi-arrow-left-circle me-2"></i> Dashboard</a>
-            <span class="navbar-text text-white fw-bold">📊 Workforce Intelligence</span>
+            <div class="d-flex align-items-center gap-2">
+                <button id="darkModeToggle" class="btn btn-sm btn-outline-light border-0" title="Toggle Dark Mode">
+                    <i class="bi bi-moon-stars-fill"></i>
+                </button>
+                <span class="navbar-text text-white fw-bold">📊 Workforce Intelligence</span>
+            </div>
         </div>
     </nav>
 
     <div class="container-fluid px-4">
 
         <div class="card shadow-sm mb-4 border-primary no-print">
-            <div class="card-body py-2 bg-white rounded">
+            <div class="card-body py-2 rounded">
                 <form method="GET" class="row g-2 align-items-center">
                     <div class="col-auto"><i class="bi bi-funnel-fill text-muted"></i></div>
-                    <div class="col-md-2">
-                        <select name="year" class="form-select form-select-sm fw-bold text-primary" onchange="this.form.submit()">
+                    <div class="col-md-auto">
+                        <select name="year" class="form-select form-select-sm fw-bold text-primary" onchange="document.getElementsByName('date_from')[0].value=''; document.getElementsByName('date_to')[0].value=''; this.form.submit()">
                             <?php $cur = (int)date('Y');
                             for ($y = $cur; $y >= 2000; $y--) echo "<option value='$y' " . ($y == $yearFilter ? 'selected' : '') . ">📅 " . htmlspecialchars($y) . "</option>"; ?>
                         </select>
+                    </div>
+                    <div class="col-md-auto">
+                        <div class="input-group input-group-sm">
+                            <span class="input-group-text bg-light">Range</span>
+                            <input type="date" name="date_from" class="form-control" value="<?php echo htmlspecialchars($dateFrom); ?>" title="Start Date">
+                            <input type="date" name="date_to" class="form-control" value="<?php echo htmlspecialchars($dateTo); ?>" title="End Date">
+                        </div>
                     </div>
                     <div class="col-md-2">
                         <select name="agency_filter" class="form-select form-select-sm" onchange="this.form.submit()">
@@ -603,7 +640,8 @@ if ($debug) {
                     </div>
 
                     <div class="col-auto ms-auto d-flex gap-2">
-                        <button type="button" onclick="window.print()" class="btn btn-sm btn-dark"><i class="bi bi-printer"></i> Print Report</button>
+                        <button type="submit" class="btn btn-sm btn-primary"><i class="bi bi-arrow-repeat"></i> Apply</button>
+                        <button type="button" onclick="window.print()" class="btn btn-sm btn-dark"><i class="bi bi-printer"></i> Print</button>
                         <a href="analytics.php" class="btn btn-sm btn-outline-secondary">Reset</a>
                     </div>
                 </form>
@@ -615,7 +653,7 @@ if ($debug) {
             <p class="text-muted small">
                 Generated on: <?php echo date('F j, Y'); ?>
                 | Tenure as of: <?php echo htmlspecialchars($asOf->format('F j, Y')); ?>
-                | Year filter: <?php echo (int)$yearFilter; ?>
+                | Period: <?php echo htmlspecialchars($startDate . ' to ' . $endDate); ?>
             </p>
             <hr>
         </div>
@@ -659,7 +697,7 @@ if ($debug) {
             </div>
             <div class="col-md-3 mb-3 mb-md-0">
                 <div class="card shadow-sm h-100">
-                    <div class="card-header bg-white border-bottom-0 d-flex justify-content-between align-items-center">
+                    <div class="card-header border-bottom-0 d-flex justify-content-between align-items-center">
                         <span>Agency Breakdown</span>
                         <button class="btn btn-sm btn-link text-secondary p-0" onclick="openFullScreen('agencyChart', 'Agency Breakdown')"><i class="bi bi-arrows-fullscreen"></i></button>
                     </div>
@@ -668,7 +706,7 @@ if ($debug) {
             </div>
             <div class="col-md-3">
                 <div class="card shadow-sm h-100">
-                    <div class="card-header bg-white border-bottom-0 d-flex justify-content-between align-items-center">
+                    <div class="card-header border-bottom-0 d-flex justify-content-between align-items-center">
                         <span>Headcount by Dept</span>
                         <button class="btn btn-sm btn-link text-secondary p-0" onclick="openFullScreen('deptChart', 'Headcount by Department')"><i class="bi bi-arrows-fullscreen"></i></button>
                     </div>
@@ -680,8 +718,8 @@ if ($debug) {
         <div class="row mb-4">
             <div class="col-md-8">
                 <div class="card shadow-sm h-100">
-                    <div class="card-header bg-white border-bottom-0 text-info d-flex justify-content-between align-items-center">
-                        <span>Hiring Trend (<?php echo htmlspecialchars((int)$yearFilter); ?>)</span>
+                    <div class="card-header border-bottom-0 text-info d-flex justify-content-between align-items-center">
+                        <span>Hiring Trend</span>
                         <button class="btn btn-sm btn-link text-info p-0" onclick="openFullScreen('trendChart', 'Hiring Trend')"><i class="bi bi-arrows-fullscreen"></i></button>
                     </div>
                     <div class="card-body"><canvas id="trendChart"></canvas></div>
@@ -689,7 +727,7 @@ if ($debug) {
             </div>
             <div class="col-md-4">
                 <div class="card shadow-sm h-100">
-                    <div class="card-header bg-white border-bottom-0 d-flex justify-content-between align-items-center">
+                    <div class="card-header border-bottom-0 d-flex justify-content-between align-items-center">
                         <span>Gender Split</span>
                         <button class="btn btn-sm btn-link text-secondary p-0" onclick="openFullScreen('genderChart', 'Gender Distribution')"><i class="bi bi-arrows-fullscreen"></i></button>
                     </div>
@@ -701,7 +739,7 @@ if ($debug) {
         <div class="row mb-4">
             <div class="col-md-6">
                 <div class="card shadow-sm h-100">
-                    <div class="card-header bg-white border-bottom-0 d-flex justify-content-between align-items-center">
+                    <div class="card-header border-bottom-0 d-flex justify-content-between align-items-center">
                         <span>Age Demographics</span>
                         <button class="btn btn-sm btn-link text-secondary p-0" onclick="openFullScreen('ageChart', 'Age Demographics')"><i class="bi bi-arrows-fullscreen"></i></button>
                     </div>
@@ -710,7 +748,7 @@ if ($debug) {
             </div>
             <div class="col-md-6">
                 <div class="card shadow-sm h-100">
-                    <div class="card-header bg-white border-bottom-0 d-flex justify-content-between align-items-center">
+                    <div class="card-header border-bottom-0 d-flex justify-content-between align-items-center">
                         <span>Tenure Overview</span>
                         <button class="btn btn-sm btn-link text-secondary p-0" onclick="openFullScreen('tenureChart', 'Tenure Overview')"><i class="bi bi-arrows-fullscreen"></i></button>
                     </div>
@@ -734,7 +772,7 @@ if ($debug) {
             <div class="col-md-4">
                 <div class="card shadow-sm h-100 border-danger">
                     <div class="card-header bg-danger text-white border-bottom-0 d-flex justify-content-between align-items-center">
-                        <span><i class="bi bi-graph-down-arrow me-2"></i> Monthly Attrition (<?php echo htmlspecialchars((int)$yearFilter); ?>)</span>
+                        <span><i class="bi bi-graph-down-arrow me-2"></i> Monthly Attrition</span>
                         <button class="btn btn-sm btn-link text-white p-0" onclick="openFullScreen('attritionTrendChart', 'Monthly Attrition Trend')"><i class="bi bi-arrows-fullscreen"></i></button>
                     </div>
                     <div class="card-body">
@@ -927,9 +965,11 @@ if ($debug) {
 
     <!-- Required for Modals -->
     <script src="assets/bootstrap.bundle.min.js"></script>
+    <script src="dark_mode.js"></script>
 
     <script>
         const colors = ['#0d6efd', '#198754', '#ffc107', '#dc3545', '#6610f2', '#fd7e14'];
+        const charts = {}; // Store chart instances for theme updates
 
         // Data Store for Full Screen Mode
         const chartData = {
@@ -1075,7 +1115,7 @@ if ($debug) {
         }
 
         // Status (Probationary vs Regular)
-        new Chart(document.getElementById('statusChart'), {
+        charts.statusChart = new Chart(document.getElementById('statusChart'), {
             type: 'doughnut',
             data: {
                 labels: ['Regular', 'Probationary'],
@@ -1096,7 +1136,7 @@ if ($debug) {
         });
 
         // Agency
-        new Chart(document.getElementById('agencyChart'), {
+        charts.agencyChart = new Chart(document.getElementById('agencyChart'), {
             type: 'doughnut',
             data: {
                 labels: <?php echo $agencyLabels; ?>,
@@ -1117,7 +1157,7 @@ if ($debug) {
         });
 
         // Departments
-        new Chart(document.getElementById('deptChart'), {
+        charts.deptChart = new Chart(document.getElementById('deptChart'), {
             type: 'bar',
             data: {
                 labels: <?php echo $deptLabels; ?>,
@@ -1140,7 +1180,7 @@ if ($debug) {
         });
 
         // Turnover (Inactive breakdown)
-        new Chart(document.getElementById('turnoverChart'), {
+        charts.turnoverChart = new Chart(document.getElementById('turnoverChart'), {
             type: 'pie',
             data: {
                 labels: <?php echo $turnLabels; ?>,
@@ -1161,7 +1201,7 @@ if ($debug) {
         });
 
         // Attrition Trend (Monthly)
-        new Chart(document.getElementById('attritionTrendChart'), {
+        charts.attritionTrendChart = new Chart(document.getElementById('attritionTrendChart'), {
             type: 'bar',
             data: {
                 labels: <?php echo $trendLabels; ?>,
@@ -1187,7 +1227,7 @@ if ($debug) {
         });
 
         // Hiring trend
-        new Chart(document.getElementById('trendChart'), {
+        charts.trendChart = new Chart(document.getElementById('trendChart'), {
             type: 'line',
             data: {
                 labels: <?php echo $trendLabels; ?>,
@@ -1215,7 +1255,7 @@ if ($debug) {
         });
 
         // Gender
-        new Chart(document.getElementById('genderChart'), {
+        charts.genderChart = new Chart(document.getElementById('genderChart'), {
             type: 'doughnut',
             data: {
                 labels: <?php echo $genderLabels; ?>,
@@ -1231,7 +1271,7 @@ if ($debug) {
         });
 
         // Age
-        new Chart(document.getElementById('ageChart'), {
+        charts.ageChart = new Chart(document.getElementById('ageChart'), {
             type: 'bar',
             data: {
                 labels: <?php echo $ageLabels; ?>,
@@ -1249,7 +1289,7 @@ if ($debug) {
         });
 
         // Tenure
-        new Chart(document.getElementById('tenureChart'), {
+        charts.tenureChart = new Chart(document.getElementById('tenureChart'), {
             type: 'bar',
             data: {
                 labels: <?php echo $tenureLabels; ?>,
@@ -1271,6 +1311,32 @@ if ($debug) {
             window.print();
             document.body.classList.remove('print-matrix-only');
         }
+
+        // [NEW] Dark Mode Adapter for Charts
+        function updateChartsTheme() {
+            const isDark = document.documentElement.getAttribute('data-bs-theme') === 'dark';
+            const textColor = isDark ? '#adb5bd' : '#6c757d';
+            const gridColor = isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)';
+
+            Object.values(charts).forEach(chart => {
+                // Update Scales (x/y)
+                ['x', 'y'].forEach(axis => {
+                    if (chart.options.scales[axis]) {
+                        chart.options.scales[axis].ticks = chart.options.scales[axis].ticks || {};
+                        chart.options.scales[axis].ticks.color = textColor;
+                        chart.options.scales[axis].grid = chart.options.scales[axis].grid || {};
+                        chart.options.scales[axis].grid.color = gridColor;
+                    }
+                });
+                chart.update();
+            });
+        }
+
+        new MutationObserver(updateChartsTheme).observe(document.documentElement, {
+            attributes: true,
+            attributeFilter: ['data-bs-theme']
+        });
+        updateChartsTheme(); // Initial check
     </script>
 
 </body>

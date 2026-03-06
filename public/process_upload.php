@@ -32,9 +32,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // CSRF Token Validation (Check AFTER size check)
     if (empty($_POST['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'])) {
         // Debugging: Log the mismatch to help troubleshoot
-        $postedToken = $_POST['csrf_token'] ?? 'MISSING';
-        $sessionToken = $_SESSION['csrf_token'] ?? 'MISSING';
-        error_log("CSRF Mismatch in process_upload.php. POST: $postedToken, SESSION: $sessionToken");
+        $postedToken = $_POST['csrf_token'] ?? '';
+        $sessionToken = $_SESSION['csrf_token'] ?? '';
+        // truncate or hash tokens for logging
+        $logPost = $postedToken ? substr($postedToken, 0, 4) . '...' . substr($postedToken, -4) : 'MISSING';
+        $logSess = $sessionToken ? substr($sessionToken, 0, 4) . '...' . substr($sessionToken, -4) : 'MISSING';
+        error_log("CSRF Mismatch in process_upload.php. POST: $logPost, SESSION: $logSess");
 
         sendResponse('error', "Security token expired or invalid. Please refresh and try again.");
     }
@@ -59,6 +62,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     $customName = trim($_POST['custom_filename'] ?? ''); // Get custom name
+    if (!empty($customName)) {
+        if (strlen($customName) > 50) sendResponse('error', "Custom filename is too long (Max 50 chars).", $emp_id);
+        if (!preg_match('/^[a-zA-Z0-9\-_ ]+$/', $customName)) {
+            sendResponse('error', "Custom filename contains invalid characters.", $emp_id);
+        }
+    }
+
 
     // --- "OTHERS" CATEGORY LOGIC (NEW) ---
     $category = $_POST['category'];
@@ -71,6 +81,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $other_cat = trim($_POST['other_category']);
 
         if (!empty($other_cat)) {
+            // [SECURITY] Validation for Custom Category
+            if (strlen($other_cat) > 50) sendResponse('error', "Custom category is too long (Max 50 chars).", $emp_id);
+            if (!preg_match('/^[a-zA-Z0-9\-_ ]+$/', $other_cat)) sendResponse('error', "Custom category contains invalid characters.", $emp_id);
+
             // Capitalize nicely (e.g., "gym membership" -> "Gym Membership")
             $category = ucwords(strtolower($other_cat));
         } else {

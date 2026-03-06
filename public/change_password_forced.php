@@ -1,5 +1,6 @@
 <?php
 require '../config/db.php';
+require '../src/Security.php';
 session_start();
 
 if (!isset($_SESSION['temp_user_id'])) {
@@ -7,16 +8,28 @@ if (!isset($_SESSION['temp_user_id'])) {
     exit;
 }
 
+$security = new Security($pdo);
+$csrf_token = $security->generateCSRF();
+
 $error = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (!isset($_POST['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'])) {
+        $error = "❌ Security Token Mismatch.";
+        goto end_post;
+    }
+
+    if (!isset($_POST['password'], $_POST['confirm'])) {
+        $error = "❌ Missing required fields.";
+        goto end_post;
+    }
+
     $pass = $_POST['password'];
     $confirm = $_POST['confirm'];
-
     if ($pass !== $confirm) {
         $error = "❌ Passwords do not match.";
-    } elseif (strlen($pass) < 12 || !preg_match('/[0-9]/', $pass) || !preg_match('/[\W_]/', $pass)) {
-        $error = "❌ Password must be 12+ chars, with a number & symbol.";
+    } elseif (strlen($pass) < 12 || !preg_match('/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_])/', $pass)) {
+        $error = "❌ Password must be 12+ chars, with Uppercase, Lowercase, Number & Symbol.";
     } else {
         $hash = password_hash($pass, PASSWORD_BCRYPT);
         // Update password and reset the timer (password_changed_at)
@@ -30,6 +43,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 }
+end_post:
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -50,9 +64,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <?php endif; ?>
 
         <form method="POST">
+            <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token); ?>">
             <div class="mb-3">
                 <label class="form-label">New Password</label>
-                <input type="password" name="password" class="form-control" required minlength="12" placeholder="Min 12 chars, # and symbol">
+                <input type="password" name="password" class="form-control" required minlength="12" placeholder="Min 12 chars, Upper, Lower, #, Symbol" pattern="(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).{12,}" title="Must be at least 12 characters, contain Uppercase, Lowercase, Number, and Symbol.">
             </div>
             <div class="mb-3">
                 <label class="form-label">Confirm Password</label>

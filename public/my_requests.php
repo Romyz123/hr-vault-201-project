@@ -1,6 +1,7 @@
 <?php
 require '../config/db.php';
 require '../src/Security.php';
+require '../src/Validator.php';
 session_start();
 
 if (!isset($_SESSION['user_id'])) {
@@ -13,7 +14,7 @@ $perPage = 10; // Number of requests per page
 $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
 $start = ($page > 1) ? ($page * $perPage) - $perPage : 0;
 $userId = $_SESSION['user_id'];
-$search = isset($_GET['search']) ? trim($_GET['search']) : '';
+$search = Validator::sanitizeSearch($_GET['search'] ?? '');
 $statusFilter = isset($_GET['status']) ? trim($_GET['status']) : '';
 
 

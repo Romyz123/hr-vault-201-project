@@ -3,7 +3,9 @@
 Options -Indexes
 
 # Upload limits are configured in php.ini or FPM pool configuration
+
 # Do not use php_value directives here as they conflict with PHP-FPM
+
 # Configure upload_max_filesize and post_max_size in php.ini instead
 
 # Block access to .env or .git files if they accidentally get here
@@ -12,3 +14,9 @@ Options -Indexes
 Order allow,deny
 Deny from all
 </FilesMatch>
+
+# Custom Error Pages
+
+ErrorDocument 403 "/hr 201/public/error.php?code=403"
+ErrorDocument 404 "/hr 201/public/error.php?code=404"
+ErrorDocument 500 "/hr 201/public/error.php?code=500"

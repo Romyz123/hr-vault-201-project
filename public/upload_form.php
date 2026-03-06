@@ -110,6 +110,7 @@ $preFilledCat = isset($_GET['category']) ? $_GET['category'] : '';
                                     <input type="text" id="employeeSearch" class="form-control"
                                         placeholder="Search by Name or ID..."
                                         autocomplete="off"
+                                        maxlength="100"
                                         value="<?php echo htmlspecialchars($preFilledName); ?>"
                                         <?php echo $isLocked ? 'readonly style="background-color: #e9ecef;"' : ''; ?>>
                                 </div>

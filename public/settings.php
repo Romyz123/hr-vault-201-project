@@ -377,6 +377,7 @@ $refreshInt  = $settings['auto_refresh_interval'] ?? '60';
 
             const formData = new FormData();
             formData.append('password', pass);
+            formData.append('csrf_token', '<?php echo $_SESSION['csrf_token']; ?>');
 
             fetch('test_zip_password.php', {
                     method: 'POST',
@@ -415,6 +416,7 @@ $refreshInt  = $settings['auto_refresh_interval'] ?? '60';
 
             const formData = new FormData();
             formData.append('email', email);
+            formData.append('csrf_token', '<?php echo $_SESSION['csrf_token']; ?>');
 
             fetch('test_email_alert.php', {
                     method: 'POST',

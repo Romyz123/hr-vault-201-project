@@ -366,6 +366,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // 3. Delete DB Records
             $pdo->prepare("DELETE FROM documents WHERE employee_id = ?")->execute([$empIdStr]);
             $pdo->prepare("DELETE FROM performance_evaluations WHERE employee_id = ?")->execute([$empId]);
+            $pdo->prepare("DELETE FROM hr_performance_reviews WHERE employee_id = ?")->execute([$empId]);
             $pdo->prepare("DELETE FROM disciplinary_cases WHERE employee_id = ?")->execute([$empIdStr]);
             $pdo->prepare("DELETE FROM employees WHERE id = ?")->execute([$empId]);
 
@@ -963,6 +964,7 @@ $vaultChecked = ($bkVaultSetting === '1') ? 'checked' : '';
                     <h5 class="modal-title">Download Database Backup</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
+                    <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
                     <div class="form-check mb-3">
                         <input class="form-check-input" type="checkbox" name="include_vault" value="1" id="dlVault" <?php echo $vaultChecked; ?>>
                         <label class="form-check-label fw-bold" for="dlVault">Include Vault Files (Images/PDFs)</label>
@@ -984,6 +986,7 @@ $vaultChecked = ($bkVaultSetting === '1') ? 'checked' : '';
                     <h5 class="modal-title">Save Backup to Server</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
+                    <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
                     <p>This will save a backup to the configured server paths. This is recommended for automated recovery.</p>
                     <div class="form-check mb-3">
                         <input class="form-check-input" type="checkbox" name="include_vault" value="1" id="svVault" <?php echo $vaultChecked; ?>>

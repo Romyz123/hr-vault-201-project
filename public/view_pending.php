@@ -10,15 +10,16 @@ session_start();
 $config = require '../config/config.php';
 $vaultPath = $config['VAULT_PATH'] ?? dirname(__DIR__) . DIRECTORY_SEPARATOR . 'vault' . DIRECTORY_SEPARATOR;
 
-// In a real app, ensure ONLY Admins can access this!
-// if ($_SESSION['role'] !== 'ADMIN') die("Access Denied");
+// [SECURITY] Ensure ONLY Admins/HR/Managers can access this!
+if (!isset($_SESSION['role']) || !in_array($_SESSION['role'], ['ADMIN', 'MANAGER', 'HR'])) {
+    die("Access Denied");
+}
 
 $req_id = $_GET['id'] ?? '';
-
 if (!is_numeric($req_id)) die("Invalid Request ID");
 
 // Fetch the pending request
-$stmt = $pdo->prepare("SELECT json_payload FROM pending_requests WHERE id = ?");
+$stmt = $pdo->prepare("SELECT json_payload FROM requests WHERE id = ?");
 $stmt->execute([$req_id]);
 $req = $stmt->fetch();
 

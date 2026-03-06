@@ -25,7 +25,15 @@ try {
         $settings[$row['setting_key']] = $row['setting_value'];
     }
 } catch (Exception $e) {
-    die("Error loading settings: " . $e->getMessage());
+    // Avoid leaking sensitive information in web mode
+    if (CLI_MODE) {
+        // CLI can show full details for troubleshooting
+        die("Error loading settings: " . $e->getMessage());
+    } else {
+        // log the full exception and show generic message
+        error_log("cron_backup settings load failure: " . $e->getMessage() . "\n" . $e->getTraceAsString());
+        die("Error loading settings");
+    }
 }
 
 $customPath  = $settings['backup_path'] ?? '';
@@ -56,8 +64,10 @@ $sqlContent = "-- AUTOMATED BACKUP ($dateStr)\nSET FOREIGN_KEY_CHECKS=0;\n\n";
 foreach ($tables as $table) {
     $row = $pdo->query("SHOW CREATE TABLE `$table`")->fetch(PDO::FETCH_NUM);
     $sqlContent .= "DROP TABLE IF EXISTS `$table`;\n" . $row[1] . ";\n\n";
-    $rows = $pdo->query("SELECT * FROM `$table`")->fetchAll(PDO::FETCH_ASSOC);
-    foreach ($rows as $r) {
+    // stream the rows instead of loading entire table
+    $stmtRows = $pdo->prepare("SELECT * FROM `$table`");
+    $stmtRows->execute();
+    while ($r = $stmtRows->fetch(PDO::FETCH_ASSOC)) {
         $vals = array_map(fn($v) => $v === null ? "NULL" : $pdo->quote($v), $r);
         $sqlContent .= "INSERT INTO `$table` VALUES (" . implode(',', $vals) . ");\n";
     }
@@ -66,44 +76,42 @@ foreach ($tables as $table) {
 $sqlContent .= "SET FOREIGN_KEY_CHECKS=1;";
 
 // 5. CREATE ZIP
+$success = true;
+$errorMessage = '';
 $zip = new ZipArchive();
 if ($zip->open($zipFile, ZipArchive::CREATE) !== TRUE) {
-    if ($alertEmail) mail($alertEmail, "⚠️ HR System Backup Failed", "Manual/Cron backup failed: Could not create ZIP.\n\nTime: " . date('Y-m-d H:i:s'));
-    die("Error: Cannot create ZIP file.");
+    $success = false;
+    $errorMessage = "Could not create ZIP file ($zipFile).";
+    if ($alertEmail) mail($alertEmail, "⚠️ HR System Backup Failed", "Manual/Cron backup failed: $errorMessage\n\nTime: " . date('Y-m-d H:i:s'));
 }
+if ($success) {
 
-// Add SQL
-$zip->addFromString($sqlFile, $sqlContent);
-if ($zipPass) $zip->setEncryptionName($sqlFile, ZipArchive::EM_TRAD_PKWARE, $zipPass);
+    // Add SQL
+    $zip->addFromString($sqlFile, $sqlContent);
+    if ($zipPass) $zip->setEncryptionName($sqlFile, ZipArchive::EM_AES_256, $zipPass);
 
-// Add Vault & Key (CRITICAL for Encryption System)
-if ($incVault) {
-    $vaultPath = realpath(__DIR__ . '/../vault');
-    if ($vaultPath && is_dir($vaultPath)) {
-        $files = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($vaultPath), RecursiveIteratorIterator::LEAVES_ONLY);
-        foreach ($files as $name => $file) {
-            if (!$file->isDir()) {
-                $filePath = $file->getRealPath();
-                $relativePath = 'vault/' . substr($filePath, strlen($vaultPath) + 1);
-                // [NOTE] This backs up the ENCRYPTED file exactly as it is on disk.
-                $zip->addFile($filePath, $relativePath);
-                if ($zipPass) $zip->setEncryptionName($relativePath, ZipArchive::EM_TRAD_PKWARE, $zipPass);
+    // Add Vault & Key (CRITICAL for Encryption System)
+    if ($incVault) {
+        $vaultPath = realpath(__DIR__ . '/../vault');
+        if ($vaultPath && is_dir($vaultPath)) {
+            $files = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($vaultPath), RecursiveIteratorIterator::LEAVES_ONLY);
+            foreach ($files as $name => $file) {
+                if (!$file->isDir()) {
+                    $filePath = $file->getRealPath();
+                    $relativePath = 'vault/' . substr($filePath, strlen($vaultPath) + 1);
+                    // [NOTE] This backs up the ENCRYPTED file exactly as it is on disk.
+                    $zip->addFile($filePath, $relativePath);
+                    if ($zipPass) $zip->setEncryptionName($relativePath, ZipArchive::EM_AES_256, $zipPass);
+                }
             }
         }
     }
 
-    // [CRITICAL] Backup the FileService.php because it contains the Encryption Key!
-    $keyFile = realpath(__DIR__ . '/../src/FileService.php');
-    if ($keyFile) {
-        $zip->addFile($keyFile, 'src/FileService.php');
-        if ($zipPass) $zip->setEncryptionName('src/FileService.php', ZipArchive::EM_TRAD_PKWARE, $zipPass);
-    }
+    $zip->close();
 }
 
-$zip->close();
-
 // 6. LOG & FINISH
-if (file_exists($zipFile)) {
+if ($success && file_exists($zipFile)) {
     $size = round(filesize($zipFile) / 1024 / 1024, 2) . " MB";
     if (CLI_MODE) echo "✅ Backup Complete! Size: $size\n";
 
@@ -126,10 +134,43 @@ if (file_exists($zipFile)) {
         exit;
     }
 } else {
-    if (CLI_MODE) echo "❌ Backup Failed.\n";
-    if ($alertEmail) mail($alertEmail, "⚠️ HR System Backup Failed", "Manual/Cron backup failed: ZIP file not found after creation attempt.\n\nTime: " . date('Y-m-d H:i:s'));
-    else {
-        header("Location: settings.php?error=" . urlencode("❌ Backup Failed."));
+    // adjust error message if archive is missing even when $success true
+    if ($success && !file_exists($zipFile)) {
+        $errorMessage = "Archive not created or missing: " . basename($zipFile);
+        $success = false;
+    }
+    // failure path
+    if (CLI_MODE) {
+        $msg = "❌ Backup Failed.";
+        if ($errorMessage) {
+            $msg .= " Reason: $errorMessage";
+        }
+        echo $msg . "\n";
+        exit(1);
+    }
+    if ($alertEmail) {
+        $body = "Manual/Cron backup failed";
+        if ($errorMessage) {
+            $body .= ": $errorMessage";
+        }
+        $body .= "\n\nTime: " . date('Y-m-d H:i:s');
+        mail($alertEmail, "⚠️ HR System Backup Failed", $body);
+        if (!CLI_MODE) {
+            // in web mode redirect back with error message
+            $redirectMsg = "❌ Backup Failed.";
+            if ($errorMessage) {
+                $redirectMsg .= " Reason: $errorMessage";
+            }
+            header("Location: settings.php?error=" . urlencode($redirectMsg));
+            exit;
+        }
+        exit(1);
+    } else {
+        $redirectMsg = "❌ Backup Failed.";
+        if ($errorMessage) {
+            $redirectMsg .= " Reason: $errorMessage";
+        }
+        header("Location: settings.php?error=" . urlencode($redirectMsg));
         exit;
     }
 }

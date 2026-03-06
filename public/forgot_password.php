@@ -1,12 +1,21 @@
 <?php
 require '../config/db.php';
+require '../src/Security.php';
 session_start();
+
+$security = new Security($pdo);
+$csrf_token = $security->generateCSRF();
 
 $error = '';
 $success = '';
 $wait = 0; // Initialize wait variable
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (!isset($_POST['csrf_token']) || !isset($_SESSION['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'])) {
+        $error = "❌ Security Token Mismatch.";
+        goto end_post;
+    }
+
     $email = trim($_POST['email']);
 
     // [VALIDATION]
@@ -21,13 +30,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt = $pdo->prepare("SELECT id, username, last_otp_sent, TIMESTAMPDIFF(SECOND, last_otp_sent, NOW()) as seconds_since FROM users WHERE email = ?");
             $stmt->execute([$email]);
         } catch (PDOException $e) {
-            // [AUTO-FIX] Missing columns? Add them.
-            $pdo->exec("ALTER TABLE users ADD COLUMN last_otp_sent DATETIME NULL DEFAULT NULL");
-            $pdo->exec("ALTER TABLE users ADD COLUMN reset_token VARCHAR(64) NULL DEFAULT NULL");
-            $pdo->exec("ALTER TABLE users ADD COLUMN reset_expires DATETIME NULL DEFAULT NULL");
-            // Retry
-            $stmt = $pdo->prepare("SELECT id, username, last_otp_sent, TIMESTAMPDIFF(SECOND, last_otp_sent, NOW()) as seconds_since FROM users WHERE email = ?");
-            $stmt->execute([$email]);
+            error_log("Database error in forgot_password: " . $e->getMessage());
+            $error = "❌ A database error occurred. Please try again later.";
+            goto end_post;
         }
         $user = $stmt->fetch();
 
@@ -45,8 +50,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             if ($canSend) {
                 // 3. Generate OTP
-                $otp = str_pad(rand(0, 999999), 6, '0', STR_PAD_LEFT);
-
+                $otp = str_pad(random_int(0, 999999), 6, '0', STR_PAD_LEFT);
                 // 4. Update DB
                 // [FIX] Use MySQL NOW() for all time fields to ensure consistency
                 $pdo->prepare("UPDATE users SET reset_token = ?, reset_expires = DATE_ADD(NOW(), INTERVAL 15 MINUTE), last_otp_sent = NOW() WHERE id = ?")
@@ -69,6 +73,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 }
+end_post:
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -103,6 +108,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <?php endif; ?>
 
             <form method="POST">
+                <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token); ?>">
                 <div class="mb-3">
                     <input type="email" name="email" class="form-control" placeholder="Enter your email" required autofocus value="<?php echo htmlspecialchars($_POST['email'] ?? $_GET['email'] ?? ''); ?>" maxlength="100">
                 </div>

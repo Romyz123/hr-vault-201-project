@@ -8,7 +8,9 @@
 ob_start();
 require '../src/Logger.php';
 require '../config/db.php';
+require '../src/Security.php';
 require '../src/FileService.php';
+require '../src/Validator.php';
 session_start();
 
 // [FIX] Load Config to ensure VAULT_PATH is available
@@ -25,13 +27,19 @@ if (!isset($_SESSION['user_id']) || !in_array($_SESSION['role'] ?? '', ['ADMIN',
 ini_set('memory_limit', '1024M');
 ini_set('max_execution_time', 600);
 
+// [SECURITY] Verify CSRF Token
+$security = new Security($pdo);
+if (empty($_POST['csrf_token']) || !hash_equals($_SESSION['csrf_token'] ?? '', $_POST['csrf_token'])) {
+    die("Security Error: Invalid CSRF Token.");
+}
+
 // 3. GET INPUTS
 $dept     = trim($_POST['dept'] ?? '');
 $section  = trim($_POST['section'] ?? '');
 $agency   = trim($_POST['employment_type'] ?? '');
 $status   = trim($_POST['status'] ?? '');
 $category = trim($_POST['category'] ?? '');
-$search   = trim($_POST['search'] ?? '');
+$search   = Validator::sanitizeSearch($_POST['search'] ?? '');
 $zipPassword = trim($_POST['zip_password'] ?? '');
 
 // 4. VALIDATION
@@ -49,8 +57,7 @@ $params = [];
 
 // Apply Filters
 if (!empty($search)) {
-    $cleanSearch = preg_replace('/[^a-zA-Z0-9 \-_,]/', '', $search);
-    $terms = preg_split('/[\s,]+/', $cleanSearch, -1, PREG_SPLIT_NO_EMPTY);
+    $terms = preg_split('/[\s,]+/', $search, -1, PREG_SPLIT_NO_EMPTY);
     foreach ($terms as $term) {
         $sql .= " AND (e.emp_id LIKE ? OR e.first_name LIKE ? OR e.last_name LIKE ?)";
         $t = "%{$term}%";
@@ -294,7 +301,7 @@ foreach ($employees as $emp) {
     $profilePath = $folderName . "/Employee_Profile.html";
     $zip->addFromString($profilePath, $htmlContent);
     if ($zipPassword) {
-        $zip->setEncryptionName($profilePath, ZipArchive::EM_TRAD_PKWARE, $zipPassword);
+        $zip->setEncryptionName($profilePath, ZipArchive::EM_AES_256, $zipPassword);
     }
     $filesAdded++; // Count this as a "file" so empty folders still export
 
@@ -314,7 +321,7 @@ foreach ($employees as $emp) {
             if ($content !== false) {
                 $zip->addFromString($docPathInZip, $content);
                 if ($zipPassword) {
-                    $zip->setEncryptionName($docPathInZip, ZipArchive::EM_TRAD_PKWARE, $zipPassword);
+                    $zip->setEncryptionName($docPathInZip, ZipArchive::EM_AES_256, $zipPassword);
                 }
             }
         }
@@ -338,13 +345,13 @@ foreach ($employees as $emp) {
 }
 $zip->addFromString('Master_Employee_List.csv', $csvContent);
 if ($zipPassword) {
-    $zip->setEncryptionName('Master_Employee_List.csv', ZipArchive::EM_TRAD_PKWARE, $zipPassword);
+    $zip->setEncryptionName('Master_Employee_List.csv', ZipArchive::EM_AES_256, $zipPassword);
 }
 
 $readmeContent = "NOTE: Open the 'Employee_Profile.html' file inside each folder to view the Printable Data Sheet.";
 $zip->addFromString('README.txt', $readmeContent);
 if ($zipPassword) {
-    $zip->setEncryptionName('README.txt', ZipArchive::EM_TRAD_PKWARE, $zipPassword);
+    $zip->setEncryptionName('README.txt', ZipArchive::EM_AES_256, $zipPassword);
 }
 
 $zip->close();

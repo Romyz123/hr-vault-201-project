@@ -7,6 +7,8 @@
 require '../config/db.php';
 require '../src/Logger.php';
 require '../src/Security.php';
+require '../src/Validator.php';
+require '../src/SearchHelper.php';
 session_start();
 
 // 1. SECURITY
@@ -230,12 +232,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 }
 
 // 4. FETCH DATA
-$search = isset($_GET['search']) ? trim($_GET['search']) : '';
+$search = Validator::sanitizeSearch($_GET['search'] ?? '');
 $filter_status = isset($_GET['status']) ? trim($_GET['status']) : '';
-
-// [SECURITY] Limit & Sanitize Search
-if (strlen($search) > 50) $search = substr($search, 0, 50);
-$search = preg_replace('/[^a-zA-Z0-9\-_ ,]/', '', $search);
 
 $sql = "SELECT d.*, e.id AS emp_pk, e.first_name, e.last_name, e.dept FROM disciplinary_cases d JOIN employees e ON d.employee_id = e.emp_id WHERE 1=1";
 $params = [];
@@ -257,6 +255,17 @@ $sql .= " ORDER BY d.incident_date DESC";
 $cases = $pdo->prepare($sql);
 $cases->execute($params);
 $cases = $cases->fetchAll(PDO::FETCH_ASSOC);
+
+// [NEW] Fuzzy Search Logic
+$didYouMean = null;
+$didYouMeanLink = "#";
+if (empty($cases) && !empty($search)) {
+    $closest = SearchHelper::findBestMatch($pdo, $search);
+    if ($closest) {
+        $didYouMean = $closest;
+        $didYouMeanLink = "disciplinary.php?search=" . urlencode($closest);
+    }
+}
 
 $emps = $pdo->query("SELECT emp_id, last_name, first_name FROM employees ORDER BY last_name ASC")->fetchAll();
 
@@ -289,16 +298,21 @@ if (isset($_GET['msg'])) {
     </style>
 </head>
 
-<body class="bg-light">
+<body class="bg-body-tertiary">
     <nav class="navbar navbar-dark bg-dark mb-4">
         <div class="container-fluid px-4">
             <div class="d-flex align-items-center">
                 <a class="navbar-brand" href="index.php">⬅ Back</a>
                 <span class="navbar-text text-white ms-3 border-start ps-3">Disciplinary Console</span>
             </div>
-            <?php if (in_array($_SESSION['role'], ['ADMIN', 'HR'])): ?>
-                <a href="settings.php" class="btn btn-outline-light btn-sm"><i class="bi bi-gear-fill"></i> Settings</a>
-            <?php endif; ?>
+            <div class="d-flex align-items-center gap-2">
+                <button id="darkModeToggle" class="btn btn-sm btn-outline-light border-0" title="Toggle Dark Mode">
+                    <i class="bi bi-moon-stars-fill"></i>
+                </button>
+                <?php if (in_array($_SESSION['role'], ['ADMIN', 'HR'])): ?>
+                    <a href="settings.php" class="btn btn-outline-light btn-sm"><i class="bi bi-gear-fill"></i> Settings</a>
+                <?php endif; ?>
+            </div>
         </div>
     </nav>
 
@@ -311,7 +325,12 @@ if (isset($_GET['msg'])) {
                         <option value="Open" <?php echo ($filter_status === 'Open') ? 'selected' : ''; ?>>Open Only</option>
                         <option value="Closed" <?php echo ($filter_status === 'Closed') ? 'selected' : ''; ?>>Closed Only</option>
                     </select>
-                    <input type="text" name="search" class="form-control" placeholder="Search violation or name..." value="<?php echo htmlspecialchars($search); ?>">
+                    <div class="input-group">
+                        <input type="text" name="search" class="form-control" placeholder="Search violation or name..." value="<?php echo htmlspecialchars($search); ?>">
+                        <?php if ($search): ?>
+                            <a href="disciplinary.php" class="btn btn-outline-secondary"><i class="bi bi-x-lg"></i></a>
+                        <?php endif; ?>
+                    </div>
                     <button type="submit" class="btn btn-secondary"><i class="bi bi-search"></i></button>
                     <?php if ($search || $filter_status): ?>
                         <a href="disciplinary.php" class="btn btn-outline-secondary" title="Reset Filters"><i class="bi bi-x-lg"></i></a>
@@ -324,6 +343,13 @@ if (isset($_GET['msg'])) {
                 </button>
             </div>
         </div>
+
+        <?php if ($didYouMean): ?>
+            <div class="alert alert-info text-center shadow-sm mb-4">
+                <i class="bi bi-lightbulb-fill me-2"></i> Did you mean:
+                <a href="<?php echo $didYouMeanLink; ?>" class="fw-bold text-dark text-decoration-underline"><?php echo htmlspecialchars($didYouMean); ?></a>?
+            </div>
+        <?php endif; ?>
 
         <div class="card shadow-sm">
             <div class="card-body p-0">
@@ -512,6 +538,7 @@ if (isset($_GET['msg'])) {
     </div>
 
     <script src="assets/bootstrap.bundle.min.js"></script>
+    <script src="dark_mode.js"></script>
     <script>
         <?php if ($alertMsg): ?>
             Swal.fire({

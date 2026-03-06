@@ -132,8 +132,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $name   = strtoupper(trim($_POST['name'] ?? ''));
         $id     = (int)($_POST['id'] ?? 0);
 
+        // [SECURITY] Validate Name Length
+        if (strlen($name) > 100) $error = "Name is too long (Max 100 chars).";
+
         // --- AGENCIES ---
-        if ($action === 'add' && !empty($name)) {
+        if (empty($error) && $action === 'add' && !empty($name)) {
             try {
                 $stmt = $pdo->prepare("INSERT INTO agencies (name) VALUES (?)");
                 $stmt->execute([$name]);
@@ -142,7 +145,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             } catch (PDOException $e) {
                 $error = "Error: Agency name already exists.";
             }
-        } elseif ($action === 'edit_agency' && !empty($name) && $id > 0) {
+        } elseif (empty($error) && $action === 'edit_agency' && !empty($name) && $id > 0) {
             try {
                 $stmt = $pdo->prepare("UPDATE agencies SET name = ? WHERE id = ?");
                 $stmt->execute([$name, $id]);
@@ -165,7 +168,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         // --- ROLES ---
-        elseif ($action === 'add_role' && !empty($name)) {
+        elseif (empty($error) && $action === 'add_role' && !empty($name)) {
             try {
                 $pdo->prepare("INSERT INTO system_roles (name) VALUES (?)")->execute([$name]);
                 $msg = "✅ Role added.";
@@ -198,7 +201,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         // --- DEPARTMENTS ---
-        elseif ($action === 'add_dept' && !empty($name)) {
+        elseif (empty($error) && $action === 'add_dept' && !empty($name)) {
             try {
                 $pdo->prepare("INSERT INTO departments (name) VALUES (?)")->execute([$name]);
                 $msg = "✅ Department added.";
@@ -218,7 +221,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         // --- SECTIONS ---
-        elseif ($action === 'add_section' && !empty($name)) {
+        elseif (empty($error) && $action === 'add_section' && !empty($name)) {
             $deptId = (int)$_POST['dept_id'];
             if ($deptId > 0) {
                 try {

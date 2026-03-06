@@ -8,6 +8,7 @@ require '../config/db.php';
 require '../src/Security.php';
 require '../src/Logger.php';
 require '../src/EmployeeService.php'; // [NEW]
+require '../src/Validator.php';
 session_start();
 
 // ------------ Security Headers ------------
@@ -132,6 +133,54 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $agency_name     = $input_selection;
         }
     }
+
+    // [SECURITY] Enforce Character Limits & Patterns (Server-Side)
+    $rules = [
+        ['val' => $emp_id, 'name' => 'Employee ID', 'max' => 20, 'pattern' => '/^[A-Za-z0-9\-_]+$/'],
+        ['val' => $job_title, 'name' => 'Job Title', 'max' => 50, 'pattern' => "/^[a-zA-Z0-9\s\-\.\,\(\)\/]+$/"],
+        ['val' => $system_role, 'name' => 'System Role', 'max' => 50],
+        ['val' => $company_name, 'name' => 'Company Name', 'max' => 50, 'pattern' => "/^[a-zA-Z0-9\s\-\.\,\(\)\/]+$/"],
+        ['val' => $previous_company, 'name' => 'Previous Company', 'max' => 100, 'pattern' => "/^[a-zA-Z0-9\s\-\.\,\(\)\/]+$/"],
+        ['val' => $first_name, 'name' => 'First Name', 'max' => 50, 'pattern' => "/^[a-zA-Z\s\-\.]+$/"],
+        ['val' => $middle_name, 'name' => 'Middle Name', 'max' => 50, 'pattern' => "/^[a-zA-Z\s\-\.]+$/"],
+        ['val' => $last_name, 'name' => 'Last Name', 'max' => 50, 'pattern' => "/^[a-zA-Z\s\-\.]+$/"],
+        ['val' => $contact_number, 'name' => 'Contact Number', 'max' => 25, 'pattern' => '/^[0-9+\-\s()\/]{0,25}$/'],
+        ['val' => $email, 'name' => 'Email', 'max' => 100, 'type' => 'email'],
+        ['val' => $present_address, 'name' => 'Present Address', 'max' => 150, 'pattern' => "/^[a-zA-Z0-9\s\.,\-\/#]+$/"],
+        ['val' => $permanent_address, 'name' => 'Permanent Address', 'max' => 150, 'pattern' => "/^[a-zA-Z0-9\s\.,\-\/#]+$/"],
+        ['val' => $sss_no, 'name' => 'SSS No', 'max' => 20, 'pattern' => "/^[0-9\-]+$/"],
+        ['val' => $tin_no, 'name' => 'TIN No', 'max' => 20, 'pattern' => "/^[0-9\-]+$/"],
+        ['val' => $pagibig_no, 'name' => 'Pag-IBIG No', 'max' => 20, 'pattern' => "/^[0-9\-]+$/"],
+        ['val' => $philhealth_no, 'name' => 'PhilHealth No', 'max' => 20, 'pattern' => "/^[0-9\-]+$/"],
+        ['val' => $emergency_name, 'name' => 'Emergency Name', 'max' => 100],
+        ['val' => $emergency_contact, 'name' => 'Emergency Contact', 'max' => 25, 'pattern' => '/^[0-9+\-\s()\/]{0,25}$/'],
+        ['val' => $emergency_address, 'name' => 'Emergency Address', 'max' => 150],
+        ['val' => $education, 'name' => 'Education', 'max' => 1000, 'pattern' => "/^[a-zA-Z0-9\s\.,\-\(\)\/\':]*$/"],
+        ['val' => $experience, 'name' => 'Experience', 'max' => 1000, 'pattern' => "/^[a-zA-Z0-9\s\.,\-\(\)\/\':]*$/"],
+        ['val' => $skills, 'name' => 'Skills', 'max' => 1000, 'pattern' => "/^[a-zA-Z0-9\s\.,\-\(\)\/\':]*$/"],
+        ['val' => $licenses, 'name' => 'Licenses', 'max' => 1000, 'pattern' => "/^[a-zA-Z0-9\s\.,\-\(\)\/\':]*$/"],
+        ['val' => $dept, 'name' => 'Department', 'max' => 50],
+        ['val' => $section, 'name' => 'Section', 'max' => 100],
+        ['val' => post('request_note'), 'name' => 'Request Note', 'max' => 500],
+    ];
+
+    foreach ($rules as $r) {
+        if (isset($r['max']) && $err = Validator::check($r['val'], 'max', $r['max'])) {
+            $errors[] = $r['name'] . ": " . $err;
+        }
+        if (!empty($r['val'])) {
+            if (isset($r['pattern']) && $err = Validator::check($r['val'], 'pattern', $r['pattern'])) {
+                $errors[] = $r['name'] . " contains invalid characters.";
+            }
+            if (isset($r['type']) && $r['type'] === 'email' && $err = Validator::check($r['val'], 'email')) {
+                $errors[] = $r['name'] . ": " . $err;
+            }
+        }
+    }
+
+    // Date Logic
+    if ($birth_date && $birth_date > date('Y-m-d')) $errors[] = "Birth Date cannot be in the future.";
+    if ($hire_date && $birth_date && $hire_date < $birth_date) $errors[] = "Hire Date cannot be earlier than Birth Date.";
 
     // 4. Prepare Data Array
     $empData = [
@@ -343,13 +392,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </style>
 </head>
 
-<body class="bg-light">
+<body class="bg-body-tertiary">
 
     <div class="container mt-5 mb-5">
         <div class="card shadow">
             <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
                 <span class="fs-5">➕ Add New Employee</span>
-                <a href="index.php" class="btn btn-sm btn-light text-success fw-bold">Back to Dashboard</a>
+                <div class="d-flex align-items-center gap-2">
+                    <button id="darkModeToggle" class="btn btn-sm btn-outline-light border-0" title="Toggle Dark Mode">
+                        <i class="bi bi-moon-stars-fill"></i>
+                    </button>
+                    <a href="index.php" class="btn btn-sm btn-light text-success fw-bold">Back to Dashboard</a>
+                </div>
             </div>
             <div class="card-body">
 
@@ -577,22 +631,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <div class="row g-3 mb-4">
                         <div class="col-12">
                             <label class="form-label">Education <small class="text-muted">(Degrees, Certifications)</small></label>
-                            <textarea name="education" class="form-control" rows="2" maxlength="1000" placeholder="e.g. BS Computer Science, Certified CPA" spellcheck="true" lang="en" style="text-align: justify; white-space: pre-wrap; word-wrap: break-word;" oninput="this.value = this.value.replace(/[^a-zA-Z0-9\s\.,\-\(\)\/]/g, '')"><?php echo old('education'); ?></textarea>
+                            <textarea name="education" class="form-control" rows="2" maxlength="1000" placeholder="e.g. BS Computer Science, Certified CPA" spellcheck="true" lang="en" style="text-align: justify; white-space: pre-wrap; word-wrap: break-word;" oninput="this.value = this.value.replace(/[^a-zA-Z0-9\s\.,\-\(\)\/\':]/g, '')"><?php echo old('education'); ?></textarea>
                             <div class="form-text extra-small text-center">Max 1000 chars. Text auto-wraps. Press Enter for new lines.</div>
                         </div>
                         <div class="col-12">
                             <label class="form-label">Experience <small class="text-muted">(Relevant Work History)</small></label>
-                            <textarea name="experience" class="form-control" rows="2" maxlength="1000" placeholder="e.g. 5 years as Senior Dev at Tech Corp" spellcheck="true" lang="en" style="text-align: justify; white-space: pre-wrap; word-wrap: break-word;" oninput="this.value = this.value.replace(/[^a-zA-Z0-9\s\.,\-\(\)\/]/g, '')"><?php echo old('experience'); ?></textarea>
+                            <textarea name="experience" class="form-control" rows="2" maxlength="1000" placeholder="e.g. 5 years as Senior Dev at Tech Corp" spellcheck="true" lang="en" style="text-align: justify; white-space: pre-wrap; word-wrap: break-word;" oninput="this.value = this.value.replace(/[^a-zA-Z0-9\s\.,\-\(\)\/\':]/g, '')"><?php echo old('experience'); ?></textarea>
                             <div class="form-text extra-small text-center">Max 1000 chars. Text auto-wraps. Press Enter for new lines.</div>
                         </div>
                         <div class="col-md-6">
                             <label class="form-label">Skills <small class="text-muted">(Technical & Soft Skills)</small></label>
-                            <textarea name="skills" class="form-control" rows="2" maxlength="1000" placeholder="e.g. PHP, Leadership, Communication" spellcheck="true" lang="en" style="text-align: justify; white-space: pre-wrap; word-wrap: break-word;" oninput="this.value = this.value.replace(/[^a-zA-Z0-9\s\.,\-\(\)\/]/g, '')"><?php echo old('skills'); ?></textarea>
+                            <textarea name="skills" class="form-control" rows="2" maxlength="1000" placeholder="e.g. PHP, Leadership, Communication" spellcheck="true" lang="en" style="text-align: justify; white-space: pre-wrap; word-wrap: break-word;" oninput="this.value = this.value.replace(/[^a-zA-Z0-9\s\.,\-\(\)\/\':]/g, '')"><?php echo old('skills'); ?></textarea>
                             <div class="form-text extra-small text-center">Max 1000 chars. Press Enter for new lines.</div>
                         </div>
                         <div class="col-md-6">
                             <label class="form-label">Licenses / Certifications</label>
-                            <textarea name="licenses" class="form-control" rows="2" maxlength="1000" placeholder="e.g. Driver's License, PRC License" spellcheck="true" lang="en" style="text-align: justify; white-space: pre-wrap; word-wrap: break-word;" oninput="this.value = this.value.replace(/[^a-zA-Z0-9\s\.,\-\(\)\/]/g, '')"><?php echo old('licenses'); ?></textarea>
+                            <textarea name="licenses" class="form-control" rows="2" maxlength="1000" placeholder="e.g. Driver's License, PRC License" spellcheck="true" lang="en" style="text-align: justify; white-space: pre-wrap; word-wrap: break-word;" oninput="this.value = this.value.replace(/[^a-zA-Z0-9\s\.,\-\(\)\/\':]/g, '')"><?php echo old('licenses'); ?></textarea>
                             <div class="form-text extra-small text-center">Max 1000 chars. Type N/A if not applicable. Press Enter for new lines.</div>
                         </div>
                     </div>
@@ -621,6 +675,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     <script src="assets/bootstrap.bundle.min.js"></script>
     <script src="assets/sweetalert2.all.min.js"></script>
+    <script src="dark_mode.js"></script>
     <script>
         // 1. FRIENDLY NAME MAPPING
         // This maps the Database Value (val) to the Dropdown Text (text)

@@ -6,6 +6,8 @@
 
 require '../config/db.php';
 require '../src/Security.php';
+require '../src/Validator.php';
+require '../src/SearchHelper.php';
 session_start();
 
 // 1. SECURITY
@@ -409,6 +411,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($_SESSION['role'], ['ADMIN
                     header("Location: tracker.php?report=misclassified&error=" . urlencode("❌ Invalid filename. Allowed: Alphanumeric, Spaces, Dots, Dashes, Underscores, Parentheses."));
                     exit;
                 }
+                if (strlen($newName) > 100) {
+                    header("Location: tracker.php?report=misclassified&error=" . urlencode("❌ Filename too long (Max 100 chars)."));
+                    exit;
+                }
 
                 // [FIX] Preserve file extension to ensure format isn't lost
                 $stmt = $pdo->prepare("SELECT original_name FROM documents WHERE id = ?");
@@ -541,9 +547,7 @@ $dept = isset($_GET['dept']) ? trim($_GET['dept']) : '';
 $type = isset($_GET['type']) ? trim($_GET['type']) : '';
 $search = isset($_GET['search']) ? trim($_GET['search']) : '';
 $compliance = isset($_GET['compliance']) ? trim($_GET['compliance']) : '';
-// [SECURITY] Limit & Sanitize Search
-if (strlen($search) > 50) $search = substr($search, 0, 50);
-$search = preg_replace('/[^a-zA-Z0-9\-_ ,]/', '', $search); // [FIX] Allow comma for "Last, First"
+$search = Validator::sanitizeSearch($search);
 
 // 4. FETCH EMPLOYEES
 // [FIX] Check if last_reminded column exists to prevent crash
@@ -587,6 +591,17 @@ $sql .= " ORDER BY last_name ASC";
 $stmt = $pdo->prepare($sql);
 $stmt->execute($params);
 $employees = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+// [NEW] Fuzzy Search Logic
+$didYouMean = null;
+$didYouMeanLink = "#";
+if (empty($employees) && !empty($search)) {
+    $closest = SearchHelper::findBestMatch($pdo, $search);
+    if ($closest) {
+        $didYouMean = $closest;
+        $didYouMeanLink = "tracker.php?search=" . urlencode($closest);
+    }
+}
 
 // 5. FETCH ALL DOCUMENTS (Optimized: 1 Query)
 // We fetch all docs and map them to employees in PHP to avoid 1000+ SQL queries.
@@ -770,7 +785,7 @@ if ($compliance !== '') {
     </style>
 </head>
 
-<body>
+<body class="bg-body-tertiary">
 
     <nav class="navbar navbar-dark bg-dark mb-4">
         <div class="container-fluid px-4">
@@ -778,9 +793,14 @@ if ($compliance !== '') {
                 <a class="navbar-brand" href="index.php">⬅ Back to Dashboard</a>
                 <span class="navbar-text text-white ms-3 border-start ps-3">Missing Document Tracker</span>
             </div>
-            <?php if (in_array($_SESSION['role'], ['ADMIN', 'MANAGER', 'HR'])): ?>
-                <a href="settings.php" class="btn btn-outline-light btn-sm"><i class="bi bi-gear-fill"></i> Settings</a>
-            <?php endif; ?>
+            <div class="d-flex align-items-center gap-2">
+                <button id="darkModeToggle" class="btn btn-sm btn-outline-light border-0" title="Toggle Dark Mode">
+                    <i class="bi bi-moon-stars-fill"></i>
+                </button>
+                <?php if (in_array($_SESSION['role'], ['ADMIN', 'MANAGER', 'HR'])): ?>
+                    <a href="settings.php" class="btn btn-outline-light btn-sm"><i class="bi bi-gear-fill"></i> Settings</a>
+                <?php endif; ?>
+            </div>
         </div>
     </nav>
 
@@ -834,13 +854,17 @@ if ($compliance !== '') {
                         </select>
                     </div>
                     <div class="col-12 col-md-auto ms-auto">
-                        <!-- [FIX] Added comma to regex and pattern to allow "Last, First" -->
-                        <input type="text" name="search" id="trackerSearch" class="form-control form-control-sm" placeholder="Search Name..." value="<?php echo htmlspecialchars($search); ?>" maxlength="50" pattern="[a-zA-Z0-9\-_ ,]+" title="Allowed: Letters, Numbers, Spaces, Dashes, Underscores, Comma" list="search_suggestions" oninput="this.value = this.value.replace(/[^a-zA-Z0-9\-_ ,]/g, '')">
-                        <datalist id="search_suggestions">
-                            <?php foreach ($employees as $empSugg): ?>
-                                <option value="<?php echo htmlspecialchars($empSugg['last_name'] . ', ' . $empSugg['first_name']); ?>">
-                                <?php endforeach; ?>
-                        </datalist>
+                        <div class="input-group input-group-sm">
+                            <input type="text" name="search" id="trackerSearch" class="form-control" placeholder="Search Name..." value="<?php echo htmlspecialchars($search); ?>" maxlength="50" pattern="[a-zA-Z0-9\-_ ,]+" title="Allowed: Letters, Numbers, Spaces, Dashes, Underscores, Comma" list="search_suggestions" oninput="this.value = this.value.replace(/[^a-zA-Z0-9\-_ ,]/g, '')">
+                            <?php if ($search): ?>
+                                <a href="tracker.php" class="btn btn-outline-secondary"><i class="bi bi-x-lg"></i></a>
+                            <?php endif; ?>
+                            <datalist id="search_suggestions">
+                                <?php foreach ($employees as $empSugg): ?>
+                                    <option value="<?php echo htmlspecialchars($empSugg['last_name'] . ', ' . $empSugg['first_name']); ?>">
+                                    <?php endforeach; ?>
+                            </datalist>
+                        </div>
                     </div>
                     <div class="col-6 col-md-auto">
                         <button type="submit" class="btn btn-primary btn-sm">Search</button>
@@ -865,6 +889,13 @@ if ($compliance !== '') {
                 </form>
             </div>
         </div>
+
+        <?php if ($didYouMean): ?>
+            <div class="alert alert-info text-center shadow-sm mb-3">
+                <i class="bi bi-lightbulb-fill me-2"></i> Did you mean:
+                <a href="<?php echo $didYouMeanLink; ?>" class="fw-bold text-dark text-decoration-underline"><?php echo htmlspecialchars($didYouMean); ?></a>?
+            </div>
+        <?php endif; ?>
 
         <div class="card shadow">
             <div class="card-header d-flex justify-content-between">
@@ -1231,6 +1262,7 @@ if ($compliance !== '') {
 
     <script src="assets/bootstrap.bundle.min.js"></script>
     <script src="assets/sweetalert2.all.min.js"></script>
+    <script src="dark_mode.js"></script>
     <script>
         // [NEW] Tag Logic
         function initTags(containerId, hiddenInputId) {

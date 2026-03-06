@@ -7,6 +7,8 @@
 require '../config/db.php';
 require '../src/Security.php';
 require '../src/Logger.php';
+require '../src/Validator.php';
+require '../src/SearchHelper.php';
 session_start();
 
 // 1. SECURITY: Admin, Manager & HR Only
@@ -139,9 +141,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_roles'])) {
 }
 
 // 3. FETCH EMPLOYEES
-$search = isset($_GET['search']) ? trim($_GET['search']) : '';
-// [SECURITY] Sanitize search input
-$search = substr(preg_replace('/[^a-zA-Z0-9\-_ ]/', '', $search), 0, 50);
+$search = Validator::sanitizeSearch($_GET['search'] ?? '');
 
 $dept = isset($_GET['dept']) ? $_GET['dept'] : '';
 
@@ -167,6 +167,17 @@ $stmt = $pdo->prepare($sql);
 $stmt->execute($params);
 $employees = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
+// [NEW] Fuzzy Search Logic
+$didYouMean = null;
+$didYouMeanLink = "#";
+if (empty($employees) && !empty($search)) {
+    $closest = SearchHelper::findBestMatch($pdo, $search);
+    if ($closest) {
+        $didYouMean = $closest;
+        $didYouMeanLink = "bulk_update_roles.php?search=" . urlencode($closest);
+    }
+}
+
 // Departments for filter
 $depts = $pdo->query("SELECT DISTINCT dept FROM employees WHERE status='Active' ORDER BY dept")->fetchAll(PDO::FETCH_COLUMN);
 
@@ -184,11 +195,16 @@ $historyLogs = $pdo->query("SELECT a.*, u.username FROM activity_logs a LEFT JOI
     <script src="assets/sweetalert2.all.min.js"></script>
 </head>
 
-<body class="bg-light">
+<body class="bg-body-tertiary">
     <nav class="navbar navbar-dark bg-dark mb-4">
         <div class="container">
             <a class="navbar-brand" href="index.php">⬅ Back to Dashboard</a>
-            <span class="navbar-text text-white fw-bold"><i class="bi bi-people-fill"></i> Bulk Update Roles</span>
+            <div class="d-flex align-items-center gap-2">
+                <button id="darkModeToggle" class="btn btn-sm btn-outline-light border-0" title="Toggle Dark Mode">
+                    <i class="bi bi-moon-stars-fill"></i>
+                </button>
+                <span class="navbar-text text-white fw-bold"><i class="bi bi-people-fill"></i> Bulk Update Roles</span>
+            </div>
         </div>
     </nav>
 
@@ -206,7 +222,12 @@ $historyLogs = $pdo->query("SELECT a.*, u.username FROM activity_logs a LEFT JOI
                         </select>
                     </div>
                     <div class="col-md-4">
-                        <input type="text" name="search" class="form-control form-control-sm" placeholder="Search Name or ID..." value="<?php echo htmlspecialchars($search); ?>" maxlength="50" pattern="[a-zA-Z0-9\-_ ]+" title="Allowed: Letters, Numbers, Spaces, Dashes, Underscores" oninput="this.value = this.value.replace(/[^a-zA-Z0-9\-_ ]/g, '')">
+                        <div class="input-group input-group-sm">
+                            <input type="text" name="search" class="form-control" placeholder="Search Name or ID..." value="<?php echo htmlspecialchars($search); ?>" maxlength="50" pattern="[a-zA-Z0-9\-_ ]+" title="Allowed: Letters, Numbers, Spaces, Dashes, Underscores" oninput="this.value = this.value.replace(/[^a-zA-Z0-9\-_ ]/g, '')">
+                            <?php if ($search): ?>
+                                <a href="bulk_update_roles.php" class="btn btn-outline-secondary"><i class="bi bi-x-lg"></i></a>
+                            <?php endif; ?>
+                        </div>
                     </div>
                     <div class="col-md-2">
                         <button type="submit" class="btn btn-primary btn-sm w-100">Search</button>
@@ -214,6 +235,13 @@ $historyLogs = $pdo->query("SELECT a.*, u.username FROM activity_logs a LEFT JOI
                 </form>
             </div>
         </div>
+
+        <?php if ($didYouMean): ?>
+            <div class="alert alert-info text-center shadow-sm mb-4">
+                <i class="bi bi-lightbulb-fill me-2"></i> Did you mean:
+                <a href="<?php echo $didYouMeanLink; ?>" class="fw-bold text-dark text-decoration-underline"><?php echo htmlspecialchars($didYouMean); ?></a>?
+            </div>
+        <?php endif; ?>
 
         <form method="POST" id="bulkUpdateForm">
             <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
@@ -236,7 +264,12 @@ $historyLogs = $pdo->query("SELECT a.*, u.username FROM activity_logs a LEFT JOI
                         </div>
                         <div class="col-md-2">
                             <label class="form-label fw-bold">New Job Title</label>
-                            <input type="text" name="new_job_title" class="form-control" placeholder="Leave blank to keep current" maxlength="50" pattern="[a-zA-Z0-9\s\-\.\,\(\)\/]+" title="Allowed: Alphanumeric and basic punctuation" oninput="this.value = this.value.replace(/[^a-zA-Z0-9\s\-\.\,\(\)\/]/g, '')">
+                            <input type="text" name="new_job_title" class="form-control" list="job_suggestions" placeholder="Leave blank to keep current" maxlength="50" pattern="[a-zA-Z0-9\s\-\.\,\(\)\/]+" title="Allowed: Alphanumeric and basic punctuation" oninput="this.value = this.value.replace(/[^a-zA-Z0-9\s\-\.\,\(\)\/]/g, '')">
+                            <datalist id="job_suggestions">
+                                <?php
+                                $allJobs = $pdo->query("SELECT DISTINCT job_title FROM employees WHERE job_title != '' AND status = 'Active' ORDER BY job_title ASC")->fetchAll(PDO::FETCH_COLUMN);
+                                foreach ($allJobs as $j) echo "<option value=\"" . htmlspecialchars($j) . "\">"; ?>
+                            </datalist>
                         </div>
                         <div class="col-md-2">
                             <label class="form-label fw-bold">New Department(s)</label>
@@ -346,6 +379,7 @@ $historyLogs = $pdo->query("SELECT a.*, u.username FROM activity_logs a LEFT JOI
     </div>
 
     <script src="assets/bootstrap.bundle.min.js"></script>
+    <script src="dark_mode.js"></script>
     <script>
         <?php if ($msg): ?>
             Swal.fire('Success', <?php echo json_encode($msg); ?>, 'success');
