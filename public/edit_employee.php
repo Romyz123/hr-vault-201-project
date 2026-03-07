@@ -624,14 +624,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <div class="container mt-5 mb-5">
 
         <div class="card shadow">
-            <div class="card-header bg-warning text-dark d-flex justify-content-between align-items-center">
+            <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
                 <h5 class="mb-0">✏️ Edit: <?php echo h($emp['first_name'] . ' ' . $emp['last_name']); ?></h5>
                 <div class="d-flex align-items-center gap-2">
-                    <button id="darkModeToggle" class="btn btn-sm btn-outline-dark border-0" title="Toggle Dark Mode">
+                    <button id="darkModeToggle" class="btn btn-sm btn-outline-light border-0" title="Toggle Dark Mode">
                         <i class="bi bi-moon-stars-fill"></i>
                     </button>
-                    <a href="performance_review.php?search=<?php echo h($emp['emp_id']); ?>" class="btn btn-sm btn-primary me-1"><i class="bi bi-clipboard2-data-fill"></i> Performance Reviews</a>
-                    <a href="index.php" class="btn btn-sm btn-dark">Back</a>
+                    <a href="performance_review.php?search=<?php echo h($emp['emp_id']); ?>" class="btn btn-sm btn-light text-primary fw-bold me-1"><i class="bi bi-clipboard2-data-fill"></i> Performance Reviews</a>
+                    <a href="index.php" class="btn btn-sm btn-outline-light">Back to Dashboard</a>
                 </div>
             </div>
             <div class="card-body">

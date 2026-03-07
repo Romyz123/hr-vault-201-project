@@ -198,6 +198,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         if ($sqlContent) {
             try {
+                // [FIX] Increase limits for large restores
+                set_time_limit(0); // No time limit
+                ini_set('memory_limit', '-1'); // Unlimited memory
+
                 // [FIX] Enable emulation to allow multiple statements in one go
                 $pdo->setAttribute(PDO::ATTR_EMULATE_PREPARES, true);
 
@@ -263,6 +267,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             if ($sqlContent) {
                 try {
+                    // [FIX] Increase limits for large restores
+                    set_time_limit(0);
+                    ini_set('memory_limit', '-1');
+
                     // [FIX] Enable emulation for multi-statement execution
                     $pdo->setAttribute(PDO::ATTR_EMULATE_PREPARES, true);
 
@@ -517,7 +525,7 @@ $vaultChecked = ($bkVaultSetting === '1') ? 'checked' : '';
         <div class="row">
             <div class="col-md-4">
                 <div class="card shadow-sm mb-4">
-                    <div class="card-header bg-success text-white">
+                    <div class="card-header bg-primary text-white">
                         <h5 class="mb-0"><i class="bi bi-person-plus-fill"></i> Add New User</h5>
                     </div>
                     <div class="card-body">

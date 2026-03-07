@@ -815,6 +815,7 @@ $diskPercent = ($diskTotal > 0) ? round((($diskTotal - $diskFree) / $diskTotal) 
                                     <hr class="dropdown-divider">
                                 </li>
                                 <li><a class="dropdown-item" href="manager_user.php"><i class="bi bi-people-fill me-2"></i> Manage Users</a></li>
+                                <li><a class="dropdown-item" href="access_review.php"><i class="bi bi-shield-check me-2"></i> Access Reviews</a></li>
                             <?php endif; ?>
                             <?php if (in_array($userRole, ['ADMIN', 'MANAGER'])): ?>
                                 <li><a class="dropdown-item" href="activity_logs.php"><i class="bi bi-shield-lock-fill me-2 text-danger"></i> Activity Logs</a></li>
@@ -1220,7 +1221,7 @@ $diskPercent = ($diskTotal > 0) ? round((($diskTotal - $diskFree) / $diskTotal) 
             </div>
         <?php endif; ?>
 
-        <div class="row">
+        <div class="row" id="directory-results">
             <?php foreach ($employees as $emp):
                 $statusClass = match ($emp['status']) {
                     'Active'     => 'status-active',
@@ -1416,27 +1417,27 @@ $diskPercent = ($diskTotal > 0) ? round((($diskTotal - $diskFree) / $diskTotal) 
                     <?php $prevDisabled = ($page <= 1) ? ' disabled' : '';
                     $nextDisabled = ($page >= $totalPages) ? ' disabled' : ''; ?>
                     <li class="page-item<?php echo $prevDisabled; ?>">
-                        <a class="page-link" href="<?php echo h(keepQuery(['page' => max(1, $page - 1)])); ?>" aria-label="Previous"><span aria-hidden="true">&laquo;</span></a>
+                        <a class="page-link" href="<?php echo h(keepQuery(['page' => max(1, $page - 1)])); ?>#directory-results" aria-label="Previous"><span aria-hidden="true">&laquo;</span></a>
                     </li>
                     <?php
                     $window = 2;
                     $start = max(1, $page - $window);
                     $end   = min($totalPages, $page + $window);
                     if ($start > 1) {
-                        echo '<li class="page-item"><a class="page-link" href="' . h(keepQuery(['page' => 1])) . '">1</a></li>';
+                        echo '<li class="page-item"><a class="page-link" href="' . h(keepQuery(['page' => 1])) . '#directory-results">1</a></li>';
                         if ($start > 2) echo '<li class="page-item disabled"><span class="page-link">…</span></li>';
                     }
                     for ($p = $start; $p <= $end; $p++) {
                         $active = ($p === $page) ? ' active' : '';
-                        echo '<li class="page-item' . $active . '"><a class="page-link" href="' . h(keepQuery(['page' => $p])) . '">' . (int)$p . '</a></li>';
+                        echo '<li class="page-item' . $active . '"><a class="page-link" href="' . h(keepQuery(['page' => $p])) . '#directory-results">' . (int)$p . '</a></li>';
                     }
                     if ($end < $totalPages) {
                         if ($end < $totalPages - 1) echo '<li class="page-item disabled"><span class="page-link">…</span></li>';
-                        echo '<li class="page-item"><a class="page-link" href="' . h(keepQuery(['page' => $totalPages])) . '">' . (int)$totalPages . '</a></li>';
+                        echo '<li class="page-item"><a class="page-link" href="' . h(keepQuery(['page' => $totalPages])) . '#directory-results">' . (int)$totalPages . '</a></li>';
                     }
                     ?>
                     <li class="page-item<?php echo $nextDisabled; ?>">
-                        <a class="page-link" href="<?php echo h(keepQuery(['page' => min($totalPages, $page + 1)])); ?>" aria-label="Next"><span aria-hidden="true">&raquo;</span></a>
+                        <a class="page-link" href="<?php echo h(keepQuery(['page' => min($totalPages, $page + 1)])); ?>#directory-results" aria-label="Next"><span aria-hidden="true">&raquo;</span></a>
                     </li>
                 </ul>
                 <p class="text-center text-muted small mb-0">

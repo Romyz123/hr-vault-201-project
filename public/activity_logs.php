@@ -224,6 +224,13 @@ $logs = $stmt->fetchAll();
 
 <body class="bg-light p-4">
 
+    <nav class="navbar navbar-dark bg-dark mb-4">
+        <div class="container">
+            <a class="navbar-brand" href="index.php">⬅ Back to Dashboard</a>
+            <span class="navbar-text text-white"><i class="bi bi-shield-lock-fill text-danger"></i> System Activity Logs</span>
+        </div>
+    </nav>
+
     <div class="container">
         <?php if (isset($_GET['msg'])): ?>
             <div class="alert alert-success alert-dismissible fade show" role="alert">
@@ -237,8 +244,7 @@ $logs = $stmt->fetchAll();
                 }
             </script>
         <?php endif; ?>
-        <div class="d-flex justify-content-between align-items-center mb-4">
-            <h2><i class="bi bi-shield-lock-fill text-danger"></i> System Activity Logs</h2>
+        <div class="d-flex justify-content-end align-items-center mb-4">
             <div>
                 <?php if ($_SESSION['role'] === 'ADMIN'): ?>
                     <form method="POST" class="d-inline" onsubmit="return confirm('This will move logs older than 1 year to the archive table. Proceed?');">
@@ -255,7 +261,6 @@ $logs = $stmt->fetchAll();
                 <button class="btn btn-warning me-2" data-bs-toggle="modal" data-bs-target="#manualLogModal"><i class="bi bi-pencil-square"></i> Add Note</button>
                 <span class="badge bg-white text-dark border me-2"><i class="bi bi-clock"></i> Server Time: <?php echo date('H:i'); ?></span>
                 <a href="settings.php" class="btn btn-outline-dark me-2"><i class="bi bi-gear-fill"></i> Settings</a>
-                <a href="index.php" class="btn btn-secondary">Back to Dashboard</a>
             </div>
         </div>
 

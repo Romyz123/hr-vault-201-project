@@ -123,6 +123,7 @@ try {
 // 3. HANDLE ACTIONS
 $msg = "";
 $error = "";
+$activeTab = 'agency'; // Default tab
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (empty($_POST['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'])) {
@@ -131,6 +132,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $action = $_POST['action'] ?? '';
         $name   = strtoupper(trim($_POST['name'] ?? ''));
         $id     = (int)($_POST['id'] ?? 0);
+
+        // [UX] Keep the active tab open based on the action performed
+        if (strpos($action, 'agency') !== false) {
+            $activeTab = 'agency';
+        } elseif (strpos($action, 'role') !== false) {
+            $activeTab = 'role';
+        } elseif (strpos($action, 'dept') !== false || strpos($action, 'section') !== false) {
+            $activeTab = 'dept';
+        }
 
         // [SECURITY] Validate Name Length
         if (strlen($name) > 100) $error = "Name is too long (Max 100 chars).";
@@ -268,11 +278,14 @@ while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
 </head>
 
 <body class="bg-light">
-    <div class="container mt-5">
-        <div class="d-flex justify-content-between align-items-center mb-4">
-            <h3><i class="bi bi-list-check"></i> Manage Options</h3>
-            <a href="index.php" class="btn btn-secondary">Back to Dashboard</a>
+    <nav class="navbar navbar-dark bg-dark mb-4">
+        <div class="container">
+            <a class="navbar-brand" href="index.php">⬅ Back to Dashboard</a>
+            <span class="navbar-text text-white"><i class="bi bi-list-check"></i> Manage Options</span>
         </div>
+    </nav>
+
+    <div class="container mt-5">
 
         <?php if ($msg): ?>
             <div class="alert alert-success"><?php echo htmlspecialchars($msg); ?></div>
@@ -283,15 +296,15 @@ while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
 
         <!-- TABS -->
         <ul class="nav nav-tabs mb-4" id="optionTabs" role="tablist">
-            <li class="nav-item"><button class="nav-link active fw-bold" id="agency-tab" data-bs-toggle="tab" data-bs-target="#agency" type="button">🏢 Agencies</button></li>
-            <li class="nav-item"><button class="nav-link fw-bold" id="role-tab" data-bs-toggle="tab" data-bs-target="#role" type="button">💼 System Roles & Duties</button></li>
-            <li class="nav-item"><button class="nav-link fw-bold" id="dept-tab" data-bs-toggle="tab" data-bs-target="#dept" type="button">📂 Departments & Sections</button></li>
+            <li class="nav-item"><button class="nav-link <?php echo $activeTab === 'agency' ? 'active' : ''; ?> fw-bold" id="agency-tab" data-bs-toggle="tab" data-bs-target="#agency" type="button">🏢 Agencies</button></li>
+            <li class="nav-item"><button class="nav-link <?php echo $activeTab === 'role' ? 'active' : ''; ?> fw-bold" id="role-tab" data-bs-toggle="tab" data-bs-target="#role" type="button">💼 System Roles & Duties</button></li>
+            <li class="nav-item"><button class="nav-link <?php echo $activeTab === 'dept' ? 'active' : ''; ?> fw-bold" id="dept-tab" data-bs-toggle="tab" data-bs-target="#dept" type="button">📂 Departments & Sections</button></li>
         </ul>
 
         <div class="tab-content" id="optionTabsContent">
 
             <!-- TAB 1: AGENCIES -->
-            <div class="tab-pane fade show active" id="agency" role="tabpanel">
+            <div class="tab-pane fade <?php echo $activeTab === 'agency' ? 'show active' : ''; ?>" id="agency" role="tabpanel">
                 <div class="card shadow-sm">
                     <div class="card-body">
                         <form method="POST" class="row g-2 mb-4 align-items-end">
@@ -343,7 +356,7 @@ while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
             </div>
 
             <!-- TAB 2: ROLES -->
-            <div class="tab-pane fade" id="role" role="tabpanel">
+            <div class="tab-pane fade <?php echo $activeTab === 'role' ? 'show active' : ''; ?>" id="role" role="tabpanel">
                 <div class="card shadow-sm">
                     <div class="card-body">
                         <form method="POST" class="row g-2 mb-4 align-items-end">
@@ -404,7 +417,7 @@ while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
             </div>
 
             <!-- TAB 3: DEPARTMENTS & SECTIONS -->
-            <div class="tab-pane fade" id="dept" role="tabpanel">
+            <div class="tab-pane fade <?php echo $activeTab === 'dept' ? 'show active' : ''; ?>" id="dept" role="tabpanel">
                 <div class="row">
                     <!-- DEPARTMENTS -->
                     <div class="col-md-5">

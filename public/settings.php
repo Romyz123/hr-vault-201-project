@@ -208,7 +208,7 @@ $refreshInt  = $settings['auto_refresh_interval'] ?? '60';
         <div class="row justify-content-center">
             <div class="col-md-6">
                 <div class="card shadow">
-                    <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
+                    <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
                         <h5 class="mb-0"><i class="bi bi-sliders"></i> System Configuration</h5>
                         <a href="index.php" class="btn btn-sm btn-outline-light">Back to Dashboard</a>
                     </div>

@@ -87,7 +87,7 @@ $preFilledCat = isset($_GET['category']) ? $_GET['category'] : '';
                 <div class="card shadow">
                     <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
                         <h4 class="mb-0 fs-5"><i class="bi bi-cloud-arrow-up-fill"></i> Upload Document</h4>
-                        <a href="index.php" class="btn btn-sm btn-light text-primary fw-bold">Back to Dashboard</a>
+                        <a href="index.php" class="btn btn-sm btn-outline-light">Back to Dashboard</a>
                     </div>
                     <div class="card-body">
 

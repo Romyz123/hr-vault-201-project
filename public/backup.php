@@ -64,9 +64,8 @@ foreach ($tables as $table) {
                 if ($value === null) {
                     $values[] = "NULL";
                 } else {
-                    $value = addslashes($value);
-                    $value = str_replace("\n", "\\n", $value);
-                    $values[] = "'$value'";
+                    // [FIX] Use PDO::quote for safer and consistent SQL escaping
+                    $values[] = $pdo->quote((string)$value);
                 }
             }
             $content .= "INSERT INTO `$table` VALUES (" . implode(', ', $values) . ");\n";

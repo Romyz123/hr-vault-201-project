@@ -9,7 +9,7 @@ require '../src/Security.php';
 session_start();
 
 // 1. SECURITY: ADMIN ONLY
-if (!isset($_SESSION['user_id']) || ($_SESSION['role'] ?? '') !== 'ADMIN') {
+if (!isset($_SESSION['user_id']) || strtoupper($_SESSION['role'] ?? '') !== 'ADMIN') {
     header("Location: index.php");
     exit;
 }
@@ -32,7 +32,9 @@ $columnSchema = [
         'trusted_device_token' => "VARCHAR(64) NULL DEFAULT NULL",
         'trusted_device_expires' => "DATETIME NULL DEFAULT NULL",
         'reset_token' => "VARCHAR(64) NULL DEFAULT NULL",
-        'reset_expires' => "DATETIME NULL DEFAULT NULL"
+        'reset_expires' => "DATETIME NULL DEFAULT NULL",
+        'failed_attempts' => "INT DEFAULT 0",
+        'locked_until' => "DATETIME NULL"
     ],
     'employees' => [
         'system_role' => "VARCHAR(50) DEFAULT 'Staff'",
@@ -149,6 +151,35 @@ $tableSchema = [
         `type` VARCHAR(20) DEFAULT 'info',
         `is_read` TINYINT(1) DEFAULT 0,
         `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;",
+
+    'password_history' => "CREATE TABLE IF NOT EXISTS `password_history` (
+        `id` INT AUTO_INCREMENT PRIMARY KEY,
+        `user_id` INT NOT NULL,
+        `password_hash` VARCHAR(255) NOT NULL,
+        `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        KEY `idx_ph_user` (`user_id`)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;",
+
+    'access_reviews' => "CREATE TABLE IF NOT EXISTS `access_reviews` (
+        `id` INT AUTO_INCREMENT PRIMARY KEY,
+        `reviewed_user_id` INT NOT NULL,
+        `reviewer_id` INT NOT NULL,
+        `review_date` DATE NOT NULL,
+        `status` VARCHAR(20) NOT NULL,
+        `notes` TEXT,
+        `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;",
+
+    'employment_history' => "CREATE TABLE IF NOT EXISTS `employment_history` (
+        `id` INT AUTO_INCREMENT PRIMARY KEY,
+        `employee_id` INT NOT NULL,
+        `event_title` VARCHAR(100) NOT NULL,
+        `event_date` DATE NOT NULL,
+        `department` VARCHAR(100),
+        `notes` TEXT,
+        `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        KEY `idx_emp_hist` (`employee_id`)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;"
 ];
 
@@ -230,14 +261,17 @@ foreach ($columnSchema as $table => $cols) {
     <link rel="stylesheet" href="assets/icons/bootstrap-icons.css">
 </head>
 
-<body class="bg-light p-4">
+<body class="bg-light">
+    <nav class="navbar navbar-dark bg-dark mb-4">
+        <div class="container">
+            <a class="navbar-brand" href="index.php">⬅ Back to Dashboard</a>
+            <span class="navbar-text text-white"><i class="bi bi-database-check"></i> Database Status</span>
+        </div>
+    </nav>
+
     <div class="container">
-        <div class="d-flex justify-content-between align-items-center mb-4">
-            <div>
-                <h3 class="mb-0"><i class="bi bi-database-check text-primary"></i> Database Status</h3>
-                <small class="text-muted">Master Schema Version: <strong><?php echo $masterVersion; ?></strong></small>
-            </div>
-            <a href="index.php" class="btn btn-secondary">Back to Dashboard</a>
+        <div class="mb-4 text-end">
+            <small class="text-muted">Master Schema Version: <strong><?php echo $masterVersion; ?></strong></small>
         </div>
 
         <?php if ($msg): ?>

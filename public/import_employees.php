@@ -265,6 +265,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['undo_batch'])) {
             } else {
                 // detect delimiter based on first line sample
                 $success_count = 0;
+                $updated_count = 0; // [NEW] Track updates
                 $firstLine = fgets($handle);
                 rewind($handle);
                 $delimiter = (substr_count($firstLine, ';') > substr_count($firstLine, ',')) ? ';' : ',';
@@ -444,40 +445,79 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['undo_batch'])) {
                     $empType = ($agency === 'TESP') ? 'TESP Direct' : 'Agency';
 
                     if ($emp_id != '') {
-                        try {
-                            $sql = "INSERT INTO employees 
-                    (emp_id, first_name, last_name, dept, section, 
-                     employment_type, agency_name, job_title, status, 
-                     gender, birth_date, hire_date, contact_number, 
-                     present_address, avatar_path, import_batch,
-                     sss_no, tin_no, pagibig_no, philhealth_no, email) 
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+                        // [NEW] Check if ID exists
+                        $checkStmt = $pdo->prepare("SELECT id FROM employees WHERE emp_id = ?");
+                        $checkStmt->execute([$emp_id]);
+                        $existingId = $checkStmt->fetchColumn();
 
-                            $stmt = $pdo->prepare($sql);
-                            $stmt->execute([
-                                $emp_id,
-                                $first_name,
-                                $last_name,
-                                $dept,
-                                $section,
-                                $empType,
-                                $agency,
-                                $job_title,
-                                $status,
-                                $gender,
-                                $birth_date,
-                                $hire_date,
-                                trim($contact_raw),
-                                $address,
-                                $photo,
-                                $batch_id,
-                                trim($sss_raw),
-                                trim($tin_raw),
-                                trim($pagibig_raw),
-                                trim($phil_raw),
-                                $email
-                            ]);
-                            $success_count++;
+                        $shouldUpdate = isset($_POST['update_existing']);
+
+                        try {
+                            if ($existingId && $shouldUpdate) {
+                                // UPDATE EXISTING RECORD
+                                $sql = "UPDATE employees SET 
+                                        first_name=?, last_name=?, dept=?, section=?, 
+                                        employment_type=?, agency_name=?, job_title=?, 
+                                        birth_date=?, hire_date=?, contact_number=?, 
+                                        sss_no=?, tin_no=?, pagibig_no=?, philhealth_no=?, email=?,
+                                        updated_at=NOW()
+                                        WHERE id=?";
+                                $stmt = $pdo->prepare($sql);
+                                $stmt->execute([
+                                    $first_name,
+                                    $last_name,
+                                    $dept,
+                                    $section,
+                                    $empType,
+                                    $agency,
+                                    $job_title,
+                                    $birth_date,
+                                    $hire_date,
+                                    trim($contact_raw),
+                                    trim($sss_raw),
+                                    trim($tin_raw),
+                                    trim($pagibig_raw),
+                                    trim($phil_raw),
+                                    $email,
+                                    $existingId
+                                ]);
+                                $updated_count++;
+                            } elseif (!$existingId) {
+                                // INSERT NEW RECORD
+                                $sql = "INSERT INTO employees 
+                                (emp_id, first_name, last_name, dept, section, 
+                                employment_type, agency_name, job_title, status, 
+                                gender, birth_date, hire_date, contact_number, 
+                                present_address, avatar_path, import_batch,
+                                sss_no, tin_no, pagibig_no, philhealth_no, email) 
+                                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+
+                                $stmt = $pdo->prepare($sql);
+                                $stmt->execute([
+                                    $emp_id,
+                                    $first_name,
+                                    $last_name,
+                                    $dept,
+                                    $section,
+                                    $empType,
+                                    $agency,
+                                    $job_title,
+                                    $status,
+                                    $gender,
+                                    $birth_date,
+                                    $hire_date,
+                                    trim($contact_raw),
+                                    $address,
+                                    $photo,
+                                    $batch_id,
+                                    trim($sss_raw),
+                                    trim($tin_raw),
+                                    trim($pagibig_raw),
+                                    trim($phil_raw),
+                                    $email
+                                ]);
+                                $success_count++;
+                            }
                         } catch (Exception $e) {
                             // Skip duplicates
                         }
@@ -486,9 +526,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['undo_batch'])) {
                 fclose($handle);
             }
 
-            if ($success_count > 0) {
-                $logger->log($_SESSION['user_id'], 'IMPORT_SUCCESS', "Imported $success_count ($agency)");
-                $msg = "✅ Success! Imported $success_count employees into $agency.";
+            if ($success_count > 0 || $updated_count > 0) {
+                $logger->log($_SESSION['user_id'], 'IMPORT_SUCCESS', "Imported $success_count, Updated $updated_count ($agency)");
+                $msg = "✅ Success! Added $success_count new, Updated $updated_count existing employees.";
             } else {
                 $error = "No valid records found or all were duplicates.";
             }
@@ -613,10 +653,19 @@ $history = $pdo->query("SELECT import_batch, agency_name, COUNT(*) as count, MAX
                             <label class="form-label fw-bold">Upload CSV</label>
                             <input type="file" name="csv_file" class="form-control" accept=".csv" required>
                         </div>
+                        <div class="col-12">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="update_existing" id="updateCheck" value="1">
+                                <label class="form-check-label text-primary fw-bold" for="updateCheck">
+                                    <i class="bi bi-arrow-repeat"></i> Update existing employees?
+                                </label>
+                                <div class="form-text small">If checked, employees with matching IDs will be updated with the new info from the CSV. If unchecked, they will be skipped.</div>
+                            </div>
+                        </div>
                     </div>
                     <div class="d-grid gap-2 mt-3">
                         <button type="submit" class="btn btn-success btn-lg">Upload & Import</button>
-                        <a href="index.php" class="btn btn-outline-secondary">Back to Dashboard</a>
+                        <a href="index.php" class="btn btn-secondary">Back to Dashboard</a>
                     </div>
                 </form>
             </div>

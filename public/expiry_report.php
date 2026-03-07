@@ -71,12 +71,18 @@ $docs = $stmt->fetchAll(PDO::FETCH_ASSOC);
     </style>
 </head>
 
-<body class="bg-light p-4">
+<body class="bg-light">
 
-    <div class="container-fluid">
+    <nav class="navbar navbar-dark bg-dark mb-4 no-print">
+        <div class="container-fluid px-4">
+            <a class="navbar-brand" href="index.php">⬅ Back to Dashboard</a>
+            <span class="navbar-text text-white"><i class="bi bi-binoculars-fill text-danger"></i> Expiry Forecast</span>
+        </div>
+    </nav>
+
+    <div class="container-fluid px-4">
         <div class="d-flex justify-content-between align-items-center mb-4 no-print">
             <div>
-                <h3 class="fw-bold text-danger"><i class="bi bi-binoculars-fill"></i> Expiry Forecast</h3>
                 <p class="text-muted mb-0">Projected expirations for the next <strong><?php echo htmlspecialchars($days); ?> days</strong>.</p>
             </div>
             <div class="d-flex gap-2 align-items-center">
@@ -95,7 +101,6 @@ $docs = $stmt->fetchAll(PDO::FETCH_ASSOC);
                     </select>
                 </form>
                 <button onclick="window.print()" class="btn btn-dark shadow-sm"><i class="bi bi-printer-fill"></i> Print List</button>
-                <a href="index.php" class="btn btn-secondary shadow-sm">Back</a>
             </div>
         </div>
 

@@ -396,13 +396,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     <div class="container mt-5 mb-5">
         <div class="card shadow">
-            <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
+            <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
                 <span class="fs-5">➕ Add New Employee</span>
                 <div class="d-flex align-items-center gap-2">
                     <button id="darkModeToggle" class="btn btn-sm btn-outline-light border-0" title="Toggle Dark Mode">
                         <i class="bi bi-moon-stars-fill"></i>
                     </button>
-                    <a href="index.php" class="btn btn-sm btn-light text-success fw-bold">Back to Dashboard</a>
+                    <a href="index.php" class="btn btn-sm btn-outline-light">Back to Dashboard</a>
                 </div>
             </div>
             <div class="card-body">

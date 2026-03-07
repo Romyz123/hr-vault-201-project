@@ -41,7 +41,7 @@ $ghosts = $stmt->fetchAll();
         <div class="card shadow border-danger">
             <div class="card-header bg-danger text-white d-flex justify-content-between align-items-center">
                 <h5 class="mb-0"><i class="bi bi-calendar-x-fill me-2"></i> Missing Hire Dates</h5>
-                <a href="../index.php" class="btn btn-sm btn-light text-danger fw-bold">Back to Dashboard</a>
+                <a href="../index.php" class="btn btn-sm btn-outline-light">Back to Dashboard</a>
             </div>
             <div class="card-body">
 

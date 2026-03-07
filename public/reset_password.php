@@ -37,11 +37,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     $validToken = $_POST['token_check']; // Hidden field
 
     // Re-verify to be safe
-    $stmt = $pdo->prepare("SELECT id FROM users WHERE reset_token = ? AND reset_expires > ?");
+    $stmt = $pdo->prepare("SELECT id, password_changed_at FROM users WHERE reset_token = ? AND reset_expires > ?");
     $stmt->execute([$validToken, date('Y-m-d H:i:s')]);
     $user = $stmt->fetch();
 
     if ($user) {
+        // [SECURITY] 3. Restrict Password Change Frequency (24 Hours)
+        if (!empty($user['password_changed_at'])) {
+            $lastChange = new DateTime($user['password_changed_at']);
+            $diff = time() - $lastChange->getTimestamp();
+            if ($diff < 86400) { // 86400 seconds = 24 hours
+                $error = "❌ Security Policy: You can only change your password once every 24 hours.";
+                $step = 'reset';
+            }
+        }
+
         if ($pass !== $confirm) {
             $error = "Passwords do not match.";
             $step = 'reset';
@@ -49,10 +59,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             $error = "Password must be 12+ chars, with a letter, number & symbol.";
             $step = 'reset';
         } else {
-            $hash = password_hash($pass, PASSWORD_BCRYPT);
-            $pdo->prepare("UPDATE users SET password = ?, password_changed_at = NOW(), reset_token = NULL, reset_expires = NULL WHERE id = ?")->execute([$hash, $user['id']]);
-            header("Location: login.php?msg=" . urlencode("✅ Password reset successful! You can now login."));
-            exit;
+            // [SECURITY] 2. Password History Tracking (Last 3)
+            $histStmt = $pdo->prepare("SELECT password_hash FROM password_history WHERE user_id = ? ORDER BY created_at DESC LIMIT 3");
+            $histStmt->execute([$user['id']]);
+            $history = $histStmt->fetchAll(PDO::FETCH_COLUMN);
+
+            $isReused = false;
+            foreach ($history as $oldHash) {
+                if (password_verify($pass, $oldHash)) {
+                    $isReused = true;
+                    break;
+                }
+            }
+
+            if ($isReused) {
+                $error = "❌ Security Policy: You cannot reuse any of your last 3 passwords.";
+                $step = 'reset';
+            } else {
+                $hash = password_hash($pass, PASSWORD_BCRYPT);
+                $pdo->prepare("UPDATE users SET password = ?, password_changed_at = NOW(), reset_token = NULL, reset_expires = NULL, failed_attempts = 0, locked_until = NULL WHERE id = ?")->execute([$hash, $user['id']]);
+                // Record in History
+                $pdo->prepare("INSERT INTO password_history (user_id, password_hash) VALUES (?, ?)")->execute([$user['id'], $hash]);
+
+                header("Location: login.php?msg=" . urlencode("✅ Password reset successful! You can now login."));
+                exit;
+            }
         }
     } else {
         $error = "Session expired. Please request a new code.";

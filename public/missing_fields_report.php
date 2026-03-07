@@ -68,16 +68,22 @@ foreach ($employees as $emp) {
     </style>
 </head>
 
-<body class="bg-light p-4">
-    <div class="container-fluid">
+<body class="bg-light">
+
+    <nav class="navbar navbar-dark bg-dark mb-4 no-print">
+        <div class="container-fluid px-4">
+            <a class="navbar-brand" href="index.php">⬅ Back to Dashboard</a>
+            <span class="navbar-text text-white"><i class="bi bi-exclamation-triangle-fill text-warning"></i> Incomplete Profiles Report</span>
+        </div>
+    </nav>
+
+    <div class="container-fluid px-4">
         <div class="d-flex justify-content-between align-items-center mb-4 no-print">
             <div>
-                <h3 class="fw-bold text-warning"><i class="bi bi-exclamation-triangle-fill"></i> Incomplete Profiles Report</h3>
                 <p class="text-muted mb-0">Found <strong><?php echo count($incompleteProfiles); ?></strong> employees with missing information.</p>
             </div>
             <div class="d-flex gap-2">
                 <button onclick="window.print()" class="btn btn-dark shadow-sm"><i class="bi bi-printer-fill"></i> Print List</button>
-                <a href="index.php" class="btn btn-secondary shadow-sm">Back</a>
             </div>
         </div>
 
