@@ -42,7 +42,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
         $alertMsg = "❌ Security Token Mismatch. Please refresh and try again.";
     } else {
         // Check Rate Limit
-        if (!$security->checkRateLimit($_SERVER['REMOTE_ADDR'], 20, 60)) { // [FIX] Increased to 20 for testing
+        if (!$security->checkRateLimit($_SERVER['REMOTE_ADDR'], 10, 60)) { // [SECURITY] Strict limit: 10 req/min
             $alertType = 'error';
             $alertMsg = "<strong>⛔ Too Many Requests!</strong><br>You are temporarily locked out. Please try again in a minute.";
         } else {

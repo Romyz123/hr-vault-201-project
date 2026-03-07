@@ -1,14 +1,14 @@
+# Force HTTPS (TLS Protocol for MHI Compliance)
+
+RewriteEngine On
+RewriteCond %{HTTPS} off
+RewriteRule ^(.\*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+
 # Turn off directory listing (Security)
 
 Options -Indexes
 
-# Upload limits are configured in php.ini or FPM pool configuration
-
-# Do not use php_value directives here as they conflict with PHP-FPM
-
-# Configure upload_max_filesize and post_max_size in php.ini instead
-
-# Block access to .env or .git files if they accidentally get here
+# Block access to .env or hidden files
 
 <FilesMatch "^\.">
 Order allow,deny

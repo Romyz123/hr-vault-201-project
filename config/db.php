@@ -1,6 +1,13 @@
 <?php
 // config/db.php
 
+// [SECURITY] Production Error Handling
+// Hide errors from users, log them to server instead
+ini_set('display_errors', 0);
+ini_set('display_startup_errors', 0);
+ini_set('log_errors', 1);
+error_reporting(E_ALL);
+
 // Load settings directly from PHP file instead of .env to avoid permission errors
 $_ENV = require 'config.php';
 

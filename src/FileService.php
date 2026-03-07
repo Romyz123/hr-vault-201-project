@@ -23,9 +23,8 @@ class FileService
         if (!empty($config['VAULT_KEY'])) {
             $this->key = $config['VAULT_KEY'];
         } else {
-            // Fallback (only triggers if someone deletes the key from config)
-            $this->key = 'hr201_vault_secure_key_change_me_immediately';
-            error_log("SECURITY WARNING: Using hardcoded encryption key. Please set VAULT_KEY in config.php.");
+            // [SECURITY] Fail Secure: Never use a default key in production.
+            throw new Exception("CRITICAL SECURITY ERROR: VAULT_KEY is missing in config.php. System halted to protect data.");
         }
     }
 
