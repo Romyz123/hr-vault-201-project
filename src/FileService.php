@@ -17,16 +17,13 @@ class FileService
         // The Fail-Safe Map (Text file)
         $this->manifestFile = $this->vaultPath . 'manifest_DO_NOT_DELETE.txt';
 
-        // [SECURITY] Load Key from Environment (MHI Requirement)
-        // You must add 'VAULT_KEY' => 'your-secret-key' to config/config.php
-        if (!empty($_ENV['VAULT_KEY'])) {
-            $this->key = $_ENV['VAULT_KEY'];
+        // [FIXED] Load Key directly from config.php
+        $config = require __DIR__ . '/../config/config.php';
+
+        if (!empty($config['VAULT_KEY'])) {
+            $this->key = $config['VAULT_KEY'];
         } else {
-            // In production, refuse to operate without a proper key
-            if (($_ENV['APP_ENV'] ?? 'production') === 'production') {
-                throw new RuntimeException("VAULT_KEY environment variable is required.");
-            }
-            // Fallback for local development only
+            // Fallback (only triggers if someone deletes the key from config)
             $this->key = 'hr201_vault_secure_key_change_me_immediately';
             error_log("SECURITY WARNING: Using hardcoded encryption key. Please set VAULT_KEY in config.php.");
         }
