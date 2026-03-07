@@ -44,7 +44,8 @@ try {
         }
     }
 
-    $dsn = "mysql:host={$_ENV['DB_HOST']};port=3307;dbname={$_ENV['DB_NAME']};charset={$_ENV['DB_CHARSET']}";
+    $port = $_ENV['DB_PORT'] ?? 3306;
+    $dsn = "mysql:host={$_ENV['DB_HOST']};port={$port};dbname={$_ENV['DB_NAME']};charset={$_ENV['DB_CHARSET']}";
     $pdo = new PDO($dsn, $_ENV['DB_USER'], $_ENV['DB_PASS'], $options);
 } catch (\PDOException $e) {
     error_log($e->getMessage());
