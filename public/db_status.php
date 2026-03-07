@@ -53,6 +53,13 @@ $columnSchema = [
         'updated_by' => "INT NULL",
         'is_resolved' => "TINYINT(1) DEFAULT 0",
         'resolution_note' => "TEXT NULL"
+    ],
+    'candidates' => [
+        'email' => "VARCHAR(100) NULL",
+        'phone_number' => "VARCHAR(25) NULL",
+        'rejection_reason' => "TEXT NULL",
+        'interview_date' => "DATETIME NULL",
+        'is_blacklisted' => "TINYINT(1) DEFAULT 0"
     ]
 ];
 
@@ -190,6 +197,23 @@ $tableSchema = [
         `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         KEY `idx_batch` (`import_batch`),
         KEY `idx_emp` (`employee_id`)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;",
+
+    'candidates' => "CREATE TABLE IF NOT EXISTS `candidates` (
+        `id` INT AUTO_INCREMENT PRIMARY KEY,
+        `first_name` VARCHAR(50) NOT NULL,
+        `last_name` VARCHAR(50) NOT NULL,
+        `position_applied` VARCHAR(100) NOT NULL,
+        `email` VARCHAR(100) NULL,
+        `phone_number` VARCHAR(25) NULL,
+        `rejection_reason` TEXT NULL,
+        `interview_date` DATETIME NULL,
+        `is_blacklisted` TINYINT(1) DEFAULT 0,
+        `status` VARCHAR(50) DEFAULT 'New Applicant',
+        `application_date` DATE NOT NULL,
+        `last_follow_up` DATE DEFAULT NULL,
+        `notes` TEXT,
+        `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;"
 ];
 

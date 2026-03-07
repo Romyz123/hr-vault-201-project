@@ -13,13 +13,24 @@ if ($id <= 0) {
 }
 
 // Fetch Evaluation + Employee Info
+// [FIX] Check new table first (hr_performance_reviews), then fallback to old (performance_evaluations)
 $sql = "SELECT ev.*, e.first_name, e.last_name, e.emp_id, e.dept, e.job_title, ev.employee_id 
-        FROM performance_evaluations ev 
+        FROM hr_performance_reviews ev 
         JOIN employees e ON ev.employee_id = e.id 
         WHERE ev.id = ?";
 $stmt = $pdo->prepare($sql);
 $stmt->execute([$id]);
 $data = $stmt->fetch(PDO::FETCH_ASSOC);
+
+if (!$data) {
+    $sql = "SELECT ev.*, e.first_name, e.last_name, e.emp_id, e.dept, e.job_title, ev.employee_id 
+            FROM performance_evaluations ev 
+            JOIN employees e ON ev.employee_id = e.id 
+            WHERE ev.id = ?";
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute([$id]);
+    $data = $stmt->fetch(PDO::FETCH_ASSOC);
+}
 
 if (!$data) die("Evaluation record not found.");
 
@@ -147,11 +158,11 @@ if (file_exists($logo_path)) {
             margin-top: 20px;
         }
 
-        .remarks-box {
+        .content-box {
             text-align: justify;
             border: 1px solid #000;
             padding: 20px;
-            min-height: 150px;
+            min-height: 80px;
             white-space: pre-wrap;
             font-family: Arial, sans-serif;
             /* Easier to read for long text */
@@ -238,8 +249,17 @@ if (file_exists($logo_path)) {
             <div class="rating-val"><?php echo htmlspecialchars($data['rating']); ?></div>
         </div>
 
+        <div class="section-title">STRENGTHS / ACCOMPLISHMENTS</div>
+        <div class="content-box"><?php echo nl2br(htmlspecialchars($data['strengths'] ?? 'N/A')); ?></div>
+
+        <div class="section-title">AREAS FOR IMPROVEMENT</div>
+        <div class="content-box"><?php echo nl2br(htmlspecialchars($data['weaknesses'] ?? 'N/A')); ?></div>
+
+        <div class="section-title">GOALS FOR NEXT PERIOD</div>
+        <div class="content-box"><?php echo nl2br(htmlspecialchars($data['goals'] ?? 'N/A')); ?></div>
+
         <div class="section-title">EVALUATOR'S REMARKS / COMMENTS</div>
-        <div class="remarks-box"><?php echo htmlspecialchars($data['remarks']); ?></div>
+        <div class="content-box"><?php echo nl2br(htmlspecialchars($data['remarks'] ?? 'N/A')); ?></div>
 
         <div class="footer">
             <table style="width: 100%;">

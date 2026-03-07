@@ -120,7 +120,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_review'])) {
             $stmt->execute([$emp_id, $_SESSION['user_id'], $date, $rating, $strengths, $weaknesses, $goals]);
 
             $logger->log($_SESSION['user_id'], 'ADD_REVIEW', "Added performance review for employee ID: $emp_id");
-            $msg = "✅ Performance review added successfully.";
+            header("Location: performance_review.php?msg=" . urlencode("✅ Performance review added successfully."));
+            exit;
         } else {
             $msg = "❌ Please fill all required fields.";
         }
@@ -299,6 +300,18 @@ if (count($reviewsArray) === 0 && !empty($search)) {
     </nav>
 
     <div class="container">
+        <?php if (isset($_GET['msg'])): ?>
+            <div class="alert alert-success alert-dismissible fade show">
+                <?php echo htmlspecialchars($_GET['msg']); ?>
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+            <script>
+                if (window.history.replaceState) {
+                    window.history.replaceState(null, null, window.location.pathname);
+                }
+            </script>
+        <?php endif; ?>
+
         <?php if ($msg): ?>
             <div class="alert alert-info"><?php echo htmlspecialchars($msg); ?></div>
         <?php endif; ?>
@@ -345,6 +358,7 @@ if (count($reviewsArray) === 0 && !empty($search)) {
                             <th>Strengths</th>
                             <th>Areas for Improvement</th>
                             <th>Review</th>
+                            <th>Action</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -363,11 +377,16 @@ if (count($reviewsArray) === 0 && !empty($search)) {
                                 <td class="small"><?php echo nl2br(htmlspecialchars($row['strengths'])); ?></td>
                                 <td class="small"><?php echo nl2br(htmlspecialchars($row['weaknesses'])); ?></td>
                                 <td><span class="badge bg-secondary"><?php echo htmlspecialchars($row['reviewer_name']); ?></span></td>
+                                <td>
+                                    <a href="print_evaluation.php?id=<?php echo $row['id']; ?>" target="_blank" class="btn btn-sm btn-outline-dark" title="Print">
+                                        <i class="bi bi-printer"></i>
+                                    </a>
+                                </td>
                             </tr>
                         <?php endforeach; ?>
                         <?php if (count($reviewsArray) === 0): ?>
                             <tr>
-                                <td colspan="6" class="text-center p-4 text-muted">No performance reviews found.</td>
+                                <td colspan="7" class="text-center p-4 text-muted">No performance reviews found.</td>
                             </tr>
                         <?php endif; ?>
                     </tbody>

@@ -985,6 +985,9 @@ $diskPercent = ($diskTotal > 0) ? round((($diskTotal - $diskFree) / $diskTotal) 
                             <a href="analytics.php" class="btn btn-outline-primary btn-sm">
                                 <i class="bi bi-graph-up"></i> Analytics
                             </a>
+                            <a href="recruitment.php" class="btn btn-outline-info btn-sm">
+                                <i class="bi bi-person-lines-fill"></i> Recruitment
+                            </a>
                             <a href="tracker.php" class="btn btn-outline-info btn-sm">
                                 <i class="bi bi-kanban"></i> Missing Docs Tracker
                             </a>

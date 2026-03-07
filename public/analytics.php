@@ -217,6 +217,39 @@ $avgHeadcount   = ($startHeadcount + $endHeadcount) / 2;
 
 $turnoverRate = ($avgHeadcount > 0) ? round(($totalExits / $avgHeadcount) * 100, 2) : 0;
 
+// 9) AVERAGE TENURE (Active)
+$avgTenureStmt = $pdo->prepare("SELECT AVG(DATEDIFF(NOW(), hire_date)) FROM employees $activeSQL AND hire_date IS NOT NULL AND hire_date != '0000-00-00'");
+$avgTenureStmt->execute($params);
+$avgTenureDays = $avgTenureStmt->fetchColumn();
+$avgTenureYears = $avgTenureDays ? round($avgTenureDays / 365.25, 1) : 0;
+
+// 10) PERFORMANCE RATINGS (Latest per employee)
+$perfLabels = '[]';
+$perfCounts = '[]';
+try {
+    // Check if table exists
+    $pdo->query("SELECT 1 FROM hr_performance_reviews LIMIT 1");
+
+    $perfStmt = $pdo->prepare("
+        SELECT rating, COUNT(*) as count
+        FROM hr_performance_reviews r
+        INNER JOIN (
+            SELECT MAX(id) as max_id
+            FROM hr_performance_reviews
+            GROUP BY employee_id
+        ) latest ON r.id = latest.max_id
+        JOIN employees e ON r.employee_id = e.id
+        $activeSQL
+        GROUP BY rating
+        ORDER BY rating DESC
+    ");
+    $perfStmt->execute($params);
+    $perfData = $perfStmt->fetchAll(PDO::FETCH_KEY_PAIR);
+    $perfLabels = json_encode(array_keys($perfData));
+    $perfCounts = json_encode(array_values($perfData));
+} catch (Exception $e) {
+}
+
 // 7) DEMOGRAPHICS & TENURE MATRIX (Slug Strategy + Column Totals)
 
 // Stable computation IDs
@@ -662,7 +695,7 @@ if ($debug) {
         </div>
 
         <div class="row mb-4">
-            <div class="col-md-3 mb-3 mb-md-0">
+            <div class="col-md-3 mb-3">
                 <div class="card shadow-sm h-100 text-center border-0 bg-primary text-white">
                     <div class="card-body d-flex flex-column justify-content-center">
                         <h6 class="opacity-75">Active Headcount</h6>
@@ -670,7 +703,7 @@ if ($debug) {
                     </div>
                 </div>
             </div>
-            <div class="col-md-3 mb-3 mb-md-0">
+            <div class="col-md-3 mb-3">
                 <div class="card shadow-sm h-100 border-warning">
                     <div class="card-header bg-warning text-dark border-bottom-0 d-flex justify-content-between align-items-center">
                         <span><i class="bi bi-hourglass-split me-2"></i> Status (<?php echo htmlspecialchars($probMonths); ?>m)</span>
@@ -687,7 +720,7 @@ if ($debug) {
                     </div>
                 </div>
             </div>
-            <div class="col-md-3 mb-3 mb-md-0">
+            <div class="col-md-3 mb-3">
                 <div class="card shadow-sm h-100 border-danger">
                     <div class="card-header bg-danger text-white border-bottom-0 d-flex justify-content-between align-items-center">
                         <span><i class="bi bi-graph-down-arrow me-2"></i> Turnover Rate</span>
@@ -698,7 +731,21 @@ if ($debug) {
                     </div>
                 </div>
             </div>
-            <div class="col-md-3 mb-3 mb-md-0">
+            <div class="col-md-3 mb-3">
+                <div class="card shadow-sm h-100 border-info">
+                    <div class="card-header bg-info text-dark border-bottom-0 d-flex justify-content-between align-items-center">
+                        <span><i class="bi bi-clock-history me-2"></i> Avg Tenure</span>
+                    </div>
+                    <div class="card-body text-center d-flex flex-column justify-content-center">
+                        <h1 class="display-3 fw-bold mb-0 text-info"><?php echo htmlspecialchars($avgTenureYears); ?></h1>
+                        <small class="text-muted">Years</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row mb-4">
+            <div class="col-md-6 mb-3">
                 <div class="card shadow-sm h-100">
                     <div class="card-header border-bottom-0 d-flex justify-content-between align-items-center">
                         <span>Agency Breakdown</span>
@@ -707,7 +754,7 @@ if ($debug) {
                     <div class="card-body"><canvas id="agencyChart"></canvas></div>
                 </div>
             </div>
-            <div class="col-md-3">
+            <div class="col-md-6 mb-3">
                 <div class="card shadow-sm h-100">
                     <div class="card-header border-bottom-0 d-flex justify-content-between align-items-center">
                         <span>Headcount by Dept</span>
@@ -740,6 +787,15 @@ if ($debug) {
         </div>
 
         <div class="row mb-4">
+            <div class="col-md-4">
+                <div class="card shadow-sm h-100">
+                    <div class="card-header border-bottom-0 d-flex justify-content-between align-items-center">
+                        <span>Performance Ratings</span>
+                        <button class="btn btn-sm btn-link text-secondary p-0" onclick="openFullScreen('perfChart', 'Performance Ratings')"><i class="bi bi-arrows-fullscreen"></i></button>
+                    </div>
+                    <div class="card-body"><canvas id="perfChart"></canvas></div>
+                </div>
+            </div>
             <div class="col-md-6">
                 <div class="card shadow-sm h-100">
                     <div class="card-header border-bottom-0 d-flex justify-content-between align-items-center">
@@ -749,7 +805,7 @@ if ($debug) {
                     <div class="card-body"><canvas id="ageChart"></canvas></div>
                 </div>
             </div>
-            <div class="col-md-6">
+            <div class="col-md-2">
                 <div class="card shadow-sm h-100">
                     <div class="card-header border-bottom-0 d-flex justify-content-between align-items-center">
                         <span>Tenure Overview</span>
@@ -1030,6 +1086,12 @@ if ($debug) {
                 data: <?php echo $attrTrendCounts; ?>,
                 type: 'bar',
                 bg: '#dc3545'
+            },
+            'perfChart': {
+                labels: <?php echo $perfLabels; ?>,
+                data: <?php echo $perfCounts; ?>,
+                type: 'bar',
+                bg: '#0dcaf0'
             }
         };
 
@@ -1254,6 +1316,24 @@ if ($debug) {
                         }
                     }
                 }
+            }
+        });
+
+        // Performance
+        charts.perfChart = new Chart(document.getElementById('perfChart'), {
+            type: 'bar',
+            data: {
+                labels: <?php echo $perfLabels; ?>,
+                datasets: [{
+                    label: 'Employees',
+                    data: <?php echo $perfCounts; ?>,
+                    backgroundColor: '#0dcaf0',
+                    borderRadius: 4
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false
             }
         });
 

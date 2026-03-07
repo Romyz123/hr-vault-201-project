@@ -84,7 +84,7 @@ if (($_SESSION['role'] ?? '') === 'ADMIN') {
         <!-- WELCOME BANNER -->
         <div class="row mb-4">
             <div class="col-12">
-                <div class="card border-0 shadow-smstify-content-between align-items-center">
+                <div class="card border-0 shadow-sm d-flex justify-content-between align-items-center p-3">
                     <div>
                         <h4 class="mb-1 text-primary">Welcome back, <?php echo htmlspecialchars($_SESSION['username']); ?>!</h4>
                         <p class="text-muted mb-0">Here is what requires your attention today.</p>
@@ -175,56 +175,57 @@ if (($_SESSION['role'] ?? '') === 'ADMIN') {
         <div class="col-12">
             <div class="card shadow-sm h-100">
                 <div class="card-header fw-bold">
-                    <i class="bi bi-cloup"></i> Recent Uploads
-                    <di class="card-body p-0">
-                        <table class="table table-hover mb-0 align-middle">
-                            <thead class="table-light">
+                    <i class="bi bi-cloud-arrow-up"></i> Recent Uploads
+                </div>
+                <div class="card-body p-0">
+                    <table class="table table-hover mb-0 align-middle">
+                        <thead class="table-light">
+                            <tr>
+                                <th>File</th>
+                                <th>Employee</th>
+                                <th>Date</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php if (empty($recentUploads)): ?>
                                 <tr>
-                                    <th>File</th>
-                                    <th>Employee</th>
-                                    <th>Date</th>
+                                    <td colspan="3" class="text-center p-3 text-muted">No recent uploads.</td>
                                 </tr>
-                            </thead>
-                            <tbody>
-                                <?php if (empty($recentUploads)): ?>
+                            <?php else: ?>
+                                <?php foreach ($recentUploads as $up): ?>
                                     <tr>
-                                        <td colspan="3" class="text-center p-3 text-muted">No recent uploads.</td>
+                                        <td>
+                                            <a href="view_doc.php?id=<?php echo htmlspecialchars($up['file_uuid'], ENT_QUOTES, 'UTF-8'); ?>" target="_blank" class="text-decoration-none fw-bold text-dark">
+                                                <i class="bi bi-file-earmark-text text-secondary"></i> <?php echo htmlspecialchars($up['original_name']); ?>
+                                            </a> <br><small class="text-muted"><?php echo htmlspecialchars($up['category']); ?></small>
+                                        </td>
+                                        <td><?php echo htmlspecialchars($up['first_name'] . ' ' . $up['last_name']); ?></td>
+                                        <td class="small text-muted"><?php echo date('M d', strtotime($up['uploaded_at'])); ?></td>
                                     </tr>
-                                <?php else: ?>
-                                    <?php foreach ($recentUploads as $up): ?>
-                                        <tr>
-                                            <td>
-                                                <a href="view_doc.php?id=<?php echo htmlspecialchars($up['file_uuid'], ENT_QUOTES, 'UTF-8'); ?>" target="_blank" class="text-decoration-none fw-bold text-dark">
-                                                    <i class="bi bi-file-earmark-text text-secondary"></i> <?php echo htmlspecialchars($up['original_name']); ?>
-                                                </a> <br><small class="text-muted"><?php echo htmlspecialchars($up['category']); ?></small>
-                                            </td>
-                                            <td><?php echo htmlspecialchars($up['first_name'] . ' ' . $up['last_name']); ?></td>
-                                            <td class="small text-muted"><?php echo date('M d', strtotime($up['uploaded_at'])); ?></td>
-                                        </tr>
-                                    <?php endforeach; ?>
-                                <?php endif; ?>
-                            </tbody>
-                        </table>
+                                <?php endforeach; ?>
+                            <?php endif; ?>
+                        </tbody>
+                    </table>
                 </div>
             </div>
         </div>
-    </div>
 
-    <!-- QUICK LINKS -->
-    <div class="row">
-        <div class="col-12">
-            <div class="card shadow-sm">
-                <div class="card-header fw-bold"><i class="bi bi-lightning-charge"></i> Management Tools</div>
-                <div class="card-body n</i> Add Employee</a>
-                        <a href=" import_employees.php" class="btn btn-outline-success"><i class="bi bi-file-spreadsheet me-2"></i> Bulk Import</a>
-                    <a href="tracker.php" class="btn btn-outline-info"><i class="bi bi-kanban me-2"></i> Compliance Tracker</a>
-                    <a href="bulk_update_roles.php" class="btn btn-outline-warning"><i class="bi bi-people-fill me-2"></i> Bulk Update Roles</a>
-                    <a href="bulk_contract.php" class="btn btn-outline-primary"><i class="bi bi-printer-fill me-2"></i> Bulk Contract Print</a>
+        <!-- QUICK LINKS -->
+        <div class="row">
+            <div class="col-12">
+                <div class="card shadow-sm">
+                    <div class="card-header fw-bold"><i class="bi bi-lightning-charge"></i> Management Tools</div>
+                    <div class="card-body d-flex gap-2 flex-wrap">
+                        <a href="add_employee.php" class="btn btn-outline-success"><i class="bi bi-person-plus-fill me-2"></i> Add Employee</a>
+                        <a href="import_employees.php" class="btn btn-outline-success"><i class="bi bi-file-spreadsheet me-2"></i> Bulk Import</a>
+                        <a href="tracker.php" class="btn btn-outline-info"><i class="bi bi-kanban me-2"></i> Compliance Tracker</a>
+                        <a href="bulk_update_roles.php" class="btn btn-outline-warning"><i class="bi bi-people-fill me-2"></i> Bulk Update Roles</a>
+                        <a href="bulk_contract.php" class="btn btn-outline-primary"><i class="bi bi-printer-fill me-2"></i> Bulk Contract Print</a>
 
+                    </div>
                 </div>
             </div>
         </div>
-    </div>
     </div>
     <script src="assets/bootstrap.bundle.min.js"></script>
     <script src="dark_mode.js"></script>

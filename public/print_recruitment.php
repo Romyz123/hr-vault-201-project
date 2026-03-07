@@ -1,0 +1,151 @@
+<?php
+// public/print_recruitment.php
+require '../config/db.php';
+session_start();
+
+if (!isset($_SESSION['user_id'])) die("Access Denied");
+
+// Filters
+$filterStatus = $_GET['status'] ?? '';
+$filterMonth  = $_GET['month'] ?? '';
+$filterWeek   = $_GET['week'] ?? '';
+
+$sql = "SELECT * FROM candidates WHERE 1=1";
+$params = [];
+if ($filterStatus) {
+    $sql .= " AND status = ?";
+    $params[] = $filterStatus;
+}
+if ($filterMonth) {
+    $sql .= " AND DATE_FORMAT(application_date, '%Y-%m') = ?";
+    $params[] = $filterMonth;
+}
+if ($filterWeek) {
+    $year = (int)substr($filterWeek, 0, 4);
+    $week = (int)substr($filterWeek, 6);
+    $dto = new DateTime();
+    $dto->setISODate($year, $week);
+    $startDate = $dto->format('Y-m-d');
+    $dto->modify('+6 days');
+    $endDate = $dto->format('Y-m-d');
+    $sql .= " AND application_date BETWEEN ? AND ?";
+    $params[] = $startDate;
+    $params[] = $endDate;
+}
+$sql .= " ORDER BY application_date DESC";
+$stmt = $pdo->prepare($sql);
+$stmt->execute($params);
+$candidates = $stmt->fetchAll();
+?>
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Recruitment Report</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            font-size: 12px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .header h2 {
+            margin: 0;
+            text-transform: uppercase;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+
+        th,
+        td {
+            border: 1px solid #000;
+            padding: 6px;
+            text-align: left;
+        }
+
+        th {
+            background-color: #f0f0f0;
+        }
+
+        .status-rejected {
+            color: red;
+            font-weight: bold;
+        }
+
+        .status-hired {
+            color: green;
+            font-weight: bold;
+        }
+
+        @media print {
+            .no-print {
+                display: none;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="no-print" style="margin-bottom: 20px; text-align: center;">
+        <button onclick="window.print()" style="padding: 10px 20px; font-weight: bold; cursor: pointer;">🖨️ Print Report</button>
+        <button onclick="window.close()" style="padding: 10px 20px; cursor: pointer;">Close</button>
+    </div>
+
+    <div class="header">
+        <h2>Recruitment Candidate List</h2>
+        <p>
+            Generated on: <?php echo date('F d, Y'); ?><br>
+            Filter: <?php echo $filterStatus ? $filterStatus : 'All Status'; ?> |
+            Month: <?php echo $filterMonth ? date('F Y', strtotime($filterMonth)) : 'All Time'; ?>
+            <?php if ($filterWeek) echo " | Week: " . htmlspecialchars($filterWeek); ?>
+        </p>
+    </div>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Date Applied</th>
+                <th>Candidate Name</th>
+                <th>Position</th>
+                <th>Contact</th>
+                <th>Status</th>
+                <th>Notes / Rejection Reason</th>
+            </tr>
+        </thead>
+        <tbody>
+            <?php foreach ($candidates as $c):
+                $class = '';
+                if ($c['status'] == 'Rejected') $class = 'status-rejected';
+                if ($c['status'] == 'Hired') $class = 'status-hired';
+            ?>
+                <tr>
+                    <td><?php echo date('M d, Y', strtotime($c['application_date'])); ?></td>
+                    <td><?php echo htmlspecialchars($c['last_name'] . ', ' . $c['first_name']); ?></td>
+                    <td><?php echo htmlspecialchars($c['position_applied']); ?></td>
+                    <td>
+                        <?php echo htmlspecialchars($c['phone_number']); ?><br>
+                        <?php echo htmlspecialchars($c['email']); ?>
+                    </td>
+                    <td class="<?php echo $class; ?>"><?php echo htmlspecialchars($c['status']); ?></td>
+                    <td>
+                        <?php echo htmlspecialchars($c['notes'] ?? ''); ?>
+                        <?php if (!empty($c['rejection_reason'])) echo "<br><strong>Reason:</strong> " . htmlspecialchars($c['rejection_reason']); ?>
+                    </td>
+                </tr>
+            <?php endforeach; ?>
+        </tbody>
+    </table>
+
+</body>
+
+</html>

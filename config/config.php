@@ -2,6 +2,7 @@
 // config/config.php
 return [
     'DB_HOST' => 'localhost',
+    'DB_PORT' => 3307, // Change to 3307 if XAMPP uses that port
     'DB_NAME' => 'hr201_local',
     'DB_USER' => 'root',
     'DB_PASS' => '', // Empty for default XAMPP

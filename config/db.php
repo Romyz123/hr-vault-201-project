@@ -44,10 +44,16 @@ try {
         }
     }
 
-    $port = $_ENV['DB_PORT'] ?? 3306;
-    $dsn = "mysql:host={$_ENV['DB_HOST']};port={$port};dbname={$_ENV['DB_NAME']};charset={$_ENV['DB_CHARSET']}";
+    // [FIX] Windows/XAMPP often fails with 'localhost' due to IPv6. Force 127.0.0.1 if localhost is set.
+    $dbHost = ($_ENV['DB_HOST'] === 'localhost') ? '127.0.0.1' : $_ENV['DB_HOST'];
+    $port = $_ENV['DB_PORT'] ?? 3307;
+    $dsn = "mysql:host={$dbHost};port={$port};dbname={$_ENV['DB_NAME']};charset={$_ENV['DB_CHARSET']}";
     $pdo = new PDO($dsn, $_ENV['DB_USER'], $_ENV['DB_PASS'], $options);
 } catch (\PDOException $e) {
     error_log($e->getMessage());
-    die("Database connection error. Please try again later.");
+    // Provide a more helpful error message for XAMPP users
+    if (strpos($e->getMessage(), 'actively refused') !== false) {
+        die("Database connection error: Target machine actively refused connection. <br><strong>Solution:</strong> Ensure MySQL is running in XAMPP Control Panel. If it is running, check if it's using Port 3306 or 3307 and update config/config.php.");
+    }
+    die("Database connection error: " . $e->getMessage());
 }

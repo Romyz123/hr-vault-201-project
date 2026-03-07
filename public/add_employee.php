@@ -40,7 +40,7 @@ function post($key, $default = '')
 {
     return isset($_POST[$key]) ? trim((string)$_POST[$key]) : $default;
 }
-$old = $_POST ?? [];
+$old = $_POST ?: $_GET; // [FIX] Allow GET for pre-filling from Recruitment
 function old($key, $default = '')
 {
     global $old;
