@@ -72,7 +72,52 @@ class Security
             throw new Exception("Invalid CSRF Token");
         }
     }
+
+    /**
+     * Return true if the given user ID belongs to an administrator role.
+     */
+    public function isAdmin($userId)
+    {
+        $stmt = $this->pdo->prepare("SELECT role FROM users WHERE id = ?");
+        $stmt->execute([$userId]);
+        $role = $stmt->fetchColumn();
+        return $role === 'ADMIN';
+    }
+
+    /**
+     * Return true if $managerId is the manager for employee $employeeId.
+     * Assumes employees table has a manager_id column storing the user ID of the manager.
+     */
+    public function isManagerOf($managerId, $employeeId)
+    {
+        $stmt = $this->pdo->prepare("SELECT manager_id FROM employees WHERE emp_id = ? LIMIT 1");
+        $stmt->execute([$employeeId]);
+        $mgr = $stmt->fetchColumn();
+        return $mgr !== false && $mgr == $managerId;
+    }
+
+    /**
+     * Centralized visibility check; admins and managers of the record can view it,
+     * and users may of course view their own record.
+     */
+    public function canViewEmployee($viewerId, $employeeId)
+    {
+        if ($viewerId === $employeeId) {
+            return true;
+        }
+
+        if ($this->isAdmin($viewerId)) {
+            return true;
+        }
+
+        if ($this->isManagerOf($viewerId, $employeeId)) {
+            return true;
+        }
+
+        return false;
+    }
 }
+
 
 /*
 // ========================================================================

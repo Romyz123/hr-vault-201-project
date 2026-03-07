@@ -177,7 +177,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 // Try to find SQL file
                 for ($i = 0; $i < $zip->numFiles; $i++) {
                     $stat = $zip->statIndex($i);
-                    if (str_ends_with($stat['name'], '.sql')) {
+                    // [FIX] Use substr for PHP < 8.0 compatibility instead of str_ends_with
+                    if (substr($stat['name'], -4) === '.sql') {
                         $sqlContent = $zip->getFromIndex($i);
                         break;
                     }
@@ -249,7 +250,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     // Find the .sql file inside
                     for ($i = 0; $i < $zip->numFiles; $i++) {
                         $stat = $zip->statIndex($i);
-                        if (str_ends_with($stat['name'], '.sql')) {
+                        // [FIX] Use substr for PHP < 8.0 compatibility
+                        if (substr($stat['name'], -4) === '.sql') {
                             $sqlContent = $zip->getFromIndex($i);
                             break;
                         }

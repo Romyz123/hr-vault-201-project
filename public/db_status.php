@@ -180,6 +180,16 @@ $tableSchema = [
         `notes` TEXT,
         `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         KEY `idx_emp_hist` (`employee_id`)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;",
+
+    'import_rollbacks' => "CREATE TABLE IF NOT EXISTS `import_rollbacks` (
+        `id` INT AUTO_INCREMENT PRIMARY KEY,
+        `employee_id` INT NOT NULL,
+        `import_batch` VARCHAR(50) NOT NULL,
+        `old_data` LONGTEXT,
+        `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        KEY `idx_batch` (`import_batch`),
+        KEY `idx_emp` (`employee_id`)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;"
 ];
 
