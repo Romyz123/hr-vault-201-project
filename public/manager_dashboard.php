@@ -69,7 +69,7 @@ if (($_SESSION['role'] ?? '') === 'ADMIN') {
         <div class="container">
             <a class="navbar-brand fw-bold" href="index.php"><i class="bi bi-speedometer2"></i> Manager Command Center</a>
             <div class="d-flex align-items-center gap-2">
-                <a href="index.php" class="btn btn-outline-light btn-sm"><i class="bi bi-house-door-fill"></i> Back to Dashboard</a>
+                <a href="index.php" class="btn btn-outline-light btn-sm">Back to Dashboard</a>
                 <button id="darkModeToggle" class="btn btn-sm btn-outline-light border-0" title="Toggle Dark Mode">
                     <i class="bi bi-moon-stars-fill"></i>
                 </button>
@@ -220,7 +220,7 @@ if (($_SESSION['role'] ?? '') === 'ADMIN') {
                     <a href="tracker.php" class="btn btn-outline-info"><i class="bi bi-kanban me-2"></i> Compliance Tracker</a>
                     <a href="bulk_update_roles.php" class="btn btn-outline-warning"><i class="bi bi-people-fill me-2"></i> Bulk Update Roles</a>
                     <a href="bulk_contract.php" class="btn btn-outline-primary"><i class="bi bi-printer-fill me-2"></i> Bulk Contract Print</a>
-                    <a href="maintenance_log.php" class="btn btn-outline-dark"><i class="bi bi-tools me-2"></i> Maintenance Log</a>
+
                 </div>
             </div>
         </div>

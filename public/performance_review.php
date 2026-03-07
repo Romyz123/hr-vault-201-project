@@ -293,7 +293,7 @@ if (count($reviewsArray) === 0 && !empty($search)) {
 <body class="bg-light">
     <nav class="navbar navbar-dark bg-dark mb-4">
         <div class="container">
-            <a class="navbar-brand" href="index.php">⬅ Back to Dashboard</a>
+            <a class="navbar-brand" href="index.php">Back to Dashboard</a>
             <span class="navbar-text text-white"><i class="bi bi-clipboard2-data-fill"></i> Performance Management</span>
         </div>
     </nav>

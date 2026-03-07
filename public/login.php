@@ -37,7 +37,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
     } elseif (!isset($_POST['terms_agreed'])) {
         $alertType = 'warning';
         $alertMsg = "⚠️ You must agree to the Confidentiality Pledge to login.";
-    } elseif (empty($_POST['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'])) {
+    } elseif (empty($_POST['csrf_token']) || empty($_SESSION['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'])) {
         $alertType = 'error';
         $alertMsg = "❌ Security Token Mismatch. Please refresh and try again.";
     } else {
@@ -107,7 +107,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
                         // Send Email - Check return value
                         $emailSent = mail($user['email'], "Login OTP", "Your code is: $otp");
                         if (!$emailSent) {
-                            error_log("OTP_EMAIL_FAILED: Could not send OTP email to " . $user['email']);
+                            error_log("OTP_EMAIL_FAILED: Could not send OTP email for user_id=" . $user['id']);
                             $alertType = 'error';
                             $alertMsg = "❌ Failed to send OTP email. Please contact support.";
                             goto otp_done; // skip success path
@@ -148,13 +148,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
                 if ($user) {
                     try {
                         $attempts = ($user['failed_attempts'] ?? 0) + 1;
-                        $lockSql = "";
+                        $params = [$attempts];
+                        $sql = "UPDATE users SET failed_attempts = ?";
                         if ($attempts >= 10) {
-                            // Lock account completely (Permanent until admin reset, or set long duration)
-                            $lockSql = ", locked_until = DATE_ADD(NOW(), INTERVAL 10 YEAR)";
+                            // Lock account completely (long duration until admin reset)
+                            $sql .= ", locked_until = DATE_ADD(NOW(), INTERVAL 10 YEAR)";
                             $logger->log($user['id'], 'ACCOUNT_LOCKOUT', "Account locked after 10 failed attempts");
                         }
-                        $pdo->prepare("UPDATE users SET failed_attempts = ?, locked_until = IF(locked_until IS NULL $lockSql, locked_until) WHERE id = ?")->execute([$attempts, $user['id']]);
+                        $sql .= " WHERE id = ?";
+                        $params[] = $user['id'];
+                        $pdo->prepare($sql)->execute($params);
                     } catch (PDOException $e) {
                         // Ignore if column missing
                     }

@@ -66,7 +66,7 @@ switch ($code) {
         <h1 class="fw-bold text-dark mb-3"><?php echo $title; ?></h1>
         <p class="text-muted mb-4"><?php echo $message; ?></p>
         <div>
-            <a href="index.php" class="btn btn-primary px-4 fw-bold"><i class="bi bi-house-door-fill"></i> Back to Dashboard</a>
+            <a href="index.php" class="btn btn-primary px-4 fw-bold">Back to Dashboard</a>
             <a href="javascript:history.back()" class="btn btn-outline-secondary px-4 ms-2">Go Back</a>
         </div>
     </div>

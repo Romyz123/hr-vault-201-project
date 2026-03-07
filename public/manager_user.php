@@ -199,9 +199,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($sqlContent) {
             try {
                 // [FIX] Increase limits for large restores
-                set_time_limit(0); // No time limit
-                ini_set('memory_limit', '-1'); // Unlimited memory
-
+                set_time_limit(1800); // 30 minutes max
+                ini_set('memory_limit', '2G'); // 2GB max
                 // [FIX] Enable emulation to allow multiple statements in one go
                 $pdo->setAttribute(PDO::ATTR_EMULATE_PREPARES, true);
 
@@ -268,9 +267,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($sqlContent) {
                 try {
                     // [FIX] Increase limits for large restores
-                    set_time_limit(0);
-                    ini_set('memory_limit', '-1');
-
+                    set_time_limit(1800); // 30 minutes max
+                    ini_set('memory_limit', '2G'); // 2GB max
                     // [FIX] Enable emulation for multi-statement execution
                     $pdo->setAttribute(PDO::ATTR_EMULATE_PREPARES, true);
 
@@ -344,7 +342,7 @@ $vaultChecked = ($bkVaultSetting === '1') ? 'checked' : '';
 
     <nav class="navbar navbar-dark bg-dark mb-4">
         <div class="container">
-            <a class="navbar-brand" href="index.php">⬅ Back to Dashboard</a>
+            <a class="navbar-brand" href="index.php">Back to Dashboard</a>
             <span class="navbar-text text-white"><i class="bi bi-shield-lock"></i> User Management Console</span>
         </div>
     </nav>

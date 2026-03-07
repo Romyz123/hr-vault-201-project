@@ -59,6 +59,15 @@ try {
 } catch (PDOException $e) {
 }
 
+// [NEW] Fetch Employment History
+$history = [];
+try {
+    $histStmt = $pdo->prepare("SELECT * FROM employment_history WHERE employee_id = ? ORDER BY event_date DESC");
+    $histStmt->execute([$id]);
+    $history = $histStmt->fetchAll(PDO::FETCH_ASSOC);
+} catch (PDOException $e) {
+}
+
 // 3. CONFIGURATION
 
 // [NEW] Load Centralized Options
@@ -173,6 +182,51 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $delEvalId = (int)$_POST['eval_id'];
             $pdo->prepare("DELETE FROM performance_evaluations WHERE id = ?")->execute([$delEvalId]);
             header("Location: edit_employee.php?id=$id&tab=eval&msg=" . urlencode("✅ Evaluation Deleted"));
+            exit;
+        }
+    }
+
+    // [NEW] Handle Add History Event
+    if (isset($_POST['action']) && $_POST['action'] === 'add_history') {
+        if (in_array($_SESSION['role'], ['ADMIN', 'MANAGER', 'HR'])) {
+            $title = trim($_POST['event_title']);
+            $date  = $_POST['event_date'];
+            $dept  = trim($_POST['department']);
+            $notes = trim($_POST['notes']);
+
+            if (empty($title) || empty($date)) {
+                header("Location: edit_employee.php?id=$id&tab=history&error=" . urlencode("❌ Title and Date are required."));
+                exit;
+            }
+
+            // Validate field lengths
+            if (strlen($title) > 100) {
+                header("Location: edit_employee.php?id=$id&tab=history&error=" . urlencode("❌ Event title is too long (Max 100 chars)."));
+                exit;
+            }
+            if (strlen($dept) > 100) {
+                header("Location: edit_employee.php?id=$id&tab=history&error=" . urlencode("❌ Department is too long (Max 100 chars)."));
+                exit;
+            }
+            if (strlen($notes) > 1000) {
+                header("Location: edit_employee.php?id=$id&tab=history&error=" . urlencode("❌ Notes are too long (Max 1000 chars)."));
+                exit;
+            }
+
+            $stmt = $pdo->prepare("INSERT INTO employment_history (employee_id, event_title, event_date, department, notes) VALUES (?, ?, ?, ?, ?)");
+            $stmt->execute([$id, $title, $date, $dept, $notes]);
+
+            $logger->log($_SESSION['user_id'], 'ADD_HISTORY', "Added history event for {$emp['emp_id']}: $title");
+            header("Location: edit_employee.php?id=$id&tab=history&msg=" . urlencode("✅ History event added."));
+            exit;
+        }
+    }
+    // [NEW] Handle Delete History Event
+    if (isset($_POST['action']) && $_POST['action'] === 'delete_history') {
+        if (in_array($_SESSION['role'], ['ADMIN', 'MANAGER'])) {
+            $histId = (int)$_POST['history_id'];
+            $pdo->prepare("DELETE FROM employment_history WHERE id = ?")->execute([$histId]);
+            header("Location: edit_employee.php?id=$id&tab=history&msg=" . urlencode("✅ Event deleted."));
             exit;
         }
     }
@@ -385,18 +439,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     // [SECURITY] Name Validation
-    if (!preg_match("/^[a-zA-Z\s\-\.]+$/", $first_name)) $errors[] = "First Name contains invalid characters. Allowed: Letters, spaces, dots, dashes.";
-    if ($middle_name !== '' && !preg_match("/^[a-zA-Z\s\-\.]+$/", $middle_name)) $errors[] = "Middle Name contains invalid characters. Allowed: Letters, spaces, dots, dashes.";
-    if (!preg_match("/^[a-zA-Z\s\-\.]+$/", $last_name)) $errors[] = "Last Name contains invalid characters. Allowed: Letters, spaces, dots, dashes.";
+    if (!preg_match("/^[a-zA-Z\s\-\.\']+$/", $first_name)) $errors[] = "First Name contains invalid characters. Allowed: Letters, spaces, dots, dashes, apostrophes.";
+    if ($middle_name !== '' && !preg_match("/^[a-zA-Z\s\-\.\']+$/", $middle_name)) $errors[] = "Middle Name contains invalid characters.";
+    if (!preg_match("/^[a-zA-Z\s\-\.\']+$/", $last_name)) $errors[] = "Last Name contains invalid characters.";
 
     // [SECURITY] Job & Company Validation
-    $textRegex = "/^[a-zA-Z0-9\s\-\.\,\(\)\/]+$/";
+    $textRegex = "/^[a-zA-Z0-9\s\-\.\,\(\)\/\&']+$/";
     if (!preg_match($textRegex, $job_title)) $errors[] = "Job Title contains invalid characters.";
     if ($company_name !== '' && !preg_match($textRegex, $company_name)) $errors[] = "Company Name contains invalid characters.";
     if ($previous_company !== '' && !preg_match($textRegex, $previous_company)) $errors[] = "Previous Company contains invalid characters.";
 
     // [SECURITY] Address Validation
-    $addrRegex = "/^[a-zA-Z0-9\s\.,\-\/#]+$/";
+    $addrRegex = "/^[a-zA-Z0-9\s\.,\-\/#\(\)\']+$/";
     if ($present_address !== '' && !preg_match($addrRegex, $present_address)) $errors[] = "Present Address contains invalid characters.";
     if ($permanent_address !== '' && !preg_match($addrRegex, $permanent_address)) $errors[] = "Permanent Address contains invalid characters.";
     if ($emergency_address !== '' && !preg_match($addrRegex, $emergency_address)) $errors[] = "Emergency Address contains invalid characters.";
@@ -419,7 +473,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($tin_no !== '' && !preg_match($idRegex, $tin_no)) $errors[] = "TIN No contains invalid characters.";
     if ($pagibig_no !== '' && !preg_match($idRegex, $pagibig_no)) $errors[] = "Pag-IBIG No contains invalid characters.";
     if ($philhealth_no !== '' && !preg_match($idRegex, $philhealth_no)) $errors[] = "PhilHealth No contains invalid characters.";
-    if ($emergency_name !== '' && !preg_match("/^[a-zA-Z\s\-\.]+$/", $emergency_name)) $errors[] = "Emergency Contact Name contains invalid characters.";
+    if ($emergency_name !== '' && !preg_match("/^[a-zA-Z\s\-\.\']+$/", $emergency_name)) $errors[] = "Emergency Contact Name contains invalid characters.";
 
     // [SECURITY] Qualifications Validation
     $qualRegex = "/^[a-zA-Z0-9\s\.,\-\(\)\/\':]*$/";
@@ -559,6 +613,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $pdo->prepare($sql)->execute($values);
                 }
 
+                // [NEW] Auto-History: Detect Job/Dept Changes
+                $histEvents = [];
+                if ($emp['job_title'] !== $job_title) {
+                    $histEvents[] = [
+                        'title' => "Position Change",
+                        'notes' => "Changed from '{$emp['job_title']}' to '$job_title'"
+                    ];
+                }
+                if ($emp['dept'] !== $dept || $emp['section'] !== $section) {
+                    $oldD = $emp['dept'] . ($emp['section'] ? " / {$emp['section']}" : "");
+                    $newD = $dept . ($section ? " / $section" : "");
+                    $histEvents[] = [
+                        'title' => "Department Transfer",
+                        'notes' => "Moved from '$oldD' to '$newD'"
+                    ];
+                }
+                if (!empty($histEvents)) {
+                    $hStmt = $pdo->prepare("INSERT INTO employment_history (employee_id, event_title, event_date, department, notes) VALUES (?, ?, CURDATE(), ?, ?)");
+                    foreach ($histEvents as $he) {
+                        $hStmt->execute([$id, $he['title'], $dept, $he['notes']]);
+                    }
+                }
+
                 $logger->log($_SESSION['user_id'], 'EDIT_PROFILE', "Updated $new_emp_id");
 
                 // [SECURITY] Regenerate CSRF token after successful update
@@ -616,6 +693,41 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         /* Default hidden */
+
+        /* [NEW] Timeline Styles */
+        .timeline {
+            position: relative;
+            padding: 20px 0 20px 20px;
+            border-left: 2px solid #e9ecef;
+            margin-left: 10px;
+        }
+
+        .timeline-item {
+            position: relative;
+            padding-left: 30px;
+            margin-bottom: 30px;
+        }
+
+        .timeline-marker {
+            position: absolute;
+            left: -28px;
+            /* Aligns dot on the line */
+            top: 0;
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            background: #adb5bd;
+            /* Grey for past */
+            border: 2px solid #fff;
+            box-shadow: 0 0 0 1px #dee2e6;
+            z-index: 1;
+        }
+
+        .timeline-item:first-child .timeline-marker {
+            background: #0d6efd;
+            /* Blue for latest */
+            box-shadow: 0 0 0 4px rgba(13, 110, 253, 0.2);
+        }
     </style>
 </head>
 
@@ -659,6 +771,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <li class="nav-item"><button class="nav-link active fw-bold" id="details-tab" data-bs-toggle="tab" data-bs-target="#details" type="button"><i class="bi bi-person-vcard"></i> Personal Details</button></li>
                     <li class="nav-item"><button class="nav-link fw-bold" id="docs-tab" data-bs-toggle="tab" data-bs-target="#docs" type="button"><i class="bi bi-folder2-open"></i> Digital 201 File <span class="badge bg-secondary rounded-pill ms-1"><?php echo count($myDocs); ?></span></button></li>
                     <li class="nav-item"><button class="nav-link fw-bold" id="eval-tab" data-bs-toggle="tab" data-bs-target="#eval" type="button"><i class="bi bi-graph-up-arrow"></i> Evaluation</button></li>
+                    <li class="nav-item"><button class="nav-link fw-bold" id="history-tab" data-bs-toggle="tab" data-bs-target="#history" type="button"><i class="bi bi-clock-history"></i> History</button></li>
                 </ul>
 
                 <div class="tab-content" id="profileTabsContent">
@@ -678,7 +791,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 </div>
                                 <div class="col-md-2">
                                     <label class="form-label">Job Title</label>
-                                    <input type="text" name="job_title" class="form-control" value="<?php echo val('job_title'); ?>" required oninput="this.value = this.value.replace(/[^a-zA-Z0-9\s\-\.\,\(\)\/]/g, ''); capitalize(this)" pattern="[a-zA-Z0-9\s\-\.\,\(\)\/]+" title="Allowed: Alphanumeric and basic punctuation" maxlength="50">
+                                    <input type="text" name="job_title" class="form-control" value="<?php echo val('job_title'); ?>" required oninput="this.value = this.value.replace(/[^a-zA-Z0-9\s\-\.\,\(\)\/\&']/g, ''); capitalize(this)" pattern="[a-zA-Z0-9\s\-\.\,\(\)\/\&']+" title="Allowed: Alphanumeric and basic punctuation" maxlength="50">
                                 </div>
                                 <div class="col-md-2">
                                     <label class="form-label">Contract Role</label>
@@ -726,11 +839,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 </div>
                                 <div class="col-md-6">
                                     <label class="form-label">Company Name</label>
-                                    <input type="text" name="company_name" class="form-control" value="<?php echo val('company_name'); ?>" pattern="[a-zA-Z0-9\s\-\.\,\(\)\/]+" title="Allowed: Alphanumeric and basic punctuation" oninput="this.value = this.value.replace(/[^a-zA-Z0-9\s\-\.\,\(\)\/]/g, '')" maxlength="50">
+                                    <input type="text" name="company_name" class="form-control" value="<?php echo val('company_name'); ?>" pattern="[a-zA-Z0-9\s\-\.\,\(\)\/\&']+" title="Allowed: Alphanumeric and basic punctuation" oninput="this.value = this.value.replace(/[^a-zA-Z0-9\s\-\.\,\(\)\/\&']/g, '')" maxlength="50">
                                 </div>
                                 <div class="col-md-6">
                                     <label class="form-label">Previous Company</label>
-                                    <input type="text" name="previous_company" class="form-control" value="<?php echo val('previous_company'); ?>" pattern="[a-zA-Z0-9\s\-\.\,\(\)\/]+" title="Allowed: Alphanumeric and basic punctuation" oninput="this.value = this.value.replace(/[^a-zA-Z0-9\s\-\.\,\(\)\/]/g, '')" maxlength="100">
+                                    <input type="text" name="previous_company" class="form-control" value="<?php echo val('previous_company'); ?>" pattern="[a-zA-Z0-9\s\-\.\,\(\)\/\&']+" title="Allowed: Alphanumeric and basic punctuation" oninput="this.value = this.value.replace(/[^a-zA-Z0-9\s\-\.\,\(\)\/\&']/g, '')" maxlength="100">
                                 </div>
                             </div>
 
@@ -771,15 +884,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             <div class="row g-3">
                                 <div class="col-md-4">
                                     <label class="form-label">First Name</label>
-                                    <input type="text" name="first_name" class="form-control" value="<?php echo val('first_name'); ?>" required oninput="this.value = this.value.replace(/[^a-zA-Z\s\-\.]/g, ''); capitalize(this)" pattern="[a-zA-Z\s\-\.]+" title="Allowed: Letters, spaces, dots, dashes" maxlength="50">
+                                    <input type="text" name="first_name" class="form-control" value="<?php echo val('first_name'); ?>" required oninput="this.value = this.value.replace(/[^a-zA-Z\s\-\.\']/g, ''); capitalize(this)" pattern="[a-zA-Z\s\-\.\']+" title="Allowed: Letters, spaces, dots, dashes, apostrophes" maxlength="50">
                                 </div>
                                 <div class="col-md-4">
                                     <label class="form-label">Middle Name</label>
-                                    <input type="text" name="middle_name" class="form-control" value="<?php echo val('middle_name'); ?>" oninput="this.value = this.value.replace(/[^a-zA-Z\s\-\.]/g, ''); capitalize(this)" pattern="[a-zA-Z\s\-\.]+" title="Allowed: Letters, spaces, dots, dashes" maxlength="50">
+                                    <input type="text" name="middle_name" class="form-control" value="<?php echo val('middle_name'); ?>" oninput="this.value = this.value.replace(/[^a-zA-Z\s\-\.\']/g, ''); capitalize(this)" pattern="[a-zA-Z\s\-\.\']+" title="Allowed: Letters, spaces, dots, dashes, apostrophes" maxlength="50">
                                 </div>
                                 <div class="col-md-4">
                                     <label class="form-label">Last Name</label>
-                                    <input type="text" name="last_name" class="form-control" value="<?php echo val('last_name'); ?>" required oninput="this.value = this.value.replace(/[^a-zA-Z\s\-\.]/g, ''); capitalize(this)" pattern="[a-zA-Z\s\-\.]+" title="Allowed: Letters, spaces, dots, dashes" maxlength="50">
+                                    <input type="text" name="last_name" class="form-control" value="<?php echo val('last_name'); ?>" required oninput="this.value = this.value.replace(/[^a-zA-Z\s\-\.\']/g, ''); capitalize(this)" pattern="[a-zA-Z\s\-\.\']+" title="Allowed: Letters, spaces, dots, dashes, apostrophes" maxlength="50">
                                 </div>
                                 <div class="col-md-3">
                                     <label class="form-label">Gender</label>
@@ -803,12 +916,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 </div>
                                 <div class="col-12">
                                     <label class="form-label">Present Address</label>
-                                    <input type="text" name="present_address" class="form-control" value="<?php echo val('present_address'); ?>" maxlength="150" pattern="[a-zA-Z0-9\s\.,\-\/#]+" title="Allowed: A-Z, 0-9, . , - / #" oninput="this.value = this.value.replace(/[^a-zA-Z0-9\s\.,\-\/#]/g, '')">
+                                    <input type="text" name="present_address" class="form-control" value="<?php echo val('present_address'); ?>" maxlength="150" pattern="[a-zA-Z0-9\s\.,\-\/#\(\)\']+" title="Allowed: A-Z, 0-9, . , - / # ( ) '" oninput="this.value = this.value.replace(/[^a-zA-Z0-9\s\.,\-\/#\(\)\']/g, '')">
                                     <div class="form-text small">Max 150 chars. Allowed: A-Z, 0-9, . , - / #</div>
                                 </div>
                                 <div class="col-12">
                                     <label class="form-label">Permanent Address</label>
-                                    <input type="text" name="permanent_address" class="form-control" value="<?php echo val('permanent_address'); ?>" maxlength="150" pattern="[a-zA-Z0-9\s\.,\-\/#]+" title="Allowed: A-Z, 0-9, . , - / #" oninput="this.value = this.value.replace(/[^a-zA-Z0-9\s\.,\-\/#]/g, '')">
+                                    <input type="text" name="permanent_address" class="form-control" value="<?php echo val('permanent_address'); ?>" maxlength="150" pattern="[a-zA-Z0-9\s\.,\-\/#\(\)\']+" title="Allowed: A-Z, 0-9, . , - / # ( ) '" oninput="this.value = this.value.replace(/[^a-zA-Z0-9\s\.,\-\/#\(\)\']/g, '')">
                                     <div class="form-text small">Max 150 chars.</div>
                                 </div>
                                 <div class="col-12">
@@ -841,7 +954,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             <div class="row g-3">
                                 <div class="col-md-6">
                                     <label class="form-label">Name</label>
-                                    <input type="text" name="emergency_name" class="form-control" value="<?php echo val('emergency_name'); ?>" oninput="this.value = this.value.replace(/[^a-zA-Z\s\-\.]/g, ''); capitalize(this)" pattern="[a-zA-Z\s\-\.]+" title="Allowed: Letters, spaces, dots, dashes" maxlength="100">
+                                    <input type="text" name="emergency_name" class="form-control" value="<?php echo val('emergency_name'); ?>" oninput="this.value = this.value.replace(/[^a-zA-Z\s\-\.\']/g, ''); capitalize(this)" pattern="[a-zA-Z\s\-\.\']+" title="Allowed: Letters, spaces, dots, dashes, apostrophes" maxlength="100">
                                 </div>
                                 <div class="col-md-6">
                                     <label class="form-label">Contact No</label>
@@ -850,7 +963,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 </div>
                                 <div class="col-12">
                                     <label class="form-label">Address</label>
-                                    <input type="text" name="emergency_address" class="form-control" value="<?php echo val('emergency_address'); ?>" maxlength="150" pattern="[a-zA-Z0-9\s\.,\-\/#]+" title="Allowed: A-Z, 0-9, . , - / #" oninput="this.value = this.value.replace(/[^a-zA-Z0-9\s\.,\-\/#]/g, '')">
+                                    <input type="text" name="emergency_address" class="form-control" value="<?php echo val('emergency_address'); ?>" maxlength="150" pattern="[a-zA-Z0-9\s\.,\-\/#\(\)\']+" title="Allowed: A-Z, 0-9, . , - / # ( ) '" oninput="this.value = this.value.replace(/[^a-zA-Z0-9\s\.,\-\/#\(\)\']/g, '')">
                                     <div class="form-text small">Max 150 chars.</div>
                                 </div>
                             </div>
@@ -1034,6 +1147,58 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         </div>
                     </div>
 
+                    <!-- TAB 4: HISTORY TIMELINE -->
+                    <div class="tab-pane fade" id="history" role="tabpanel">
+                        <div class="d-flex justify-content-between align-items-center mb-4">
+                            <h6 class="fw-bold text-primary mb-0">📅 Employment History</h6>
+                            <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#addHistoryModal"><i class="bi bi-plus-circle"></i> Add Event</button>
+                        </div>
+
+                        <div class="timeline">
+                            <?php if (empty($history)): ?>
+                                <div class="text-muted fst-italic ps-4">No history events recorded yet.</div>
+                            <?php else: ?>
+                                <?php foreach ($history as $h): ?>
+                                    <div class="timeline-item">
+                                        <div class="timeline-marker"></div>
+                                        <div>
+                                            <div class="d-flex justify-content-between align-items-start">
+                                                <div>
+                                                    <h6 class="fw-bold text-dark mb-1"><?php echo htmlspecialchars($h['event_title']); ?></h6>
+                                                    <div class="small text-muted mb-2">
+                                                        <i class="bi bi-calendar-event me-1"></i> <?php echo date('F d, Y', strtotime($h['event_date'])); ?>
+                                                        <?php if (!empty($h['department'])): ?>
+                                                            <span class="mx-1">•</span> <?php echo htmlspecialchars($h['department']); ?>
+                                                        <?php endif; ?>
+                                                    </div>
+                                                </div>
+                                                <?php if (in_array($_SESSION['role'], ['ADMIN', 'MANAGER'])): ?>
+                                                    <form method="POST" onsubmit="return confirm('Delete this event?');">
+                                                        <input type="hidden" name="action" value="delete_history">
+                                                        <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
+                                                        <input type="hidden" name="history_id" value="<?php echo $h['id']; ?>">
+                                                        <button class="btn btn-sm btn-link text-danger p-0 border-0"><i class="bi bi-trash"></i></button>
+                                                    </form>
+                                                <?php endif; ?>
+                                            </div>
+
+                                            <?php if (!empty($h['notes'])): ?>
+                                                <div class="bg-light p-2 rounded border small text-secondary">
+                                                    <?php echo nl2br(htmlspecialchars($h['notes'])); ?>
+                                                </div>
+                                            <?php endif; ?>
+                                        </div>
+                                    </div>
+                                <?php endforeach; ?>
+                            <?php endif; ?>
+
+                            <!-- Start Node -->
+                            <div class="timeline-item mb-0">
+                                <div class="timeline-marker bg-secondary"></div><span class="text-muted small">Joined Company</span>
+                            </div>
+                        </div>
+                    </div>
+
                 </div>
             </div>
         </div>
@@ -1155,6 +1320,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
                     <button type="submit" class="btn btn-primary">Save</button>
                 </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- ADD HISTORY MODAL -->
+    <div class="modal fade" id="addHistoryModal" tabindex="-1">
+        <div class="modal-dialog">
+            <form class="modal-content" method="POST">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title">Add History Event</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" name="action" value="add_history">
+                    <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Event Title</label>
+                        <input type="text" name="event_title" class="form-control" placeholder="e.g. Promoted to Senior Staff" required maxlength="100">
+                    </div>
+                    <div class="row g-2 mb-3">
+                        <div class="col-6"><label class="form-label">Date</label><input type="date" name="event_date" class="form-control" value="<?php echo date('Y-m-d'); ?>" required></div>
+                        <div class="col-6"><label class="form-label">Department (Optional)</label><input type="text" name="department" class="form-control" placeholder="e.g. IT Dept" value="<?php echo htmlspecialchars($emp['dept']); ?>"></div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Notes / Details</label>
+                        <textarea name="notes" class="form-control" rows="3" placeholder="Additional details..."></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button><button type="submit" class="btn btn-primary">Add Event</button></div>
             </form>
         </div>
     </div>

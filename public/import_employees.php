@@ -19,6 +19,16 @@ $logger   = new Logger($pdo);
 $msg = "";
 $error = "";
 
+// ensure rollback table exists for import undo support
+// NOTE: this table creation should be handled by a one-time migration
+// (see schema/migrations/2026-03-07-add-import-rollbacks.sql) rather than
+// running DDL on every request. The migration also adds indexes on
+// employee_id and import_batch to speed up undo lookups.
+//
+// $pdo->exec("CREATE TABLE IF NOT EXISTS import_rollbacks ( ... )");
+
+
+
 // [SECURITY] Generate CSRF Token
 if (empty($_SESSION['csrf_token'])) {
     $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
@@ -221,17 +231,76 @@ if (isset($_POST['undo_batch'])) {
                 }
             }
 
-            $stmt = $pdo->prepare("SELECT COUNT(*) FROM employees WHERE import_batch = ?");
-            $stmt->execute([$batch_to_delete]);
-            $count = $stmt->fetchColumn();
+            // ==============================================
+            // Restore updated rows (if any) using rollbacks
+            // ==============================================
+            $rollStmt = $pdo->prepare("SELECT * FROM import_rollbacks WHERE import_batch = ?");
+            $rollStmt->execute([$batch_to_delete]);
+            $rollbacks = $rollStmt->fetchAll(PDO::FETCH_ASSOC);
+            // prepare allowed column list for safety
+            $allowedCols = [
+                'emp_id',
+                'first_name',
+                'last_name',
+                'dept',
+                'section',
+                'employment_type',
+                'agency_name',
+                'job_title',
+                'status',
+                'gender',
+                'birth_date',
+                'hire_date',
+                'contact_number',
+                'present_address',
+                'avatar_path',
+                'import_batch',
+                'sss_no',
+                'tin_no',
+                'pagibig_no',
+                'philhealth_no',
+                'email',
+                'updated_at'
+            ];
 
-            $del = $pdo->prepare("DELETE FROM employees WHERE import_batch = ?");
-            $del->execute([$batch_to_delete]);
+            $restored_count = 0;
+            foreach ($rollbacks as $rb) {
+                $old = json_decode($rb['old_data'], true);
+                if ($old) {
+                    // build update statement to restore original data (whitelist columns)
+                    $cols = [];
+                    $params = [];
+                    foreach ($old as $col => $val) {
+                        if ($col === 'id' || !in_array($col, $allowedCols, true)) {
+                            if (!in_array($col, $allowedCols, true)) {
+                                error_log("Skipped unknown column during rollback: $col");
+                            }
+                            continue;
+                        }
+                        $cols[] = "`$col` = ?";
+                        $params[] = $val;
+                    }
+                    if (!empty($cols)) {
+                        $params[] = $rb['employee_id'];
+                        $updSql = "UPDATE employees SET " . implode(", ", $cols) . " WHERE id = ?";
+                        $pdo->prepare($updSql)->execute($params);
+                        $restored_count++;
+                    }
+                }
+            }
 
-            $logger->log($_SESSION['user_id'], 'IMPORT_UNDO', "Undid batch $batch_to_delete");
-            $msg = "✅ Undo Successful! Removed $count employees and their files.";
-        } catch (PDOException $e) {
-            $error = "Undo Failed: " . $e->getMessage();
+            // ==============================================
+            // Delete newly inserted rows (not restored above)
+            // ==============================================
+            $del = $pdo->prepare("DELETE FROM employees WHERE import_batch = ? AND id NOT IN (SELECT employee_id FROM import_rollbacks WHERE import_batch = ?)");
+            $del->execute([$batch_to_delete, $batch_to_delete]);
+            $deleted_count = $del->rowCount();
+
+            // After restoring/cleaning employees, log and report
+            $logger->log($_SESSION['user_id'], 'IMPORT_UNDO', "Reverted import batch $batch_to_delete: restored $restored_count, deleted $deleted_count");
+            $msg = "✅ Undo Completed! Restored $restored_count rows, removed $deleted_count new rows.";
+        } catch (Exception $e) {
+            $error = "Undo Failed: " . htmlspecialchars($e->getMessage());
         }
     }
 }
@@ -454,13 +523,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['undo_batch'])) {
 
                         try {
                             if ($existingId && $shouldUpdate) {
-                                // UPDATE EXISTING RECORD
+                                // before updating, capture original state for undo
+                                $origStmt = $pdo->prepare("SELECT * FROM employees WHERE id = ?");
+                                $origStmt->execute([$existingId]);
+                                $originalRow = $origStmt->fetch(PDO::FETCH_ASSOC);
+                                if ($originalRow) {
+                                    $backupStmt = $pdo->prepare("INSERT INTO import_rollbacks (employee_id, import_batch, old_data) VALUES (?, ?, ?)");
+                                    $backupStmt->execute([$existingId, $batch_id, json_encode($originalRow)]);
+                                }
+
+                                // UPDATE EXISTING RECORD, also tag with current batch
                                 $sql = "UPDATE employees SET 
                                         first_name=?, last_name=?, dept=?, section=?, 
                                         employment_type=?, agency_name=?, job_title=?, 
                                         birth_date=?, hire_date=?, contact_number=?, 
                                         sss_no=?, tin_no=?, pagibig_no=?, philhealth_no=?, email=?,
-                                        updated_at=NOW()
+                                        import_batch=?, updated_at=NOW()
                                         WHERE id=?";
                                 $stmt = $pdo->prepare($sql);
                                 $stmt->execute([
@@ -479,6 +557,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['undo_batch'])) {
                                     trim($pagibig_raw),
                                     trim($phil_raw),
                                     $email,
+                                    $batch_id,
                                     $existingId
                                 ]);
                                 $updated_count++;
@@ -519,7 +598,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['undo_batch'])) {
                                 $success_count++;
                             }
                         } catch (Exception $e) {
-                            // Skip duplicates
+                            // Log error but continue processing
+                            $errCode = $e instanceof PDOException ? $e->errorInfo[1] ?? 0 : 0;
+                            // 1062 = MySQL duplicate entry
+                            if ($errCode !== 1062) {
+                                error_log("Import error for emp_id $emp_id: " . $e->getMessage());
+                            }
                         }
                     }
                 }

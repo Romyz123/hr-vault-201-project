@@ -302,7 +302,7 @@ if (isset($_GET['msg'])) {
     <nav class="navbar navbar-dark bg-dark mb-4">
         <div class="container-fluid px-4">
             <div class="d-flex align-items-center">
-                <a class="navbar-brand" href="index.php">⬅ Back to Dashboard</a>
+                <a class="navbar-brand" href="index.php">Back to Dashboard</a>
                 <span class="navbar-text text-white ms-3 border-start ps-3">Disciplinary Console</span>
             </div>
             <div class="d-flex align-items-center gap-2">

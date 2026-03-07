@@ -137,24 +137,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // [SECURITY] Enforce Character Limits & Patterns (Server-Side)
     $rules = [
         ['val' => $emp_id, 'name' => 'Employee ID', 'max' => 20, 'pattern' => '/^[A-Za-z0-9\-_]+$/'],
-        ['val' => $job_title, 'name' => 'Job Title', 'max' => 50, 'pattern' => "/^[a-zA-Z0-9\s\-\.\,\(\)\/]+$/"],
+        ['val' => $job_title, 'name' => 'Job Title', 'max' => 50, 'pattern' => "/^[a-zA-Z0-9\s\-\.\,\(\)\/\&']+$/"],
         ['val' => $system_role, 'name' => 'System Role', 'max' => 50],
-        ['val' => $company_name, 'name' => 'Company Name', 'max' => 50, 'pattern' => "/^[a-zA-Z0-9\s\-\.\,\(\)\/]+$/"],
-        ['val' => $previous_company, 'name' => 'Previous Company', 'max' => 100, 'pattern' => "/^[a-zA-Z0-9\s\-\.\,\(\)\/]+$/"],
-        ['val' => $first_name, 'name' => 'First Name', 'max' => 50, 'pattern' => "/^[a-zA-Z\s\-\.]+$/"],
-        ['val' => $middle_name, 'name' => 'Middle Name', 'max' => 50, 'pattern' => "/^[a-zA-Z\s\-\.]+$/"],
-        ['val' => $last_name, 'name' => 'Last Name', 'max' => 50, 'pattern' => "/^[a-zA-Z\s\-\.]+$/"],
+        ['val' => $company_name, 'name' => 'Company Name', 'max' => 50, 'pattern' => "/^[a-zA-Z0-9\s\-\.\,\(\)\/\&']+$/"],
+        ['val' => $previous_company, 'name' => 'Previous Company', 'max' => 100, 'pattern' => "/^[a-zA-Z0-9\s\-\.\,\(\)\/\&']+$/"],
+        ['val' => $first_name, 'name' => 'First Name', 'max' => 50, 'pattern' => "/^[a-zA-Z\s\-\.\']+$/"],
+        ['val' => $middle_name, 'name' => 'Middle Name', 'max' => 50, 'pattern' => "/^[a-zA-Z\s\-\.\']+$/"],
+        ['val' => $last_name, 'name' => 'Last Name', 'max' => 50, 'pattern' => "/^[a-zA-Z\s\-\.\']+$/"],
         ['val' => $contact_number, 'name' => 'Contact Number', 'max' => 25, 'pattern' => '/^[0-9+\-\s()\/]{0,25}$/'],
         ['val' => $email, 'name' => 'Email', 'max' => 100, 'type' => 'email'],
-        ['val' => $present_address, 'name' => 'Present Address', 'max' => 150, 'pattern' => "/^[a-zA-Z0-9\s\.,\-\/#]+$/"],
-        ['val' => $permanent_address, 'name' => 'Permanent Address', 'max' => 150, 'pattern' => "/^[a-zA-Z0-9\s\.,\-\/#]+$/"],
+        ['val' => $present_address, 'name' => 'Present Address', 'max' => 150, 'pattern' => "/^[a-zA-Z0-9\s\.,\-\/#\(\)\']+$/"],
+        ['val' => $permanent_address, 'name' => 'Permanent Address', 'max' => 150, 'pattern' => "/^[a-zA-Z0-9\s\.,\-\/#\(\)\']+$/"],
         ['val' => $sss_no, 'name' => 'SSS No', 'max' => 20, 'pattern' => "/^[0-9\-]+$/"],
         ['val' => $tin_no, 'name' => 'TIN No', 'max' => 20, 'pattern' => "/^[0-9\-]+$/"],
         ['val' => $pagibig_no, 'name' => 'Pag-IBIG No', 'max' => 20, 'pattern' => "/^[0-9\-]+$/"],
         ['val' => $philhealth_no, 'name' => 'PhilHealth No', 'max' => 20, 'pattern' => "/^[0-9\-]+$/"],
-        ['val' => $emergency_name, 'name' => 'Emergency Name', 'max' => 100],
+        ['val' => $emergency_name, 'name' => 'Emergency Name', 'max' => 100, 'pattern' => "/^[a-zA-Z\s\-\.\']+$/"],
         ['val' => $emergency_contact, 'name' => 'Emergency Contact', 'max' => 25, 'pattern' => '/^[0-9+\-\s()\/]{0,25}$/'],
-        ['val' => $emergency_address, 'name' => 'Emergency Address', 'max' => 150],
+        ['val' => $emergency_address, 'name' => 'Emergency Address', 'max' => 150, 'pattern' => "/^[a-zA-Z0-9\s\.,\-\/#\(\)\']+$/"],
         ['val' => $education, 'name' => 'Education', 'max' => 1000, 'pattern' => "/^[a-zA-Z0-9\s\.,\-\(\)\/\':]*$/"],
         ['val' => $experience, 'name' => 'Experience', 'max' => 1000, 'pattern' => "/^[a-zA-Z0-9\s\.,\-\(\)\/\':]*$/"],
         ['val' => $skills, 'name' => 'Skills', 'max' => 1000, 'pattern' => "/^[a-zA-Z0-9\s\.,\-\(\)\/\':]*$/"],
@@ -438,7 +438,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             <label class="form-label">Job Title <span class="text-danger">*</span></label>
                             <input type="text" name="job_title" class="form-control" required maxlength="50"
                                 placeholder="e.g. Accountant" value="<?php echo old('job_title'); ?>"
-                                pattern="[a-zA-Z0-9\s\-\.\,\(\)\/]+" title="Allowed: Alphanumeric and basic punctuation" oninput="this.value = this.value.replace(/[^a-zA-Z0-9\s\-\.\,\(\)\/]/g, '')">
+                                pattern="[a-zA-Z0-9\s\-\.\,\(\)\/\&']+" title="Allowed: Alphanumeric and basic punctuation" oninput="this.value = this.value.replace(/[^a-zA-Z0-9\s\-\.\,\(\)\/\&']/g, '')">
                         </div>
                         <div class="col-md-3">
                             <label class="form-label">Contract Category (Role) <span class="text-danger">*</span></label>
@@ -496,13 +496,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             <label class="form-label">Company</label>
                             <input type="text" name="company_name" class="form-control" maxlength="50"
                                 placeholder="e.g. TES Philippines" value="<?php echo old('company_name', 'TES Philippines'); ?>"
-                                pattern="[a-zA-Z0-9\s\-\.\,\(\)\/]+" title="Allowed: Alphanumeric and basic punctuation" oninput="this.value = this.value.replace(/[^a-zA-Z0-9\s\-\.\,\(\)\/]/g, '')">
+                                pattern="[a-zA-Z0-9\s\-\.\,\(\)\/\&']+" title="Allowed: Alphanumeric and basic punctuation" oninput="this.value = this.value.replace(/[^a-zA-Z0-9\s\-\.\,\(\)\/\&']/g, '')">
                         </div>
                         <div class="col-12">
                             <label class="form-label">Previous Company</label>
                             <input type="text" name="previous_company" class="form-control" maxlength="100"
                                 placeholder="e.g. ABC Manufacturing Inc." value="<?php echo old('previous_company'); ?>"
-                                pattern="[a-zA-Z0-9\s\-\.\,\(\)\/]+" title="Allowed: Alphanumeric and basic punctuation" oninput="this.value = this.value.replace(/[^a-zA-Z0-9\s\-\.\,\(\)\/]/g, '')">
+                                pattern="[a-zA-Z0-9\s\-\.\,\(\)\/\&']+" title="Allowed: Alphanumeric and basic punctuation" oninput="this.value = this.value.replace(/[^a-zA-Z0-9\s\-\.\,\(\)\/\&']/g, '')">
                         </div>
                     </div>
 
@@ -512,19 +512,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             <label class="form-label">First Name <span class="text-danger">*</span></label>
                             <input type="text" name="first_name" class="form-control" required maxlength="50"
                                 placeholder="e.g. Juan" value="<?php echo old('first_name'); ?>" autocomplete="given-name"
-                                pattern="[a-zA-Z\s\-\.]+" title="Allowed: Letters, spaces, dots, dashes" oninput="this.value = this.value.replace(/[^a-zA-Z\s\-\.]/g, '')">
+                                pattern="[a-zA-Z\s\-\.\']+" title="Allowed: Letters, spaces, dots, dashes, apostrophes" oninput="this.value = this.value.replace(/[^a-zA-Z\s\-\.\']/g, '')">
                         </div>
                         <div class="col-md-4">
                             <label class="form-label">Middle Name</label>
                             <input type="text" name="middle_name" class="form-control" maxlength="50"
                                 placeholder="e.g. Santos" value="<?php echo old('middle_name'); ?>" autocomplete="additional-name"
-                                pattern="[a-zA-Z\s\-\.]+" title="Allowed: Letters, spaces, dots, dashes" oninput="this.value = this.value.replace(/[^a-zA-Z\s\-\.]/g, '')">
+                                pattern="[a-zA-Z\s\-\.\']+" title="Allowed: Letters, spaces, dots, dashes, apostrophes" oninput="this.value = this.value.replace(/[^a-zA-Z\s\-\.\']/g, '')">
                         </div>
                         <div class="col-md-4">
                             <label class="form-label">Last Name <span class="text-danger">*</span></label>
                             <input type="text" name="last_name" class="form-control" required maxlength="50"
                                 placeholder="e.g. Dela Cruz" value="<?php echo old('last_name'); ?>" autocomplete="family-name"
-                                pattern="[a-zA-Z\s\-\.]+" title="Allowed: Letters, spaces, dots, dashes" oninput="this.value = this.value.replace(/[^a-zA-Z\s\-\.]/g, '')">
+                                pattern="[a-zA-Z\s\-\.\']+" title="Allowed: Letters, spaces, dots, dashes, apostrophes" oninput="this.value = this.value.replace(/[^a-zA-Z\s\-\.\']/g, '')">
                         </div>
 
                         <div class="col-md-3">
@@ -558,7 +558,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             <input type="text" name="present_address" class="form-control" required maxlength="150"
                                 placeholder="House No, Street, Barangay, City, Province, ZIP"
                                 value="<?php echo old('present_address'); ?>" autocomplete="street-address"
-                                pattern="[a-zA-Z0-9\s\.,\-\/#]+" title="Allowed: A-Z, 0-9, . , - / #" oninput="this.value = this.value.replace(/[^a-zA-Z0-9\s\.,\-\/#]/g, '')">
+                                pattern="[a-zA-Z0-9\s\.,\-\/#\(\)\']+" title="Allowed: A-Z, 0-9, . , - / # ( ) '" oninput="this.value = this.value.replace(/[^a-zA-Z0-9\s\.,\-\/#\(\)\']/g, '')">
                             <div class="form-text extra-small">Max 150 chars. Allowed: A-Z, 0-9, . , - / #</div>
                         </div>
                         <div class="col-12">
@@ -566,7 +566,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             <input type="text" name="permanent_address" class="form-control" maxlength="150"
                                 placeholder="If different from present address"
                                 value="<?php echo old('permanent_address'); ?>"
-                                pattern="[a-zA-Z0-9\s\.,\-\/#]+" title="Allowed: A-Z, 0-9, . , - / #" oninput="this.value = this.value.replace(/[^a-zA-Z0-9\s\.,\-\/#]/g, '')">
+                                pattern="[a-zA-Z0-9\s\.,\-\/#\(\)\']+" title="Allowed: A-Z, 0-9, . , - / # ( ) '" oninput="this.value = this.value.replace(/[^a-zA-Z0-9\s\.,\-\/#\(\)\']/g, '')">
                             <div class="form-text extra-small">Max 150 chars. No special symbols.</div>
                         </div>
                         <div class="col-12">
@@ -609,7 +609,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             <label class="form-label">Contact Person</label>
                             <input type="text" name="emergency_name" class="form-control" maxlength="100"
                                 placeholder="Full Name" value="<?php echo old('emergency_name'); ?>"
-                                pattern="[a-zA-Z\s\-\.]+" title="Allowed: Letters, spaces, dots, dashes" oninput="this.value = this.value.replace(/[^a-zA-Z\s\-\.]/g, ''); capitalize(this)">
+                                pattern="[a-zA-Z\s\-\.\']+" title="Allowed: Letters, spaces, dots, dashes, apostrophes" oninput="this.value = this.value.replace(/[^a-zA-Z\s\-\.\']/g, ''); capitalize(this)">
                         </div>
                         <div class="col-md-6">
                             <label class="form-label">Contact Number</label>
@@ -622,7 +622,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             <label class="form-label">Address</label>
                             <input type="text" name="emergency_address" class="form-control" maxlength="150"
                                 placeholder="Full Address" value="<?php echo old('emergency_address'); ?>"
-                                pattern="[a-zA-Z0-9\s\.,\-\/#]+" title="Allowed: A-Z, 0-9, . , - / #" oninput="this.value = this.value.replace(/[^a-zA-Z0-9\s\.,\-\/#]/g, '')">
+                                pattern="[a-zA-Z0-9\s\.,\-\/#\(\)\']+" title="Allowed: A-Z, 0-9, . , - / # ( ) '" oninput="this.value = this.value.replace(/[^a-zA-Z0-9\s\.,\-\/#\(\)\']/g, '')">
                             <div class="form-text extra-small">Max 150 chars.</div>
                         </div>
                     </div>

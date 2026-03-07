@@ -42,7 +42,7 @@ $failCount = $pdo->query("SELECT COUNT(*) FROM activity_logs WHERE action = 'LOG
 
     <nav class="navbar navbar-dark bg-danger mb-4">
         <div class="container">
-            <a class="navbar-brand" href="index.php">⬅ Back to Dashboard</a>
+            <a class="navbar-brand" href="index.php">Back to Dashboard</a>
             <span class="navbar-text text-white fw-bold"><i class="bi bi-shield-exclamation"></i> Security Audit</span>
         </div>
     </nav>

@@ -264,7 +264,7 @@ foreach ($columnSchema as $table => $cols) {
 <body class="bg-light">
     <nav class="navbar navbar-dark bg-dark mb-4">
         <div class="container">
-            <a class="navbar-brand" href="index.php">⬅ Back to Dashboard</a>
+            <a class="navbar-brand" href="index.php">Back to Dashboard</a>
             <span class="navbar-text text-white"><i class="bi bi-database-check"></i> Database Status</span>
         </div>
     </nav>

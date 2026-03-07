@@ -226,7 +226,7 @@ $logs = $stmt->fetchAll();
 
     <nav class="navbar navbar-dark bg-dark mb-4">
         <div class="container">
-            <a class="navbar-brand" href="index.php">⬅ Back to Dashboard</a>
+            <a class="navbar-brand" href="index.php">Back to Dashboard</a>
             <span class="navbar-text text-white"><i class="bi bi-shield-lock-fill text-danger"></i> System Activity Logs</span>
         </div>
     </nav>

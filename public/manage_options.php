@@ -280,7 +280,7 @@ while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
 <body class="bg-light">
     <nav class="navbar navbar-dark bg-dark mb-4">
         <div class="container">
-            <a class="navbar-brand" href="index.php">⬅ Back to Dashboard</a>
+            <a class="navbar-brand" href="index.php">Back to Dashboard</a>
             <span class="navbar-text text-white"><i class="bi bi-list-check"></i> Manage Options</span>
         </div>
     </nav>

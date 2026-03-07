@@ -96,7 +96,7 @@ $requests = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
     <nav class="navbar navbar-dark bg-dark mb-4">
         <div class="container">
-            <a class="navbar-brand" href="index.php">⬅ Back to Dashboard</a>
+            <a class="navbar-brand" href="index.php">Back to Dashboard</a>
             <span class="navbar-text text-white">My Request History</span>
         </div>
     </nav>

@@ -559,7 +559,7 @@ if ($debug) {
 
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4 no-print">
         <div class="container-fluid">
-            <a class="navbar-brand" href="index.php"><i class="bi bi-arrow-left-circle me-2"></i> Dashboard</a>
+            <a class="navbar-brand" href="index.php">Back to Dashboard</a>
             <div class="d-flex align-items-center gap-2">
                 <button id="darkModeToggle" class="btn btn-sm btn-outline-light border-0" title="Toggle Dark Mode">
                     <i class="bi bi-moon-stars-fill"></i>

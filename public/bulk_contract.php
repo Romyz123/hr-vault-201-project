@@ -249,7 +249,7 @@ $allDepts = $pdo->query("SELECT DISTINCT dept FROM employees WHERE dept != '' OR
 
     <nav class="navbar navbar-dark bg-dark mb-4">
         <div class="container">
-            <a class="navbar-brand" href="index.php">⬅ Back to Dashboard</a>
+            <a class="navbar-brand" href="index.php">Back to Dashboard</a>
             <span class="navbar-text text-white fw-bold"><i class="bi bi-printer-fill"></i> Bulk Contract Generator</span>
         </div>
     </nav>

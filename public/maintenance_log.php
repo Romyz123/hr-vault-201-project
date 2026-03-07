@@ -236,7 +236,7 @@ $emps = $pdo->query("SELECT emp_id, first_name, last_name FROM employees WHERE s
 
     <nav class="navbar navbar-dark bg-dark mb-4">
         <div class="container">
-            <a class="navbar-brand" href="index.php">⬅ Back to Dashboard</a>
+            <a class="navbar-brand" href="index.php">Back to Dashboard</a>
             <span class="navbar-text text-white"><i class="bi bi-tools"></i> Hardware Maintenance Log</span>
         </div>
     </nav>

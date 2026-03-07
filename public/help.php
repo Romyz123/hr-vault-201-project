@@ -67,7 +67,7 @@ if (!isset($_SESSION['user_id'])) {
     <nav class="navbar navbar-dark bg-dark mb-4 shadow-sm">
         <div class="container">
             <a class="navbar-brand fw-bold" href="index.php">
-                <i class="bi bi-arrow-left-circle me-2"></i> Back to Dashboard
+                Back to Dashboard
             </a>
             <span class="navbar-text text-white">
                 <i class="bi bi-book-half me-2"></i> User Manual & Help Guide
@@ -188,27 +188,15 @@ if (!isset($_SESSION['user_id'])) {
                 </div>
             </div>
 
-            <!-- 7. Video Tutorials -->
-            <div class="col-md-6 col-lg-4">
-                <div class="card h-100 p-3">
-                    <div class="card-body">
-                        <i class="bi bi-play-btn-fill text-danger icon-header"></i>
-                        <h5 class="card-title fw-bold">Video Tutorials</h5>
-                        <p class="card-text text-muted small">Watch step-by-step guides.</p>
-                        <hr>
-                        <div class="alert alert-light border text-center">
-                            <i class="bi bi-camera-video fs-1 text-muted"></i>
-                            <p class="mb-0 small text-muted">Tutorial videos will be uploaded here.</p>
-                        </div>
-                    </div>
+
+
+            <div class="col-12">
+                <div class="alert alert-secondary mt-5 text-center">
+                    <i class="bi bi-info-circle me-2"></i> For technical support or system errors, please contact the IT Department.
                 </div>
             </div>
-        </div>
-
-        <div class="alert alert-secondary mt-5 text-center">
-            <i class="bi bi-info-circle me-2"></i> For technical support or system errors, please contact the IT Department.
-        </div>
-    </div>
+        </div> <!-- close row -->
+    </div> <!-- close container -->
 </body>
 
 </html>

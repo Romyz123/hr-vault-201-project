@@ -75,7 +75,7 @@ $docs = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
     <nav class="navbar navbar-dark bg-dark mb-4 no-print">
         <div class="container-fluid px-4">
-            <a class="navbar-brand" href="index.php">⬅ Back to Dashboard</a>
+            <a class="navbar-brand" href="index.php">Back to Dashboard</a>
             <span class="navbar-text text-white"><i class="bi bi-binoculars-fill text-danger"></i> Expiry Forecast</span>
         </div>
     </nav>

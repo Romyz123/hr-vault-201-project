@@ -21,9 +21,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         die("Invalid CSRF Token");
     }
 
-    $targetId = $_POST['user_id'];
-    $status   = $_POST['status']; // 'Confirmed' or 'Revoked'
-    $notes    = trim($_POST['notes']);
+    // Cast and sanitize inputs
+    $targetId = (int)($_POST['user_id'] ?? 0);
+    $status   = $_POST['status'] ?? '';
+    $notes    = trim($_POST['notes'] ?? '');
+
+    // Validate target ID
+    if ($targetId <= 0) {
+        die("Invalid user specified.");
+    }
+    $check = $pdo->prepare("SELECT COUNT(*) FROM users WHERE id = ?");
+    $check->execute([$targetId]);
+    if ($check->fetchColumn() == 0) {
+        die("User not found.");
+    }
+
+    // Validate status against explicit whitelist
+    $allowed = ['Confirmed', 'Revoked'];
+    if (!in_array($status, $allowed, true)) {
+        die("Invalid status value.");
+    }
 
     // Log the review
     $stmt = $pdo->prepare("INSERT INTO access_reviews (reviewed_user_id, reviewer_id, review_date, status, notes) VALUES (?, ?, CURDATE(), ?, ?)");
@@ -31,6 +48,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 
     // If revoked, downgrade user to STAFF
     if ($status === 'Revoked') {
+        // Prevent self-revocation
+        if ($targetId == $_SESSION['user_id']) {
+            die("Cannot revoke your own access");
+        }
+        // Ensure at least one admin remains
+        $adminCount = $pdo->query("SELECT COUNT(*) FROM users WHERE role = 'ADMIN'")->fetchColumn();
+        $targetRole = $pdo->prepare("SELECT role FROM users WHERE id = ?");
+        $targetRole->execute([$targetId]);
+        if ($targetRole->fetchColumn() === 'ADMIN' && $adminCount <= 1) {
+            die("Cannot revoke the last admin");
+        }
         $pdo->prepare("UPDATE users SET role = 'STAFF' WHERE id = ?")->execute([$targetId]);
         $logger->log($_SESSION['user_id'], 'ACCESS_REVOKED', "Revoked privileges for User ID $targetId");
         $msg = "✅ Access Revoked. User downgraded to Staff.";
@@ -64,7 +92,7 @@ $users = $pdo->query($sql)->fetchAll(PDO::FETCH_ASSOC);
 <body class="bg-light">
     <nav class="navbar navbar-dark bg-dark mb-4">
         <div class="container">
-            <a class="navbar-brand" href="index.php">⬅ Dashboard</a>
+            <a class="navbar-brand" href="index.php">Back to Dashboard</a>
             <span class="navbar-text text-white"><i class="bi bi-shield-check"></i> Quarterly Access Review</span>
         </div>
     </nav>
@@ -114,22 +142,25 @@ $users = $pdo->query($sql)->fetchAll(PDO::FETCH_ASSOC);
                             <!-- Modal -->
                             <div class="modal fade" id="reviewModal<?php echo $u['id']; ?>" tabindex="-1">
                                 <div class="modal-dialog">
-                                    <form method="POST" class="modal-content">
-                                        <div class="modal-header">
-                                            <h5 class="modal-title">Review Access: <?php echo htmlspecialchars($u['username']); ?></h5>
-                                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                                        </div>
-                                        <div class="modal-body">
+                                    <div class="modal-content">
+                                        <form method="POST">
+                                            <input type="hidden" name="action" value="review">
                                             <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token); ?>">
                                             <input type="hidden" name="user_id" value="<?php echo $u['id']; ?>">
-                                            <p>Does this user still require <strong><?php echo htmlspecialchars($u['role']); ?></strong> access?</p>
-                                            <textarea name="notes" class="form-control mb-3" placeholder="Optional notes..." required></textarea>
-                                            <div class="d-flex gap-2">
-                                                <button type="submit" name="status" value="Confirmed" name="action" class="btn btn-success flex-grow-1">Confirm Access</button>
-                                                <button type="submit" name="status" value="Revoked" name="action" class="btn btn-outline-danger" onclick="return confirm('This will downgrade the user to STAFF. Continue?')">Revoke</button>
+                                            <div class="modal-header">
+                                                <h5 class="modal-title">Review Access: <?php echo htmlspecialchars($u['username']); ?></h5>
+                                                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                                             </div>
-                                        </div>
-                                    </form>
+                                            <div class="modal-body">
+                                                <p>Does this user still require <strong><?php echo htmlspecialchars($u['role']); ?></strong> access?</p>
+                                                <textarea name="notes" class="form-control mb-3" placeholder="Optional notes..."></textarea>
+                                            </div>
+                                            <div class="modal-footer d-flex gap-2">
+                                                <button type="submit" name="status" value="Confirmed" class="btn btn-success flex-grow-1">Confirm Access</button>
+                                                <button type="submit" name="status" value="Revoked" class="btn btn-outline-danger" onclick="return confirm('This will downgrade the user to STAFF. Continue?')">Revoke</button>
+                                            </div>
+                                        </form>
+                                    </div>
                                 </div>
                             </div>
                         <?php endforeach; ?>

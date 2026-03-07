@@ -125,7 +125,7 @@ foreach ($data as $row) {
 <body class="bg-light" data-year="<?php echo $yearFilter; ?>">
     <nav class="navbar navbar-dark bg-dark mb-4">
         <div class="container">
-            <a class="navbar-brand" href="index.php">⬅ Back to Dashboard</a>
+            <a class="navbar-brand" href="index.php">Back to Dashboard</a>
             <span class="navbar-text text-white">Department Evaluation Report</span>
         </div>
     </nav>
