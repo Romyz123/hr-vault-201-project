@@ -39,7 +39,7 @@ Ensure the target server meets the following specifications:
 
 ### Step 3: Configuration
 
-1.  Navigate to the `config/` directory.
+1.  Navigate to the `config/` directory from your project root.
 2.  Create a new file named `config.php` (you can copy the structure below).
 3.  **CRITICAL:** Generate a strong, random 32-character string for the `VAULT_KEY`. If this key is lost, encrypted files cannot be recovered.
 
@@ -72,9 +72,9 @@ Ensure the web server user (e.g., `www-data`, `apache`, or `IUSR`) has **Write**
 
 ### Step 5: Database Initialization
 
-1.  Open your browser and navigate to the system URL (e.g., `https://hr.tesp.com/public/login.php`).
+1.  Open your browser and navigate to the system URL (e.g., `http://localhost/hr%20201/public/`).
 2.  Log in with the default Admin credentials (if provided) or manually insert an admin user into the `users` table if this is a fresh install.
-3.  Navigate to **Manage Users** > **Database Status** (`public/db_status.php`).
+3.  Navigate to the Database Status page (`public/db_status.php`).
 4.  Click **"Auto-Fix All Issues"**. This will automatically create all necessary tables and columns based on the schema definition.
 
 ---
@@ -82,11 +82,12 @@ Ensure the web server user (e.g., `www-data`, `apache`, or `IUSR`) has **Write**
 ## 4. Security Hardening (Production Checklist)
 
 1.  **Disable Debugging:**
-    - Verify `config/config.php` has `display_errors` set to `0` in your PHP configuration.2. **Clean Up:**
+    - Verify `config/db.php` has `display_errors` set to `0`.
+2.  **Clean Up:**
     - Log in as Admin.
     - On the Dashboard, look for the red "Production Security Alert".
     - Click **"Delete All"** to remove development scripts (e.g., `test_vault.php`, `auth_login.php`).
-2.  **Web Server Config:**
+3.  **Web Server Config:**
     - Ensure the `public/.htaccess` file is active to force HTTPS and block directory listing.
     - Configure the document root to point to the `public/` folder, not the project root, to prevent access to `config/` and `src/`.
 

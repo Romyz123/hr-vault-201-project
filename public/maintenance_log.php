@@ -166,7 +166,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_log'])) {
         }
 
         $performedBy = $_SESSION['username'] ?? 'Unknown';
-        $ins->execute([$emp_id, $equip, $issue, $action, $date, $performedBy, $vendor]);
         if (empty($msg)) {
             try {
                 $pdo->beginTransaction();

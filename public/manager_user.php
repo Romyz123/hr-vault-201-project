@@ -571,10 +571,10 @@ $vaultChecked = ($bkVaultSetting === '1') ? 'checked' : '';
                             </div>
                             <div class="mb-3">
                                 <label class="form-label fw-bold">Password</label>
-                                <input type="password" name="password" class="form-control" placeholder="Enter strong password..." required
-                                    minlength="12" maxlength="128"
-                                    pattern="(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).{12,}" title="Must be at least 12 characters, contain Uppercase, Lowercase, Number, and Symbol.">
-                                <div class="form-text text-muted small">Requirements: 12+ chars, Uppercase, Lowercase, Number, Symbol.</div>
+                                <input type="password" name="password" class="form-control" placeholder="Enter strong password..." required minlength="15" maxlength="128" pattern="(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).{15,}" title="Must be at least 15 characters, contain Uppercase, Lowercase, Number, and Symbol.">
+                                <div class="form-text text-muted small">
+                                    Requirements: 15+ chars, Uppercase, Lowercase, Number, Symbol.
+                                </div>
                             </div>
                             <div class="mb-3">
                                 <label class="form-label fw-bold">Role Permission</label>
@@ -721,10 +721,8 @@ $vaultChecked = ($bkVaultSetting === '1') ? 'checked' : '';
                                                         <hr>
                                                         <div class="mb-3">
                                                             <label class="form-label text-danger fw-bold">Reset Password (Optional)</label>
-                                                            <input type="password" name="password" class="form-control" placeholder="New Password (Min 12 chars)"
-                                                                minlength="12" maxlength="128"
-                                                                pattern="(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).{12,}" title="Must be at least 12 characters, contain Uppercase, Lowercase, Number, and Symbol.">
-                                                            <div class="form-text">Optional. Requirements: 12+ chars, Upper, Lower, #, Symbol.</div>
+                                                            <input type="password" name="password" class="form-control" placeholder="New Password (Min 15 chars)" minlength="15" maxlength="128" pattern="(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).{15,}" title="Must be at least 15 characters, contain Uppercase, Lowercase, Number, and Symbol.">
+                                                            <div class="form-text">Optional. Requirements: 15+ chars, Upper, Lower, #, Symbol.</div>
                                                         </div>
                                                     </div>
                                                     <div class="modal-footer">

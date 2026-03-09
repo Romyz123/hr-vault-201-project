@@ -1774,107 +1774,45 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
 
-        // Arrays contain the allowed documents for that category.
+        // [FIX] Centralized document list to remove redundancy.
+        const standardDocs = [{
+                val: 'probationary',
+                text: '📄 Probationary Employment Contract'
+            },
+            {
+                val: 'confidentiality',
+                text: '🔒 Confidentiality Agreement (NDA)'
+            },
+            {
+                val: 'project',
+                text: '📄 Project Employment Contract'
+            },
+            {
+                val: 'data_consent',
+                text: '🛡️ Data Privacy Consent Form'
+            },
+            {
+                val: 'notice_to_explain',
+                text: '⚠️ Notice to Explain (NTE)'
+            },
+            {
+                val: 'notice_of_decision',
+                text: '⚖️ Notice of Decision (NOD)'
+            },
+            {
+                val: 'employee_pledge',
+                text: '⛑️ Employee Safety Pledge (LSR)'
+            },
+            {
+                val: 'whistleblowing',
+                text: '📢 Whistle Blowing Consent Form'
+            }
+        ];
+
         const docLibrary = {
-            'lms_tech': [{
-                    val: 'probationary',
-                    text: '📄 Probationary Employment Contract'
-                },
-                {
-                    val: 'confidentiality',
-                    text: '🔒 Confidentiality Agreement (NDA)'
-                },
-                {
-                    val: 'project',
-                    text: '📄 Project Employment Contract'
-                },
-                {
-                    val: 'data_consent',
-                    text: '🛡️ Data Privacy Consent Form'
-                },
-                {
-                    val: 'notice_to_explain',
-                    text: '⚠️ Notice to Explain (NTE)'
-                },
-                {
-                    val: 'notice_of_decision',
-                    text: '⚖️ Notice of Decision (NOD)'
-                },
-                {
-                    val: 'employee_pledge',
-                    text: '⛑️ Employee Safety Pledge (LSR)'
-                },
-                {
-                    val: 'whistleblowing',
-                    text: '📢 Whistle Blowing Consent Form'
-                }
-            ],
-            'office': [{
-                    val: 'probationary',
-                    text: '📄 Probationary Employment Contract'
-                },
-                {
-                    val: 'confidentiality',
-                    text: '🔒 Confidentiality Agreement (NDA)'
-                },
-                {
-                    val: 'project',
-                    text: '📄 Project Employment Contract'
-                },
-                {
-                    val: 'data_consent',
-                    text: '🛡️ Data Privacy Consent Form'
-                },
-                {
-                    val: 'notice_to_explain',
-                    text: '⚠️ Notice to Explain (NTE)'
-                },
-                {
-                    val: 'notice_of_decision',
-                    text: '⚖️ Notice of Decision (NOD)'
-                },
-                {
-                    val: 'employee_pledge',
-                    text: '⛑️ Employee Safety Pledge (LSR)'
-                },
-                {
-                    val: 'whistleblowing',
-                    text: '📢 Whistle Blowing Consent Form'
-                }
-            ],
-            'general': [{
-                    val: 'probationary',
-                    text: '📄 Probationary Employment Contract'
-                },
-                {
-                    val: 'confidentiality',
-                    text: '🔒 Confidentiality Agreement (NDA)'
-                },
-                {
-                    val: 'project',
-                    text: '📄 Project Employment Contract'
-                },
-                {
-                    val: 'data_consent',
-                    text: '🛡️ Data Privacy Consent Form'
-                },
-                {
-                    val: 'notice_to_explain',
-                    text: '⚠️ Notice to Explain (NTE)'
-                },
-                {
-                    val: 'notice_of_decision',
-                    text: '⚖️ Notice of Decision (NOD)'
-                },
-                {
-                    val: 'employee_pledge',
-                    text: '⛑️ Employee Safety Pledge (LSR)'
-                },
-                {
-                    val: 'whistleblowing',
-                    text: '📢 Whistle Blowing Consent Form'
-                }
-            ]
+            'lms_tech': standardDocs,
+            'office': standardDocs,
+            'general': standardDocs
         };
 
         // [SMART FILTER LOGIC]

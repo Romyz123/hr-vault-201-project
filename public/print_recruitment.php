@@ -109,12 +109,6 @@ $candidates = $stmt->fetchAll();
             Month: <?php echo $filterMonth ? date('F Y', strtotime($filterMonth)) : 'All Time'; ?>
             <?php if ($filterWeek) echo " | Week: " . htmlspecialchars($filterWeek); ?>
         </p>
-        <p>
-            Generated on: <?php echo date('F d, Y'); ?><br>
-            Filter: <?php echo $filterStatus ? $filterStatus : 'All Status'; ?> |
-            Month: <?php echo $filterMonth ? date('F Y', strtotime($filterMonth)) : 'All Time'; ?>
-            <?php if ($filterWeek) echo " | Week: " . htmlspecialchars($filterWeek); ?>
-        </p>
     </div>
 
     <table>

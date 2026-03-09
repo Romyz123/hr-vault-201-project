@@ -144,6 +144,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             continue;
         }
 
+        // [NEW] PDF Corruption Check (from disciplinary.php)
+        if ($ext === 'pdf') {
+            $handle = @fopen($file['tmp_name'], 'rb');
+            if ($handle === false) {
+                $errors[] = "File " . ($idx + 1) . ": Unable to verify the PDF file.";
+                continue;
+            }
+
+            $fileSize = $file['size'];
+            $chunkSize = min(1024, $fileSize);
+            $header = fread($handle, $chunkSize);
+            fseek($handle, -$chunkSize, SEEK_END);
+            $footer = fread($handle, $chunkSize);
+            fclose($handle);
+
+            if (strpos($header, '%PDF-') !== 0 || strpos($footer, '%%EOF') === false) {
+                $errors[] = "File " . ($idx + 1) . ": The PDF file appears to be corrupted or incomplete.";
+                // No need to unlink, as it's a temp file that will be cleaned up
+                continue;
+            }
+        }
+
         // --- SAVE TO VAULT (Operation Vault Security) ---
         // Use custom name if provided, otherwise original filename
         if (!empty($customName)) {
