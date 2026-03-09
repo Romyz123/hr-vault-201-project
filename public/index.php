@@ -301,6 +301,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['cleanup_dev_files']) 
     $filesToDelete = [
         'utils/install.php',
         'auth_login.php',
+        'create_admin.php',
         'test_vault.php',
         'debug_whitespace.php',
         'test_system.php',
