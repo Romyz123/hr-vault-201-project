@@ -90,8 +90,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $token = bin2hex(random_bytes(32));
                     $hash = hash('sha256', $token);
 
-                    // [MHI 5.1.3] Privileged users (ADMIN) limited to 18 hours. Others 30 days.
-                    $duration = ($user['role'] === 'ADMIN') ? (18 * 60 * 60) : (30 * 24 * 60 * 60);
+                    // [MHI 5.1.3] Privileged users (ADMIN) limited to 18 hours. Others 30 hours.
+                    $duration = ($user['role'] === 'ADMIN') ? (18 * 60 * 60) : (30 * 60 * 60);
                     $expires = date('Y-m-d H:i:s', time() + $duration);
 
                     $sql .= ", trusted_device_token = '$hash', trusted_device_expires = '$expires'";
@@ -171,7 +171,7 @@ if ($secondsRemaining > 840) {
             </div>
             <div class="mb-3 form-check">
                 <input type="checkbox" class="form-check-input" id="trustDevice" name="trust_device">
-                <label class="form-check-label small text-muted" for="trustDevice">Trust this device for 30 days</label>
+                <label class="form-check-label small text-muted" for="trustDevice">Trust this device for 30 hours</label>
             </div>
             <div class="d-grid">
                 <button type="submit" class="btn btn-primary">Verify & Login</button>
