@@ -29,6 +29,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $key = preg_replace('/[^a-zA-Z0-9_]/', '', $key); // Sanitize key
             $value = trim($value);
 
+            // [FIX] Skip checkboxes as they are already handled above
+            if (in_array($key, $checkboxes)) {
+                continue;
+            }
+
             // [NEW from user code] Handle backup password
             if ($key === 'backup_password') {
                 if (isset($_POST['clear_backup_password'])) {
@@ -72,6 +77,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (empty($error)) {
             $msg = "✅ Settings updated successfully!";
             $logger->log($_SESSION['user_id'], 'SETTINGS_UPDATE', 'System settings were updated.');
+            header("Location: settings.php?msg=" . urlencode($msg));
+            exit;
         }
     } catch (Exception $e) {
         $error = "Error: " . $e->getMessage();

@@ -122,8 +122,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_roles'])) {
                         $stmt->execute($execParams);
                         $count++;
                     }
-                    $placeholders = implode(',', array_fill(0, count($ids), '?'));
-                    +$sql .= " WHERE id IN ($placeholders)";
 
                     $pdo->commit();
                     $logger->log($_SESSION['user_id'], 'BULK_UPDATE_ROLE', "Updated details for $count employees.");
