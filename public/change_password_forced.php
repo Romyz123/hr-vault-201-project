@@ -31,15 +31,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } elseif (strlen($pass) < 12 || !preg_match('/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_])/', $pass)) {
         $error = "❌ Password must be 12+ chars, with Uppercase, Lowercase, Number & Symbol.";
     } else {
-        $hash = password_hash($pass, PASSWORD_BCRYPT);
-        // Update password and reset the timer (password_changed_at)
-        $stmt = $pdo->prepare("UPDATE users SET password = ?, password_changed_at = NOW() WHERE id = ?");
-        if ($stmt->execute([$hash, $_SESSION['temp_user_id']])) {
-            unset($_SESSION['temp_user_id']);
-            header("Location: login.php?msg=" . urlencode("✅ Password updated! Please login."));
-            exit;
+        // [MHI Security] Check History
+        if (!$security->checkPasswordHistory($_SESSION['temp_user_id'], $pass)) {
+            $error = "❌ Security Policy: You cannot reuse any of your last 3 passwords.";
         } else {
-            $error = "❌ Database error.";
+            $hash = password_hash($pass, PASSWORD_BCRYPT);
+            // Update password and reset the timer (password_changed_at)
+            $stmt = $pdo->prepare("UPDATE users SET password = ?, password_changed_at = NOW() WHERE id = ?");
+            if ($stmt->execute([$hash, $_SESSION['temp_user_id']])) {
+                $security->logPasswordHistory($_SESSION['temp_user_id'], $hash);
+                unset($_SESSION['temp_user_id']);
+                header("Location: login.php?msg=" . urlencode("✅ Password updated! Please login."));
+                exit;
+            } else {
+                $error = "❌ Database error.";
+            }
         }
     }
 }

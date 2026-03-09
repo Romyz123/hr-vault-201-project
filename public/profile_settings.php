@@ -86,13 +86,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                     $alertType = "error";
                     $alertMsg = "Password must contain Uppercase, Lowercase, Number, and Symbol.";
                 } else {
-                    // 5. Update Password
-                    $new_hash = password_hash($new_pass, PASSWORD_BCRYPT);
-                    $update = $pdo->prepare("UPDATE users SET password = ? WHERE id = ?");
-                    $update->execute([$new_hash, $_SESSION['user_id']]);
-
-                    $alertType = "success";
-                    $alertMsg = "Password updated successfully!";
+                    // [MHI Security] Check Frequency (Max 1 change per 24h)
+                    if (!$security->checkPasswordFrequency($_SESSION['user_id'])) {
+                        $alertType = "error";
+                        $alertMsg = "Security Policy: You cannot change your password more than once in 24 hours.";
+                    }
+                    // [MHI Security] Check History (No reuse of last 3)
+                    elseif (!$security->checkPasswordHistory($_SESSION['user_id'], $new_pass)) {
+                        $alertType = "error";
+                        $alertMsg = "Security Policy: You cannot reuse any of your last 3 passwords.";
+                    } else {
+                        // 5. Update Password & History
+                        $new_hash = password_hash($new_pass, PASSWORD_BCRYPT);
+                        $pdo->prepare("UPDATE users SET password = ?, password_changed_at = NOW() WHERE id = ?")->execute([$new_hash, $_SESSION['user_id']]);
+                        $security->logPasswordHistory($_SESSION['user_id'], $new_hash);
+                        $alertType = "success";
+                        $alertMsg = "Password updated successfully!";
+                    }
                 }
             } else {
                 $alertType = "error";

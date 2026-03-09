@@ -72,14 +72,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['clear_old_logs']) && 
     }
 
     try {
-        // Define Cutoff (30 Days Ago)
-        $cutoff = date('Y-m-d H:i:s', strtotime('-30 days'));
+        // [MHI Security] Enforce 3-Year Retention (Do not delete logs newer than 3 years)
+        $cutoff = date('Y-m-d H:i:s', strtotime('-3 years'));
 
         $stmt = $pdo->prepare("DELETE FROM activity_logs WHERE created_at < ?");
         $stmt->execute([$cutoff]);
         $count = $stmt->rowCount();
 
-        header("Location: activity_logs.php?msg=" . urlencode("✅ Cleared $count logs older than 30 days."));
+        header("Location: activity_logs.php?msg=" . urlencode("✅ Cleared $count logs older than 3 years."));
         exit;
     } catch (Exception $e) {
         header("Location: activity_logs.php?error=" . urlencode("Clear Failed: " . $e->getMessage()));
@@ -255,7 +255,7 @@ $logs = $stmt->fetchAll();
                     <form method="POST" class="d-inline" onsubmit="return confirm('This will PERMANENTLY DELETE logs older than 30 days. This cannot be undone. Proceed?');">
                         <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token); ?>">
                         <input type="hidden" name="clear_old_logs" value="1">
-                        <button type="submit" class="btn btn-outline-danger me-2"><i class="bi bi-trash3-fill"></i> Clear >30 Days</button>
+                        <button type="submit" class="btn btn-outline-danger me-2"><i class="bi bi-trash3-fill"></i> Clear >3 Years</button>
                     </form>
                 <?php endif; ?>
                 <button class="btn btn-warning me-2" data-bs-toggle="modal" data-bs-target="#manualLogModal"><i class="bi bi-pencil-square"></i> Add Note</button>

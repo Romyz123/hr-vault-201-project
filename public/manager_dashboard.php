@@ -67,9 +67,9 @@ if (($_SESSION['role'] ?? '') === 'ADMIN') {
 
     <nav class="navbar navbar-dark bg-primary mb-4 shadow">
         <div class="container">
-            <a class="navbar-brand fw-bold" href="index.php"><i class="bi bi-speedometer2"></i> Manager Command Center</a>
+            <a class="navbar-brand" href="index.php">Back to Dashboard</a>
             <div class="d-flex align-items-center gap-2">
-                <a href="index.php" class="btn btn-outline-light btn-sm">Back to Dashboard</a>
+                <span class="navbar-text text-white fw-bold me-2"><i class="bi bi-speedometer2"></i> Manager Command Center</span>
                 <button id="darkModeToggle" class="btn btn-sm btn-outline-light border-0" title="Toggle Dark Mode">
                     <i class="bi bi-moon-stars-fill"></i>
                 </button>

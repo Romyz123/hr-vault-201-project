@@ -116,6 +116,44 @@ class Security
 
         return false;
     }
+
+    // [MHI Security] Check if password was changed in the last 24 hours
+    public function checkPasswordFrequency($userId)
+    {
+        $stmt = $this->pdo->prepare("SELECT password_changed_at FROM users WHERE id = ?");
+        $stmt->execute([$userId]);
+        $lastChange = $stmt->fetchColumn();
+
+        if ($lastChange) {
+            $diff = time() - strtotime($lastChange);
+            if ($diff < 86400) { // 86400 seconds = 24 hours
+                return false;
+            }
+        }
+        return true;
+    }
+
+    // [MHI Security] Check against last 3 passwords
+    public function checkPasswordHistory($userId, $newPassword)
+    {
+        $stmt = $this->pdo->prepare("SELECT password_hash FROM password_history WHERE user_id = ? ORDER BY created_at DESC LIMIT 3");
+        $stmt->execute([$userId]);
+        $history = $stmt->fetchAll(PDO::FETCH_COLUMN);
+
+        foreach ($history as $oldHash) {
+            if (password_verify($newPassword, $oldHash)) {
+                return false; // Reuse detected
+            }
+        }
+        return true;
+    }
+
+    // [MHI Security] Log new password to history
+    public function logPasswordHistory($userId, $passwordHash)
+    {
+        $stmt = $this->pdo->prepare("INSERT INTO password_history (user_id, password_hash) VALUES (?, ?)");
+        $stmt->execute([$userId, $passwordHash]);
+    }
 }
 
 

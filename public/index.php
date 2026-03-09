@@ -842,6 +842,7 @@ $diskPercent = ($diskTotal > 0) ? round((($diskTotal - $diskFree) / $diskTotal) 
             $riskFiles = [
                 'utils/install.php' => 'Installation script (Risk of reset)',
                 'auth_login.php' => 'Insecure login bypass (MHI Violation)',
+                'create_admin.php' => 'Admin creation backdoor (Critical Risk)',
                 'test_vault.php' => 'Vault test script (No Auth - Critical)',
                 'debug_whitespace.php' => 'Debug script (No Auth - Critical)',
                 'test_system.php' => 'System test script (Info Disclosure)',

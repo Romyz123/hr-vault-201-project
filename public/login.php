@@ -81,15 +81,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
                 }
 
                 // [CHECK] Maintenance Mode
-                $maintStmt = $pdo->query("SELECT setting_value FROM system_settings WHERE setting_key = 'maintenance_mode'");
+                $maintStmt = $pdo->query("SELECT setting_value FROM system_settings WHERE setting_key = 'maintenance_mode' LIMIT 1");
                 $isMaint = ($maintStmt->fetchColumn() === '1');
+                $isMaint = false;
+                try {
+                    $maintStmt = $pdo->query("SELECT setting_value FROM system_settings WHERE setting_key = 'maintenance_mode' LIMIT 1");
+                    $isMaint = ($maintStmt && $maintStmt->fetchColumn() === '1');
+                } catch (Exception $e) {
+                    // Table missing? Assume system is active so Admin can login and fix it.
+                }
 
                 if ($isMaint && $user['role'] !== 'ADMIN') {
                     $alertType = 'warning';
                     $alertMsg = "🛠️ <strong>System Under Maintenance</strong><br>Only Administrators can log in at this time. Please try again later.";
                 } else {
-                    // [NEW] 2FA Check
-                    if (!empty($user['is_2fa_enabled'])) {
+                    // [NEW] 2FA Check (Enforced for ADMINs per MHI Sec 5.2)
+                    if (($user['role'] === 'ADMIN' && $_SERVER['SERVER_NAME'] !== 'localhost') || !empty($user['is_2fa_enabled'])) {
                         // Check for Trusted Device Cookie
                         if (isset($_COOKIE['hr_trust_device'])) {
                             $tokenHash = hash('sha256', $_COOKIE['hr_trust_device']);
@@ -169,7 +176,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
                 $logger->log($failedId, 'LOGIN_FAILED', $failDetails);
 
                 $alertType = 'error';
-                $alertMsg = "❌ Invalid Username or Password";
+                $alertMsg = "❌ Invalid Username or Password. No record found in the system.";
             }
             skip_login_check:
         }

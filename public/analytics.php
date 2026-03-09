@@ -404,7 +404,7 @@ if (isset($_GET['export_matrix'])) {
 // Optional debug block (visit analytics.php?debug=1)
 if ($debug) {
     // [SECURITY] Restrict debug output to Admins only
-    if ($_SESSION['role'] !== 'ADMIN') die("Access Denied: Debug mode is restricted.");
+    if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'ADMIN') die("Access Denied: Debug mode is restricted.");
 
     header('Content-Type: text/plain');
     echo "DEBUG: As-Of = " . $asOf->format('Y-m-d') . "\n\n";

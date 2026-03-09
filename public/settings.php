@@ -204,13 +204,19 @@ $refreshInt  = $settings['auto_refresh_interval'] ?? '60';
 </head>
 
 <body class="bg-light">
-    <div class="container mt-5">
+    <nav class="navbar navbar-dark bg-dark mb-4">
+        <div class="container">
+            <a class="navbar-brand" href="index.php">Back to Dashboard</a>
+            <span class="navbar-text text-white"><i class="bi bi-sliders"></i> System Configuration</span>
+        </div>
+    </nav>
+
+    <div class="container">
         <div class="row justify-content-center">
             <div class="col-md-6">
                 <div class="card shadow">
                     <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
                         <h5 class="mb-0"><i class="bi bi-sliders"></i> System Configuration</h5>
-                        <a href="index.php" class="btn btn-sm btn-outline-light">Back to Dashboard</a>
                     </div>
                     <div class="card-body">
                         <form method="POST">

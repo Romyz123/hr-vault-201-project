@@ -218,9 +218,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                     $logger->log($adminId, 'APPROVED_EDIT_DOC', "Approved edit for Doc ID: " . $docId);
                 }
 
-                // DELETE REQUEST (Cleanup)
-                $pdo->prepare("DELETE FROM requests WHERE id = ?")->execute([$req_id]);
-                $msg = "Request Approved Successfully";
+                // [MHI 5.2] ARCHIVE REQUEST (Retention) - Do not delete
+                $pdo->prepare("UPDATE requests SET status = 'APPROVED', admin_comment = ? WHERE id = ?")->execute(["Approved by " . $_SESSION['username'], $req_id]);
+                $msg = "Request Approved & Archived";
             } catch (Exception $e) {
                 $msg = "Error: " . $e->getMessage();
             }
@@ -238,8 +238,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             $pdo->prepare("INSERT INTO notifications (user_id, title, message, type) VALUES (?, ?, ?, 'danger')")
                 ->execute([$req['user_id'], $msgTitle, $msgBody]);
 
-            // Deleting the request
-            $pdo->prepare("DELETE FROM requests WHERE id = ?")->execute([$req_id]);
+            // [MHI 5.2] ARCHIVE REQUEST (Retention) - Do not delete
+            $pdo->prepare("UPDATE requests SET status = 'REJECTED', admin_comment = ? WHERE id = ?")->execute([$reject_reason, $req_id]);
             $logger->log($adminId, 'REJECTED_REQUEST', "Rejected request: " . $req['request_type']);
             $msg = "Request Rejected & User Notified";
         }
@@ -249,12 +249,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     exit;
 }
 
-/// FETCH REQUESTS
-$newHires = $pdo->query("SELECT r.*, u.username FROM requests r LEFT JOIN users u ON r.user_id = u.id WHERE request_type='ADD_EMPLOYEE'")->fetchAll();
-$edits    = $pdo->query("SELECT r.*, u.username FROM requests r LEFT JOIN users u ON r.user_id = u.id WHERE request_type='EDIT_PROFILE'")->fetchAll();
-$docs     = $pdo->query("SELECT r.*, u.username FROM requests r LEFT JOIN users u ON r.user_id = u.id WHERE request_type='UPLOAD_DOC'")->fetchAll();
-$doc_edits = $pdo->query("SELECT r.*, u.username FROM requests r LEFT JOIN users u ON r.user_id = u.id WHERE request_type='EDIT_DOC'")->fetchAll();
-$tickets  = $pdo->query("SELECT r.*, u.username FROM requests r LEFT JOIN users u ON r.user_id = u.id WHERE request_type='RESOLVE_ALERT'")->fetchAll();
+/// FETCH REQUESTS (Filter by PENDING)
+$newHires = $pdo->query("SELECT r.*, u.username FROM requests r LEFT JOIN users u ON r.user_id = u.id WHERE request_type='ADD_EMPLOYEE' AND status='PENDING'")->fetchAll();
+$edits    = $pdo->query("SELECT r.*, u.username FROM requests r LEFT JOIN users u ON r.user_id = u.id WHERE request_type='EDIT_PROFILE' AND status='PENDING'")->fetchAll();
+$docs     = $pdo->query("SELECT r.*, u.username FROM requests r LEFT JOIN users u ON r.user_id = u.id WHERE request_type='UPLOAD_DOC' AND status='PENDING'")->fetchAll();
+$doc_edits = $pdo->query("SELECT r.*, u.username FROM requests r LEFT JOIN users u ON r.user_id = u.id WHERE request_type='EDIT_DOC' AND status='PENDING'")->fetchAll();
+$tickets  = $pdo->query("SELECT r.*, u.username FROM requests r LEFT JOIN users u ON r.user_id = u.id WHERE request_type='RESOLVE_ALERT' AND status='PENDING'")->fetchAll();
 ?>
 
 <!DOCTYPE html>
