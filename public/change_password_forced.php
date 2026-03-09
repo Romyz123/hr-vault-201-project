@@ -28,8 +28,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $confirm = $_POST['confirm'];
     if ($pass !== $confirm) {
         $error = "❌ Passwords do not match.";
-    } elseif (strlen($pass) < 12 || !preg_match('/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_])/', $pass)) {
-        $error = "❌ Password must be 12+ chars, with Uppercase, Lowercase, Number & Symbol.";
+    } elseif (strlen($pass) < 15 || !preg_match('/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_])/', $pass)) {
+        $error = "❌ Password must be 15+ chars, with Uppercase, Lowercase, Number & Symbol.";
     } else {
         // [MHI Security] Check History
         if (!$security->checkPasswordHistory($_SESSION['temp_user_id'], $pass)) {
@@ -73,11 +73,11 @@ end_post:
             <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token); ?>">
             <div class="mb-3">
                 <label class="form-label">New Password</label>
-                <input type="password" name="password" class="form-control" required minlength="12" placeholder="Min 12 chars, Upper, Lower, #, Symbol" pattern="(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).{12,}" title="Must be at least 12 characters, contain Uppercase, Lowercase, Number, and Symbol.">
+                <input type="password" name="password" class="form-control" required minlength="15" placeholder="Min 15 chars, Upper, Lower, #, Symbol" pattern="(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).{15,}" title="Must be at least 15 characters, contain Uppercase, Lowercase, Number, and Symbol.">
             </div>
             <div class="mb-3">
                 <label class="form-label">Confirm Password</label>
-                <input type="password" name="confirm" class="form-control" required minlength="12">
+                <input type="password" name="confirm" class="form-control" required minlength="15">
             </div>
             <button type="submit" class="btn btn-primary w-100">Update Password</button>
         </form>

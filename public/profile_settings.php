@@ -76,9 +76,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             if ($new_pass === $confirm_pass) {
 
                 // 4. Validate strength (Match Admin Policy: 12 chars, number, symbol)
-                if (strlen($new_pass) < 12) {
+                if (strlen($new_pass) < 15) {
                     $alertType = "error";
-                    $alertMsg = "Password must be at least 12 characters.";
+                    $alertMsg = "Password must be at least 15 characters (MHI Policy).";
                 } elseif (strlen($new_pass) > 128) {
                     $alertType = "error";
                     $alertMsg = "Password is too long (Max 128 characters).";
@@ -189,14 +189,14 @@ end_post:
                             <div class="mb-3">
                                 <label class="form-label fw-bold">New Password</label>
                                 <div class="input-group">
-                                    <input type="password" name="new_password" id="newPass" class="form-control" minlength="12" maxlength="128" required pattern="(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).{12,}" title="Must be at least 12 characters, contain Uppercase, Lowercase, Number, and Symbol.">
+                                    <input type="password" name="new_password" id="newPass" class="form-control" minlength="15" maxlength="128" required pattern="(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).{15,}" title="Must be at least 15 characters, contain Uppercase, Lowercase, Number, and Symbol.">
                                     <button class="btn btn-outline-secondary" type="button" onclick="togglePass('newPass')"><i class="bi bi-eye"></i></button>
                                 </div>
                             </div>
                             <div class="mb-3">
                                 <label class="form-label fw-bold">Confirm New Password</label>
                                 <div class="input-group">
-                                    <input type="password" name="confirm_password" id="confPass" class="form-control" minlength="12" maxlength="128" required>
+                                    <input type="password" name="confirm_password" id="confPass" class="form-control" minlength="15" maxlength="128" required>
                                     <button class="btn btn-outline-secondary" type="button" onclick="togglePass('confPass')"><i class="bi bi-eye"></i></button>
                                 </div>
                             </div>

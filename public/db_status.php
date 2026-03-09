@@ -34,7 +34,10 @@ $columnSchema = [
         'reset_token' => "VARCHAR(64) NULL DEFAULT NULL",
         'reset_expires' => "DATETIME NULL DEFAULT NULL",
         'failed_attempts' => "INT DEFAULT 0",
-        'locked_until' => "DATETIME NULL"
+        'locked_until' => "DATETIME NULL",
+        'is_shared' => "TINYINT(1) DEFAULT 0",
+        'account_owner' => "VARCHAR(100) NULL",
+        'last_verified_at' => "DATETIME NULL"
     ],
     'employees' => [
         'system_role' => "VARCHAR(50) DEFAULT 'Staff'",

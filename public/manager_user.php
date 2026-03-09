@@ -56,11 +56,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $password = $_POST['password'];
         $role     = $_POST['role'];
         $is_2fa   = isset($_POST['is_2fa']) ? 1 : 0;
+        $is_shared = isset($_POST['is_shared']) ? 1 : 0;
+        $owner    = trim($_POST['account_owner']);
 
         // [PHASE 2 SECURITY] Strong Password Check
-        if (strlen($password) < 12) {
+        if (strlen($password) < 15) {
             $alertType = 'error';
-            $alertMsg = "❌ Password too short! Must be at least 12 characters.";
+            $alertMsg = "❌ Password too short! Must be at least 15 characters (MHI Policy).";
         } elseif (!preg_match('/^[a-zA-Z0-9]+$/', $username)) {
             $alertType = 'error';
             $alertMsg = "❌ Username must be alphanumeric (letters & numbers only).";
@@ -80,8 +82,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $alertMsg = "⚠️ Username or Email already exists.";
             } else {
                 $hashed = password_hash($password, PASSWORD_BCRYPT);
-                $stmt = $pdo->prepare("INSERT INTO users (username, email, password, role, is_2fa_enabled) VALUES (?, ?, ?, ?, ?)");
-                if ($stmt->execute([$username, $email, $hashed, $role, $is_2fa])) {
+                $stmt = $pdo->prepare("INSERT INTO users (username, email, password, role, is_2fa_enabled, is_shared, account_owner) VALUES (?, ?, ?, ?, ?, ?, ?)");
+                if ($stmt->execute([$username, $email, $hashed, $role, $is_2fa, $is_shared, $owner])) {
                     $logger->log($_SESSION['user_id'], 'USER_ADD', "Created user: $username ($role)");
                     $alertType = 'success';
                     $alertMsg = "✅ User '$username' created successfully!";
@@ -97,6 +99,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $email    = trim($_POST['email']);
         $role     = $_POST['role'];
         $is_2fa   = isset($_POST['is_2fa']) ? 1 : 0;
+        $is_shared = isset($_POST['is_shared']) ? 1 : 0;
+        $owner    = trim($_POST['account_owner']);
         $new_pass = $_POST['password']; // Optional
 
         // Check email uniqueness (ignore self)
@@ -111,17 +115,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $alertMsg = "❌ Username must be alphanumeric (letters & numbers only).";
         } else {
             // Update Info
-            $sql = "UPDATE users SET username = ?, email = ?, role = ?, is_2fa_enabled = ? WHERE id = ?";
-            $params = [$username, $email, $role, $is_2fa, $id];
+            $sql = "UPDATE users SET username = ?, email = ?, role = ?, is_2fa_enabled = ?, is_shared = ?, account_owner = ? WHERE id = ?";
+            $params = [$username, $email, $role, $is_2fa, $is_shared, $owner, $id];
 
             // If password changed, validate and hash it
             if (!empty($new_pass)) {
-                if (strlen($new_pass) < 12 || !preg_match('/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_])/', $new_pass)) {
+                if (strlen($new_pass) < 15 || !preg_match('/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_])/', $new_pass)) {
                     $alertType = 'error';
-                    $alertMsg = "❌ Update Failed: Password must contain Uppercase, Lowercase, Number, and Symbol.";
+                    $alertMsg = "❌ Update Failed: Password must be 15+ chars with Uppercase, Lowercase, Number, and Symbol.";
                 } else {
-                    $sql = "UPDATE users SET username = ?, email = ?, role = ?, is_2fa_enabled = ?, password = ? WHERE id = ?";
-                    $params = [$username, $email, $role, $is_2fa, password_hash($new_pass, PASSWORD_BCRYPT), $id];
+                    $sql = "UPDATE users SET username = ?, email = ?, role = ?, is_2fa_enabled = ?, is_shared = ?, account_owner = ?, password = ? WHERE id = ?";
+                    $params = [$username, $email, $role, $is_2fa, $is_shared, $owner, password_hash($new_pass, PASSWORD_BCRYPT), $id];
                 }
             }
 
@@ -585,6 +589,14 @@ $vaultChecked = ($bkVaultSetting === '1') ? 'checked' : '';
                                 <input class="form-check-input" type="checkbox" name="is_2fa" id="add2fa">
                                 <label class="form-check-label" for="add2fa">Enable 2FA (Email OTP)</label>
                             </div>
+                            <div class="form-check mb-2">
+                                <input class="form-check-input" type="checkbox" name="is_shared" id="addShared" onchange="document.getElementById('addOwnerDiv').style.display = this.checked ? 'block' : 'none'">
+                                <label class="form-check-label" for="addShared">Shared Account (MHI Regulated)</label>
+                            </div>
+                            <div class="mb-3" id="addOwnerDiv" style="display:none;">
+                                <label class="form-label fw-bold">Account Owner</label>
+                                <input type="text" name="account_owner" class="form-control" placeholder="Name of responsible person">
+                            </div>
                             <button type="submit" class="btn btn-success w-100">Create Account</button>
                         </form>
                     </div>
@@ -627,6 +639,9 @@ $vaultChecked = ($bkVaultSetting === '1') ? 'checked' : '';
                                             <span class="badge <?php echo $badge; ?>"><?php echo $u['role']; ?></span>
                                             <?php if (!empty($u['is_2fa_enabled'])): ?>
                                                 <span class="badge bg-info text-dark" title="2FA Enabled"><i class="bi bi-shield-lock"></i> 2FA</span>
+                                            <?php endif; ?>
+                                            <?php if (!empty($u['is_shared'])): ?>
+                                                <span class="badge bg-dark border border-light" title="Owner: <?php echo htmlspecialchars($u['account_owner']); ?>"><i class="bi bi-people"></i> Shared</span>
                                             <?php endif; ?>
                                         </td>
                                         <td class="small text-muted"><?php echo date('M d, Y', strtotime($u['created_at'])); ?></td>
@@ -694,6 +709,14 @@ $vaultChecked = ($bkVaultSetting === '1') ? 'checked' : '';
                                                         <div class="form-check mb-3">
                                                             <input class="form-check-input" type="checkbox" name="is_2fa" id="edit2fa<?php echo $u['id']; ?>" <?php echo (!empty($u['is_2fa_enabled'])) ? 'checked' : ''; ?>>
                                                             <label class="form-check-label" for="edit2fa<?php echo $u['id']; ?>">Enable 2FA (Email OTP)</label>
+                                                        </div>
+                                                        <div class="form-check mb-2">
+                                                            <input class="form-check-input" type="checkbox" name="is_shared" id="editShared<?php echo $u['id']; ?>" <?php echo (!empty($u['is_shared'])) ? 'checked' : ''; ?> onchange="document.getElementById('editOwnerDiv<?php echo $u['id']; ?>').style.display = this.checked ? 'block' : 'none'">
+                                                            <label class="form-check-label" for="editShared<?php echo $u['id']; ?>">Shared Account</label>
+                                                        </div>
+                                                        <div class="mb-3" id="editOwnerDiv<?php echo $u['id']; ?>" style="display: <?php echo (!empty($u['is_shared'])) ? 'block' : 'none'; ?>;">
+                                                            <label class="form-label fw-bold">Account Owner</label>
+                                                            <input type="text" name="account_owner" class="form-control" value="<?php echo htmlspecialchars($u['account_owner'] ?? ''); ?>">
                                                         </div>
                                                         <hr>
                                                         <div class="mb-3">
