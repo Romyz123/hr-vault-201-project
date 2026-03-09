@@ -153,19 +153,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     // --- RESTORE DATABASE ---
-    // [SECURITY FIX] Password validation must happen before restore
-    if (isset($_POST['admin_password'])) {
+    if (isset($_FILES['restore_sql']) && $_FILES['restore_sql']['error'] === UPLOAD_ERR_OK) {
+        // [SECURITY] Enforce Password Check
+        if (empty($_POST['admin_password'])) {
+            $alertType = 'error';
+            $alertMsg = "❌ Restore Failed: Admin Password is required.";
+            goto end_of_post;
+        }
+
         $passStmt = $pdo->prepare("SELECT password FROM users WHERE id = ?");
         $passStmt->execute([$_SESSION['user_id']]);
         $adminUser = $passStmt->fetch();
         if (!$adminUser || !password_verify($_POST['admin_password'], $adminUser['password'])) {
             $alertType = 'error';
             $alertMsg = "❌ Restore Failed: Incorrect Admin Password.";
-            // We must stop execution here to prevent the restore from running
             goto end_of_post;
         }
-    }
-    if (isset($_FILES['restore_sql']) && $_FILES['restore_sql']['error'] === UPLOAD_ERR_OK) {
         $file = $_FILES['restore_sql']['tmp_name'];
         $ext = pathinfo($_FILES['restore_sql']['name'], PATHINFO_EXTENSION);
         $sqlContent = '';
@@ -231,6 +234,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // --- RESTORE FROM SERVER AUTO-BACKUP ---
     if (isset($_POST['action']) && $_POST['action'] === 'restore_local') {
+        // [SECURITY] Enforce Password Check for Local Restore
+        if (empty($_POST['admin_password'])) {
+            $alertType = 'error';
+            $alertMsg = "❌ Restore Failed: Admin Password is required.";
+            goto end_of_post;
+        }
+        $passStmt = $pdo->prepare("SELECT password FROM users WHERE id = ?");
+        $passStmt->execute([$_SESSION['user_id']]);
+        $adminUser = $passStmt->fetch();
+        if (!$adminUser || !password_verify($_POST['admin_password'], $adminUser['password'])) {
+            $alertType = 'error';
+            $alertMsg = "❌ Restore Failed: Incorrect Admin Password.";
+            goto end_of_post;
+        }
+
         $filename = basename($_POST['filename']);
         $filepath = __DIR__ . '/../backups/' . $filename;
 
