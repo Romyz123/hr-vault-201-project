@@ -89,9 +89,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if (isset($_POST['trust_device'])) {
                     $token = bin2hex(random_bytes(32));
                     $hash = hash('sha256', $token);
-                    $expires = date('Y-m-d H:i:s', time() + (30 * 24 * 60 * 60)); // 30 Days
+
+                    // [MHI 5.1.3] Privileged users (ADMIN) limited to 18 hours. Others 30 days.
+                    $duration = ($user['role'] === 'ADMIN') ? (18 * 60 * 60) : (30 * 24 * 60 * 60);
+                    $expires = date('Y-m-d H:i:s', time() + $duration);
+
                     $sql .= ", trusted_device_token = '$hash', trusted_device_expires = '$expires'";
-                    setcookie('hr_trust_device', $token, time() + (30 * 24 * 60 * 60), "/", "", false, true);
+                    setcookie('hr_trust_device', $token, time() + $duration, "/", "", false, true);
                 }
 
                 $pdo->prepare("$sql WHERE id = ?")->execute([$userId]);
