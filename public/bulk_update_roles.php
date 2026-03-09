@@ -50,7 +50,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_roles'])) {
     $new_gender = trim($_POST['new_gender'] ?? '');
 
     // Validate against allowlists
-    $allowedRoles = array_keys($system_roles);
+    $allowedRoles = $system_roles;
     $allowedGenders = ['Male', 'Female', 'Other'];
     $allowedDepts = array_keys($deptMap);
 
@@ -58,8 +58,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_roles'])) {
         $error = "❌ Invalid role selected.";
     } elseif (!empty($new_gender) && !in_array($new_gender, $allowedGenders)) {
         $error = "❌ Invalid gender selected.";
-    } elseif (!empty($new_dept) && !in_array($new_dept, $allowedDepts)) {
-        $error = "❌ Invalid department selected.";
+    } elseif (!empty($new_dept)) {
+        $selectedDepts = array_map('trim', explode(',', $new_dept));
+        foreach ($selectedDepts as $sd) {
+            if (!in_array($sd, $allowedDepts)) {
+                $error = "❌ Invalid department selected: " . htmlspecialchars($sd);
+                break;
+            }
+        }
     }
 
     if (empty($ids)) {
