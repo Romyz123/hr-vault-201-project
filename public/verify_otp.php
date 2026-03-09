@@ -19,7 +19,7 @@ $csrf_token = $security->generateCSRF(); // [SECURITY] Generate Token
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // [SECURITY] Rate Limit IP (15 req/min) to slow down automated attacks
     if (!$security->checkRateLimit($_SERVER['REMOTE_ADDR'], 15, 60)) {
-        $error = "⛔ Too many requests. Please wait a minute.";
+        $error = "⚠️ Too many requests. Please wait a minute.";
     }
     // [SECURITY] CSRF Check
     elseif (empty($_POST['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'])) {
