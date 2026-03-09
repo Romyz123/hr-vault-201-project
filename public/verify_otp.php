@@ -41,8 +41,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $wait = $secondsRemaining - 840;
             $error = "⏳ Please wait $wait seconds before resending.";
         } elseif ($email) {
-            $otp = rand(100000, 999999);
-            // [FIX] Increased expiry to 15 Minutes (900 seconds)
+            $otp = random_int(100000, 999999);            // [FIX] Increased expiry to 15 Minutes (900 seconds)
             $pdo->prepare("UPDATE users SET otp_code = ?, otp_expires = DATE_ADD(NOW(), INTERVAL 15 MINUTE) WHERE id = ?")->execute([$otp, $userId]);
 
             // Send Email

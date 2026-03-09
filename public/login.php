@@ -81,8 +81,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
                 }
 
                 // [CHECK] Maintenance Mode
-                $maintStmt = $pdo->query("SELECT setting_value FROM system_settings WHERE setting_key = 'maintenance_mode' LIMIT 1");
-                $isMaint = ($maintStmt->fetchColumn() === '1');
                 $isMaint = false;
                 try {
                     $maintStmt = $pdo->query("SELECT setting_value FROM system_settings WHERE setting_key = 'maintenance_mode' LIMIT 1");
@@ -90,14 +88,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
                 } catch (Exception $e) {
                     // Table missing? Assume system is active so Admin can login and fix it.
                 }
-
                 if ($isMaint && $user['role'] !== 'ADMIN') {
                     $alertType = 'warning';
                     $alertMsg = "🛠️ <strong>System Under Maintenance</strong><br>Only Administrators can log in at this time. Please try again later.";
                 } else {
                     // [NEW] 2FA Check (Enforced for ADMINs per MHI Sec 5.2)
-                    if (($user['role'] === 'ADMIN' && $_SERVER['SERVER_NAME'] !== 'localhost') || !empty($user['is_2fa_enabled'])) {
-                        // Check for Trusted Device Cookie
+                    $isLocalRequest = in_array($_SERVER['REMOTE_ADDR'], ['127.0.0.1', '::1']);
+                    if (($user['role'] === 'ADMIN' && !$isLocalRequest) || !empty($user['is_2fa_enabled'])) {                        // Check for Trusted Device Cookie
                         if (isset($_COOKIE['hr_trust_device'])) {
                             $tokenHash = hash('sha256', $_COOKIE['hr_trust_device']);
                             // Verify against DB

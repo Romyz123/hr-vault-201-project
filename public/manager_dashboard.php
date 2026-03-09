@@ -226,9 +226,9 @@ if (($_SESSION['role'] ?? '') === 'ADMIN') {
                 </div>
             </div>
         </div>
-    </div>
-    <script src="assets/bootstrap.bundle.min.js"></script>
-    <script src="dark_mode.js"></script>
+        <script src="assets/bootstrap.bundle.min.js"></script>
+        <script src="assets/bootstrap.bundle.min.js"></script>
+        <script src="dark_mode.js"></script>
 </body>
 
 </html>

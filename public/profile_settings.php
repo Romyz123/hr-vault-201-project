@@ -98,10 +98,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                     } else {
                         // 5. Update Password & History
                         $new_hash = password_hash($new_pass, PASSWORD_BCRYPT);
-                        $pdo->prepare("UPDATE users SET password = ?, password_changed_at = NOW() WHERE id = ?")->execute([$new_hash, $_SESSION['user_id']]);
-                        $security->logPasswordHistory($_SESSION['user_id'], $new_hash);
-                        $alertType = "success";
-                        $alertMsg = "Password updated successfully!";
+                        $pdo->beginTransaction();
+                        try {
+                            $pdo->prepare("UPDATE users SET password = ?, password_changed_at = NOW() WHERE id = ?")->execute([$new_hash, $_SESSION['user_id']]);
+                            $security->logPasswordHistory($_SESSION['user_id'], $new_hash);
+                            $pdo->commit();
+                            $alertType = "success";
+                            $alertMsg = "Password updated successfully!";
+                        } catch (Exception $e) {
+                            $pdo->rollBack();
+                            $alertType = "error";
+                            $alertMsg = "Failed to update password. Please try again.";
+                        }
                     }
                 }
             } else {

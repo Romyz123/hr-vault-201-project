@@ -237,7 +237,10 @@ if (file_exists($logo_path)) {
             </tr>
             <tr>
                 <td class="label">Evaluation Date:</td>
-                <td><?php echo date('F d, Y', strtotime($data['eval_date'])); ?></td>
+                <td><?php
+                    $evalTimestamp = $data['eval_date'] ? strtotime($data['eval_date']) : false;
+                    echo $evalTimestamp ? date('F d, Y', $evalTimestamp) : 'N/A';
+                    ?></td>
                 <td class="label">Evaluator:</td>
                 <td><?php echo htmlspecialchars($data['evaluator']); ?></td>
             </tr>

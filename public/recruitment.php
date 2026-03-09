@@ -52,7 +52,11 @@ try {
         $date = $_POST['application_date'];
 
         // [SECURITY] Validation
-        if (strlen($first) > 50) $error = "First Name is too long (Max 50 chars).";
+        if (empty($first)) $error = "First Name is required.";
+        elseif (empty($last)) $error = "Last Name is required.";
+        elseif (empty($pos)) $error = "Position is required.";
+        elseif (empty($date) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) $error = "Valid application date is required.";
+        elseif (strlen($first) > 50) $error = "First Name is too long (Max 50 chars).";
         elseif (strlen($last) > 50) $error = "Last Name is too long (Max 50 chars).";
         elseif (strlen($pos) > 100) $error = "Position is too long (Max 100 chars).";
         elseif (strlen($email) > 100) $error = "Email is too long.";
@@ -65,14 +69,10 @@ try {
         if (empty($error) && $first && $last && $pos && $date) {
             $stmt = $pdo->prepare("INSERT INTO candidates (first_name, last_name, position_applied, email, phone_number, application_date, last_follow_up) VALUES (?, ?, ?, ?, ?, ?, ?)");
             $stmt->execute([$first, $last, $pos, $email, $phone, $date, $date]);
-
             // [FIX] Post-Redirect-Get to prevent duplication on reload
             $_SESSION['msg'] = "✅ Candidate added successfully.";
             header("Location: " . $redirectUrl);
             exit;
-        } else {
-            // Save error to session to persist after redirect (optional, or just show inline)
-            // For simplicity in this flow, we just let it fall through to render with $error set
         }
     }
 
@@ -85,7 +85,10 @@ try {
         $reject_reason = trim($_POST['rejection_reason'] ?? '');
         $is_blacklisted = isset($_POST['is_blacklisted']) ? 1 : 0;
 
-        if (strlen($notes) > 1000) {
+        $allowedStatuses = ['New Applicant', 'Screening', 'Interviewed', 'Hired', 'Rejected'];
+        if (!in_array($status, $allowedStatuses, true)) {
+            $error = "Invalid status value.";
+        } elseif (strlen($notes) > 1000) {
             $error = "Notes are too long (Max 1000 chars).";
         } else {
             $stmt = $pdo->prepare("UPDATE candidates SET status = ?, notes = ?, rejection_reason = ?, is_blacklisted = ?, last_follow_up = NOW() WHERE id = ?");
@@ -114,6 +117,13 @@ try {
         $intDate = $_POST['interview_date'];
         $message = trim($_POST['message']);
 
+        // Validate datetime format
+        if (empty($intDate) || !strtotime($intDate)) {
+            $_SESSION['error'] = "❌ Invalid interview date format.";
+            header("Location: " . $redirectUrl);
+            exit;
+        }
+
         // Fetch candidate email
         $stmt = $pdo->prepare("SELECT * FROM candidates WHERE id = ?");
         $stmt->execute([$id]);
@@ -124,13 +134,18 @@ try {
             $subject = "Interview Invitation - " . $cand['position_applied'];
             $headers = "From: HR Department <no-reply@company.com>";
 
+            // [NEW] System Notification
+            try {
+                $notifMsg = "Interview scheduled with " . $cand['first_name'] . " " . $cand['last_name'] . " for " . date('M d, Y h:i A', strtotime($intDate));
+                $pdo->prepare("INSERT INTO notifications (user_id, title, message, type) VALUES (?, 'Interview Scheduled', ?, 'info')")->execute([$_SESSION['user_id'], $notifMsg]);
+            } catch (PDOException $e) {
+                // Notification table may not exist; log but don't fail the operation
+                error_log("Failed to create notification: " . $e->getMessage());
+            }
+
             // Simple mail send (configure SMTP in php.ini for production)
             if (mail($to, $subject, $message, $headers)) {
                 $pdo->prepare("UPDATE candidates SET status = 'Interviewed', interview_date = ?, last_follow_up = NOW() WHERE id = ?")->execute([$intDate, $id]);
-
-                // [NEW] System Notification
-                $notifMsg = "Interview scheduled with " . $cand['first_name'] . " " . $cand['last_name'] . " for " . date('M d, Y h:i A', strtotime($intDate));
-                $pdo->prepare("INSERT INTO notifications (user_id, title, message, type) VALUES (?, 'Interview Scheduled', ?, 'info')")->execute([$_SESSION['user_id'], $notifMsg]);
 
                 $_SESSION['msg'] = "✅ Interview scheduled & email sent to " . $cand['email'];
             } else {
@@ -198,16 +213,21 @@ try {
         $params[] = $filterMonth;
     }
     if ($filterWeek) {
-        $year = (int)substr($filterWeek, 0, 4);
-        $week = (int)substr($filterWeek, 6);
-        $dto = new DateTime();
-        $dto->setISODate($year, $week);
-        $startDate = $dto->format('Y-m-d');
-        $dto->modify('+6 days');
-        $endDate = $dto->format('Y-m-d');
-        $sql .= " AND application_date BETWEEN ? AND ?";
-        $params[] = $startDate;
-        $params[] = $endDate;
+        // Validate week format (YYYY-Www)
+        if (!preg_match('/^\d{4}-W\d{2}$/', $filterWeek)) {
+            $filterWeek = ''; // Ignore invalid format
+        } else {
+            $year = (int)substr($filterWeek, 0, 4);
+            $week = (int)substr($filterWeek, 6);
+            $dto = new DateTime();
+            $dto->setISODate($year, $week);
+            $startDate = $dto->format('Y-m-d');
+            $dto->modify('+6 days');
+            $endDate = $dto->format('Y-m-d');
+            $sql .= " AND application_date BETWEEN ? AND ?";
+            $params[] = $startDate;
+            $params[] = $endDate;
+        }
     }
     $sql .= " ORDER BY application_date DESC";
     $stmt = $pdo->prepare($sql);

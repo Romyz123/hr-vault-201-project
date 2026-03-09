@@ -21,16 +21,22 @@ if ($filterMonth) {
     $params[] = $filterMonth;
 }
 if ($filterWeek) {
-    $year = (int)substr($filterWeek, 0, 4);
-    $week = (int)substr($filterWeek, 6);
-    $dto = new DateTime();
-    $dto->setISODate($year, $week);
-    $startDate = $dto->format('Y-m-d');
-    $dto->modify('+6 days');
-    $endDate = $dto->format('Y-m-d');
-    $sql .= " AND application_date BETWEEN ? AND ?";
-    $params[] = $startDate;
-    $params[] = $endDate;
+    if (!preg_match('/^\d{4}-W?\d{1,2}$/', $filterWeek)) {
+        // Invalid format, skip week filter
+    } else {
+        $year = (int)substr($filterWeek, 0, 4);
+        $week = (int)preg_replace('/^\d{4}-W?/', '', $filterWeek);
+        if ($week >= 1 && $week <= 53) {
+            $dto = new DateTime();
+            $dto->setISODate($year, $week);
+            $startDate = $dto->format('Y-m-d');
+            $dto->modify('+6 days');
+            $endDate = $dto->format('Y-m-d');
+            $sql .= " AND application_date BETWEEN ? AND ?";
+            $params[] = $startDate;
+            $params[] = $endDate;
+        }
+    }
 }
 $sql .= " ORDER BY application_date DESC";
 $stmt = $pdo->prepare($sql);
@@ -97,12 +103,12 @@ $candidates = $stmt->fetchAll();
 <body>
 
     <div class="no-print" style="margin-bottom: 20px; text-align: center;">
-        <button onclick="window.print()" style="padding: 10px 20px; font-weight: bold; cursor: pointer;">🖨️ Print Report</button>
-        <button onclick="window.close()" style="padding: 10px 20px; cursor: pointer;">Close</button>
-    </div>
-
-    <div class="header">
-        <h2>Recruitment Candidate List</h2>
+        <p>
+            Generated on: <?php echo date('F d, Y'); ?><br>
+            Filter: <?php echo $filterStatus ? htmlspecialchars($filterStatus) : 'All Status'; ?> |
+            Month: <?php echo $filterMonth ? date('F Y', strtotime($filterMonth)) : 'All Time'; ?>
+            <?php if ($filterWeek) echo " | Week: " . htmlspecialchars($filterWeek); ?>
+        </p>
         <p>
             Generated on: <?php echo date('F d, Y'); ?><br>
             Filter: <?php echo $filterStatus ? $filterStatus : 'All Status'; ?> |

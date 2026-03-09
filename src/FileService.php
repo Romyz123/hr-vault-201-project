@@ -58,13 +58,17 @@ class FileService
         // 1. Get Extension safely (e.g. 'pdf')
         $ext = strtolower(pathinfo($originalName, PATHINFO_EXTENSION));
 
+        // Validate extension contains only alphanumeric characters
+        if (!preg_match('/^[a-z0-9]{1,10}$/', $ext)) {
+            $ext = 'bin'; // Safe fallback
+        }
+
         // 2. Generate Random Filename (e.g. 'a8f9-b2c3.pdf')
         // We keep the extension so you know it's a PDF if DB fails
         $randomName = bin2hex(random_bytes(8)) . '.' . $ext;
 
         // 3. Define Full Target Path
         $targetPath = $this->vaultPath . $randomName;
-
         // 4. Encrypt & Save
         $content = file_get_contents($tempPath);
         if ($content === false) return false;
@@ -94,12 +98,15 @@ class FileService
         $decrypted = $this->decrypt($content);
 
         // [SECURITY] Strict Mode: Return false if decryption fails.
-        // Do NOT return raw content as fallback, as it masks encryption errors.
         return $decrypted;
     }
 
     private function logToManifest($storedName, $realName)
     {
+        // Sanitize input to prevent log injection
+        $realName = preg_replace('/[\r\n\x00]/', '', $realName);
+        $storedName = preg_replace('/[\r\n\x00]/', '', $storedName);
+
         // Format: [DATE] STORED_NAME | REAL_NAME
         $entry = sprintf("[%s] STORED: %s | REAL: %s" . PHP_EOL, date('Y-m-d H:i:s'), $storedName, $realName);
 
@@ -115,12 +122,11 @@ class FileService
         $decryptedLines = [];
 
         foreach ($lines as $line) {
-            $line = trim($line);
-            if (empty($line)) continue;
-
             $decrypted = $this->decrypt($line);
-            // Fallback for old unencrypted lines
-            $decryptedLines[] = ($decrypted !== false) ? $decrypted : $line;
+            // Strict Mode: Skip lines that fail decryption
+            if ($decrypted !== false) {
+                $decryptedLines[] = $decrypted;
+            }
         }
         return $decryptedLines;
     }
