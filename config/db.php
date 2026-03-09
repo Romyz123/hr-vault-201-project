@@ -19,12 +19,10 @@ if (!$isLocal && (empty($_SERVER['HTTPS']) || $_SERVER['HTTPS'] === "off")) {
     header('Location: ' . $location);
     exit;
 }
-
 // [MHI 5.3] Secure Session Parameters (HttpOnly, Secure, SameSite)
 ini_set('session.cookie_httponly', 1);
 ini_set('session.cookie_secure', $isLocal ? 0 : 1);
 ini_set('session.cookie_samesite', 'Strict');
-ini_set('session.gc_maxlifetime', 1800); // 30 Minutes
 try {
     $options = [
         PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
@@ -49,6 +47,19 @@ try {
     $port = $_ENV['DB_PORT'] ?? 3307;
     $dsn = "mysql:host={$dbHost};port={$port};dbname={$_ENV['DB_NAME']};charset={$_ENV['DB_CHARSET']}";
     $pdo = new PDO($dsn, $_ENV['DB_USER'], $_ENV['DB_PASS'], $options);
+
+    // [NEW] Fetch server-side session timeout from DB
+    $server_timeout = 1800; // Default 30 minutes
+    try {
+        $stmt = $pdo->query("SELECT setting_value FROM system_settings WHERE setting_key = 'session_timeout_server'");
+        $val = $stmt->fetchColumn();
+        if ($val !== false && (int)$val > 0) {
+            $server_timeout = (int)$val;
+        }
+    } catch (Exception $e) {
+        // Table might not exist, use default
+    }
+    ini_set('session.gc_maxlifetime', $server_timeout);
 } catch (\PDOException $e) {
     error_log($e->getMessage());
     // Provide a more helpful error message for XAMPP users

@@ -13,8 +13,25 @@ require '../src/SearchHelper.php';
 require 'options.php'; // [NEW] Load dynamic options
 session_start();
 
+// [NEW] Fetch Session Timeout settings
+$serverTimeout = 1800; // Default 30 mins
+$clientTimeout = 900;  // Default 15 mins
+try {
+    $stmt = $pdo->query("SELECT setting_key, setting_value FROM system_settings WHERE setting_key IN ('session_timeout_server', 'session_timeout_client')");
+    while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+        if ($row['setting_key'] === 'session_timeout_server' && (int)$row['setting_value'] > 0) {
+            $serverTimeout = (int)$row['setting_value'];
+        }
+        if ($row['setting_key'] === 'session_timeout_client' && (int)$row['setting_value'] > 0) {
+            $clientTimeout = (int)$row['setting_value'];
+        }
+    }
+} catch (Exception $e) {
+    // Settings table might not exist, use defaults
+}
+
 // [MHI 5.3] Strict Server-Side Session Timeout (30 Minutes)
-if (isset($_SESSION['last_activity']) && (time() - $_SESSION['last_activity'] > 1800)) {
+if (isset($_SESSION['last_activity']) && (time() - $_SESSION['last_activity'] > $serverTimeout)) {
     session_unset();
     session_destroy();
     header("Location: login.php?msg=" . urlencode("Session expired due to inactivity."));
@@ -692,7 +709,7 @@ $diskPercent = ($diskTotal > 0) ? round((($diskTotal - $diskFree) / $diskTotal) 
                 <div class="d-flex align-items-center ms-auto mt-3 mt-lg-0">
                     <!-- Session Timer -->
                     <div class="text-white me-3 small d-none d-md-block" title="Time until auto-logout">
-                        <i class="bi bi-hourglass-split"></i> <span id="sessionTimer" class="fw-bold font-monospace">15:00</span>
+                        <i class="bi bi-hourglass-split"></i> <span id="sessionTimer" class="fw-bold font-monospace"><?php echo floor($clientTimeout / 60) . ':' . str_pad($clientTimeout % 60, 2, '0', STR_PAD_LEFT); ?></span>
                     </div>
 
                     <!-- Auto-Refresh Toggle -->
@@ -2021,8 +2038,8 @@ $diskPercent = ($diskTotal > 0) ? round((($diskTotal - $diskFree) / $diskTotal) 
         });
 
         // ---------- [SECURITY] AUTO-LOGOUT (Client-Side) ----------
-        const INACTIVITY_LIMIT_MS = 900000; // 15 Minutes
-        let remainingMs = INACTIVITY_LIMIT_MS;
+        const INACTIVITY_LIMIT_MS = <?php echo $clientTimeout * 1000; ?>;
+        let remainingMs = INACTIVITY_LIMIT_MS; // Dynamic value in milliseconds
 
         function updateTimer() {
             remainingMs -= 1000;

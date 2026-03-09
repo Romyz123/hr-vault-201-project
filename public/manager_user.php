@@ -16,6 +16,18 @@ if (!isset($_SESSION['user_id']) || ($_SESSION['role'] ?? '') !== 'ADMIN') {
     exit;
 }
 
+// [NEW] Fetch Client-side session timeout from DB
+$clientTimeout = 900; // Default 15 minutes
+try {
+    $stmt = $pdo->query("SELECT setting_value FROM system_settings WHERE setting_key = 'session_timeout_client'");
+    $val = $stmt->fetchColumn();
+    if ($val !== false && (int)$val > 0) {
+        $clientTimeout = (int)$val;
+    }
+} catch (Exception $e) {
+    // Settings table might not exist, use default
+}
+
 // [SECURITY] Generate CSRF Token
 if (empty($_SESSION['csrf_token'])) {
     $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
@@ -721,8 +733,11 @@ $vaultChecked = ($bkVaultSetting === '1') ? 'checked' : '';
                                                         <hr>
                                                         <div class="mb-3">
                                                             <label class="form-label text-danger fw-bold">Reset Password (Optional)</label>
-                                                            <input type="password" name="password" class="form-control" placeholder="New Password (Min 15 chars)" minlength="15" maxlength="128" pattern="(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).{15,}" title="Must be at least 15 characters, contain Uppercase, Lowercase, Number, and Symbol.">
-                                                            <div class="form-text">Optional. Requirements: 15+ chars, Upper, Lower, #, Symbol.</div>
+                                                            <div class="input-group">
+                                                                <input type="password" name="password" id="resetPass<?php echo $u['id']; ?>" class="form-control" placeholder="New Password (Min 15 chars)" minlength="15" maxlength="128" pattern="(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).{15,}" title="Must be at least 15 characters, contain Uppercase, Lowercase, Number, and Symbol.">
+                                                                <button class="btn btn-outline-secondary" type="button" onclick="togglePass('resetPass<?php echo $u['id']; ?>')"><i class="bi bi-eye"></i></button>
+                                                            </div>
+                                                            <div class="form-text small">Optional. Requirements: 15+ chars, Upper, Lower, #, Symbol.</div>
                                                         </div>
                                                     </div>
                                                     <div class="modal-footer">
@@ -747,7 +762,7 @@ $vaultChecked = ($bkVaultSetting === '1') ? 'checked' : '';
         // ==========================================
         // [SECURITY] AUTO-LOGOUT (Client-Side)
         // ==========================================
-        const INACTIVITY_LIMIT = 900000; // 15 Minutes
+        const INACTIVITY_LIMIT = <?php echo $clientTimeout * 1000; ?>; // Dynamic value in milliseconds
         let autoLogoutTimer;
 
         function resetTimer() {
@@ -829,6 +844,18 @@ $vaultChecked = ($bkVaultSetting === '1') ? 'checked' : '';
                 }
             }
         });
+
+        function togglePass(id) {
+            const input = document.getElementById(id);
+            const icon = input.nextElementSibling.querySelector('i');
+            if (input.type === 'password') {
+                input.type = 'text';
+                icon.classList.replace('bi-eye', 'bi-eye-slash');
+            } else {
+                input.type = 'password';
+                icon.classList.replace('bi-eye-slash', 'bi-eye');
+            }
+        }
     </script>
 </body>
 

@@ -156,10 +156,10 @@ if ($format === 'word') {
 
     <body>
 
-        <div class="no-print">
+        <div class="no-print" style="display: flex; flex-direction: column; gap: 10px; width: 250px; margin: 20px auto;">
             <button onclick="window.print()" style="padding: 10px 20px; background: #0d6efd; color: white; border: none; cursor: pointer; font-weight: bold; border-radius: 5px;">🖨️ Print / Save as PDF</button>
-            <a href="<?php echo $_SERVER['REQUEST_URI'] . '&format=word'; ?>" style="padding: 10px 20px; background: #2a5298; color: white; border: none; cursor: pointer; font-weight: bold; border-radius: 5px; text-decoration: none; margin-left: 10px;">📄 Download as Word</a>
-            <button onclick="window.close()" style="padding: 10px 20px; background: #6c757d; color: white; border: none; cursor: pointer; font-weight: bold; border-radius: 5px; margin-left: 10px;">Close</button>
+            <a href="<?php echo $_SERVER['REQUEST_URI'] . '&format=word'; ?>" style="padding: 10px 20px; background: #2a5298; color: white; border: none; cursor: pointer; font-weight: bold; border-radius: 5px; text-decoration: none; text-align: center;">📄 Download as Word</a>
+            <button onclick="window.close()" style="padding: 10px 20px; background: #6c757d; color: white; border: none; cursor: pointer; font-weight: bold; border-radius: 5px;">Close</button>
         </div>
 
         <div class="page">
