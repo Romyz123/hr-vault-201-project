@@ -70,6 +70,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $is_2fa   = isset($_POST['is_2fa']) ? 1 : 0;
         $is_shared = isset($_POST['is_shared']) ? 1 : 0;
         $owner    = trim($_POST['account_owner']);
+        if ($owner === '') $owner = null; // [CONSISTENCY] Store NULL if empty
 
         // [PHASE 2 SECURITY] Strong Password Check
         if (strlen($password) < 15) {
@@ -84,6 +85,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
             $alertType = 'error';
             $alertMsg = "❌ Invalid email format.";
+        } elseif ($is_shared && empty($owner)) {
+            $alertType = 'error';
+            $alertMsg = "❌ Shared Account requires an Account Owner name.";
+        } elseif ($owner && strlen($owner) > 100) {
+            $alertType = 'error';
+            $alertMsg = "❌ Account Owner name too long (Max 100 chars).";
         } else {
             // Check Duplicate
             $check = $pdo->prepare("SELECT id FROM users WHERE username = ? OR email = ?");
@@ -113,6 +120,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $is_2fa   = isset($_POST['is_2fa']) ? 1 : 0;
         $is_shared = isset($_POST['is_shared']) ? 1 : 0;
         $owner    = trim($_POST['account_owner']);
+        if ($owner === '') $owner = null; // [CONSISTENCY] Store NULL if empty
         $new_pass = $_POST['password']; // Optional
 
         // Check email uniqueness (ignore self)
@@ -125,6 +133,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } elseif (!preg_match('/^[a-zA-Z0-9]+$/', $username)) {
             $alertType = 'error';
             $alertMsg = "❌ Username must be alphanumeric (letters & numbers only).";
+        } elseif ($is_shared && empty($owner)) {
+            $alertType = 'error';
+            $alertMsg = "❌ Shared Account requires an Account Owner name.";
+        } elseif ($owner && strlen($owner) > 100) {
+            $alertType = 'error';
+            $alertMsg = "❌ Account Owner name too long (Max 100 chars).";
         } else {
             // Update Info
             $sql = "UPDATE users SET username = ?, email = ?, role = ?, is_2fa_enabled = ?, is_shared = ?, account_owner = ? WHERE id = ?";
@@ -607,7 +621,7 @@ $vaultChecked = ($bkVaultSetting === '1') ? 'checked' : '';
                             </div>
                             <div class="mb-3" id="addOwnerDiv" style="display:none;">
                                 <label class="form-label fw-bold">Account Owner</label>
-                                <input type="text" name="account_owner" class="form-control" placeholder="Name of responsible person">
+                                <input type="text" name="account_owner" class="form-control" placeholder="Name of responsible person" maxlength="100">
                             </div>
                             <button type="submit" class="btn btn-success w-100">Create Account</button>
                         </form>
@@ -728,7 +742,7 @@ $vaultChecked = ($bkVaultSetting === '1') ? 'checked' : '';
                                                         </div>
                                                         <div class="mb-3" id="editOwnerDiv<?php echo $u['id']; ?>" style="display: <?php echo (!empty($u['is_shared'])) ? 'block' : 'none'; ?>;">
                                                             <label class="form-label fw-bold">Account Owner</label>
-                                                            <input type="text" name="account_owner" class="form-control" value="<?php echo htmlspecialchars($u['account_owner'] ?? ''); ?>">
+                                                            <input type="text" name="account_owner" class="form-control" value="<?php echo htmlspecialchars($u['account_owner'] ?? ''); ?>" maxlength="100">
                                                         </div>
                                                         <hr>
                                                         <div class="mb-3">

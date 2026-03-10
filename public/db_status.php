@@ -36,7 +36,7 @@ $columnSchema = [
         'failed_attempts' => "INT DEFAULT 0",
         'locked_until' => "DATETIME NULL",
         'is_shared' => "TINYINT(1) DEFAULT 0",
-        'account_owner' => "VARCHAR(100) NULL",
+        'account_owner' => "VARCHAR(100) NULL DEFAULT NULL",
         'last_verified_at' => "DATETIME NULL"
     ],
     'employees' => [

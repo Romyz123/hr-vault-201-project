@@ -987,7 +987,7 @@ $diskPercent = ($diskTotal > 0) ? round((($diskTotal - $diskFree) / $diskTotal) 
                 <div class="card h-100 shadow-soft">
                     <div class="card-header d-flex align-items-center">
                         <i class="bi bi-lightning-charge-fill me-2 text-warning"></i>
-                        <span class="fw-semibold">Quick Actions</span>
+                        <span class="fw-semibold">Actions</span>
                     </div>
                     <div class="card-body d-grid gap-2">
                         <a href="upload_form.php" class="btn btn-primary"><i class="bi bi-cloud-arrow-up"></i> Upload Document</a>

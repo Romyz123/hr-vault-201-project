@@ -23,6 +23,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
         $security->checkCSRF($_POST['csrf_token']);
 
+        // [FIX] Define checkboxes and handle unchecked states (which aren't sent in POST)
+        $checkboxes = ['maintenance_mode', 'backup_include_vault', 'staff_direct_approval'];
+        foreach ($checkboxes as $cb) {
+            $value = isset($_POST['settings'][$cb]) ? '1' : '0';
+            $stmt = $pdo->prepare("INSERT INTO system_settings (setting_key, setting_value) VALUES (?, ?) ON DUPLICATE KEY UPDATE setting_value = ?");
+            $stmt->execute([$cb, $value, $value]);
+        }
+
         // Loop through all posted settings
         foreach ($_POST['settings'] as $key => $value) {
             // Basic validation
@@ -62,11 +70,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     continue; // Skip this setting
                 }
                 $value = (int)$value;
-            }
-
-            // Handle checkboxes (if not present, value is '0')
-            if (in_array($key, ['maintenance_mode', 'backup_include_vault', 'staff_direct_approval'])) {
-                $value = isset($_POST['settings'][$key]) ? '1' : '0';
             }
 
             // Use INSERT ... ON DUPLICATE KEY UPDATE for efficiency
