@@ -225,7 +225,7 @@ end_post:
                             <strong>User passwords are securely hashed.</strong> If you forget your password, you must contact the Admin Manager to reset it.
                         </p>
                         <ul class="text-muted small mb-0">
-                            <li>Ensure your password is at least 12 characters long.</li>
+                            <li>Ensure your password is at least 15 characters long.</li>
                             <li>Avoid using easily guessable words like "123456" or your name.</li>
                             <li>Regularly updating your password helps protect the system.</li>
                         </ul>

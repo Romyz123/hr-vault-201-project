@@ -374,6 +374,11 @@ try {
             <div class="alert alert-danger no-print"><?php echo htmlspecialchars($error); ?></div>
         <?php endif; ?>
 
+        <div class="alert alert-info small p-2 no-print">
+            <i class="bi bi-info-circle-fill"></i>
+            <strong>Print Instructions:</strong> For best results, use your browser's "Print" function (Ctrl+P). In the print dialog, set the layout to <strong>Landscape</strong> and enable "Background graphics" to ensure colors and styles are included.
+        </div>
+
         <div class="row mb-4">
             <div class="col-md-4 mb-3">
                 <div class="card bg-primary text-white shadow-sm h-100">

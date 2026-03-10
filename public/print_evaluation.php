@@ -251,37 +251,29 @@ if (file_exists($logo_path)) {
             <div class="score-val"><?php echo htmlspecialchars($data['score']); ?> / 100</div>
             <div class="rating-val"><?php echo htmlspecialchars($data['rating']); ?></div>
         </div>
+    </div>
+    <div class="section-title">EVALUATOR'S REMARKS / COMMENTS</div>
+    <div class="section-title">EVALUATOR'S REMARKS / COMMENTS</div>
+    <div class="content-box"><?php echo nl2br(htmlspecialchars($data['remarks'] ?? 'N/A')); ?></div>
 
-        <div class="section-title">STRENGTHS / ACCOMPLISHMENTS</div>
-        <div class="content-box"><?php echo nl2br(htmlspecialchars($data['strengths'] ?? 'N/A')); ?></div>
-
-        <div class="section-title">AREAS FOR IMPROVEMENT</div>
-        <div class="content-box"><?php echo nl2br(htmlspecialchars($data['weaknesses'] ?? 'N/A')); ?></div>
-
-        <div class="section-title">GOALS FOR NEXT PERIOD</div>
-        <div class="content-box"><?php echo nl2br(htmlspecialchars($data['goals'] ?? 'N/A')); ?></div>
-
-        <div class="section-title">EVALUATOR'S REMARKS / COMMENTS</div>
-        <div class="content-box"><?php echo nl2br(htmlspecialchars($data['remarks'] ?? 'N/A')); ?></div>
-
-        <div class="footer">
-            <table style="width: 100%;">
-                <tr>
-                    <td style="width: 50%; padding-right: 20px;">
-                        <div style="font-weight: bold;">Evaluated by:</div>
-                        <div class="sig-line"></div>
-                        <div style="font-weight: bold; text-transform: uppercase;"><?php echo htmlspecialchars($data['evaluator']); ?></div>
-                        <div style="font-size: 9pt;">Evaluator / Supervisor</div>
-                    </td>
-                    <td style="width: 50%; padding-left: 20px;">
-                        <div style="font-weight: bold;">Acknowledged by:</div>
-                        <div class="sig-line"></div>
-                        <div style="font-weight: bold; text-transform: uppercase;"><?php echo htmlspecialchars($data['first_name'] . ' ' . $data['last_name']); ?></div>
-                        <div style="font-size: 9pt;">Employee Signature</div>
-                    </td>
-                </tr>
-            </table>
-        </div>
+    <div class="footer">
+        <table style="width: 100%;">
+            <tr>
+                <td style="width: 50%; padding-right: 20px;">
+                    <div style="font-weight: bold;">Evaluated by:</div>
+                    <div class="sig-line"></div>
+                    <div style="font-weight: bold; text-transform: uppercase;"><?php echo htmlspecialchars($data['evaluator']); ?></div>
+                    <div style="font-size: 9pt;">Evaluator / Supervisor</div>
+                </td>
+                <td style="width: 50%; padding-left: 20px;">
+                    <div style="font-weight: bold;">Acknowledged by:</div>
+                    <div class="sig-line"></div>
+                    <div style="font-weight: bold; text-transform: uppercase;"><?php echo htmlspecialchars($data['first_name'] . ' ' . $data['last_name']); ?></div>
+                    <div style="font-size: 9pt;">Employee Signature</div>
+                </td>
+            </tr>
+        </table>
+    </div>
     </div>
 
     <script>

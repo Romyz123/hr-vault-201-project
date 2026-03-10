@@ -182,6 +182,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
+    // --- UNLOCK USER ---
+    if (isset($_POST['action']) && $_POST['action'] === 'unlock') {
+        $id = $_POST['user_id'];
+        $stmt = $pdo->prepare("UPDATE users SET failed_attempts = 0, locked_until = NULL WHERE id = ?");
+        if ($stmt->execute([$id])) {
+            $logger->log($_SESSION['user_id'], 'USER_UNLOCK', "Unlocked User ID: $id");
+            $alertType = 'success';
+            $alertMsg = "✅ User account has been unlocked.";
+        } else {
+            $alertType = 'error';
+            $alertMsg = "❌ Failed to unlock user.";
+        }
+    }
+
+
     // --- RESTORE DATABASE ---
     if (isset($_FILES['restore_sql']) && $_FILES['restore_sql']['error'] === UPLOAD_ERR_OK) {
         // [SECURITY] Enforce Password Check
@@ -641,6 +656,7 @@ $vaultChecked = ($bkVaultSetting === '1') ? 'checked' : '';
                                     <th>Username</th>
                                     <th>Email</th>
                                     <th>Role</th>
+                                    <th>Status / Attempts</th>
                                     <th>Created</th>
                                     <th class="text-end">Actions</th>
                                 </tr>
@@ -648,7 +664,16 @@ $vaultChecked = ($bkVaultSetting === '1') ? 'checked' : '';
                             <tbody>
                                 <?php foreach ($users as $u): ?>
                                     <tr>
-                                        <td class="fw-bold">
+                                        <?php
+                                        $isLocked = false;
+                                        if (!empty($u['locked_until'])) {
+                                            try {
+                                                $isLocked = new DateTime($u['locked_until']) > new DateTime();
+                                            } catch (Exception $e) {
+                                                $isLocked = false; // Treat invalid date as not locked
+                                            }
+                                        }
+                                        ?> <td class="fw-bold">
                                             <?php echo htmlspecialchars($u['username']); ?>
                                             <?php if ($u['id'] == $_SESSION['user_id']) echo ' <span class="badge bg-info text-dark ms-1">You</span>'; ?>
                                         </td>
@@ -670,8 +695,25 @@ $vaultChecked = ($bkVaultSetting === '1') ? 'checked' : '';
                                                 <span class="badge bg-dark border border-light" title="Owner: <?php echo htmlspecialchars($u['account_owner']); ?>"><i class="bi bi-people"></i> Shared</span>
                                             <?php endif; ?>
                                         </td>
+                                        <td>
+                                            <?php if ($isLocked): ?>
+                                                <span class="badge bg-danger">LOCKED</span>
+                                            <?php elseif (($u['failed_attempts'] ?? 0) > 0): ?>
+                                                <span class="badge bg-warning text-dark"><?php echo (int)$u['failed_attempts']; ?> Failed</span>
+                                            <?php else: ?>
+                                                <span class="badge bg-success">Active</span>
+                                            <?php endif; ?>
+                                        </td>
                                         <td class="small text-muted"><?php echo date('M d, Y', strtotime($u['created_at'])); ?></td>
                                         <td class="text-end">
+                                            <?php if ($isLocked): ?>
+                                                <form method="POST" class="d-inline" onsubmit="return confirm('Unlock this user account?')">
+                                                    <input type="hidden" name="action" value="unlock">
+                                                    <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
+                                                    <input type="hidden" name="user_id" value="<?php echo $u['id']; ?>">
+                                                    <button type="submit" class="btn btn-sm btn-warning fw-bold"><i class="bi bi-unlock-fill"></i> Unlock</button>
+                                                </form>
+                                            <?php endif; ?>
                                             <button class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#editUser<?php echo $u['id']; ?>">
                                                 <i class="bi bi-pencil-square"></i> Edit
                                             </button>
