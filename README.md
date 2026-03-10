@@ -134,5 +134,3 @@ Admins can download a full SQL dump and encrypted Vault ZIP from **Manage Users 
 - Check `upload_max_filesize` and `post_max_size` in `php.ini`.
 
 ---
-
-_Generated for TESP IT Department_
