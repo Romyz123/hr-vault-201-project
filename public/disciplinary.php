@@ -53,7 +53,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
     $type       = trim($_POST['violation_type']);
     $date       = $_POST['incident_date'];
-    $action     = $_POST['action_taken'];
+    $action     = trim($_POST['action_taken']);
     $desc       = trim($_POST['description']);
 
     // [SECURITY] Input Validation
@@ -64,6 +64,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     } elseif (!preg_match('/^[a-zA-Z0-9\s\-\(\)\.\,]+$/', $type)) {
         $alertType = 'error';
         $alertMsg = "❌ Violation Type contains invalid characters. Allowed: Letters, Numbers, () - . ,";
+        $isValid = false;
+    } elseif (strlen($action) > 100) {
+        $alertType = 'error';
+        $alertMsg = "❌ Action Taken is too long (Max 100 chars).";
+        $isValid = false;
+    } elseif (empty($date) || !strtotime($date)) {
+        $alertType = 'error';
+        $alertMsg = "❌ Invalid Incident Date.";
         $isValid = false;
     } elseif (strlen($desc) > 5000) {
         $alertType = 'error';
@@ -232,7 +240,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 }
 
 // 4. FETCH DATA
-$search = Validator::sanitizeSearch($_GET['search'] ?? '');
+$search = isset($_GET['search']) ? trim($_GET['search']) : '';
+if (strlen($search) > 50) $search = substr($search, 0, 50);
+$search = preg_replace('/[^a-zA-Z0-9\s\-\.\,]/', '', $search);
 $filter_status = isset($_GET['status']) ? trim($_GET['status']) : '';
 
 $sql = "SELECT d.*, e.id AS emp_pk, e.first_name, e.last_name, e.dept FROM disciplinary_cases d JOIN employees e ON d.employee_id = e.emp_id WHERE 1=1";
@@ -326,7 +336,16 @@ if (isset($_GET['msg'])) {
                         <option value="Closed" <?php echo ($filter_status === 'Closed') ? 'selected' : ''; ?>>Closed Only</option>
                     </select>
                     <div class="input-group">
-                        <input type="text" name="search" class="form-control" placeholder="Search violation or name..." value="<?php echo htmlspecialchars($search); ?>">
+                        <input type="text" name="search" class="form-control" placeholder="Search violation or name..." value="<?php echo htmlspecialchars($search); ?>" maxlength="50" pattern="[a-zA-Z0-9\s\-\.\,]+" title="Allowed: Letters, Numbers, Spaces, - . ," list="disc_suggestions" autocomplete="off">
+                        <datalist id="disc_suggestions">
+                            <?php foreach ($emps as $e): ?>
+                                <option value="<?php echo htmlspecialchars($e['last_name'] . ', ' . $e['first_name'] . ' (' . $e['emp_id'] . ')'); ?>">
+                                <?php endforeach; ?>
+                                <option value="Tardiness">
+                                <option value="AWOL">
+                                <option value="Insubordination">
+                                <option value="Misconduct">
+                        </datalist>
                         <?php if ($search): ?>
                             <a href="disciplinary.php" class="btn btn-outline-secondary"><i class="bi bi-x-lg"></i></a>
                         <?php endif; ?>

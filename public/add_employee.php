@@ -1006,7 +1006,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     showConfirmButton: isPartial
                 });
                 if (window.history.replaceState) {
-                    window.history.replaceState(null, null, window.location.pathname);
+                    const url = new URL(window.location.href);
+                    url.searchParams.delete('msg');
+                    window.history.replaceState(null, null, url.toString());
                 }
             }
             if (urlParams.has('error')) {
@@ -1016,7 +1018,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     text: urlParams.get('error')
                 });
                 if (window.history.replaceState) {
-                    window.history.replaceState(null, null, window.location.pathname);
+                    const url = new URL(window.location.href);
+                    url.searchParams.delete('error');
+                    window.history.replaceState(null, null, url.toString());
                 }
             }
         });

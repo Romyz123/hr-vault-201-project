@@ -184,6 +184,34 @@ try {
         exit;
     }
 
+    // --- HANDLE HIRE CANDIDATE ---
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['hire_candidate'])) {
+        $security->checkCSRF($_POST['csrf_token']);
+        $id = (int)$_POST['candidate_id'];
+
+        // 1. Update Candidate Status to Hired
+        $stmt = $pdo->prepare("UPDATE candidates SET status = 'Hired', last_follow_up = NOW() WHERE id = ?");
+        $stmt->execute([$id]);
+
+        // 2. Fetch data to redirect to Add Employee form
+        $stmt = $pdo->prepare("SELECT * FROM candidates WHERE id = ?");
+        $stmt->execute([$id]);
+        $c = $stmt->fetch();
+
+        $params = http_build_query([
+            'first_name' => $c['first_name'],
+            'last_name' => $c['last_name'],
+            'job_title' => $c['position_applied'],
+            'email' => $c['email'],
+            'contact_number' => $c['phone_number'],
+            'hire_date' => date('Y-m-d')
+        ]);
+
+        $_SESSION['msg'] = "✅ Candidate marked as Hired. Please complete employee details.";
+        header("Location: add_employee.php?" . $params);
+        exit;
+    }
+
     // --- FETCH ANALYTICS DATA ---
     // 1. Total Candidates
     $total = $pdo->query("SELECT COUNT(*) FROM candidates")->fetchColumn();
@@ -333,9 +361,18 @@ try {
                 content: "Recruitment Pipeline Report";
                 display: block;
                 text-align: center;
-                font-size: 18pt;
+                font-size: 14pt;
                 font-weight: bold;
+                padding-top: 60px;
+                /* Space for logo */
                 margin-bottom: 20px;
+                border-bottom: 2px solid #666;
+                padding-bottom: 10px;
+                background-image: url('uploads/tesp logo 1.png');
+                /* Relative to public folder */
+                background-repeat: no-repeat;
+                background-size: 50px;
+                background-position: top center;
             }
 
             /* Hide Action Column in Print */
@@ -502,11 +539,14 @@ try {
                                                 <?php if ($isBlacklisted): ?>
                                                     <button class="btn btn-secondary disabled" title="Cannot Hire: Candidate is Blacklisted" disabled><i class="bi bi-person-x-fill"></i></button>
                                                 <?php else: ?>
-                                                    <a href="add_employee.php?first_name=<?php echo urlencode($c['first_name']); ?>&last_name=<?php echo urlencode($c['last_name']); ?>&job_title=<?php echo urlencode($c['position_applied']); ?>&email=<?php echo urlencode($c['email']); ?>&contact_number=<?php echo urlencode($c['phone_number']); ?>&hire_date=<?php echo date('Y-m-d'); ?>"
-                                                        class="btn btn-outline-success"
-                                                        title="Hire & Add to Employee Database">
-                                                        <i class="bi bi-person-check-fill"></i>
-                                                    </a>
+                                                    <form method="POST" class="d-inline" onsubmit="return confirm('Mark as Hired and proceed to Add Employee?');">
+                                                        <input type="hidden" name="hire_candidate" value="1">
+                                                        <input type="hidden" name="csrf_token" value="<?php echo $csrf_token; ?>">
+                                                        <input type="hidden" name="candidate_id" value="<?php echo $c['id']; ?>">
+                                                        <button type="submit" class="btn btn-outline-success" title="Hire & Add to Employee Database">
+                                                            <i class="bi bi-person-check-fill"></i>
+                                                        </button>
+                                                    </form>
                                                 <?php endif; ?>
                                                 <button type="button" class="btn btn-outline-primary" title="Schedule / Reschedule Interview" onclick='openScheduleModal(<?php echo $c['id']; ?>, <?php echo json_encode($c['email'], JSON_HEX_APOS | JSON_HEX_QUOT); ?>, <?php echo json_encode($c['first_name'], JSON_HEX_APOS | JSON_HEX_QUOT); ?>, <?php echo json_encode($c['interview_date'] ?? '', JSON_HEX_APOS | JSON_HEX_QUOT); ?>)'><i class="bi bi-calendar-event"></i></button>
                                                 <button type="button" class="btn btn-outline-info" title="Send Follow Up" onclick='openFollowUpModal(<?php echo $c['id']; ?>, <?php echo json_encode($c['email'], JSON_HEX_APOS | JSON_HEX_QUOT); ?>, <?php echo json_encode($c['first_name'], JSON_HEX_APOS | JSON_HEX_QUOT); ?>)'><i class="bi bi-envelope-arrow-up"></i></button>
@@ -577,6 +617,40 @@ try {
             </form>
         </div>
     </div>
+
+    <div class="modal fade" id="BlacklistModal" tabindex="-1">
+        <div class="modal-dialog">
+            <form method="POST" class="modal-content">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title">Blacklist Candidate</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" name="blacklist_candidate" value="1">
+                    <input type="hidden" name="csrf_token" value="<?php echo $csrf_token; ?>">
+                    <input type="hidden" name="candidate_id" id="del_id">
+
+                    Are you sure you want to Blacklist this candidate?
+                    This will prevent them from being hired
+                    <div class="mb-3">
+                        <label class="form-label">Reason</label>
+                        <textarea name="reason" class="form-control" rows="3" maxlength="255"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-danger">Blacklist</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+
+    <form id="blacklistForm" method="POST" style="display:none;">
+        <input type="hidden" name="blacklist_candidate" value="1">
+        <input type="hidden" name="csrf_token" value="<?php echo $csrf_token; ?>">
+        <input type="hidden" name="candidate_id" id="del_id">
+    </form>
 
     <!-- EDIT MODAL -->
     <div class="modal fade" id="editModal" tabindex="-1">
@@ -733,6 +807,8 @@ try {
 
         function deleteCandidate(id) {
             if (confirm('Are you sure you want to delete this candidate? This cannot be undone.')) {
+
+
                 document.getElementById('del_id').value = id;
                 document.getElementById('deleteForm').submit();
             }

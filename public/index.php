@@ -2089,7 +2089,9 @@ $diskPercent = ($diskTotal > 0) ? round((($diskTotal - $diskFree) / $diskTotal) 
             });
             // Clean URL
             if (window.history.replaceState) {
-                window.history.replaceState(null, null, window.location.pathname);
+                const url = new URL(window.location.href);
+                url.searchParams.delete('backup_msg'); // Assuming session param mapped to url sometimes
+                // If using pure session, this might be redundant but safe
             }
             <?php unset($_SESSION['backup_msg']); ?>
         <?php endif; ?>
@@ -2102,7 +2104,7 @@ $diskPercent = ($diskTotal > 0) ? round((($diskTotal - $diskFree) / $diskTotal) 
             });
             // Clean URL
             if (window.history.replaceState) {
-                window.history.replaceState(null, null, window.location.pathname);
+                // Session error usually doesn't need URL clean, but if it did:
             }
             <?php unset($_SESSION['error']); ?>
         <?php endif; ?>
@@ -2121,7 +2123,9 @@ $diskPercent = ($diskTotal > 0) ? round((($diskTotal - $diskFree) / $diskTotal) 
             localStorage.removeItem('hr_add_emp_draft');
             // Clean URL
             if (window.history.replaceState) {
-                window.history.replaceState(null, null, window.location.pathname);
+                const url = new URL(window.location.href);
+                url.searchParams.delete('msg');
+                window.history.replaceState(null, null, url.toString());
             }
         }
     </script>

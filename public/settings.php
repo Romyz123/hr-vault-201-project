@@ -274,6 +274,7 @@ $backupEmail = $settings['backup_alert_email'] ?? '';
                             <div class="mb-3">
                                 <label class="form-label fw-bold">Backup Path (Optional)</label>
                                 <input type="text" name="settings[backup_path]" class="form-control" value="<?php echo htmlspecialchars($backupPath); ?>" placeholder="e.g. C:\backups\">
+                                <input type="text" name="settings[backup_path]" class="form-control" value="<?php echo htmlspecialchars($backupPath); ?>" placeholder="e.g. C:\backups\" maxlength="255">
                                 <div class="form-text">Absolute path to a custom backup folder. Leave blank to use default `backups/` folder.</div>
                             </div>
                             <!-- [NEW from user code] Backup Password -->

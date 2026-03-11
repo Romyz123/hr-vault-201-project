@@ -844,7 +844,10 @@ $vaultChecked = ($bkVaultSetting === '1') ? 'checked' : '';
             });
             // [FIX] Clear URL parameters to prevent message from reappearing on refresh
             if (window.history.replaceState && window.location.search) {
-                window.history.replaceState(null, null, window.location.pathname);
+                const url = new URL(window.location.href);
+                url.searchParams.delete('msg');
+                url.searchParams.delete('error');
+                window.history.replaceState(null, null, url.toString());
             }
         <?php endif; ?>
 

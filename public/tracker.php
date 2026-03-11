@@ -861,7 +861,7 @@ if ($compliance !== '') {
                             <?php endif; ?>
                             <datalist id="search_suggestions">
                                 <?php foreach ($employees as $empSugg): ?>
-                                    <option value="<?php echo htmlspecialchars($empSugg['last_name'] . ', ' . $empSugg['first_name']); ?>">
+                                    <option value="<?php echo htmlspecialchars($empSugg['last_name'] . ', ' . $empSugg['first_name'] . ' (' . $empSugg['emp_id'] . ')'); ?>">
                                     <?php endforeach; ?>
                             </datalist>
                         </div>

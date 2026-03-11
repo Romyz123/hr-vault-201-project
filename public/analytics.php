@@ -502,13 +502,19 @@ if ($debug) {
                 page-break-inside: avoid;
             }
 
-            .col-md-3,
+            .col-md-3 {
+                float: left !important;
+                width: 50% !important;
+                padding: 6px !important;
+            }
+
+            /* Make Charts Full Width on Print */
             .col-md-4,
             .col-md-5,
             .col-md-6,
             .col-md-8 {
                 float: left !important;
-                width: 50% !important;
+                width: 100% !important;
                 padding: 6px !important;
             }
 

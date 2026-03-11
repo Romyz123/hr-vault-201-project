@@ -80,10 +80,84 @@ try {
 } catch (PDOException $e) {
 }
 
+// [AUTO-REPAIR] Add custom_reviewer column
+try {
+    $chkCol = $pdo->query("SHOW COLUMNS FROM hr_performance_reviews LIKE 'custom_reviewer'");
+    if ($chkCol->rowCount() == 0) {
+        $pdo->exec("ALTER TABLE hr_performance_reviews ADD COLUMN custom_reviewer VARCHAR(100) NULL AFTER reviewer_id");
+    }
+} catch (PDOException $e) {
+}
+
 $security = new Security($pdo);
 $logger = new Logger($pdo);
 $csrf_token = $security->generateCSRF();
 $msg = "";
+
+// [HELPER] Preserve Filters for Redirects
+$keepParams = array_intersect_key($_GET, array_flip(['search', 'filter_dept', 'filter_rating', 'filter_year']));
+
+// [NEW] HANDLE DELETE REVIEW
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_review'])) {
+    $security->checkCSRF($_POST['csrf_token']);
+    $del_id = (int)$_POST['review_id'];
+    $pdo->prepare("DELETE FROM hr_performance_reviews WHERE id = ?")->execute([$del_id]);
+    $logger->log($_SESSION['user_id'], 'DELETE_REVIEW', "Deleted performance review ID: $del_id");
+
+    $keepParams['msg'] = "🗑️ Review deleted successfully.";
+    header("Location: performance_review.php?" . http_build_query($keepParams));
+    exit;
+}
+
+// [NEW] HANDLE EDIT REVIEW
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_review'])) {
+    if (!$security->checkRateLimit($_SERVER['REMOTE_ADDR'])) {
+        die("Too many requests.");
+    }
+    try {
+        $security->checkCSRF($_POST['csrf_token']);
+
+        $edit_id = (int)$_POST['review_id'];
+        $date = $_POST['review_date'];
+        $rating = (int)$_POST['rating'];
+        $strengths = trim($_POST['strengths']);
+        $weaknesses = trim($_POST['weaknesses']);
+        $goals = trim($_POST['goals']);
+        $custom_reviewer = trim($_POST['reviewer_name']);
+
+        // [NEW] Validation and Character Limits
+        if ($rating < 1 || $rating > 5) {
+            $msg = "❌ Invalid rating selected.";
+        } elseif (strlen($strengths) > 5000) {
+            $msg = "❌ 'Strengths' field is too long (Max 5000 chars).";
+        } elseif (strlen($weaknesses) > 5000) {
+            $msg = "❌ 'Areas for Improvement' field is too long (Max 5000 chars).";
+        } elseif (strlen($goals) > 5000) {
+            $msg = "❌ 'Goals' field is too long (Max 5000 chars).";
+        } elseif (strlen($custom_reviewer) > 100) {
+            $msg = "❌ Reviewer Name is too long (Max 100 chars).";
+        }
+
+        if ($msg) {
+            goto end_of_post;
+        }
+
+        if ($edit_id && $date && $rating >= 1 && $rating <= 5) {
+            $stmt = $pdo->prepare("UPDATE hr_performance_reviews SET review_date = ?, rating = ?, strengths = ?, weaknesses = ?, goals = ?, custom_reviewer = ? WHERE id = ?");
+            $stmt->execute([$date, $rating, $strengths, $weaknesses, $goals, $custom_reviewer, $edit_id]);
+
+            $logger->log($_SESSION['user_id'], 'EDIT_REVIEW', "Updated performance review ID: $edit_id");
+
+            $keepParams['msg'] = "✅ Performance review updated successfully.";
+            header("Location: performance_review.php?" . http_build_query($keepParams));
+            exit;
+        } else {
+            $msg = "❌ Please fill all required fields.";
+        }
+    } catch (Exception $e) {
+        $msg = "Error: " . $e->getMessage();
+    }
+}
 
 // 2. HANDLE ADD REVIEW
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_review'])) {
@@ -99,6 +173,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_review'])) {
         $strengths = trim($_POST['strengths']);
         $weaknesses = trim($_POST['weaknesses']);
         $goals = trim($_POST['goals']);
+        $custom_reviewer = trim($_POST['reviewer_name']);
 
         // [NEW] Validation and Character Limits
         if ($rating < 1 || $rating > 5) {
@@ -109,6 +184,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_review'])) {
             $msg = "❌ 'Areas for Improvement' field is too long (Max 5000 chars).";
         } elseif (strlen($goals) > 5000) {
             $msg = "❌ 'Goals' field is too long (Max 5000 chars).";
+        } elseif (strlen($custom_reviewer) > 100) {
+            $msg = "❌ Reviewer Name is too long (Max 100 chars).";
         }
 
         if ($msg) {
@@ -116,11 +193,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_review'])) {
         }
 
         if ($emp_id && $date && $rating >= 1 && $rating <= 5) {
-            $stmt = $pdo->prepare("INSERT INTO hr_performance_reviews (employee_id, reviewer_id, review_date, rating, strengths, weaknesses, goals) VALUES (?, ?, ?, ?, ?, ?, ?)");
-            $stmt->execute([$emp_id, $_SESSION['user_id'], $date, $rating, $strengths, $weaknesses, $goals]);
+            $stmt = $pdo->prepare("INSERT INTO hr_performance_reviews (employee_id, reviewer_id, custom_reviewer, review_date, rating, strengths, weaknesses, goals) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+            $stmt->execute([$emp_id, $_SESSION['user_id'], $custom_reviewer, $date, $rating, $strengths, $weaknesses, $goals]);
 
             $logger->log($_SESSION['user_id'], 'ADD_REVIEW', "Added performance review for employee ID: $emp_id");
-            header("Location: performance_review.php?msg=" . urlencode("✅ Performance review added successfully."));
+
+            $keepParams['msg'] = "✅ Performance review added successfully.";
+            header("Location: performance_review.php?" . http_build_query($keepParams));
             exit;
         } else {
             $msg = "❌ Please fill all required fields.";
@@ -132,23 +211,94 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_review'])) {
 
 end_of_post:
 
-// 3. FETCH DATA
-$search = Validator::sanitizeSearch($_GET['search'] ?? '');
+// 3. FETCH FILTER OPTIONS & DATA
+$depts = $pdo->query("SELECT DISTINCT dept FROM employees WHERE dept != '' ORDER BY dept ASC")->fetchAll(PDO::FETCH_COLUMN);
+$years = $pdo->query("SELECT DISTINCT YEAR(review_date) FROM hr_performance_reviews ORDER BY 1 DESC")->fetchAll(PDO::FETCH_COLUMN);
 
-$search_sql = "";
+// [SECURITY] Input Validation & Sanitization
+$search = isset($_GET['search']) ? trim($_GET['search']) : '';
+if (mb_strlen($search) > 50) $search = mb_substr($search, 0, 50); // Enforce char limit (Safe for names)
+$search = preg_replace('/[^a-zA-Z0-9\s\-\.\,]/', '', $search); // Whitelist chars
+
+$filter_dept   = isset($_GET['filter_dept']) ? trim($_GET['filter_dept']) : '';
+$filter_rating = isset($_GET['filter_rating']) ? (int)$_GET['filter_rating'] : '';
+$filter_year   = isset($_GET['filter_year']) ? (int)$_GET['filter_year'] : '';
+
+$conditions = [];
 $params = [];
-if ($search) {
-    $search_sql = "WHERE (e.first_name LIKE ? OR e.last_name LIKE ? OR e.emp_id LIKE ?)";
-    $term = "%$search%";
-    $params = [$term, $term, $term];
+
+if (!empty($search)) {
+    $terms = preg_split('/[\s,]+/', $search, -1, PREG_SPLIT_NO_EMPTY);
+    foreach ($terms as $term) {
+        $conditions[] = "(e.first_name LIKE ? OR e.last_name LIKE ? OR e.emp_id LIKE ?)";
+        $t = "%$term%";
+        array_push($params, $t, $t, $t);
+    }
+}
+if ($filter_dept) {
+    $conditions[] = "e.dept = ?";
+    $params[] = $filter_dept;
+}
+if ($filter_rating) {
+    $conditions[] = "p.rating = ?";
+    $params[] = $filter_rating;
+}
+if ($filter_year) {
+    $conditions[] = "YEAR(p.review_date) = ?";
+    $params[] = $filter_year;
+}
+
+$where_sql = $conditions ? "WHERE " . implode(' AND ', $conditions) : "";
+
+// [NEW] EXPORT TO EXCEL HANDLER
+if (isset($_GET['export'])) {
+    // 1. Headers for Download
+    header('Content-Type: text/csv; charset=utf-8');
+    header('Content-Disposition: attachment; filename=Performance_Reviews_' . date('Y-m-d') . '.csv');
+
+    // 2. Open Output Stream
+    $output = fopen('php://output', 'w');
+    fwrite($output, "\xEF\xBB\xBF"); // BOM for Excel compatibility
+
+    // 3. CSV Column Headers
+    fputcsv($output, ['Review Date', 'Employee Name', 'ID', 'Dept', 'Rating', 'Strengths', 'Areas for Improvement', 'Goals', 'Reviewer']);
+
+    // 4. Fetch Data using same filters
+    $expStmt = $pdo->prepare("
+        SELECT p.*, e.first_name, e.last_name, e.emp_id, e.dept, u.username, u.account_owner
+        FROM hr_performance_reviews p
+        JOIN employees e ON p.employee_id = e.id
+        JOIN users u ON p.reviewer_id = u.id
+        $where_sql
+        ORDER BY p.review_date DESC
+    ");
+    $expStmt->execute($params);
+
+    while ($row = $expStmt->fetch(PDO::FETCH_ASSOC)) {
+        // Logic: Custom Reviewer > Account Owner > Username
+        $reviewer = !empty($row['custom_reviewer']) ? $row['custom_reviewer'] : (!empty($row['account_owner']) ? $row['account_owner'] : $row['username']);
+        fputcsv($output, [
+            $row['review_date'],
+            $row['last_name'] . ', ' . $row['first_name'],
+            $row['emp_id'],
+            $row['dept'],
+            $row['rating'],
+            $row['strengths'],
+            $row['weaknesses'],
+            $row['goals'],
+            $reviewer
+        ]);
+    }
+    fclose($output);
+    exit;
 }
 
 $reviewsStmt = $pdo->prepare("
-    SELECT p.*, e.first_name, e.last_name, e.emp_id, u.username as reviewer_name
+    SELECT p.*, e.first_name, e.last_name, e.emp_id, e.dept, u.username, u.account_owner
     FROM hr_performance_reviews p
     JOIN employees e ON p.employee_id = e.id
     JOIN users u ON p.reviewer_id = u.id
-    $search_sql
+    $where_sql
     ORDER BY p.review_date DESC
 ");
 $reviewsStmt->execute($params);
@@ -156,6 +306,14 @@ $reviewsArray = $reviewsStmt->fetchAll(PDO::FETCH_ASSOC);
 
 // Fetch employees for dropdown
 $employees = $pdo->query("SELECT id, first_name, last_name, emp_id FROM employees WHERE status = 'Active' ORDER BY last_name ASC")->fetchAll();
+
+// [NEW] Fetch current user's name preference for default value
+$currentUser = [];
+if (isset($_SESSION['user_id'])) {
+    $uStmt = $pdo->prepare("SELECT username, account_owner FROM users WHERE id = ?");
+    $uStmt->execute([$_SESSION['user_id']]);
+    $currentUser = $uStmt->fetch();
+}
 
 // [NEW] Fuzzy Search Logic (Did you mean?)
 $didYouMean = null;
@@ -192,7 +350,8 @@ if (count($reviewsArray) === 0 && !empty($search)) {
             .btn,
             form,
             .modal,
-            .alert {
+            .alert,
+            .no-print {
                 display: none !important;
             }
 
@@ -235,6 +394,12 @@ if (count($reviewsArray) === 0 && !empty($search)) {
                 /* Ensure borders print */
             }
 
+            /* Hide Action Column in Print */
+            th:last-child,
+            td:last-child {
+                display: none !important;
+            }
+
             /* Assign specific widths to columns to balance the paper */
             th:nth-child(1) {
                 width: 10%;
@@ -252,17 +417,17 @@ if (count($reviewsArray) === 0 && !empty($search)) {
 
             /* Rating */
             th:nth-child(4) {
-                width: 27%;
+                width: 25%;
             }
 
             /* Strengths */
             th:nth-child(5) {
-                width: 27%;
+                width: 25%;
             }
 
             /* Weaknesses */
             th:nth-child(6) {
-                width: 6%;
+                width: 10%;
             }
 
             /* Reviewer */
@@ -272,9 +437,17 @@ if (count($reviewsArray) === 0 && !empty($search)) {
                 content: "HR Performance Reviews Report";
                 display: block;
                 text-align: center;
-                font-size: 18pt;
+                font-size: 14pt;
                 font-weight: bold;
+                padding-top: 60px;
+                /* Space for logo */
                 margin-bottom: 20px;
+                border-bottom: 2px solid #666;
+                padding-bottom: 10px;
+                background-image: url('uploads/tesp logo 1.png');
+                background-repeat: no-repeat;
+                background-size: 50px;
+                background-position: top center;
             }
 
             /* Prevent rows from splitting in half across pages */
@@ -307,7 +480,9 @@ if (count($reviewsArray) === 0 && !empty($search)) {
             </div>
             <script>
                 if (window.history.replaceState) {
-                    window.history.replaceState(null, null, window.location.pathname);
+                    const url = new URL(window.location.href);
+                    url.searchParams.delete('msg');
+                    window.history.replaceState(null, null, url.toString());
                 }
             </script>
         <?php endif; ?>
@@ -316,12 +491,12 @@ if (count($reviewsArray) === 0 && !empty($search)) {
             <div class="alert alert-info"><?php echo htmlspecialchars($msg); ?></div>
         <?php endif; ?>
 
-        <div class="d-flex justify-content-between align-items-center mb-3">
+        <div class="d-flex justify-content-between align-items-center mb-3 no-print">
             <form class="d-flex gap-2" style="width: 400px;">
                 <input type="text" name="search" class="form-control" placeholder="Search Employee..." value="<?php echo htmlspecialchars($search); ?>" maxlength="50" list="emp_suggestions" autocomplete="off">
                 <datalist id="emp_suggestions">
                     <?php foreach ($employees as $emp): ?>
-                        <option value="<?php echo htmlspecialchars($emp['last_name'] . ', ' . $emp['first_name']); ?>">
+                        <option value="<?php echo htmlspecialchars($emp['last_name'] . ', ' . $emp['first_name'] . ' (' . $emp['emp_id'] . ')'); ?>">
                         <?php endforeach; ?>
                 </datalist>
                 <button type="submit" class="btn btn-primary"><i class="bi bi-search"></i></button>
@@ -357,7 +532,7 @@ if (count($reviewsArray) === 0 && !empty($search)) {
                             <th>Rating</th>
                             <th>Strengths</th>
                             <th>Areas for Improvement</th>
-                            <th>Review</th>
+                            <th>Performance Reviewer</th>
                             <th>Action</th>
                         </tr>
                     </thead>
@@ -376,11 +551,22 @@ if (count($reviewsArray) === 0 && !empty($search)) {
                                 </td>
                                 <td class="small"><?php echo nl2br(htmlspecialchars($row['strengths'])); ?></td>
                                 <td class="small"><?php echo nl2br(htmlspecialchars($row['weaknesses'])); ?></td>
-                                <td><span class="badge bg-secondary"><?php echo htmlspecialchars($row['reviewer_name']); ?></span></td>
                                 <td>
-                                    <a href="print_evaluation.php?id=<?php echo $row['id']; ?>" target="_blank" class="btn btn-sm btn-outline-dark" title="Print">
-                                        <i class="bi bi-printer"></i>
-                                    </a>
+                                    <?php
+                                    $reviewer = !empty($row['custom_reviewer']) ? $row['custom_reviewer'] : (!empty($row['account_owner']) ? $row['account_owner'] : $row['username']);
+                                    ?>
+                                    <span class="badge bg-secondary"><?php echo htmlspecialchars($reviewer); ?></span>
+                                </td>
+                                <td>
+                                    <button type="button" class="btn btn-sm btn-outline-primary me-1" onclick='openEditModal(<?php echo $row['id']; ?>, <?php echo json_encode($row['review_date']); ?>, <?php echo $row['rating']; ?>, <?php echo json_encode($row['strengths'] ?? "", JSON_HEX_APOS | JSON_HEX_QUOT); ?>, <?php echo json_encode($row['weaknesses'] ?? "", JSON_HEX_APOS | JSON_HEX_QUOT); ?>, <?php echo json_encode($row['goals'] ?? "", JSON_HEX_APOS | JSON_HEX_QUOT); ?>, <?php echo json_encode($reviewer, JSON_HEX_APOS | JSON_HEX_QUOT); ?>)' title="Edit">
+                                        <i class="bi bi-pencil-square"></i>
+                                    </button>
+                                    <form method="POST" onsubmit="return confirm('Are you sure you want to delete this review?');" class="d-inline">
+                                        <input type="hidden" name="delete_review" value="1">
+                                        <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token); ?>">
+                                        <input type="hidden" name="review_id" value="<?php echo $row['id']; ?>">
+                                        <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete"><i class="bi bi-trash"></i></button>
+                                    </form>
                                 </td>
                             </tr>
                         <?php endforeach; ?>
@@ -433,6 +619,10 @@ if (count($reviewsArray) === 0 && !empty($search)) {
                                 <option value="1">1 - Unsatisfactory</option>
                             </select>
                         </div>
+                        <div class="col-md-12 mb-3">
+                            <label class="form-label fw-bold">Reviewer Name</label>
+                            <input type="text" name="reviewer_name" class="form-control" value="<?php echo htmlspecialchars($currentUser['account_owner'] ?? $currentUser['username'] ?? ''); ?>" maxlength="100" placeholder="Name of person conducting the review">
+                        </div>
                     </div>
 
                     <div class="mb-3">
@@ -457,7 +647,76 @@ if (count($reviewsArray) === 0 && !empty($search)) {
         </div>
     </div>
 
+    <!-- EDIT REVIEW MODAL -->
+    <div class="modal fade" id="editReviewModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <form method="POST" class="modal-content">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title">Edit Performance Review</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" name="edit_review" value="1">
+                    <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token); ?>">
+                    <input type="hidden" name="review_id" id="edit_review_id">
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">Review Date</label>
+                            <input type="date" name="review_date" id="edit_review_date" class="form-control" required>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">Overall Rating</label>
+                            <select name="rating" id="edit_rating" class="form-select" required>
+                                <option value="5">5 - Excellent</option>
+                                <option value="4">4 - Exceeds Expectations</option>
+                                <option value="3">3 - Meets Expectations</option>
+                                <option value="2">2 - Needs Improvement</option>
+                                <option value="1">1 - Unsatisfactory</option>
+                            </select>
+                        </div>
+                        <div class="col-md-12 mb-3">
+                            <label class="form-label fw-bold">Reviewer Name</label>
+                            <input type="text" name="reviewer_name" id="edit_reviewer_name" class="form-control" maxlength="100" placeholder="Name of person conducting the review">
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Strengths / Accomplishments</label>
+                        <textarea name="strengths" id="edit_strengths" class="form-control" rows="3" maxlength="5000"></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Areas for Improvement</label>
+                        <textarea name="weaknesses" id="edit_weaknesses" class="form-control" rows="3" maxlength="5000"></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Goals for Next Period</label>
+                        <textarea name="goals" id="edit_goals" class="form-control" rows="3" maxlength="5000"></textarea>
+                    </div>
+
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save Changes</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <script src="assets/bootstrap.bundle.min.js"></script>
+    <script>
+        function openEditModal(id, date, rating, strengths, weaknesses, goals, reviewer) {
+            document.getElementById('edit_review_id').value = id;
+            document.getElementById('edit_review_date').value = date;
+            document.getElementById('edit_rating').value = rating;
+            document.getElementById('edit_strengths').value = strengths;
+            document.getElementById('edit_weaknesses').value = weaknesses;
+            document.getElementById('edit_goals').value = goals;
+            document.getElementById('edit_reviewer_name').value = reviewer;
+
+            new bootstrap.Modal(document.getElementById('editReviewModal')).show();
+        }
+    </script>
 </body>
 
 </html>
