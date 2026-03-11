@@ -633,10 +633,7 @@ if (count($reviewsArray) === 0 && !empty($search)) {
                         <label class="form-label">Areas for Improvement</label>
                         <textarea name="weaknesses" class="form-control" rows="3" placeholder="e.g., Can improve on time management for larger projects..." maxlength="5000"></textarea>
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label">Goals for Next Period</label>
-                        <textarea name="goals" class="form-control" rows="3" placeholder="e.g., Complete advanced training course, Lead a small project..." maxlength="5000"></textarea>
-                    </div>
+
 
                 </div>
                 <div class="modal-footer">
@@ -688,10 +685,6 @@ if (count($reviewsArray) === 0 && !empty($search)) {
                     <div class="mb-3">
                         <label class="form-label">Areas for Improvement</label>
                         <textarea name="weaknesses" id="edit_weaknesses" class="form-control" rows="3" maxlength="5000"></textarea>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Goals for Next Period</label>
-                        <textarea name="goals" id="edit_goals" class="form-control" rows="3" maxlength="5000"></textarea>
                     </div>
 
                 </div>
