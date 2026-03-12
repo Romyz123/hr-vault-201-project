@@ -4,9 +4,10 @@ require '../config/db.php';
 require '../src/Security.php';
 require '../src/Logger.php';
 session_start();
+checkSessionTimeout($pdo); // [SECURITY] Enforce Timeout
 
-// 1. SECURITY: Admin/Manager Only
-if (!isset($_SESSION['user_id']) || !in_array($_SESSION['role'], ['ADMIN', 'MANAGER'])) {
+// 1. SECURITY: Admin Only
+if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'ADMIN') {
     header("Location: index.php");
     exit;
 }
@@ -135,6 +136,7 @@ $backupEmail = $settings['backup_alert_email'] ?? '';
         <div class="container">
             <a class="navbar-brand" href="index.php">Back to Dashboard</a>
             <span class="navbar-text text-white"><i class="bi bi-sliders"></i> System Settings</span>
+            <span class="navbar-text text-white-50 ms-3 font-monospace small"><i class="bi bi-clock"></i> <span id="sessionTimer"></span></span>
         </div>
     </nav>
 
@@ -398,6 +400,22 @@ $backupEmail = $settings['backup_alert_email'] ?? '';
             });
             // In a real scenario, you'd fetch a test endpoint here.
         }
+
+        // [SECURITY] Auto-Logout Timer
+        const timeoutDuration = <?php echo $clientTimeout * 1000; ?>;
+        let timeLeft = timeoutDuration;
+
+        function updateTimer() {
+            timeLeft -= 1000;
+            if (timeLeft <= 0) window.location.href = 'logout.php';
+            const m = Math.floor(timeLeft / 60000);
+            const s = Math.floor((timeLeft % 60000) / 1000);
+            document.getElementById('sessionTimer').innerText = `${m}:${s.toString().padStart(2, '0')}`;
+        }
+        document.addEventListener('mousemove', () => timeLeft = timeoutDuration);
+        document.addEventListener('keypress', () => timeLeft = timeoutDuration);
+        setInterval(updateTimer, 1000);
+        updateTimer();
     </script>
 </body>
 

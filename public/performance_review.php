@@ -5,6 +5,7 @@ require '../src/Logger.php';
 require '../src/Validator.php';
 require '../src/SearchHelper.php';
 session_start();
+checkSessionTimeout($pdo); // [SECURITY] Enforce Timeout
 
 // 1. SECURITY: Admin, Manager, HR Only
 if (!isset($_SESSION['user_id']) || !in_array($_SESSION['role'], ['ADMIN', 'MANAGER', 'HR'])) {

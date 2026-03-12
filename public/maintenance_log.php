@@ -9,6 +9,7 @@ require '../src/Security.php';
 require '../src/Logger.php';
 require '../src/Validator.php';
 session_start();
+checkSessionTimeout($pdo); // [SECURITY] Enforce Timeout
 
 // 1. SECURITY: Admin Only
 if (!isset($_SESSION['user_id']) || ($_SESSION['role'] ?? '') !== 'ADMIN') {
@@ -503,7 +504,10 @@ $emps = $pdo->query("SELECT emp_id, first_name, last_name FROM employees WHERE s
                     <div class="mb-3"><label class="form-label">External Vendor (Optional)</label><input type="text" name="vendor_name" class="form-control" placeholder="e.g. Dell Support, HP Technician" maxlength="100"></div>
                     <div class="mb-3">
                         <label class="form-label">Confirm Password</label>
-                        <input type="password" name="admin_password" class="form-control" placeholder="Enter your account password to confirm" required maxlength="128">
+                        <div class="input-group">
+                            <input type="password" name="admin_password" id="add_admin_password" class="form-control" placeholder="Enter your account password to confirm" required maxlength="128">
+                            <button class="btn btn-outline-secondary" type="button" onclick="togglePass('add_admin_password')"><i class="bi bi-eye"></i></button>
+                        </div>
                         <div class="form-text text-muted small"><i class="bi bi-shield-lock"></i> Required for security audit logging.</div>
                     </div>
                 </div>
@@ -549,7 +553,10 @@ $emps = $pdo->query("SELECT emp_id, first_name, last_name FROM employees WHERE s
                     <div class="mb-3"><label class="form-label">External Vendor (Optional)</label><input type="text" name="vendor_name" id="edit_vendor_name" class="form-control" maxlength="100"></div>
                     <div class="mb-3">
                         <label class="form-label">Confirm Password</label>
-                        <input type="password" name="admin_password" id="edit_admin_password" class="form-control" placeholder="Enter your account password to confirm" required maxlength="128">
+                        <div class="input-group">
+                            <input type="password" name="admin_password" id="edit_admin_password" class="form-control" placeholder="Enter your account password to confirm" required maxlength="128">
+                            <button class="btn btn-outline-secondary" type="button" onclick="togglePass('edit_admin_password')"><i class="bi bi-eye"></i></button>
+                        </div>
                         <div class="form-text text-muted small"><i class="bi bi-shield-lock"></i> Required for security audit logging.</div>
                     </div>
                 </div>
@@ -615,6 +622,18 @@ $emps = $pdo->query("SELECT emp_id, first_name, last_name FROM employees WHERE s
             document.getElementById('edit_vendor_name').value = data.vendor_name;
             document.getElementById('edit_admin_password').value = '';
             modal.show();
+        }
+
+        function togglePass(id) {
+            const input = document.getElementById(id);
+            const icon = input.nextElementSibling.querySelector('i');
+            if (input.type === 'password') {
+                input.type = 'text';
+                icon.classList.replace('bi-eye', 'bi-eye-slash');
+            } else {
+                input.type = 'password';
+                icon.classList.replace('bi-eye-slash', 'bi-eye');
+            }
         }
     </script>
 </body>

@@ -11,8 +11,8 @@ error_reporting(E_ALL);
 // Load settings directly from PHP file instead of .env to avoid permission errors
 $_ENV = require 'config.php';
 
-// [MHI 5.4] Enforce HTTPS (Skip for Localhost to avoid ERR_SSL_PROTOCOL_ERROR)
-$isLocal = in_array($_SERVER['SERVER_NAME'], ['localhost', '127.0.0.1', '::1']);
+// [MHI 5.4] Enforce HTTPS (Skip for Localhost or CLI to avoid ERR_SSL_PROTOCOL_ERROR)
+$isLocal = (php_sapi_name() === 'cli') || in_array($_SERVER['REMOTE_ADDR'] ?? '', ['127.0.0.1', '::1']);
 if (!$isLocal && (empty($_SERVER['HTTPS']) || $_SERVER['HTTPS'] === "off")) {
     $location = 'https://' . $_SERVER['SERVER_NAME'] . $_SERVER['REQUEST_URI'];
     header('HTTP/1.1 301 Moved Permanently');
@@ -67,4 +67,25 @@ try {
         die("Database connection error: Target machine actively refused connection. <br><strong>Solution:</strong> Ensure MySQL is running in XAMPP Control Panel. If it is running, check if it's using Port 3306 or 3307 and update config/config.php.");
     }
     die("Database connection error: " . $e->getMessage());
+}
+
+// [SECURITY] Strict Session Timeout Enforcer
+function checkSessionTimeout($pdo)
+{
+    if (session_status() === PHP_SESSION_NONE) return;
+
+    $timeout = 1800; // Default 30 mins
+    try {
+        $val = $pdo->query("SELECT setting_value FROM system_settings WHERE setting_key = 'session_timeout_server'")->fetchColumn();
+        if ($val) $timeout = (int)$val;
+    } catch (Exception $e) {
+    }
+
+    if (isset($_SESSION['last_activity']) && (time() - $_SESSION['last_activity'] > $timeout)) {
+        session_unset();
+        session_destroy();
+        header("Location: login.php?msg=" . urlencode("Session expired due to inactivity."));
+        exit;
+    }
+    $_SESSION['last_activity'] = time();
 }

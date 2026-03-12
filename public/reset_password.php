@@ -37,7 +37,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     $validToken = $_POST['token_check']; // Hidden field
 
     // Re-verify to be safe
-    $stmt = $pdo->prepare("SELECT id, password_changed_at FROM users WHERE reset_token = ? AND reset_expires > ?");
+    $stmt = $pdo->prepare("SELECT id, username, password_changed_at FROM users WHERE reset_token = ? AND reset_expires > ?");
     $stmt->execute([$validToken, date('Y-m-d H:i:s')]);
     $user = $stmt->fetch();
 
@@ -57,8 +57,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             if ($pass !== $confirm) {
                 $error = "Passwords do not match.";
                 $step = 'reset';
-            } elseif (strlen($pass) < 12 || strlen($pass) > 128 || !preg_match('/[a-zA-Z]/', $pass) || !preg_match('/[0-9]/', $pass) || !preg_match('/[\W_]/', $pass)) {
-                $error = "Password must be 12+ chars, with a letter, number & symbol.";
+            } elseif (strlen($pass) < 15 || strlen($pass) > 128 || !preg_match('/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_])/', $pass)) {
+                $error = "Password must be 15+ chars, with Uppercase, Lowercase, Number & Symbol.";
+                $step = 'reset';
+            } elseif (stripos($pass, $user['username']) !== false) {
+                $error = "Password cannot contain your Username.";
                 $step = 'reset';
             } else {
                 // [SECURITY] 2. Password History Tracking (Last 3)
@@ -242,7 +245,7 @@ if ($step === 'reset' && empty($_SESSION['reset_csrf'])) {
                         </div>
                         <!-- Real-time Validation Checklist -->
                         <div class="mt-2 ps-1">
-                            <div id="rule-len" class="validation-item"><i class="bi bi-circle"></i> At least 12 characters</div>
+                            <div id="rule-len" class="validation-item"><i class="bi bi-circle"></i> At least 15 characters</div>
                             <div id="rule-let" class="validation-item"><i class="bi bi-circle"></i> Contains a letter</div>
                             <div id="rule-num" class="validation-item"><i class="bi bi-circle"></i> Contains a number (0-9)</div>
                             <div id="rule-sym" class="validation-item"><i class="bi bi-circle"></i> Contains a symbol (!@#$)</div>
@@ -291,7 +294,7 @@ if ($step === 'reset' && empty($_SESSION['reset_csrf'])) {
             const rules = {
                 len: {
                     el: document.getElementById('rule-len'),
-                    regex: /^.{12,128}$/
+                    regex: /^.{15,128}$/
                 },
                 let: {
                     el: document.getElementById('rule-let'),

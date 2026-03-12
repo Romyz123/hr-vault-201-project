@@ -260,7 +260,9 @@ $logs = $stmt->fetchAll();
                 <?php endif; ?>
                 <button class="btn btn-warning me-2" data-bs-toggle="modal" data-bs-target="#manualLogModal"><i class="bi bi-pencil-square"></i> Add Note</button>
                 <span class="badge bg-white text-dark border me-2"><i class="bi bi-clock"></i> Server Time: <?php echo date('H:i'); ?></span>
-                <a href="settings.php" class="btn btn-outline-dark me-2"><i class="bi bi-gear-fill"></i> Settings</a>
+                <?php if ($_SESSION['role'] === 'ADMIN'): ?>
+                    <a href="settings.php" class="btn btn-outline-dark me-2"><i class="bi bi-gear-fill"></i> Settings</a>
+                <?php endif; ?>
             </div>
         </div>
 

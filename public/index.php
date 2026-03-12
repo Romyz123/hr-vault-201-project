@@ -12,6 +12,7 @@ require '../src/Validator.php';
 require '../src/SearchHelper.php';
 require 'options.php'; // [NEW] Load dynamic options
 session_start();
+checkSessionTimeout($pdo); // [SECURITY] Enforce Timeout
 
 // [NEW] Fetch Session Timeout settings
 $serverTimeout = 1800; // Default 30 mins
@@ -29,15 +30,6 @@ try {
 } catch (Exception $e) {
     // Settings table might not exist, use defaults
 }
-
-// [MHI 5.3] Strict Server-Side Session Timeout (30 Minutes)
-if (isset($_SESSION['last_activity']) && (time() - $_SESSION['last_activity'] > $serverTimeout)) {
-    session_unset();
-    session_destroy();
-    header("Location: login.php?msg=" . urlencode("Session expired due to inactivity."));
-    exit;
-}
-$_SESSION['last_activity'] = time();
 
 // Redirect guests to login
 if (!isset($_SESSION['user_id'])) {
@@ -396,7 +388,7 @@ foreach ($raw_alerts as $d) {
 
 // (Source 3) Pending Requests (For ADMIN/HR only)
 if (in_array($userRole, ['ADMIN', 'MANAGER', 'HR'], true)) {
-    $pendCount = $pdo->query("SELECT COUNT(*) FROM requests")->fetchColumn();
+    $pendCount = $pdo->query("SELECT COUNT(*) FROM requests WHERE status = 'PENDING'")->fetchColumn();
     if ($pendCount > 0) {
         $doc_alerts[] = [
             'id'         => 'pending_reqs',
@@ -415,7 +407,9 @@ $all_notifications = array_merge($db_notifs, $doc_alerts);
 usort($all_notifications, function ($a, $b) {
     return strtotime($b['created_at']) <=> strtotime($a['created_at']);
 });
-$notifCount = count($all_notifications);
+$msgCount = count($db_notifs);
+$actionCount = count($doc_alerts);
+$notifCount = $msgCount + $actionCount;
 
 // ---------- 6) BUILD FILTER SQL ----------
 $where  = ['1=1'];
@@ -732,8 +726,12 @@ $diskPercent = ($diskTotal > 0) ? round((($diskTotal - $diskFree) / $diskTotal) 
                         <a class="text-white position-relative" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                             <i class="bi bi-bell-fill fs-5"></i>
                             <?php if ($notifCount > 0): ?>
-                                <span id="notifyBadge" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">
-                                    <?php echo (int)$notifCount; ?>
+                                <?php
+                                // [UX] Color code the badge: Red for new messages, Yellow for pending actions only
+                                $badgeClass = ($msgCount > 0) ? 'bg-danger' : 'bg-warning text-dark';
+                                ?>
+                                <span id="notifyBadge" class="position-absolute top-0 start-100 translate-middle badge rounded-pill <?php echo $badgeClass; ?>">
+                                    <?php echo $notifCount; ?>
                                 </span>
                             <?php else: ?>
                                 <span id="notifyBadge" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style="display:none">0</span>
@@ -743,13 +741,18 @@ $diskPercent = ($diskTotal > 0) ? round((($diskTotal - $diskFree) / $diskTotal) 
                         <ul id="notifyList" class="dropdown-menu dropdown-menu-end shadow" style="width: 350px; max-height: 400px; overflow-y: auto;">
                             <li class="dropdown-header d-flex justify-content-between align-items-center">
                                 <span>Notifications</span>
-                                <?php if ($notifCount > 0): ?>
+                                <?php if (count($db_notifs) > 0): ?>
                                     <form method="POST" class="m-0">
                                         <input type="hidden" name="csrf_token" value="<?php echo h($_SESSION['csrf_token']); ?>">
-                                        <button name="clear_notifs" class="btn btn-link btn-sm text-decoration-none p-0" style="font-size: 0.8rem;">Clear Messages</button>
+                                        <button name="clear_notifs" class="btn btn-link btn-sm text-decoration-none p-0" style="font-size: 0.8rem;">Clear Read</button>
                                     </form>
                                 <?php endif; ?>
                             </li>
+                            <?php if (count($doc_alerts) > 0): ?>
+                                <li class="bg-light p-2 text-center small fw-bold text-danger border-bottom border-top">
+                                    <i class="bi bi-exclamation-circle-fill"></i> Action Required (<?php echo count($doc_alerts); ?>)
+                                </li>
+                            <?php endif; ?>
                             <li>
                                 <hr class="dropdown-divider">
                             </li>
@@ -824,7 +827,7 @@ $diskPercent = ($diskTotal > 0) ? round((($diskTotal - $diskFree) / $diskTotal) 
                                     <hr class="dropdown-divider">
                                 </li>
                             <?php endif; ?>
-                            <?php if (in_array($userRole, ['ADMIN', 'MANAGER'])): ?>
+                            <?php if ($userRole === 'ADMIN'): ?>
                                 <li><a class="dropdown-item" href="settings.php"><i class="bi bi-sliders me-2"></i> System Settings</a></li>
                             <?php endif; ?>
                             <li><a class="dropdown-item" href="profile_settings.php"><i class="bi bi-gear me-2"></i> Change Password</a></li>
@@ -996,6 +999,14 @@ $diskPercent = ($diskTotal > 0) ? round((($diskTotal - $diskFree) / $diskTotal) 
                             <a href="manager_dashboard.php" class="btn btn-info text-white fw-bold"><i class="bi bi-speedometer2"></i> Manager Dashboard</a>
                         <?php endif; ?>
 
+                        <?php if (in_array($userRole, ['ADMIN', 'MANAGER', 'HR', 'STAFF'], true)): ?>
+                            <a href="add_employee.php" class="btn btn-success"><i class="bi bi-person-plus-fill"></i> Add Employee</a>
+                        <?php endif; ?>
+
+                        <?php if ($userRole === 'STAFF'): ?>
+                            <a href="my_requests.php" class="btn btn-outline-primary"><i class="bi bi-clock-history"></i> My Requests</a>
+                        <?php endif; ?>
+
                         <?php if (in_array($userRole, ['ADMIN', 'MANAGER', 'HR'], true)): ?>
                             <a href="add_employee.php" class="btn btn-success"><i class="bi bi-person-plus-fill"></i> Add Employee</a>
                             <a href="import_employees.php" class="btn btn-outline-success" title="Upload CSV">
@@ -1007,9 +1018,15 @@ $diskPercent = ($diskTotal > 0) ? round((($diskTotal - $diskFree) / $diskTotal) 
                             <a href="recruitment.php" class="btn btn-outline-info btn-sm">
                                 <i class="bi bi-person-lines-fill"></i> Recruitment
                             </a>
+                        <?php endif; ?>
+
+                        <?php if (in_array($userRole, ['ADMIN', 'MANAGER', 'HR', 'STAFF'], true)): ?>
                             <a href="tracker.php" class="btn btn-outline-info btn-sm">
                                 <i class="bi bi-kanban"></i> Missing Docs Tracker
                             </a>
+                        <?php endif; ?>
+
+                        <?php if (in_array($userRole, ['ADMIN', 'MANAGER', 'HR'], true)): ?>
                             <a href="performance_review.php" class="btn btn-outline-primary btn-sm">
                                 <i class="bi bi-clipboard2-data"></i> Performance Reviews
                             </a>
@@ -2146,6 +2163,8 @@ $diskPercent = ($diskTotal > 0) ? round((($diskTotal - $diskFree) / $diskTotal) 
                 if (spinner) spinner.style.display = 'inline-block';
 
                 fetch('api/get_updates.php')
+                // [FIX] Add timestamp to prevent browser caching of old numbers
+                fetch('api/get_updates.php?_=' + new Date().getTime())
                     .then(response => response.json())
                     .then(data => {
                         // 1. Update Notifications (Your Existing Feature)
@@ -2154,10 +2173,16 @@ $diskPercent = ($diskTotal > 0) ? round((($diskTotal - $diskFree) / $diskTotal) 
 
                         if (notifBadge) {
                             notifBadge.innerText = data.count;
-                            notifBadge.style.display = (data.count > 0) ? 'inline-block' : 'none';
+                            // [UX] Update Badge Color: Red if messages exist, Yellow if only actions
+                            const badgeClass = (data.msgCount > 0) ? 'bg-danger' : 'bg-warning text-dark';
+                            notifBadge.className = `position-absolute top-0 start-100 translate-middle badge rounded-pill ${badgeClass}`;
+                            notifBadge.style.display = (data.count > 0) ? '' : 'none';
                         }
-                        // This is a more complex update, for now we just update the badge count
-                        // A full list refresh would require parsing the new HTML structure.
+
+                        // [FIX] Update the dropdown list content (This makes the 'Clear Read' button appear dynamically)
+                        if (notifList && data.html) {
+                            notifList.innerHTML = data.html;
+                        }
 
                         // 2. Update Dashboard Numbers (The New "Anti-Crash" Feature)
                         // These IDs are not present in the current HTML, so this part is skipped.

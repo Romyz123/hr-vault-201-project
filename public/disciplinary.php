@@ -10,6 +10,7 @@ require '../src/Security.php';
 require '../src/Validator.php';
 require '../src/SearchHelper.php';
 session_start();
+checkSessionTimeout($pdo); // [SECURITY] Enforce Timeout
 
 // 1. SECURITY
 if (!isset($_SESSION['user_id']) || !in_array($_SESSION['role'], ['ADMIN', 'HR'])) {
@@ -319,7 +320,7 @@ if (isset($_GET['msg'])) {
                 <button id="darkModeToggle" class="btn btn-sm btn-outline-light border-0" title="Toggle Dark Mode">
                     <i class="bi bi-moon-stars-fill"></i>
                 </button>
-                <?php if (in_array($_SESSION['role'], ['ADMIN', 'HR'])): ?>
+                <?php if (($_SESSION['role'] ?? '') === 'ADMIN'): ?>
                     <a href="settings.php" class="btn btn-outline-light btn-sm"><i class="bi bi-gear-fill"></i> Settings</a>
                 <?php endif; ?>
             </div>

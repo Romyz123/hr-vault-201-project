@@ -285,6 +285,11 @@ $tickets  = $pdo->query("SELECT r.*, u.username FROM requests r LEFT JOIN users 
     <div class="container">
         <?php if (isset($_GET['msg'])): ?>
             <div class='alert alert-warning'><?php echo htmlspecialchars($_GET['msg']); ?></div>
+            <?php
+            // Auto-detect error messages to style them red
+            $msgClass = (stripos($_GET['msg'], 'Error') !== false || stripos($_GET['msg'], 'CANNOT') !== false) ? 'alert-danger' : 'alert-success';
+            ?>
+            <div class='alert <?php echo $msgClass; ?>'><?php echo htmlspecialchars($_GET['msg']); ?></div>
             <script>
                 // Clear message on load
                 if (window.history.replaceState) {

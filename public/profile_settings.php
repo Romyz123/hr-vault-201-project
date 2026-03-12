@@ -2,6 +2,16 @@
 require '../config/db.php';
 require '../src/Security.php';
 session_start();
+checkSessionTimeout($pdo); // [SECURITY] Enforce Timeout
+
+// [UX] Fetch Client Timeout
+$clientTimeout = 900;
+try {
+    $stmt = $pdo->query("SELECT setting_value FROM system_settings WHERE setting_key = 'session_timeout_client'");
+    $val = $stmt->fetchColumn();
+    if ($val) $clientTimeout = (int)$val;
+} catch (Exception $e) {
+}
 
 if (!isset($_SESSION['user_id'])) {
     header("Location: login.php");
@@ -85,6 +95,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 } elseif (!preg_match('/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_])/', $new_pass)) {
                     $alertType = "error";
                     $alertMsg = "Password must contain Uppercase, Lowercase, Number, and Symbol.";
+                } elseif (isset($_SESSION['username']) && stripos($new_pass, $_SESSION['username']) !== false) {
+                    $alertType = "error";
+                    $alertMsg = "Password cannot contain your Username.";
                 } else {
                     // [MHI Security] Check Frequency (Max 1 change per 24h)
                     if (!$security->checkPasswordFrequency($_SESSION['user_id'])) {
@@ -143,6 +156,7 @@ end_post:
         <div class="container">
             <a class="navbar-brand" href="index.php">Back to Dashboard</a>
             <span class="navbar-text text-white">My Profile Settings</span>
+            <span class="navbar-text text-white-50 ms-3 font-monospace small"><i class="bi bi-clock"></i> <span id="sessionTimer"></span></span>
         </div>
     </nav>
 
@@ -189,8 +203,11 @@ end_post:
                             <div class="mb-3">
                                 <label class="form-label fw-bold">New Password</label>
                                 <div class="input-group">
-                                    <input type="password" name="new_password" id="newPass" class="form-control" minlength="15" maxlength="128" required pattern="(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).{15,}" title="Must be at least 15 characters, contain Uppercase, Lowercase, Number, and Symbol.">
+                                    <input type="password" name="new_password" id="newPass" class="form-control" minlength="15" maxlength="128" required pattern="(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).{15,}" title="Must be at least 15 characters, contain Uppercase, Lowercase, Number, and Symbol." oninput="updateStrength(this.value, 'strengthBar')">
                                     <button class="btn btn-outline-secondary" type="button" onclick="togglePass('newPass')"><i class="bi bi-eye"></i></button>
+                                </div>
+                                <div class="progress mt-1" style="height: 5px;">
+                                    <div id="strengthBar" class="progress-bar bg-danger" role="progressbar" style="width: 0%"></div>
                                 </div>
                             </div>
                             <div class="mb-3">
@@ -257,6 +274,38 @@ end_post:
                 confirmButtonColor: '<?php echo $alertType === "error" ? "#dc3545" : "#198754"; ?>'
             });
         <?php endif; ?>
+
+        function updateStrength(val, barId) {
+            const bar = document.getElementById(barId);
+            if (!bar) return;
+            let score = 0;
+            if (val.length >= 8) score++;
+            if (val.length >= 12) score++;
+            if (val.length >= 15) score++;
+            if (/[A-Z]/.test(val)) score++;
+            if (/[0-9]/.test(val)) score++;
+            if (/[^A-Za-z0-9]/.test(val)) score++;
+
+            let pct = Math.min(100, (score / 6) * 100);
+            bar.style.width = pct + '%';
+            bar.className = 'progress-bar ' + (score > 4 ? 'bg-success' : (score > 2 ? 'bg-warning' : 'bg-danger'));
+        }
+
+        // [SECURITY] Auto-Logout Timer
+        const timeoutDuration = <?php echo $clientTimeout * 1000; ?>;
+        let timeLeft = timeoutDuration;
+
+        function updateTimer() {
+            timeLeft -= 1000;
+            if (timeLeft <= 0) window.location.href = 'logout.php';
+            const m = Math.floor(timeLeft / 60000);
+            const s = Math.floor((timeLeft % 60000) / 1000);
+            document.getElementById('sessionTimer').innerText = `${m}:${s.toString().padStart(2, '0')}`;
+        }
+        document.addEventListener('mousemove', () => timeLeft = timeoutDuration);
+        document.addEventListener('keypress', () => timeLeft = timeoutDuration);
+        setInterval(updateTimer, 1000);
+        updateTimer();
     </script>
 </body>
 

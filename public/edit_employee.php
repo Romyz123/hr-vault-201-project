@@ -244,7 +244,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // [REVISED] Handle Edit Document Details -> Creates a request for approval
     if (isset($_POST['action']) && $_POST['action'] === 'edit_doc') {
-        if (in_array($_SESSION['role'], ['ADMIN', 'MANAGER', 'HR'])) {
+        if (in_array($_SESSION['role'], ['ADMIN', 'MANAGER', 'HR', 'STAFF'])) {
             $docId = (int)$_POST['doc_id'];
             $newName = trim($_POST['file_name']);
             $newCat = trim($_POST['category']);
@@ -295,6 +295,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $ext = isset($info['extension']) ? '.' . $info['extension'] : '';
                 if ($ext !== '' && (strlen($newName) < strlen($ext) || substr_compare($newName, $ext, -strlen($ext), strlen($ext), true) !== 0)) {
                     $newName .= $ext;
+                }
+
+                // 2a. STAFF: Submit Request
+                if ($_SESSION['role'] === 'STAFF') {
+                    // Check for existing pending request to prevent spam
+                    $chkReq = $pdo->prepare("SELECT id FROM requests WHERE request_type = 'EDIT_DOC' AND target_id = ? AND status = 'PENDING'");
+                    $chkReq->execute([$docId]);
+
+                    if ($chkReq->fetch()) {
+                        header("Location: edit_employee.php?id=$id&tab=docs&error=" . urlencode("⚠️ Pending edit request already exists for this document."));
+                        exit;
+                    }
+
+                    $payload = [
+                        'new_name' => $newName,
+                        'new_category' => $newCat,
+                        'move_to_emp_id' => $moveToEmpId,
+                        'original_details' => $origDoc
+                    ];
+                    $pdo->prepare("INSERT INTO requests (user_id, request_type, target_id, json_payload) VALUES (?, 'EDIT_DOC', ?, ?)")
+                        ->execute([$_SESSION['user_id'], $docId, json_encode($payload)]);
+
+                    header("Location: edit_employee.php?id=$id&tab=docs&msg=" . urlencode("📝 Document Edit Request Submitted"));
+                    exit;
                 }
 
                 // 2. DIRECT UPDATE (Admins/Managers/HR are trusted)
@@ -1082,7 +1106,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                         </div>
                                         <a href="view_doc.php?id=<?php echo $d['file_uuid']; ?>" target="_blank" class="btn btn-sm btn-outline-primary position-relative z-2">View</a>
 
-                                        <?php if (in_array($_SESSION['role'], ['ADMIN', 'MANAGER', 'HR'], true)): ?>
+                                        <?php if (in_array($_SESSION['role'], ['ADMIN', 'MANAGER', 'HR', 'STAFF'], true)): ?>
                                             <button type="button" class="btn btn-sm btn-outline-warning position-relative z-2 ms-1"
                                                 onclick='openEditDocModal(<?php echo (int)$d['id']; ?>, <?php echo json_encode($d['original_name'], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP); ?>, <?php echo json_encode($d['category'], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP); ?>)'
                                                 title="Edit Details">

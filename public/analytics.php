@@ -8,6 +8,7 @@
 require '../config/db.php';
 require '../src/Security.php';
 session_start();
+checkSessionTimeout($pdo); // [SECURITY] Enforce Timeout
 
 if (!isset($_SESSION['user_id'])) {
     header("Location: login.php");

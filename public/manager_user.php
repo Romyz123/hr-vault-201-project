@@ -8,6 +8,7 @@ require '../config/db.php';
 require '../src/Security.php';
 require '../src/Logger.php';
 session_start();
+checkSessionTimeout($pdo); // [SECURITY] Enforce Timeout
 
 // 1. SECURITY: Only ADMIN can access
 if (!isset($_SESSION['user_id']) || ($_SESSION['role'] ?? '') !== 'ADMIN') {
@@ -82,6 +83,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } elseif (!preg_match('/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_])/', $password)) {
             $alertType = 'error';
             $alertMsg = "❌ Password must contain Uppercase, Lowercase, Number, and Symbol.";
+        } elseif (stripos($password, $username) !== false) {
+            $alertType = 'error';
+            $alertMsg = "❌ Password cannot contain the Username.";
         } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
             $alertType = 'error';
             $alertMsg = "❌ Invalid email format.";
@@ -149,6 +153,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if (strlen($new_pass) < 15 || !preg_match('/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_])/', $new_pass)) {
                     $alertType = 'error';
                     $alertMsg = "❌ Update Failed: Password must be 15+ chars with Uppercase, Lowercase, Number, and Symbol.";
+                } elseif (stripos($new_pass, $username) !== false) {
+                    $alertType = 'error';
+                    $alertMsg = "❌ Update Failed: Password cannot contain the Username.";
                 } else {
                     $sql = "UPDATE users SET username = ?, email = ?, role = ?, is_2fa_enabled = ?, is_shared = ?, account_owner = ?, password = ? WHERE id = ?";
                     $params = [$username, $email, $role, $is_2fa, $is_shared, $owner, password_hash($new_pass, PASSWORD_BCRYPT), $id];
@@ -612,9 +619,12 @@ $vaultChecked = ($bkVaultSetting === '1') ? 'checked' : '';
                             </div>
                             <div class="mb-3">
                                 <label class="form-label fw-bold">Password</label>
-                                <input type="password" name="password" class="form-control" placeholder="Enter strong password..." required minlength="15" maxlength="128" pattern="(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).{15,}" title="Must be at least 15 characters, contain Uppercase, Lowercase, Number, and Symbol.">
+                                <input type="password" name="password" class="form-control" placeholder="Enter strong password..." required minlength="15" maxlength="128" pattern="(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).{15,}" title="Must be at least 15 characters, contain Uppercase, Lowercase, Number, and Symbol." oninput="updateStrength(this.value, 'addStrengthBar')">
                                 <div class="form-text text-muted small">
                                     Requirements: 15+ chars, Uppercase, Lowercase, Number, Symbol.
+                                </div>
+                                <div class="progress mt-1" style="height: 5px;">
+                                    <div id="addStrengthBar" class="progress-bar bg-danger" role="progressbar" style="width: 0%"></div>
                                 </div>
                             </div>
                             <div class="mb-3">
@@ -790,8 +800,11 @@ $vaultChecked = ($bkVaultSetting === '1') ? 'checked' : '';
                                                         <div class="mb-3">
                                                             <label class="form-label text-danger fw-bold">Reset Password (Optional)</label>
                                                             <div class="input-group">
-                                                                <input type="password" name="password" id="resetPass<?php echo $u['id']; ?>" class="form-control" placeholder="New Password (Min 15 chars)" minlength="15" maxlength="128" pattern="(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).{15,}" title="Must be at least 15 characters, contain Uppercase, Lowercase, Number, and Symbol.">
+                                                                <input type="password" name="password" id="resetPass<?php echo $u['id']; ?>" class="form-control" placeholder="New Password (Min 15 chars)" minlength="15" maxlength="128" pattern="(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).{15,}" title="Must be at least 15 characters, contain Uppercase, Lowercase, Number, and Symbol." oninput="updateStrength(this.value, 'strengthBar<?php echo $u['id']; ?>')">
                                                                 <button class="btn btn-outline-secondary" type="button" onclick="togglePass('resetPass<?php echo $u['id']; ?>')"><i class="bi bi-eye"></i></button>
+                                                            </div>
+                                                            <div class="progress mt-1" style="height: 5px;">
+                                                                <div id="strengthBar<?php echo $u['id']; ?>" class="progress-bar bg-danger" role="progressbar" style="width: 0%"></div>
                                                             </div>
                                                             <div class="form-text small">Optional. Requirements: 15+ chars, Upper, Lower, #, Symbol.</div>
                                                         </div>
@@ -914,6 +927,22 @@ $vaultChecked = ($bkVaultSetting === '1') ? 'checked' : '';
                 input.type = 'password';
                 icon.classList.replace('bi-eye-slash', 'bi-eye');
             }
+        }
+
+        function updateStrength(val, barId) {
+            const bar = document.getElementById(barId);
+            if (!bar) return;
+            let score = 0;
+            if (val.length >= 8) score++;
+            if (val.length >= 12) score++;
+            if (val.length >= 15) score++;
+            if (/[A-Z]/.test(val)) score++;
+            if (/[0-9]/.test(val)) score++;
+            if (/[^A-Za-z0-9]/.test(val)) score++;
+
+            let pct = Math.min(100, (score / 6) * 100);
+            bar.style.width = pct + '%';
+            bar.className = 'progress-bar ' + (score > 4 ? 'bg-success' : (score > 2 ? 'bg-warning' : 'bg-danger'));
         }
     </script>
 </body>

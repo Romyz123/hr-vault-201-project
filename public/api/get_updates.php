@@ -7,30 +7,55 @@ session_start();
 header('Content-Type: application/json');
 
 try {
+    $userId = $_SESSION['user_id'] ?? 0;
+
+    // ============================================================
+    // PART 0: DB MESSAGES (Clearable) - Needed for "Clear Read" button
+    // ============================================================
+    $msgStmt = $pdo->prepare("SELECT id, title, message, type, created_at FROM notifications WHERE user_id = ? ORDER BY created_at DESC");
+    $msgStmt->execute([$userId]);
+    $db_notifs = $msgStmt->fetchAll(PDO::FETCH_ASSOC);
+    $msgCount = count($db_notifs);
+
     // ============================================================
     // PART 1: COMPLIANCE ALERTS (Your Original Code)
     // ============================================================
     $alertDate = date('Y-m-d', strtotime('+30 days'));
-    $stmt = $pdo->prepare("
+
+    // [FIX] Check for deleted_at column to exclude deleted docs
+    $hasDeletedAt = false;
+    try {
+        $chk = $pdo->query("SHOW COLUMNS FROM documents LIKE 'deleted_at'");
+        if ($chk->rowCount() > 0) $hasDeletedAt = true;
+    } catch (Exception $e) {
+    }
+
+    $docQuery = "
         SELECT d.id, d.category, d.original_name, d.expiry_date, e.first_name, e.last_name, e.emp_id 
         FROM documents d 
         JOIN employees e ON d.employee_id = e.emp_id 
         WHERE d.expiry_date IS NOT NULL 
         AND d.expiry_date <= ? 
         AND d.is_resolved = 0 
-        ORDER BY d.expiry_date ASC
-    ");
+    ";
+    if ($hasDeletedAt) {
+        $docQuery .= " AND d.deleted_at IS NULL";
+    }
+    $docQuery .= " ORDER BY d.expiry_date ASC";
+
+    $stmt = $pdo->prepare($docQuery);
     $stmt->execute([$alertDate]);
     $notifications = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    $notifCount = count($notifications);
+    $alertCount = count($notifications);
 
     // [NEW] Check Pending Requests (For Admin/HR)
     $pendingHtml = '';
     $userRole = $_SESSION['role'] ?? '';
+    $pCount = 0;
     if (in_array($userRole, ['ADMIN', 'MANAGER', 'HR'])) {
-        $pCount = $pdo->query("SELECT COUNT(*) FROM requests")->fetchColumn();
+        // [FIX] Only count PENDING requests so approved ones disappear
+        $pCount = $pdo->query("SELECT COUNT(*) FROM requests WHERE status = 'PENDING'")->fetchColumn();
         if ($pCount > 0) {
-            $notifCount++;
             $pendingHtml = '
             <li class="border-bottom py-2 px-3 bg-body-tertiary">
                 <a href="admin_approval.php" class="text-decoration-none text-body d-block">
@@ -46,10 +71,19 @@ try {
         }
     }
 
+    // Total Count for Badge
+    $totalBadgeCount = $msgCount + $alertCount + ($pCount > 0 ? 1 : 0);
+
     // Generate HTML for Dropdown
     ob_start();
-    if ($notifCount > 0) {
-        echo '<li><h6 class="dropdown-header bg-body-tertiary border-bottom fw-bold">Notifications</h6></li>';
+    echo '<li><div class="dropdown-header bg-body-tertiary border-bottom d-flex justify-content-between align-items-center">
+            <span class="fw-bold">Notifications</span>';
+    if ($msgCount > 0) {
+        echo '<form method="POST" class="m-0" action="index.php"><input type="hidden" name="csrf_token" value="' . htmlspecialchars($_SESSION['csrf_token'] ?? '') . '"><button name="clear_notifs" class="btn btn-link btn-sm text-decoration-none p-0" style="font-size: 0.8rem;">Clear Read</button></form>';
+    }
+    echo '</div></li>';
+
+    if ($totalBadgeCount > 0) {
         echo $pendingHtml; // Show pending requests at the top
         foreach ($notifications as $notif) {
             $days = ceil((strtotime($notif['expiry_date']) - time()) / (60 * 60 * 24));
@@ -75,6 +109,20 @@ try {
                 </div>
             </li>';
         }
+        // Render DB Messages (The clearable ones)
+        foreach ($db_notifs as $n) {
+            $icon = ($n['type'] === 'success') ? "bi-check-circle-fill text-success" : (($n['type'] === 'danger') ? "bi-x-circle-fill text-danger" : "bi-info-circle-fill text-info");
+            echo '<li><div class="dropdown-item white-space-normal">
+                    <div class="d-flex align-items-start">
+                        <i class="bi ' . $icon . ' fs-4 me-2"></i>
+                        <div class="w-100">
+                            <h6 class="mb-0 small fw-bold">' . htmlspecialchars($n['title']) . '</h6>
+                            <p class="mb-1 small text-muted" style="font-size: 0.85rem;">' . htmlspecialchars($n['message']) . '</p>
+                            <small class="text-secondary" style="font-size: 0.7rem;">' . date('M d, h:i A', strtotime($n['created_at'])) . '</small>
+                        </div>
+                    </div>
+                  </div></li>';
+        }
     } else {
         echo '<li class="p-4 text-center text-muted small"><i class="bi bi-check-circle fs-1 text-success d-block mb-2"></i>All documents are up to date!</li>';
     }
@@ -96,13 +144,6 @@ try {
     // PART 3: OUTPUT EVERYTHING
     // ============================================================
 
-    // [FIX] Check for deleted_at column to exclude deleted docs from chart
-    $hasDeletedAt = false;
-    try {
-        $chk = $pdo->query("SHOW COLUMNS FROM documents LIKE 'deleted_at'");
-        if ($chk->rowCount() > 0) $hasDeletedAt = true;
-    } catch (Exception $e) {
-    }
 
     // [FIX] Exclude deleted files from the count
     $statsSql = "SELECT COALESCE(NULLIF(TRIM(category), ''), 'Documents for Employee'), COUNT(*) FROM documents WHERE 1=1";
@@ -117,7 +158,8 @@ try {
     echo json_encode([
         'status' => 'success',
         // Notification Data
-        'count' => $notifCount,
+        'count' => $totalBadgeCount,
+        'msgCount' => $msgCount,
         'html'  => $html,
         // Live Dashboard Data
         'headcount' => number_format((int)$activeHeadcount),

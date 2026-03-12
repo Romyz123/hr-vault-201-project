@@ -2,6 +2,7 @@
 // public/export_recruitment.php
 require '../config/db.php';
 session_start();
+checkSessionTimeout($pdo); // [SECURITY] Enforce Timeout
 
 if (!isset($_SESSION['user_id']) || !in_array($_SESSION['role'], ['ADMIN', 'MANAGER', 'HR'])) {
     http_response_code(403);

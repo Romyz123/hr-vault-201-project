@@ -9,6 +9,16 @@ require '../src/Security.php';
 require '../src/Validator.php';
 require '../src/SearchHelper.php';
 session_start();
+checkSessionTimeout($pdo); // [SECURITY] Enforce Timeout
+
+// [UX] Fetch Client Timeout
+$clientTimeout = 900;
+try {
+    $stmt = $pdo->query("SELECT setting_value FROM system_settings WHERE setting_key = 'session_timeout_client'");
+    $val = $stmt->fetchColumn();
+    if ($val) $clientTimeout = (int)$val;
+} catch (Exception $e) {
+}
 
 // 1. SECURITY
 if (!isset($_SESSION['user_id'])) {
@@ -41,7 +51,7 @@ if (empty($_SESSION['csrf_token'])) {
 }
 
 // 2. HANDLE ACTIONS (Add/Edit/Delete Requirements)
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($_SESSION['role'], ['ADMIN', 'MANAGER', 'HR'])) {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($_SESSION['role'], ['ADMIN', 'MANAGER', 'HR', 'STAFF'])) {
     // [SECURITY] Verify CSRF Token
     if (empty($_POST['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'])) {
         die(json_encode(['status' => 'error', 'message' => 'Invalid CSRF Token']));
@@ -49,6 +59,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($_SESSION['role'], ['ADMIN
 
     if (isset($_POST['action'])) {
         if ($_POST['action'] === 'add_req') {
+            // [SECURITY] Staff cannot manage requirements
+            if ($_SESSION['role'] === 'STAFF') {
+                header("Location: tracker.php?error=" . urlencode("Access Denied."));
+                exit;
+            }
             try {
                 $name = trim($_POST['req_name']);
                 $keys = trim($_POST['req_keywords']);
@@ -76,12 +91,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($_SESSION['role'], ['ADMIN
             } catch (PDOException $e) { /* Ignore if table missing */
             }
         } elseif ($_POST['action'] === 'delete_req') {
+            // [SECURITY] Staff cannot manage requirements
+            if ($_SESSION['role'] === 'STAFF') {
+                header("Location: tracker.php?error=" . urlencode("Access Denied."));
+                exit;
+            }
             try {
                 $id = $_POST['req_id'];
                 $pdo->prepare("DELETE FROM document_requirements WHERE id = ?")->execute([$id]);
             } catch (PDOException $e) {
             }
         } elseif ($_POST['action'] === 'edit_req') {
+            // [SECURITY] Staff cannot manage requirements
+            if ($_SESSION['role'] === 'STAFF') {
+                header("Location: tracker.php?error=" . urlencode("Access Denied."));
+                exit;
+            }
             try {
                 $id = $_POST['req_id'];
                 $name = trim($_POST['req_name']);
@@ -417,16 +442,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($_SESSION['role'], ['ADMIN
                 }
 
                 // [FIX] Preserve file extension to ensure format isn't lost
-                $stmt = $pdo->prepare("SELECT original_name FROM documents WHERE id = ?");
+                $stmt = $pdo->prepare("SELECT original_name, category, employee_id FROM documents WHERE id = ?");
                 $stmt->execute([$docId]);
-                $currentName = $stmt->fetchColumn();
+                $currentDoc = $stmt->fetch();
 
-                if ($currentName) {
-                    $info = pathinfo($currentName);
+                if ($currentDoc) {
+                    $info = pathinfo($currentDoc['original_name']);
                     $ext = isset($info['extension']) ? '.' . $info['extension'] : '';
                     if ($ext !== '' && (strlen($newName) < strlen($ext) || substr_compare($newName, $ext, -strlen($ext), strlen($ext), true) !== 0)) {
                         $newName .= $ext;
                     }
+
+                    // [STAFF WORKFLOW] Create a request
+                    if ($_SESSION['role'] === 'STAFF') {
+                        $payload = [
+                            'new_name' => $newName,
+                            'original_details' => $currentDoc
+                        ];
+                        $pdo->prepare("INSERT INTO requests (user_id, request_type, target_id, json_payload) VALUES (?, 'EDIT_DOC', ?, ?)")
+                            ->execute([$_SESSION['user_id'], $docId, json_encode($payload)]);
+
+                        header("Location: tracker.php?report=misclassified&msg=" . urlencode("✅ Rename request submitted for approval."));
+                        exit;
+                    }
+
+                    // [ADMIN/HR/MANAGER WORKFLOW] Direct update
                     $pdo->prepare("UPDATE documents SET original_name = ?, updated_at = NOW() WHERE id = ?")->execute([$newName, $docId]);
                 }
                 header("Location: tracker.php?report=misclassified&msg=" . urlencode("✅ File renamed."));
@@ -792,12 +832,13 @@ if ($compliance !== '') {
             <div class="d-flex align-items-center">
                 <a class="navbar-brand" href="index.php">⬅ Back to Dashboard</a>
                 <span class="navbar-text text-white ms-3 border-start ps-3">Missing Document Tracker</span>
+                <span class="navbar-text text-white-50 ms-3 font-monospace small" title="Auto-Logout Timer"><i class="bi bi-clock"></i> <span id="sessionTimer"></span></span>
             </div>
             <div class="d-flex align-items-center gap-2">
                 <button id="darkModeToggle" class="btn btn-sm btn-outline-light border-0" title="Toggle Dark Mode">
                     <i class="bi bi-moon-stars-fill"></i>
                 </button>
-                <?php if (in_array($_SESSION['role'], ['ADMIN', 'MANAGER', 'HR'])): ?>
+                <?php if (($_SESSION['role'] ?? '') === 'ADMIN'): ?>
                     <a href="settings.php" class="btn btn-outline-light btn-sm"><i class="bi bi-gear-fill"></i> Settings</a>
                 <?php endif; ?>
             </div>
@@ -1700,6 +1741,22 @@ if ($compliance !== '') {
                 showConfirmButton: false
             });
         }
+
+        // [SECURITY] Auto-Logout Timer
+        const timeoutDuration = <?php echo $clientTimeout * 1000; ?>;
+        let timeLeft = timeoutDuration;
+
+        function updateTimer() {
+            timeLeft -= 1000;
+            if (timeLeft <= 0) window.location.href = 'logout.php';
+            const m = Math.floor(timeLeft / 60000);
+            const s = Math.floor((timeLeft % 60000) / 1000);
+            document.getElementById('sessionTimer').innerText = `${m}:${s.toString().padStart(2, '0')}`;
+        }
+        document.addEventListener('mousemove', () => timeLeft = timeoutDuration);
+        document.addEventListener('keypress', () => timeLeft = timeoutDuration);
+        setInterval(updateTimer, 1000);
+        updateTimer();
     </script>
 </body>
 

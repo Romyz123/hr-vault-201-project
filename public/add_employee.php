@@ -10,6 +10,7 @@ require '../src/Logger.php';
 require '../src/EmployeeService.php'; // [NEW]
 require '../src/Validator.php';
 session_start();
+checkSessionTimeout($pdo); // [SECURITY] Enforce Timeout
 
 // ------------ Security Headers ------------
 header('X-Frame-Options: DENY');

@@ -146,25 +146,50 @@ $requests = $stmt->fetchAll(PDO::FETCH_ASSOC);
                                 <?php foreach ($requests as $r):
                                     $payload = json_decode($r['json_payload'], true);
                                     $details = "";
-                                    if ($r['request_type'] === 'ADD_EMPLOYEE') {
-                                        $details = "Add: " . htmlspecialchars($payload['first_name'] . ' ' . $payload['last_name']);
-                                    } elseif ($r['request_type'] === 'EDIT_PROFILE') {
-                                        $details = "Edit Profile (ID: " . htmlspecialchars($r['target_id']) . ")";
+                                    $badge = "";
+
+                                    switch ($r['request_type']) {
+                                        case 'ADD_EMPLOYEE':
+                                            $details = "<strong>New Hire:</strong> " . htmlspecialchars(($payload['first_name'] ?? '') . ' ' . ($payload['last_name'] ?? ''));
+                                            $badge = '<span class="badge bg-primary">New Hire</span>';
+                                            break;
+                                        case 'EDIT_PROFILE':
+                                            $details = "<strong>Edit Profile:</strong> Employee ID " . htmlspecialchars($r['target_id']);
+                                            $badge = '<span class="badge bg-info text-dark">Profile Edit</span>';
+                                            break;
+                                        case 'UPLOAD_DOC':
+                                            $details = "<strong>Upload:</strong> " . htmlspecialchars($payload['original_name'] ?? 'Unknown File');
+                                            $badge = '<span class="badge bg-secondary">Upload</span>';
+                                            break;
+                                        case 'EDIT_DOC':
+                                            $origName = $payload['original_details']['original_name'] ?? 'Doc #' . $r['target_id'];
+                                            $details = "<strong>Rename/Edit:</strong> " . htmlspecialchars($origName);
+                                            if (!empty($payload['new_name']) && $payload['new_name'] !== $origName) {
+                                                $details .= " <i class='bi bi-arrow-right'></i> " . htmlspecialchars($payload['new_name']);
+                                            }
+                                            $badge = '<span class="badge bg-warning text-dark">Doc Edit</span>';
+                                            break;
+                                        case 'RESOLVE_ALERT':
+                                            $docName = $payload['doc_name'] ?? 'Doc #' . ($payload['doc_id'] ?? $r['target_id']);
+                                            $details = "<strong>Resolve Alert:</strong> " . htmlspecialchars($docName);
+                                            $badge = '<span class="badge bg-success">Resolution</span>';
+                                            break;
+                                        default:
+                                            $details = htmlspecialchars($r['request_type']);
+                                            $badge = '<span class="badge bg-light text-dark border">Other</span>';
                                     }
 
                                     // Add note if present
                                     if (!empty($payload['request_note'])) {
                                         $details .= "<br><small class='text-muted'>Note: " . htmlspecialchars($payload['request_note']) . "</small>";
+                                    } elseif (!empty($payload['note'])) { // 'RESOLVE_ALERT' uses 'note'
+                                        $details .= "<br><small class='text-muted'>Note: " . htmlspecialchars($payload['note']) . "</small>";
                                     }
                                 ?>
                                     <tr>
                                         <td><?php echo htmlspecialchars(date('M d, Y h:i A', strtotime($r['created_at']))); ?></td>
                                         <td>
-                                            <?php if ($r['request_type'] === 'ADD_EMPLOYEE'): ?>
-                                                <span class="badge bg-primary">New Hire</span>
-                                            <?php else: ?>
-                                                <span class="badge bg-info text-dark">Profile Update</span>
-                                            <?php endif; ?>
+                                            <?php echo $badge; ?>
                                         </td>
                                         <td><?php echo $details; ?></td>
                                         <td>

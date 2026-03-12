@@ -4,6 +4,16 @@ require '../config/db.php';
 require '../src/Security.php';
 require '../src/Logger.php';
 session_start();
+checkSessionTimeout($pdo); // [SECURITY] Enforce Timeout
+
+// [UX] Fetch Client Timeout
+$clientTimeout = 900;
+try {
+    $stmt = $pdo->query("SELECT setting_value FROM system_settings WHERE setting_key = 'session_timeout_client'");
+    $val = $stmt->fetchColumn();
+    if ($val) $clientTimeout = (int)$val;
+} catch (Exception $e) {
+}
 
 // SECURITY: Only ADMIN can access
 if (!isset($_SESSION['user_id']) || strtoupper($_SESSION['role'] ?? '') !== 'ADMIN') {
@@ -110,6 +120,7 @@ $activeTab = $_GET['tab'] ?? 'privileged';
         <div class="container">
             <a class="navbar-brand" href="index.php">Back to Dashboard</a>
             <span class="navbar-text text-white"><i class="bi bi-shield-check"></i> Quarterly Access Review</span>
+            <span class="navbar-text text-white-50 ms-3 font-monospace small"><i class="bi bi-clock"></i> <span id="sessionTimer"></span></span>
         </div>
     </nav>
 
@@ -237,6 +248,23 @@ $activeTab = $_GET['tab'] ?? 'privileged';
         <?php endif; ?>
     </div>
     <script src="assets/bootstrap.bundle.min.js"></script>
+    <script>
+        // [SECURITY] Auto-Logout Timer
+        const timeoutDuration = <?php echo $clientTimeout * 1000; ?>;
+        let timeLeft = timeoutDuration;
+
+        function updateTimer() {
+            timeLeft -= 1000;
+            if (timeLeft <= 0) window.location.href = 'logout.php';
+            const m = Math.floor(timeLeft / 60000);
+            const s = Math.floor((timeLeft % 60000) / 1000);
+            document.getElementById('sessionTimer').innerText = `${m}:${s.toString().padStart(2, '0')}`;
+        }
+        document.addEventListener('mousemove', () => timeLeft = timeoutDuration);
+        document.addEventListener('keypress', () => timeLeft = timeoutDuration);
+        setInterval(updateTimer, 1000);
+        updateTimer();
+    </script>
 </body>
 
 </html>

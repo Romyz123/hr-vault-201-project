@@ -10,6 +10,16 @@ require '../src/Logger.php';
 require '../src/Validator.php';
 require '../src/SearchHelper.php';
 session_start();
+checkSessionTimeout($pdo); // [SECURITY] Enforce Timeout
+
+// [UX] Fetch Client Timeout
+$clientTimeout = 900;
+try {
+    $stmt = $pdo->query("SELECT setting_value FROM system_settings WHERE setting_key = 'session_timeout_client'");
+    $val = $stmt->fetchColumn();
+    if ($val) $clientTimeout = (int)$val;
+} catch (Exception $e) {
+}
 
 // 1. SECURITY: Admin, Manager & HR Only
 if (!isset($_SESSION['user_id']) || !in_array($_SESSION['role'], ['ADMIN', 'MANAGER', 'HR'])) {
@@ -208,6 +218,7 @@ $historyLogs = $pdo->query("SELECT a.*, u.username FROM activity_logs a LEFT JOI
                     <i class="bi bi-moon-stars-fill"></i>
                 </button>
                 <span class="navbar-text text-white fw-bold"><i class="bi bi-people-fill"></i> Bulk Update Roles</span>
+                <span class="navbar-text text-white-50 ms-3 font-monospace small"><i class="bi bi-clock"></i> <span id="sessionTimer"></span></span>
             </div>
         </div>
     </nav>
@@ -538,6 +549,22 @@ $historyLogs = $pdo->query("SELECT a.*, u.username FROM activity_logs a LEFT JOI
                 }
             });
         });
+
+        // [SECURITY] Auto-Logout Timer
+        const timeoutDuration = <?php echo $clientTimeout * 1000; ?>;
+        let timeLeft = timeoutDuration;
+
+        function updateTimer() {
+            timeLeft -= 1000;
+            if (timeLeft <= 0) window.location.href = 'logout.php';
+            const m = Math.floor(timeLeft / 60000);
+            const s = Math.floor((timeLeft % 60000) / 1000);
+            document.getElementById('sessionTimer').innerText = `${m}:${s.toString().padStart(2, '0')}`;
+        }
+        document.addEventListener('mousemove', () => timeLeft = timeoutDuration);
+        document.addEventListener('keypress', () => timeLeft = timeoutDuration);
+        setInterval(updateTimer, 1000);
+        updateTimer();
     </script>
 </body>
 
