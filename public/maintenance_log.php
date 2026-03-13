@@ -75,6 +75,12 @@ $security->generateCSRF();
 $msg = "";
 $msgType = "";
 
+// [FIX] Capture message from URL (Post-Redirect-Get)
+if (isset($_GET['msg'])) {
+    $msg = $_GET['msg'];
+    $msgType = $_GET['type'] ?? 'info';
+}
+
 // 2. HANDLE FORM SUBMISSION
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_log'])) {
     // Rate limit based on IP
@@ -193,8 +199,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_log'])) {
                 $pdo->commit();
 
                 $logger->log($_SESSION['user_id'], 'MAINTENANCE_LOG', "Recorded maintenance for $emp_id ($equip)");
-                $msg = '✅ Maintenance record added successfully.';
-                $msgType = 'success';
+                header("Location: maintenance_log.php?msg=" . urlencode("✅ Maintenance record added successfully.") . "&type=success");
+                exit;
             } catch (PDOException $e) {
                 $pdo->rollBack();
                 error_log('Error adding maintenance record: ' . $e->getMessage());
@@ -280,8 +286,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_log'])) {
 
                 $pdo->commit();
                 $logger->log($_SESSION['user_id'], 'MAINTENANCE_EDIT', "Updated maintenance log ID: $logId");
-                $msg = '✅ Maintenance record updated successfully.';
-                $msgType = 'success';
+                header("Location: maintenance_log.php?msg=" . urlencode("✅ Maintenance record updated successfully.") . "&type=success");
+                exit;
             } catch (PDOException $e) {
                 $pdo->rollBack();
                 $msg = 'Database error: ' . $e->getMessage();
@@ -301,8 +307,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_log'])) {
         $stmt->execute([$logId]);
 
         $logger->log($_SESSION['user_id'], 'MAINTENANCE_DELETE', "Deleted maintenance log ID: $logId");
-        $msg = "🗑️ Record deleted successfully.";
-        $msgType = "success";
+        header("Location: maintenance_log.php?msg=" . urlencode("🗑️ Record deleted successfully.") . "&type=success");
+        exit;
     } catch (Exception $e) {
         $msg = "Error deleting record: " . $e->getMessage();
         $msgType = "danger";

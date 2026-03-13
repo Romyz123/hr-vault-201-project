@@ -1008,7 +1008,6 @@ $diskPercent = ($diskTotal > 0) ? round((($diskTotal - $diskFree) / $diskTotal) 
                         <?php endif; ?>
 
                         <?php if (in_array($userRole, ['ADMIN', 'MANAGER', 'HR'], true)): ?>
-                            <a href="add_employee.php" class="btn btn-success"><i class="bi bi-person-plus-fill"></i> Add Employee</a>
                             <a href="import_employees.php" class="btn btn-outline-success" title="Upload CSV">
                                 <i class="bi bi-file-spreadsheet"></i> Bulk Import
                             </a>

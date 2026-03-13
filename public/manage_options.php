@@ -152,6 +152,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmt->execute([$name]);
                 $logger->log($_SESSION['user_id'], 'ADD_AGENCY', "Added agency: $name");
                 $msg = "✅ Agency '$name' added successfully.";
+                $redirectMsg = "✅ Agency '$name' added successfully.";
             } catch (PDOException $e) {
                 $error = "Error: Agency name already exists.";
             }
@@ -161,6 +162,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmt->execute([$name, $id]);
                 $logger->log($_SESSION['user_id'], 'EDIT_AGENCY', "Updated agency ID $id to $name");
                 $msg = "✅ Agency updated successfully.";
+                $redirectMsg = "✅ Agency updated successfully.";
             } catch (PDOException $e) {
                 $error = "Error: Name already taken.";
             }
@@ -174,6 +176,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $pdo->prepare("DELETE FROM agencies WHERE id = ?")->execute([$id]);
                 $logger->log($_SESSION['user_id'], 'DELETE_AGENCY', "Deleted agency ID $id");
                 $msg = "✅ Agency deleted.";
+                $redirectMsg = "✅ Agency deleted.";
             }
         }
 
@@ -182,12 +185,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             try {
                 $pdo->prepare("INSERT INTO system_roles (name) VALUES (?)")->execute([$name]);
                 $msg = "✅ Role added.";
+                $redirectMsg = "✅ Role added.";
             } catch (Exception $e) {
                 $error = "Role exists.";
             }
         } elseif ($action === 'delete_role' && $id > 0) {
             $pdo->prepare("DELETE FROM system_roles WHERE id = ?")->execute([$id]);
             $msg = "✅ Role deleted.";
+            $redirectMsg = "✅ Role deleted.";
         } elseif ($action === 'update_role_duties' && $id > 0) {
             // [NEW] Logic to update duties with Validation
             $duties = trim($_POST['duties'] ?? '');
@@ -206,6 +211,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $stmt->execute([$duties, $id]);
                     $logger->log($_SESSION['user_id'], 'EDIT_ROLE', "Updated duties for Role ID $id");
                     $msg = "✅ Role duties updated successfully.";
+                    $redirectMsg = "✅ Role duties updated successfully.";
                 }
             }
         }
@@ -215,6 +221,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             try {
                 $pdo->prepare("INSERT INTO departments (name) VALUES (?)")->execute([$name]);
                 $msg = "✅ Department added.";
+                $redirectMsg = "✅ Department added.";
             } catch (Exception $e) {
                 $error = "Department exists.";
             }
@@ -227,6 +234,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             } else {
                 $pdo->prepare("DELETE FROM departments WHERE id = ?")->execute([$id]);
                 $msg = "✅ Department deleted.";
+                $redirectMsg = "✅ Department deleted.";
             }
         }
 
@@ -237,6 +245,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 try {
                     $pdo->prepare("INSERT INTO sections (department_id, name) VALUES (?, ?)")->execute([$deptId, $name]);
                     $msg = "✅ Section added.";
+                    $redirectMsg = "✅ Section added.";
                 } catch (Exception $e) {
                     $error = "Section exists in this department.";
                 }
@@ -244,11 +253,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } elseif ($action === 'delete_section' && $id > 0) {
             $pdo->prepare("DELETE FROM sections WHERE id = ?")->execute([$id]);
             $msg = "✅ Section deleted.";
+            $redirectMsg = "✅ Section deleted.";
         }
 
         // [SECURITY] Regenerate CSRF token on success to prevent replay attacks
         if (!empty($msg)) {
             $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+        }
+
+        // [FIX] Redirect on Success (PRG Pattern)
+        if (!empty($redirectMsg)) {
+            // Pass active tab to keep user in context
+            header("Location: manage_options.php?msg=" . urlencode($redirectMsg) . "&tab=" . urlencode($activeTab));
+            exit;
         }
     }
 }
@@ -264,6 +281,10 @@ $stmt = $pdo->query("SELECT s.id, s.name, s.department_id FROM sections s ORDER 
 while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
     $sections[$row['department_id']][] = $row;
 }
+
+// [FIX] Handle GET messages
+if (isset($_GET['msg'])) $msg = $_GET['msg'];
+if (isset($_GET['tab'])) $activeTab = $_GET['tab'];
 ?>
 <!DOCTYPE html>
 <html lang="en">

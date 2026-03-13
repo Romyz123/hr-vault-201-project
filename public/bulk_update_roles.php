@@ -141,7 +141,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_roles'])) {
 
                     $pdo->commit();
                     $logger->log($_SESSION['user_id'], 'BULK_UPDATE_ROLE', "Updated details for $count employees.");
-                    $msg = "✅ Successfully updated $count employees.";
+                    header("Location: bulk_update_roles.php?msg=" . urlencode("✅ Successfully updated $count employees."));
+                    exit;
                 }
             } catch (Exception $e) {
                 $pdo->rollBack();
@@ -152,6 +153,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_roles'])) {
             }
         }
     }
+}
+
+// [FIX] Capture message from URL (Post-Redirect-Get)
+if (isset($_GET['msg'])) {
+    $msg = $_GET['msg'];
+}
+if (isset($_GET['error'])) {
+    $error = $_GET['error'];
 }
 
 // 3. FETCH EMPLOYEES

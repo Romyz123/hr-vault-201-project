@@ -12,8 +12,11 @@ error_reporting(E_ALL);
 $_ENV = require 'config.php';
 
 // [MHI 5.4] Enforce HTTPS (Skip for Localhost or CLI to avoid ERR_SSL_PROTOCOL_ERROR)
+// To test compliance locally, you can temporarily remove '127.0.0.1' from the array below.
 $isLocal = (php_sapi_name() === 'cli') || in_array($_SERVER['REMOTE_ADDR'] ?? '', ['127.0.0.1', '::1']);
-if (!$isLocal && (empty($_SERVER['HTTPS']) || $_SERVER['HTTPS'] === "off")) {
+$isHttps = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || ($_SERVER['SERVER_PORT'] ?? 80) == 443;
+
+if (!$isLocal && !$isHttps) {
     $location = 'https://' . $_SERVER['SERVER_NAME'] . $_SERVER['REQUEST_URI'];
     header('HTTP/1.1 301 Moved Permanently');
     header('Location: ' . $location);
@@ -21,7 +24,7 @@ if (!$isLocal && (empty($_SERVER['HTTPS']) || $_SERVER['HTTPS'] === "off")) {
 }
 // [MHI 5.3] Secure Session Parameters (HttpOnly, Secure, SameSite)
 ini_set('session.cookie_httponly', 1);
-ini_set('session.cookie_secure', $isLocal ? 0 : 1);
+ini_set('session.cookie_secure', $isHttps ? 1 : 0);
 ini_set('session.cookie_samesite', 'Strict');
 try {
     $options = [
