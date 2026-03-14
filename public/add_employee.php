@@ -42,6 +42,12 @@ function post($key, $default = '')
     return isset($_POST[$key]) ? trim((string)$_POST[$key]) : $default;
 }
 $old = $_POST ?: $_GET; // [FIX] Allow GET for pre-filling from Recruitment
+if (isset($_SESSION['prefill_employee']) && is_array($_SESSION['prefill_employee'])) {
+    // Merge prefill data, but allow POST/GET to override if present
+    $old = array_merge($_SESSION['prefill_employee'], $old);
+    unset($_SESSION['prefill_employee']);
+}
+
 function old($key, $default = '')
 {
     global $old;
@@ -655,7 +661,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <?php if (($_SESSION['role'] ?? '') === 'STAFF'): ?>
                         <div class="alert alert-warning">
                             <label class="form-label fw-bold"><i class="bi bi-chat-text"></i> Note for Admin</label>
-                            <textarea name="request_note" class="form-control" rows="2" maxlength="250"
+                            <textarea name="request_note" class="form-control" rows="2" maxlength="500"
                                 placeholder="Add any details for the admin..." spellcheck="true" lang="en" style="text-align: justify; white-space: pre-wrap; word-wrap: break-word;"><?php echo old('request_note'); ?></textarea>
                         </div>
                     <?php endif; ?>

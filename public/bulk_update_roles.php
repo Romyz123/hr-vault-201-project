@@ -30,6 +30,7 @@ if (!isset($_SESSION['user_id']) || !in_array($_SESSION['role'], ['ADMIN', 'MANA
 $logger = new Logger($pdo);
 $msg = "";
 $error = "";
+$dryRunResults = null; // Store preview data
 
 // [NEW] Load Centralized Options
 require __DIR__ . '/options.php';
@@ -40,7 +41,7 @@ if (empty($_SESSION['csrf_token'])) {
 }
 
 // 2. HANDLE BULK UPDATE
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_roles'])) {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_POST['update_roles']) || isset($_POST['dry_run']))) {
     // CSRF Check
     if (empty($_POST['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'])) {
         die("Security Error: Invalid Token.");
@@ -94,62 +95,107 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_roles'])) {
         }
 
         if ($valid) {
-            try {
-                $pdo->beginTransaction();
+            // [NEW] DRY RUN LOGIC
+            if (isset($_POST['dry_run'])) {
+                $placeholders = implode(',', array_fill(0, count($ids), '?'));
+                $sql = "SELECT id, emp_id, first_name, last_name, job_title, dept, section, gender, system_role FROM employees WHERE id IN ($placeholders)";
+                $stmt = $pdo->prepare($sql);
+                $stmt->execute($ids);
+                $targets = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-                $sql = "UPDATE employees SET ";
-                $params = [];
-                $updates = [];
+                $dryRunResults = [];
+                foreach ($targets as $t) {
+                    $changes = [];
+                    $oldRole = htmlspecialchars($t['system_role'], ENT_QUOTES, 'UTF-8');
+                    $oldJob = htmlspecialchars($t['job_title'], ENT_QUOTES, 'UTF-8');
+                    $oldDept = htmlspecialchars($t['dept'], ENT_QUOTES, 'UTF-8');
+                    $oldSection = htmlspecialchars($t['section'], ENT_QUOTES, 'UTF-8');
+                    $oldGender = htmlspecialchars($t['gender'], ENT_QUOTES, 'UTF-8');
 
-                if (!empty($new_role)) {
-                    $updates[] = "system_role = ?";
-                    $params[] = $new_role;
-                }
-                if ($new_job !== '') {
-                    $updates[] = "job_title = ?";
-                    $params[] = ucwords(strtolower($new_job)); // Auto-capitalize
-                }
-                if (!empty($new_dept)) {
-                    $updates[] = "dept = ?";
-                    $params[] = $new_dept;
-                }
-                if (!empty($new_section)) {
-                    $updates[] = "section = ?";
-                    $params[] = $new_section;
-                }
-                if (!empty($new_gender)) {
-                    $updates[] = "gender = ?";
-                    $params[] = $new_gender;
-                }
-
-                if (empty($updates)) {
-                    $error = "⚠️ No changes specified. Please select a field to update.";
-                    $pdo->rollBack();
-                } else {
-                    $updates[] = "updated_at = NOW()";
-                    $sql .= implode(", ", $updates);
-                    $sql .= " WHERE id = ?";
-
-                    $stmt = $pdo->prepare($sql);
-                    $count = 0;
-                    foreach ($ids as $id) {
-                        $execParams = $params;
-                        $execParams[] = $id;
-                        $stmt->execute($execParams);
-                        $count++;
+                    if ($new_role && $t['system_role'] !== $new_role) {
+                        $changes[] = "Role: <s>$oldRole</s> &rarr; <strong>" . htmlspecialchars($new_role, ENT_QUOTES, 'UTF-8') . "</strong>";
+                    }
+                    if ($new_job) {
+                        $fmtJob = ucwords(strtolower($new_job));
+                        if ($t['job_title'] !== $fmtJob) {
+                            $changes[] = "Job: <s>$oldJob</s> &rarr; <strong>" . htmlspecialchars($fmtJob, ENT_QUOTES, 'UTF-8') . "</strong>";
+                        }
+                    }
+                    if ($new_dept && $t['dept'] !== $new_dept) {
+                        $changes[] = "Dept: <s>$oldDept</s> &rarr; <strong>" . htmlspecialchars($new_dept, ENT_QUOTES, 'UTF-8') . "</strong>";
+                    }
+                    if ($new_section && $t['section'] !== $new_section) {
+                        $changes[] = "Section: <s>$oldSection</s> &rarr; <strong>" . htmlspecialchars($new_section, ENT_QUOTES, 'UTF-8') . "</strong>";
+                    }
+                    if ($new_gender && $t['gender'] !== $new_gender) {
+                        $changes[] = "Gender: <s>$oldGender</s> &rarr; <strong>" . htmlspecialchars($new_gender, ENT_QUOTES, 'UTF-8') . "</strong>";
                     }
 
-                    $pdo->commit();
-                    $logger->log($_SESSION['user_id'], 'BULK_UPDATE_ROLE', "Updated details for $count employees.");
-                    header("Location: bulk_update_roles.php?msg=" . urlencode("✅ Successfully updated $count employees."));
-                    exit;
+                    if (!empty($changes)) {
+                        $dryRunResults[] = [
+                            'name' => $t['first_name'] . ' ' . $t['last_name'],
+                            'changes' => $changes
+                        ];
+                    }
                 }
-            } catch (Exception $e) {
-                $pdo->rollBack();
-                // Log the full error server-side
-                error_log('Bulk update error: ' . $e->getMessage());
-                // Show generic error to user
-                $error = "An internal error occurred while updating roles. Please try again later.";
+            } else {
+                try {
+                    $pdo->beginTransaction();
+
+                    $sql = "UPDATE employees SET ";
+                    $params = [];
+                    $updates = [];
+
+                    if (!empty($new_role)) {
+                        $updates[] = "system_role = ?";
+                        $params[] = $new_role;
+                    }
+                    if ($new_job !== '') {
+                        $updates[] = "job_title = ?";
+                        $params[] = ucwords(strtolower($new_job)); // Auto-capitalize
+                    }
+                    if (!empty($new_dept)) {
+                        $updates[] = "dept = ?";
+                        $params[] = $new_dept;
+                    }
+                    if (!empty($new_section)) {
+                        $updates[] = "section = ?";
+                        $params[] = $new_section;
+                    }
+                    if (!empty($new_gender)) {
+                        $updates[] = "gender = ?";
+                        $params[] = $new_gender;
+                    }
+
+                    if (empty($updates)) {
+                        $error = "⚠️ No changes specified. Please select a field to update.";
+                        $pdo->rollBack();
+                    } else {
+                        $updates[] = "updated_at = NOW()";
+                        $sql .= implode(", ", $updates);
+                        $sql .= " WHERE id = ?";
+
+                        $stmt = $pdo->prepare($sql);
+                        $count = 0;
+                        foreach ($ids as $id) {
+                            $execParams = $params;
+                            $execParams[] = $id;
+                            $stmt->execute($execParams);
+                            $count++;
+                        }
+
+                        $pdo->commit();
+                        $logger->log($_SESSION['user_id'], 'BULK_UPDATE_ROLE', "Updated details for $count employees.");
+                        header("Location: bulk_update_roles.php?msg=" . urlencode("✅ Successfully updated $count employees."));
+                        exit;
+                    }
+                } catch (Exception $e) {
+                    $pdo->rollBack();
+                    // Log the full error server-side
+                    error_log('Bulk update error: ' . $e->getMessage());
+                    // Show generic error to user
+                    $error = "An internal error occurred while updating roles. Please try again later.";
+                }
             }
         }
     }
@@ -180,8 +226,8 @@ if ($search) {
 }
 
 if ($dept) {
-    $sql .= " AND dept = ?";
-    $params[] = $dept;
+    $sql .= " AND dept LIKE ?";
+    $params[] = "%{$dept}%";
 }
 
 $sql .= " ORDER BY last_name ASC LIMIT 100"; // Limit for performance
@@ -235,6 +281,35 @@ $historyLogs = $pdo->query("SELECT a.*, u.username FROM activity_logs a LEFT JOI
     <div class="container">
         <!-- FILTERS -->
         <div class="card shadow-sm mb-4">
+            <!-- DRY RUN RESULTS DISPLAY -->
+            <?php if ($dryRunResults !== null): ?>
+                <div class="alert alert-info border-info shadow-sm mb-4">
+                    <h5 class="alert-heading"><i class="bi bi-eye"></i> Simulation Results (Dry Run)</h5>
+                    <p class="mb-2">The following changes <strong>would be applied</strong> if you click "Apply Changes". No data has been modified yet.</p>
+                    <?php if (empty($dryRunResults)): ?>
+                        <div class="text-muted fst-italic">No changes detected based on your selection.</div>
+                    <?php else: ?>
+                        <div class="table-responsive bg-white border rounded">
+                            <table class="table table-sm table-bordered mb-0">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Employee</th>
+                                        <th>Proposed Changes</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php foreach ($dryRunResults as $res): ?>
+                                        <tr>
+                                            <td class="fw-bold"><?php echo htmlspecialchars($res['name']); ?></td>
+                                            <td><?php echo implode('<br>', $res['changes']); ?></td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                </tbody>
+                            </table>
+                        </div>
+                    <?php endif; ?>
+                </div>
+            <?php endif; ?>
             <div class="card-body py-2">
                 <form method="GET" class="row g-2 align-items-center">
                     <div class="col-md-3">
@@ -326,8 +401,9 @@ $historyLogs = $pdo->query("SELECT a.*, u.username FROM activity_logs a LEFT JOI
                                 <option value="Female">Female</option>
                             </select>
                         </div>
-                        <div class="col-md-2">
-                            <button type="submit" name="update_roles" id="applyBtn" class="btn btn-success w-100 fw-bold">Apply Changes</button>
+                        <div class="col-md-2 d-grid gap-2">
+                            <button type="submit" name="dry_run" value="1" class="btn btn-info text-white fw-bold btn-sm" formnovalidate>Simulate</button>
+                            <button type="submit" name="update_roles" id="applyBtn" class="btn btn-success fw-bold btn-sm">Apply</button>
                         </div>
                     </div>
                 </div>

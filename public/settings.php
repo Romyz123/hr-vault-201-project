@@ -26,66 +26,112 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         // [FIX] Define checkboxes and handle unchecked states (which aren't sent in POST)
         $checkboxes = ['maintenance_mode', 'backup_include_vault', 'staff_direct_approval'];
-        foreach ($checkboxes as $cb) {
-            $value = isset($_POST['settings'][$cb]) ? '1' : '0';
-            $stmt = $pdo->prepare("INSERT INTO system_settings (setting_key, setting_value) VALUES (?, ?) ON DUPLICATE KEY UPDATE setting_value = ?");
-            $stmt->execute([$cb, $value, $value]);
+
+        // Fetch current backup password once so we can preserve it if the form submits an empty value
+        $currentBackupPassword = '';
+        try {
+            $stmt_pass = $pdo->prepare("SELECT setting_value FROM system_settings WHERE setting_key = 'backup_password'");
+            $stmt_pass->execute();
+            $currentBackupPassword = $stmt_pass->fetchColumn() ?: '';
+        } catch (Exception $e) {
+            // ignore; it may not exist yet
         }
 
-        // Loop through all posted settings
+        $errors = [];
+        $updates = [];
+
+        // Validate posted settings first
         foreach ($_POST['settings'] as $key => $value) {
             // Basic validation
             $key = preg_replace('/[^a-zA-Z0-9_]/', '', $key); // Sanitize key
-            $value = trim($value);
+            $value = trim((string)$value);
 
-            // [FIX] Skip checkboxes as they are already handled above
-            if (in_array($key, $checkboxes)) {
+            // Handle checkboxes (they are not sent when unchecked)
+            if (in_array($key, $checkboxes, true)) {
+                $updates[$key] = isset($_POST['settings'][$key]) ? '1' : '0';
                 continue;
             }
 
-            // [NEW from user code] Handle backup password
+            // Handle backup password
             if ($key === 'backup_password') {
                 if (isset($_POST['clear_backup_password'])) {
                     $value = '';
-                } elseif (!empty($value)) {
-                    if (strlen($value) > 50) {
-                        $error = "ZIP Password is too long (Max 50 chars).";
-                        continue;
-                    }
-                    if (strlen($value) < 8) {
-                        $error = "ZIP Password must be at least 8 characters.";
-                        continue;
-                    }
+                } elseif ($value === '') {
+                    // Preserve existing password if user left it blank
+                    $value = $currentBackupPassword;
                 } else {
-                    // Keep existing if empty and not cleared
-                    $stmt_pass = $pdo->prepare("SELECT setting_value FROM system_settings WHERE setting_key = 'backup_password'");
-                    $stmt_pass->execute();
-                    $value = $stmt_pass->fetchColumn() ?: '';
+                    if (strlen($value) > 50) {
+                        $errors[] = "ZIP Password is too long (Max 50 chars).";
+                    } elseif (strlen($value) < 8) {
+                        $errors[] = "ZIP Password must be at least 8 characters.";
+                    }
+                }
+            }
+
+            // Validate backup path
+            if ($key === 'backup_path') {
+                $clean = str_replace("\0", '', $value);
+                if (strpos($clean, '..') !== false) {
+                    $errors[] = "Backup path must not contain '..' sequences.";
+                } elseif (!preg_match('/^[A-Za-z0-9_:\/\\\s\-]+$/', $clean)) {
+                    $errors[] = "Backup path contains invalid characters.";
+                } else {
+                    $real = realpath($clean);
+                    if ($real === false || !is_dir($real)) {
+                        $errors[] = "Backup path must point to an existing directory.";
+                    } elseif (!is_writable($real)) {
+                        $errors[] = "Backup path is not writable by the web server.";
+                    } else {
+                        $value = $real;
+                    }
+                }
+            }
+
+            // Validate Alert Email Length and Format
+            if ($key === 'backup_alert_email') {
+                if (strlen($value) > 100) {
+                    $errors[] = "Alert Email is too long (Max 100 chars).";
+                } elseif (!empty($value) && !filter_var($value, FILTER_VALIDATE_EMAIL)) {
+                    $errors[] = "Invalid Alert Email format.";
                 }
             }
 
             // Specific validation for timeouts (must be numeric, in seconds)
             if (strpos($key, 'timeout') !== false || strpos($key, 'interval') !== false) {
                 if (!is_numeric($value) || (int)$value < 10) {
-                    $error = "Timeout/Interval values must be numeric and at least 10 seconds.";
-                    continue; // Skip this setting
+                    $errors[] = "Timeout/Interval values must be numeric and at least 10 seconds.";
                 }
                 $value = (int)$value;
             }
 
-            // Use INSERT ... ON DUPLICATE KEY UPDATE for efficiency
-            $stmt = $pdo->prepare("INSERT INTO system_settings (setting_key, setting_value) VALUES (?, ?) ON DUPLICATE KEY UPDATE setting_value = ?");
-            $stmt->execute([$key, $value, $value]);
+            // Specific validation for margins (Max 500, numbers only)
+            if (strpos($key, 'margin') !== false) {
+                $value = preg_replace('/[^0-9]/', '', (string)$value);
+                if ($value === '' || (int)$value > 500) {
+                    $value = '500';
+                }
+            }
+
+            // Queue this setting for update
+            $updates[$key] = $value;
         }
 
-        if (empty($error)) {
+        if (empty($errors)) {
+            // Persist all validated settings
+            $stmt = $pdo->prepare("INSERT INTO system_settings (setting_key, setting_value) VALUES (?, ?) ON DUPLICATE KEY UPDATE setting_value = ?");
+            foreach ($updates as $k => $v) {
+                $stmt->execute([$k, $v, $v]);
+            }
+
             $msg = "✅ Settings updated successfully!";
             $logger->log($_SESSION['user_id'], 'SETTINGS_UPDATE', 'System settings were updated.');
             header("Location: settings.php?msg=" . urlencode($msg));
             exit;
+        } else {
+            $error = implode('<br>', array_map('htmlspecialchars', $errors));
         }
     } catch (Exception $e) {
-        $error = "Error: " . $e->getMessage();
+        $error = "Error: " . htmlspecialchars($e->getMessage());
     }
 }
 
@@ -105,6 +151,7 @@ try {
 $serverTimeout = $settings['session_timeout_server'] ?? 1800;
 $clientTimeout = $settings['session_timeout_client'] ?? 900;
 $refreshInterval = $settings['auto_refresh_interval'] ?? 60;
+$vaultLimitMB = $settings['vault_size_limit_mb'] ?? '1024'; // Default 1GB
 $maintMode = $settings['maintenance_mode'] ?? '0';
 
 // [NEW from user code]
@@ -135,8 +182,13 @@ $backupEmail = $settings['backup_alert_email'] ?? '';
     <nav class="navbar navbar-dark bg-dark mb-4">
         <div class="container">
             <a class="navbar-brand" href="index.php">Back to Dashboard</a>
-            <span class="navbar-text text-white"><i class="bi bi-sliders"></i> System Settings</span>
-            <span class="navbar-text text-white-50 ms-3 font-monospace small"><i class="bi bi-clock"></i> <span id="sessionTimer"></span></span>
+            <div class="d-flex align-items-center gap-2">
+                <button id="darkModeToggle" class="btn btn-sm btn-outline-light border-0" title="Toggle Dark Mode">
+                    <i class="bi bi-moon-stars-fill"></i>
+                </button>
+                <span class="navbar-text text-white"><i class="bi bi-sliders"></i> System Settings</span>
+                <span class="navbar-text text-white-50 ms-3 font-monospace small"><i class="bi bi-clock"></i> <span id="sessionTimer"></span></span>
+            </div>
         </div>
     </nav>
 
@@ -221,8 +273,8 @@ $backupEmail = $settings['backup_alert_email'] ?? '';
                                 <div class="form-text">Auto-fills the Project Name in contracts.</div>
                             </div>
                             <div class="row g-2">
-                                <div class="col-6"><label class="form-label fw-bold">Bulk Print Margin (Left)</label><input type="number" name="settings[bulk_margin_left]" class="form-control" value="<?php echo htmlspecialchars($marginL); ?>" min="0" max="200"></div>
-                                <div class="col-6"><label class="form-label fw-bold">Bulk Print Margin (Right)</label><input type="number" name="settings[bulk_margin_right]" class="form-control" value="<?php echo htmlspecialchars($marginR); ?>" min="0" max="200"></div>
+                                <div class="col-6"><label class="form-label fw-bold">Bulk Print Margin (Left)</label><input type="number" name="settings[bulk_margin_left]" class="form-control" value="<?php echo htmlspecialchars($marginL); ?>" min="0" max="500" oninput="validateMargin(this)"></div>
+                                <div class="col-6"><label class="form-label fw-bold">Bulk Print Margin (Right)</label><input type="number" name="settings[bulk_margin_right]" class="form-control" value="<?php echo htmlspecialchars($marginR); ?>" min="0" max="500" oninput="validateMargin(this)"></div>
                             </div>
                             <div class="form-text mb-3">Adjusts the side spacing for bulk printed contracts (in pixels).</div>
                         </div>
@@ -235,10 +287,15 @@ $backupEmail = $settings['backup_alert_email'] ?? '';
                         </div>
                         <div class="card-body">
                             <div class="row">
-                                <div class="col-md-12 mb-3">
+                                <div class="col-md-6 mb-3">
                                     <label for="refresh_interval" class="form-label fw-bold">Dashboard Auto-Refresh Interval (seconds)</label>
                                     <input type="number" id="refresh_interval" name="settings[auto_refresh_interval]" class="form-control" value="<?php echo htmlspecialchars($refreshInterval); ?>" min="10">
                                     <div class="form-text">How often the dashboard checks for new notifications. Minimum 10 seconds.</div>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label for="vault_size_limit_mb" class="form-label fw-bold">Vault Size Limit (MB)</label>
+                                    <input type="number" id="vault_size_limit_mb" name="settings[vault_size_limit_mb]" class="form-control" value="<?php echo htmlspecialchars($vaultLimitMB); ?>" min="0">
+                                    <div class="form-text">Maximum allowed storage for the Vault directory. Set to 0 for unlimited. (1024 MB = 1 GB)</div>
                                 </div>
                             </div>
                         </div>
@@ -270,13 +327,13 @@ $backupEmail = $settings['backup_alert_email'] ?? '';
                                     <div class="form-check form-switch">
                                         <input class="form-check-input" type="checkbox" name="settings[backup_include_vault]" value="1" id="incVault" <?php echo ($backupVault === '1') ? 'checked' : ''; ?>>
                                         <label class="form-check-label fw-bold" for="incVault">Include Vault Files</label>
+                                        <div class="form-text text-danger mt-1" style="font-size: 0.75rem;"><i class="bi bi-exclamation-triangle"></i> Uncheck if vault > 2GB.</div>
                                     </div>
                                 </div>
                             </div>
                             <div class="mb-3">
                                 <label class="form-label fw-bold">Backup Path (Optional)</label>
-                                <input type="text" name="settings[backup_path]" class="form-control" value="<?php echo htmlspecialchars($backupPath); ?>" placeholder="e.g. C:\backups\">
-                                <input type="text" name="settings[backup_path]" class="form-control" value="<?php echo htmlspecialchars($backupPath); ?>" placeholder="e.g. C:\backups\" maxlength="255">
+                                <input type="text" name="settings[backup_path]" class="form-control" value="<?php echo htmlspecialchars($backupPath); ?>" placeholder="e.g. C:\backups\" maxlength="255" pattern="[a-zA-Z0-9\:\/\\ \-_]+" title="Allowed: Alphanumeric, Space, Colon, Slashes, Dash, Underscore">
                                 <div class="form-text">Absolute path to a custom backup folder. Leave blank to use default `backups/` folder.</div>
                             </div>
                             <!-- [NEW from user code] Backup Password -->
@@ -295,7 +352,7 @@ $backupEmail = $settings['backup_alert_email'] ?? '';
 
                             <div class="mb-3">
                                 <label class="form-label fw-bold">Failure Alert Email</label>
-                                <input type="email" name="settings[backup_alert_email]" class="form-control" value="<?php echo htmlspecialchars($backupEmail); ?>" placeholder="admin@example.com">
+                                <input type="email" name="settings[backup_alert_email]" class="form-control" value="<?php echo htmlspecialchars($backupEmail); ?>" placeholder="admin@example.com" maxlength="100">
                                 <div class="form-text">Email address to notify if the automated backup fails.</div>
                             </div>
                         </div>
@@ -305,7 +362,7 @@ $backupEmail = $settings['backup_alert_email'] ?? '';
                     <div class="alert alert-info mt-3">
                         <h6 class="fw-bold"><i class="bi bi-robot"></i> Automatic System Backup</h6>
                         <p class="small mb-2">The system will automatically run a backup when an <strong>Admin logs in</strong> on <strong><?php echo htmlspecialchars($backupDay); ?></strong> after <strong><?php echo htmlspecialchars($backupTime); ?></strong>.</p>
-                        <hr><a href="cron_backup.php" class="btn btn-sm btn-dark mt-1"><i class="bi bi-play-fill"></i> Run Full Backup Now</a>
+                        <hr><button type="button" class="btn btn-sm btn-dark mt-1 fw-bold" id="manualBackupBtn" onclick="runManualBackup()"><i class="bi bi-play-fill"></i> Run Full Backup Now</button>
                     </div>
                 </div>
             </div>
@@ -401,6 +458,39 @@ $backupEmail = $settings['backup_alert_email'] ?? '';
             // In a real scenario, you'd fetch a test endpoint here.
         }
 
+        function runManualBackup() {
+            const btn = document.getElementById('manualBackupBtn');
+            const ogText = btn.innerHTML;
+
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> Packing Data... Please wait.';
+            btn.disabled = true;
+
+            fetch('cron_backup.php?ajax=1')
+                .then(r => r.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        Swal.fire('Success!', data.message, 'success').then(() => window.location.reload());
+                    } else {
+                        Swal.fire('Backup Failed', data.message, 'error');
+                    }
+                })
+                .catch(err => {
+                    console.error(err);
+                    Swal.fire('Network Error', 'An unexpected error occurred while communicating with the server.', 'error');
+                })
+                .finally(() => {
+                    btn.innerHTML = ogText;
+                    btn.disabled = false;
+                });
+        }
+
+        function validateMargin(input) {
+            // [FIX] Strict Validation: Numbers only, 3 digits length, max 500
+            input.value = input.value.replace(/[^0-9]/g, '');
+            if (input.value.length > 3) input.value = input.value.slice(0, 3);
+            if (input.value !== '' && parseInt(input.value) > 500) input.value = '500';
+        }
+
         // [SECURITY] Auto-Logout Timer
         const timeoutDuration = <?php echo $clientTimeout * 1000; ?>;
         let timeLeft = timeoutDuration;
@@ -417,6 +507,7 @@ $backupEmail = $settings['backup_alert_email'] ?? '';
         setInterval(updateTimer, 1000);
         updateTimer();
     </script>
+    <script src="dark_mode.js"></script>
 </body>
 
 </html>

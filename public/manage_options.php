@@ -271,13 +271,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 // 4. FETCH DATA
-$agencies = $pdo->query("SELECT * FROM agencies ORDER BY name ASC")->fetchAll();
-$roles    = $pdo->query("SELECT * FROM system_roles ORDER BY name ASC")->fetchAll();
-$depts    = $pdo->query("SELECT * FROM departments ORDER BY name ASC")->fetchAll();
+$agencies = $pdo->query("SELECT * FROM agencies ORDER BY name ASC")->fetchAll(); // [UX] Alphabetical
+$roles    = $pdo->query("SELECT * FROM system_roles ORDER BY name ASC")->fetchAll(); // [UX] Alphabetical
+$depts    = $pdo->query("SELECT * FROM departments ORDER BY name ASC")->fetchAll(); // [UX] Alphabetical
 
 // Fetch sections grouped by dept
 $sections = [];
-$stmt = $pdo->query("SELECT s.id, s.name, s.department_id FROM sections s ORDER BY s.name ASC");
+$stmt = $pdo->query("SELECT s.id, s.name, s.department_id FROM sections s ORDER BY s.name ASC"); // [UX] Alphabetical
 while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
     $sections[$row['department_id']][] = $row;
 }
@@ -302,7 +302,12 @@ if (isset($_GET['tab'])) $activeTab = $_GET['tab'];
     <nav class="navbar navbar-dark bg-dark mb-4">
         <div class="container">
             <a class="navbar-brand" href="index.php">Back to Dashboard</a>
-            <span class="navbar-text text-white"><i class="bi bi-list-check"></i> Manage Options</span>
+            <div class="d-flex align-items-center gap-2">
+                <button id="darkModeToggle" class="btn btn-sm btn-outline-light border-0" title="Toggle Dark Mode">
+                    <i class="bi bi-moon-stars-fill"></i>
+                </button>
+                <span class="navbar-text text-white"><i class="bi bi-list-check"></i> Manage Options</span>
+            </div>
         </div>
     </nav>
 
@@ -333,7 +338,7 @@ if (isset($_GET['tab'])) $activeTab = $_GET['tab'];
                             <input type="hidden" name="action" value="add_agency">
                             <div class="col-md-9">
                                 <label class="form-label fw-bold">Add New Agency</label>
-                                <input type="text" name="name" class="form-control" placeholder="e.g. NEW AGENCY INC." required maxlength="50" pattern="[A-Za-z0-9 \-\.]+" title="Alphanumeric, spaces, dashes, dots">
+                                <input type="text" name="name" class="form-control" placeholder="e.g. NEW AGENCY INC." required maxlength="100" pattern="[A-Za-z0-9 \-\.]+" title="Alphanumeric, spaces, dashes, dots">
                             </div>
                             <div class="col-md-3">
                                 <button type="submit" class="btn btn-success w-100"><i class="bi bi-plus-lg"></i> Add</button>
@@ -355,7 +360,7 @@ if (isset($_GET['tab'])) $activeTab = $_GET['tab'];
                                                     <input type="hidden" name="csrf_token" value="<?php echo $_SESSION['csrf_token']; ?>">
                                                     <input type="hidden" name="action" value="edit_agency">
                                                     <input type="hidden" name="id" value="<?php echo $a['id']; ?>">
-                                                    <input type="text" name="name" class="form-control form-control-sm" value="<?php echo htmlspecialchars($a['name']); ?>" required maxlength="50">
+                                                    <input type="text" name="name" class="form-control form-control-sm" value="<?php echo htmlspecialchars($a['name']); ?>" required maxlength="100" pattern="[A-Za-z0-9 \-\.]+" title="Alphanumeric, spaces, dashes, dots">
                                                     <button type="submit" class="btn btn-sm btn-outline-primary"><i class="bi bi-save"></i></button>
                                                 </form>
                                             </td>
@@ -385,7 +390,7 @@ if (isset($_GET['tab'])) $activeTab = $_GET['tab'];
                             <input type="hidden" name="action" value="add_role">
                             <div class="col-md-9">
                                 <label class="form-label fw-bold">Add New Role</label>
-                                <input type="text" name="name" class="form-control" placeholder="e.g. SUPERVISOR" required maxlength="50" pattern="[A-Za-z0-9 \-\.]+" title="Alphanumeric">
+                                <input type="text" name="name" class="form-control" placeholder="e.g. SUPERVISOR" required maxlength="100" pattern="[A-Za-z0-9 \-\.]+" title="Alphanumeric, spaces, dashes, dots">
                             </div>
                             <div class="col-md-3">
                                 <button type="submit" class="btn btn-success w-100"><i class="bi bi-plus-lg"></i> Add</button>
@@ -448,7 +453,7 @@ if (isset($_GET['tab'])) $activeTab = $_GET['tab'];
                                 <form method="POST" class="input-group mb-3">
                                     <input type="hidden" name="csrf_token" value="<?php echo $_SESSION['csrf_token']; ?>">
                                     <input type="hidden" name="action" value="add_dept">
-                                    <input type="text" name="name" class="form-control" placeholder="New Dept" required maxlength="50">
+                                    <input type="text" name="name" class="form-control" placeholder="New Dept" required maxlength="100" pattern="[A-Za-z0-9 \-\.]+" title="Alphanumeric, spaces, dashes, dots">
                                     <button class="btn btn-success" type="submit"><i class="bi bi-plus-lg"></i></button>
                                 </form>
                                 <div class="list-group" id="deptList">
@@ -482,7 +487,7 @@ if (isset($_GET['tab'])) $activeTab = $_GET['tab'];
                                         <input type="hidden" name="csrf_token" value="<?php echo $_SESSION['csrf_token']; ?>">
                                         <input type="hidden" name="action" value="add_section">
                                         <input type="hidden" name="dept_id" id="activeDeptId">
-                                        <input type="text" name="name" class="form-control" placeholder="New Section Name" required maxlength="50">
+                                        <input type="text" name="name" class="form-control" placeholder="New Section Name" required maxlength="100" pattern="[A-Za-z0-9 \-\.]+" title="Alphanumeric, spaces, dashes, dots">
                                         <button class="btn btn-success" type="submit"><i class="bi bi-plus-lg"></i> Add</button>
                                     </form>
                                     <ul class="list-group" id="sectList">
@@ -615,6 +620,7 @@ if (isset($_GET['tab'])) $activeTab = $_GET['tab'];
             window.history.replaceState(null, null, window.location.href);
         }
     </script>
+    <script src="dark_mode.js"></script>
 </body>
 
 </html>

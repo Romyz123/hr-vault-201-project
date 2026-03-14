@@ -119,6 +119,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Initialize FileService once
     $fileService = new FileService($vaultPath);
 
+    // [SECURITY] Vault Size Quota Check
+    $vaultLimitMB = 1024; // Default 1GB
+    try {
+        $stmt = $pdo->query("SELECT setting_value FROM system_settings WHERE setting_key = 'vault_size_limit_mb'");
+        $val = $stmt->fetchColumn();
+        if ($val !== false) $vaultLimitMB = (int)$val;
+    } catch (Exception $e) {
+    }
+
+    if ($vaultLimitMB > 0) {
+        $currentVaultSize = 0;
+        if (is_dir($vaultPath)) {
+            $iterator = new FileSystemIterator($vaultPath, FileSystemIterator::SKIP_DOTS);
+            foreach ($iterator as $f) {
+                if ($f->isFile()) $currentVaultSize += $f->getSize();
+            }
+        }
+        $incomingSize = 0;
+        foreach ($uploadedFiles as $f) {
+            if ($f['error'] === UPLOAD_ERR_OK) $incomingSize += $f['size'];
+        }
+        if (($currentVaultSize + $incomingSize) > ($vaultLimitMB * 1024 * 1024)) {
+            sendResponse('error', "Upload rejected: Vault size limit exceeded. (Limit: {$vaultLimitMB} MB)", $emp_id);
+        }
+    }
+
     foreach ($uploadedFiles as $idx => $file) {
         if ($file['error'] !== UPLOAD_ERR_OK) {
             $errorCode = $file['error'];
@@ -144,26 +170,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             continue;
         }
 
-        // [NEW] PDF Corruption Check (from disciplinary.php)
-        if ($ext === 'pdf') {
-            $handle = @fopen($file['tmp_name'], 'rb');
-            if ($handle === false) {
-                $errors[] = "File " . ($idx + 1) . ": Unable to verify the PDF file.";
-                continue;
-            }
+        // [SECURITY] Deep Signature Scan (Anti-Polyglot & Executable Check)
+        $handle = @fopen($file['tmp_name'], 'rb');
+        if ($handle === false) {
+            $errors[] = "File " . ($idx + 1) . ": Unable to read file for security scanning.";
+            continue;
+        }
 
-            $fileSize = $file['size'];
-            $chunkSize = min(1024, $fileSize);
-            $header = fread($handle, $chunkSize);
-            fseek($handle, -$chunkSize, SEEK_END);
-            $footer = fread($handle, $chunkSize);
+        $fileSize = $file['size'];
+        $header = fread($handle, min(2048, $fileSize));
+
+        // 1. Block Disguised Executables & Scripts (Windows PE, Linux ELF, PHP)
+        if (strpos($header, 'MZ') === 0 || strpos($header, "\x7FELF") === 0 || stripos($header, '<?php') !== false) {
+            fclose($handle);
+            $errors[] = "File " . ($idx + 1) . ": Rejected. Suspicious executable or script signature detected.";
+            continue;
+        }
+
+        // 2. PDF Specific Strict Checks
+        if ($ext === 'pdf') {
+            fseek($handle, -min(1024, $fileSize), SEEK_END);
+            $footer = fread($handle, min(1024, $fileSize));
             fclose($handle);
 
+            // Strictly enforce that %PDF- is at index 0 (prevents embedded headers)
             if (strpos($header, '%PDF-') !== 0 || strpos($footer, '%%EOF') === false) {
                 $errors[] = "File " . ($idx + 1) . ": The PDF file appears to be corrupted or incomplete.";
-                // No need to unlink, as it's a temp file that will be cleaned up
                 continue;
             }
+        } else {
+            fclose($handle);
         }
 
         // --- SAVE TO VAULT (Operation Vault Security) ---

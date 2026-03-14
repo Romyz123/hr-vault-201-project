@@ -89,6 +89,8 @@ try {
         $allowedStatuses = ['New Applicant', 'Screening', 'Interviewed', 'Hired', 'Rejected'];
         if (!in_array($status, $allowedStatuses, true)) {
             $error = "Invalid status value.";
+        } elseif (strlen($reject_reason) > 255) {
+            $error = "Rejection reason is too long (Max 255 chars).";
         } elseif (strlen($notes) > 1000) {
             $error = "Notes are too long (Max 1000 chars).";
         } else {
@@ -109,6 +111,25 @@ try {
         $_SESSION['msg'] = "🗑️ Candidate deleted successfully.";
         header("Location: " . $redirectUrl);
         exit;
+    }
+
+    // --- HANDLE BLACKLIST CANDIDATE ---
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['blacklist_candidate'])) {
+        $security->checkCSRF($_POST['csrf_token']);
+        $id = (int)($_POST['candidate_id'] ?? 0);
+        $reason = trim($_POST['reason'] ?? '');
+
+        if ($id <= 0) {
+            $error = "Invalid candidate selected.";
+        } elseif (strlen($reason) > 255) {
+            $error = "Reason is too long (Max 255 chars).";
+        } else {
+            $stmt = $pdo->prepare("UPDATE candidates SET is_blacklisted = 1, status = 'Rejected', rejection_reason = ?, last_follow_up = NOW() WHERE id = ?");
+            $stmt->execute([$reason, $id]);
+            $_SESSION['msg'] = "✅ Candidate has been blacklisted.";
+            header("Location: " . $redirectUrl);
+            exit;
+        }
     }
 
     // --- HANDLE SCHEDULE INTERVIEW (EMAIL) ---
@@ -194,22 +215,24 @@ try {
         $stmt = $pdo->prepare("UPDATE candidates SET status = 'Hired', last_follow_up = NOW() WHERE id = ?");
         $stmt->execute([$id]);
 
-        // 2. Fetch data to redirect to Add Employee form
+        // 2. Fetch data to prefill Add Employee form (avoid sending PII in URL)
         $stmt = $pdo->prepare("SELECT * FROM candidates WHERE id = ?");
         $stmt->execute([$id]);
         $c = $stmt->fetch();
 
-        $params = http_build_query([
-            'first_name' => $c['first_name'],
-            'last_name' => $c['last_name'],
-            'job_title' => $c['position_applied'],
-            'email' => $c['email'],
-            'contact_number' => $c['phone_number'],
-            'hire_date' => date('Y-m-d')
-        ]);
+        if ($c) {
+            $_SESSION['prefill_employee'] = [
+                'first_name' => $c['first_name'],
+                'last_name' => $c['last_name'],
+                'job_title' => $c['position_applied'],
+                'email' => $c['email'],
+                'contact_number' => $c['phone_number'],
+                'hire_date' => date('Y-m-d'),
+            ];
+        }
 
         $_SESSION['msg'] = "✅ Candidate marked as Hired. Please complete employee details.";
-        header("Location: add_employee.php?" . $params);
+        header("Location: add_employee.php");
         exit;
     }
 
@@ -400,7 +423,12 @@ try {
     <nav class="navbar navbar-dark bg-dark mb-4">
         <div class="container">
             <a class="navbar-brand" href="index.php">Back to Dashboard</a>
-            <span class="navbar-text text-white"><i class="bi bi-person-lines-fill"></i> Recruitment & ATS</span>
+            <div class="d-flex align-items-center gap-2">
+                <button id="darkModeToggle" class="btn btn-sm btn-outline-light border-0" title="Toggle Dark Mode">
+                    <i class="bi bi-moon-stars-fill"></i>
+                </button>
+                <span class="navbar-text text-white"><i class="bi bi-person-lines-fill"></i> Recruitment & ATS</span>
+            </div>
         </div>
     </nav>
 
@@ -552,6 +580,7 @@ try {
                                                 <button type="button" class="btn btn-outline-primary" title="Schedule / Reschedule Interview" onclick='openScheduleModal(<?php echo $c['id']; ?>, <?php echo json_encode($c['email'], JSON_HEX_APOS | JSON_HEX_QUOT); ?>, <?php echo json_encode($c['first_name'], JSON_HEX_APOS | JSON_HEX_QUOT); ?>, <?php echo json_encode($c['interview_date'] ?? '', JSON_HEX_APOS | JSON_HEX_QUOT); ?>)'><i class="bi bi-calendar-event"></i></button>
                                                 <button type="button" class="btn btn-outline-info" title="Send Follow Up" onclick='openFollowUpModal(<?php echo $c['id']; ?>, <?php echo json_encode($c['email'], JSON_HEX_APOS | JSON_HEX_QUOT); ?>, <?php echo json_encode($c['first_name'], JSON_HEX_APOS | JSON_HEX_QUOT); ?>)'><i class="bi bi-envelope-arrow-up"></i></button>
                                                 <button type="button" class="btn btn-outline-secondary" title="Edit Status" onclick='editCandidate(<?php echo $c['id']; ?>, <?php echo json_encode($c['status'], JSON_HEX_APOS | JSON_HEX_QUOT); ?>, <?php echo json_encode($c['notes'] ?? "", JSON_HEX_APOS | JSON_HEX_QUOT); ?>, <?php echo json_encode($c['rejection_reason'] ?? "", JSON_HEX_APOS | JSON_HEX_QUOT); ?>, <?php echo $isBlacklisted ? 1 : 0; ?>)'><i class="bi bi-pencil"></i></button>
+                                                <button type="button" class="btn btn-outline-danger" title="Blacklist Candidate" onclick="openBlacklistModal(<?php echo $c['id']; ?>)"><i class="bi bi-slash-circle"></i></button>
                                                 <button type="button" class="btn btn-outline-danger" title="Delete" onclick="deleteCandidate(<?php echo $c['id']; ?>)"><i class="bi bi-trash"></i></button>
                                             </div>
                                         </td>
@@ -629,7 +658,7 @@ try {
                 <div class="modal-body">
                     <input type="hidden" name="blacklist_candidate" value="1">
                     <input type="hidden" name="csrf_token" value="<?php echo $csrf_token; ?>">
-                    <input type="hidden" name="candidate_id" id="del_id">
+                    <input type="hidden" name="candidate_id" id="blacklist_id">
 
                     Are you sure you want to Blacklist this candidate?
                     This will prevent them from being hired
@@ -678,7 +707,7 @@ try {
                     </div>
                     <div class="mb-3" id="reject_div" style="display:none;">
                         <label class="form-label text-danger fw-bold">Reason for Rejection</label>
-                        <input type="text" name="rejection_reason" id="edit_reject_reason" class="form-control border-danger" placeholder="e.g. Applied to other company, Failed technical exam">
+                        <input type="text" name="rejection_reason" id="edit_reject_reason" class="form-control border-danger" placeholder="e.g. Applied to other company, Failed technical exam" maxlength="255">
                     </div>
                     <div class="form-check mb-3 p-3 border rounded bg-light">
                         <input class="form-check-input" type="checkbox" name="is_blacklisted" id="edit_blacklist" value="1">
@@ -784,6 +813,24 @@ try {
             }
         });
 
+        // [NEW] Dark Mode Adapter for Chart
+        function updateChartTheme() {
+            const isDark = document.documentElement.getAttribute('data-bs-theme') === 'dark';
+            const textColor = isDark ? '#adb5bd' : '#6c757d';
+
+            if (pipelineChart.options.plugins && pipelineChart.options.plugins.legend) {
+                pipelineChart.options.plugins.legend.labels = pipelineChart.options.plugins.legend.labels || {};
+                pipelineChart.options.plugins.legend.labels.color = textColor;
+            }
+            pipelineChart.update();
+        }
+
+        new MutationObserver(updateChartTheme).observe(document.documentElement, {
+            attributes: true,
+            attributeFilter: ['data-bs-theme']
+        });
+        updateChartTheme(); // Initial check
+
         function editCandidate(id, status, notes, rejectReason, isBlacklisted) {
             document.getElementById('edit_id').value = id;
             document.getElementById('edit_status').value = status;
@@ -808,11 +855,17 @@ try {
 
         function deleteCandidate(id) {
             if (confirm('Are you sure you want to delete this candidate? This cannot be undone.')) {
-
-
                 document.getElementById('del_id').value = id;
                 document.getElementById('deleteForm').submit();
             }
+        }
+
+        function openBlacklistModal(id) {
+            const input = document.getElementById('blacklist_id');
+            if (input) {
+                input.value = id;
+            }
+            new bootstrap.Modal(document.getElementById('BlacklistModal')).show();
         }
 
         function openScheduleModal(id, email, name, existingDate) {
@@ -844,6 +897,7 @@ try {
             new bootstrap.Modal(document.getElementById('followUpModal')).show();
         }
     </script>
+    <script src="dark_mode.js"></script>
 </body>
 
 </html>

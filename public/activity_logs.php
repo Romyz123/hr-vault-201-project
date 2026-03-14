@@ -227,7 +227,12 @@ $logs = $stmt->fetchAll();
     <nav class="navbar navbar-dark bg-dark mb-4">
         <div class="container">
             <a class="navbar-brand" href="index.php">Back to Dashboard</a>
-            <span class="navbar-text text-white"><i class="bi bi-shield-lock-fill text-danger"></i> System Activity Logs</span>
+            <div class="d-flex align-items-center gap-2">
+                <button id="darkModeToggle" class="btn btn-sm btn-outline-light border-0" title="Toggle Dark Mode">
+                    <i class="bi bi-moon-stars-fill"></i>
+                </button>
+                <span class="navbar-text text-white"><i class="bi bi-shield-lock-fill text-danger"></i> System Activity Logs</span>
+            </div>
         </div>
     </nav>
 
@@ -478,6 +483,7 @@ $logs = $stmt->fetchAll();
     </div>
 
     <script src="assets/bootstrap.bundle.min.js"></script>
+    <script src="dark_mode.js"></script>
 </body>
 
 </html>

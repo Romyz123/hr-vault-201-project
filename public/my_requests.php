@@ -89,6 +89,29 @@ $requests = $stmt->fetchAll(PDO::FETCH_ASSOC);
             background-color: #dc3545;
             color: #fff;
         }
+
+        /* Dark mode support */
+        body.dark-mode {
+            background: #0e1116;
+            color: #e9ecef;
+        }
+
+        body.dark-mode .card {
+            background: #1b1f26;
+            border-color: #2c313c;
+        }
+
+        body.dark-mode .navbar {
+            background: #0b0d12 !important;
+        }
+
+        body.dark-mode .table {
+            color: #e9ecef;
+        }
+
+        body.dark-mode .table thead {
+            background: rgba(255, 255, 255, 0.05);
+        }
     </style>
 </head>
 
@@ -97,7 +120,12 @@ $requests = $stmt->fetchAll(PDO::FETCH_ASSOC);
     <nav class="navbar navbar-dark bg-dark mb-4">
         <div class="container">
             <a class="navbar-brand" href="index.php">Back to Dashboard</a>
-            <span class="navbar-text text-white">My Request History</span>
+            <div class="d-flex align-items-center gap-2">
+                <button id="darkModeToggle" class="btn btn-sm btn-outline-light border-0" title="Toggle Dark Mode">
+                    <i class="bi bi-moon-stars-fill"></i>
+                </button>
+                <span class="navbar-text text-white">My Request History</span>
+            </div>
         </div>
     </nav>
 
@@ -238,6 +266,38 @@ $requests = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 
 
+</body>
+
+<script>
+    (function() {
+        const toggle = document.getElementById('darkModeToggle');
+        const STORAGE_KEY = 'my_requests_dark_mode';
+
+        const applyMode = (enabled) => {
+            document.body.classList.toggle('dark-mode', enabled);
+        };
+
+        const loadMode = () => {
+            const stored = localStorage.getItem(STORAGE_KEY);
+            return stored === '1';
+        };
+
+        const saveMode = (enabled) => {
+            localStorage.setItem(STORAGE_KEY, enabled ? '1' : '0');
+        };
+
+        // Apply preference on load
+        applyMode(loadMode());
+
+        if (toggle) {
+            toggle.addEventListener('click', () => {
+                const enabled = !document.body.classList.contains('dark-mode');
+                applyMode(enabled);
+                saveMode(enabled);
+            });
+        }
+    })();
+</script>
 </body>
 
 </html>

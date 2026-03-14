@@ -283,8 +283,11 @@ if (isset($_POST['undo_batch'])) {
                     if (!empty($cols)) {
                         $params[] = $rb['employee_id'];
                         $updSql = "UPDATE employees SET " . implode(", ", $cols) . " WHERE id = ?";
-                        $pdo->prepare($updSql)->execute($params);
-                        $restored_count++;
+                        $updStmt = $pdo->prepare($updSql);
+                        $updStmt->execute($params);
+                        if ($updStmt->rowCount() > 0) {
+                            $restored_count++;
+                        }
                     }
                 }
             }
@@ -643,7 +646,19 @@ $history = $pdo->query("SELECT import_batch, agency_name, COUNT(*) as count, MAX
 
 <body class="bg-light">
 
-    <div class="container mt-5">
+    <nav class="navbar navbar-dark bg-dark mb-4">
+        <div class="container">
+            <a class="navbar-brand" href="index.php">Back to Dashboard</a>
+            <div class="d-flex align-items-center gap-2">
+                <button id="darkModeToggle" class="btn btn-sm btn-outline-light border-0" title="Toggle Dark Mode">
+                    <i class="bi bi-moon-stars-fill"></i>
+                </button>
+                <span class="navbar-text text-white"><i class="bi bi-file-spreadsheet"></i> Bulk Import</span>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
 
         <div id="instr_tesp" class="alert alert-info shadow-sm mb-4 format-box" style="display:block;">
             <h6 class="fw-bold">Standard Format (TESP / GUNJIN)</h6>
@@ -913,6 +928,7 @@ $history = $pdo->query("SELECT import_batch, agency_name, COUNT(*) as count, MAX
             });
         <?php endif; ?>
     </script>
+    <script src="dark_mode.js"></script>
 </body>
 
 </html>

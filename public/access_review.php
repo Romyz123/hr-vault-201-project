@@ -86,13 +86,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['verify_inventory'])) 
     if (empty($_POST['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'])) die("Invalid CSRF");
 
     $targetId = (int)$_POST['user_id'];
+    if ($targetId <= 0) {
+        die("Invalid user specified.");
+    }
+    $check = $pdo->prepare("SELECT COUNT(*) FROM users WHERE id = ?");
+    $check->execute([$targetId]);
+    if ($check->fetchColumn() == 0) {
+        die("User not found.");
+    }
+
     $pdo->prepare("UPDATE users SET last_verified_at = NOW() WHERE id = ?")->execute([$targetId]);
 
     $logger->log($_SESSION['user_id'], 'INVENTORY_VERIFY', "Verified business need for User ID $targetId");
     header("Location: access_review.php?tab=inventory&msg=" . urlencode("✅ User Verified"));
     exit;
 }
-
 // FETCH PRIVILEGED USERS (Admin/Manager)
 $sql = "SELECT u.id, u.username, u.role, u.email, 
         (SELECT MAX(review_date) FROM access_reviews ar WHERE ar.reviewed_user_id = u.id) as last_review
@@ -119,8 +127,13 @@ $activeTab = $_GET['tab'] ?? 'privileged';
     <nav class="navbar navbar-dark bg-dark mb-4">
         <div class="container">
             <a class="navbar-brand" href="index.php">Back to Dashboard</a>
-            <span class="navbar-text text-white"><i class="bi bi-shield-check"></i> Quarterly Access Review</span>
-            <span class="navbar-text text-white-50 ms-3 font-monospace small"><i class="bi bi-clock"></i> <span id="sessionTimer"></span></span>
+            <div class="d-flex align-items-center gap-2">
+                <button id="darkModeToggle" class="btn btn-sm btn-outline-light border-0" title="Toggle Dark Mode">
+                    <i class="bi bi-moon-stars-fill"></i>
+                </button>
+                <span class="navbar-text text-white"><i class="bi bi-shield-check"></i> Quarterly Access Review</span>
+                <span class="navbar-text text-white-50 ms-3 font-monospace small"><i class="bi bi-clock"></i> <span id="sessionTimer"></span></span>
+            </div>
         </div>
     </nav>
 
@@ -265,6 +278,7 @@ $activeTab = $_GET['tab'] ?? 'privileged';
         setInterval(updateTimer, 1000);
         updateTimer();
     </script>
+    <script src="dark_mode.js"></script>
 </body>
 
 </html>

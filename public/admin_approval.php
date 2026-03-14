@@ -4,6 +4,9 @@ require '../src/Security.php';
 require '../src/Logger.php';
 session_start();
 
+// Load Config for Vault Path
+$config = require '../config/config.php';
+
 // Generate CSRF token if not present
 if (empty($_SESSION['csrf_token'])) {
     $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
@@ -64,14 +67,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 
         if ($action === 'approve') {
             try {
+                $pdo->beginTransaction(); // [DATA INTEGRITY] Start Transaction
+
                 // 1. ADD EMPLOYEE
                 if ($req['request_type'] === 'ADD_EMPLOYEE') {
                     // Pre-check for duplicate ID
                     $dupCheck = $pdo->prepare("SELECT status FROM employees WHERE emp_id = ?");
                     $dupCheck->execute([$data['emp_id']]);
                     if ($dupCheck->rowCount() > 0) {
+                        $pdo->rollBack();
                         $msg = "⚠️ CANNOT APPROVE: The ID '" . $data['emp_id'] . "' is already in use. Please REJECT this request.";
-                        header("Location: admin_approval.php?msg=$msg&tab=$tab");
+                        header("Location: admin_approval.php?msg=" . rawurlencode($msg) . "&tab=" . rawurlencode($tab));
                         exit;
                     }
 
@@ -115,11 +121,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 // 2. EDIT PROFILE
                 elseif ($req['request_type'] === 'EDIT_PROFILE') {
                     $targetId = $req['target_id'];
+                    $newEmpId = $data['emp_id'] ?? null;
 
                     // CRITICAL: Fetch the current emp_id before updating
                     $oldIdStmt = $pdo->prepare("SELECT emp_id FROM employees WHERE id = ?");
                     $oldIdStmt->execute([$targetId]);
                     $oldEmp = $oldIdStmt->fetch();
+
+                    // [DATA INTEGRITY] Check duplicate if ID is changing
+                    if ($oldEmp && $newEmpId && $newEmpId !== $oldEmp['emp_id']) {
+                        $chk = $pdo->prepare("SELECT id FROM employees WHERE emp_id = ? AND id != ?");
+                        $chk->execute([$newEmpId, $targetId]);
+                        if ($chk->fetch()) {
+                            throw new Exception("New Employee ID '$newEmpId' is already taken by another user.");
+                        }
+                    }
 
                     // SAFETY: Remove the note so it doesn't break the SQL UPDATE
                     unset($data['request_note']);
@@ -140,9 +156,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                         $pdo->prepare($sql)->execute($updateValues);
                     }
 
-                    // CRITICAL: Move files if ID changed
-                    if ($oldEmp && isset($data['emp_id']) && $oldEmp['emp_id'] !== $data['emp_id']) {
-                        $pdo->prepare("UPDATE documents SET employee_id = ? WHERE employee_id = ?")->execute([$data['emp_id'], $oldEmp['emp_id']]);
+                    // CRITICAL: Cascade Update if ID changed (Fixing Ghost Records)
+                    if ($oldEmp && $newEmpId && $oldEmp['emp_id'] !== $newEmpId) {
+                        $oldStr = $oldEmp['emp_id'];
+                        $pdo->prepare("UPDATE documents SET employee_id = ? WHERE employee_id = ?")->execute([$newEmpId, $oldStr]);
+                        $pdo->prepare("UPDATE disciplinary_cases SET employee_id = ? WHERE employee_id = ?")->execute([$newEmpId, $oldStr]);
+                        $pdo->prepare("UPDATE maintenance_logs SET employee_id = ? WHERE employee_id = ?")->execute([$newEmpId, $oldStr]);
+                        $pdo->prepare("UPDATE document_exemptions SET employee_id = ? WHERE employee_id = ?")->execute([$newEmpId, $oldStr]);
                     }
 
                     // NOTIFY SUCCESS
@@ -220,8 +240,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 
                 // [MHI 5.2] ARCHIVE REQUEST (Retention) - Do not delete
                 $pdo->prepare("UPDATE requests SET status = 'APPROVED', admin_comment = ? WHERE id = ?")->execute(["Approved by " . $_SESSION['username'], $req_id]);
+                $pdo->commit(); // [DATA INTEGRITY] Commit All Changes
                 $msg = "Request Approved & Archived";
             } catch (Exception $e) {
+                if ($pdo->inTransaction()) $pdo->rollBack();
                 $msg = "Error: " . $e->getMessage();
             }
         } elseif ($action === 'reject') {
@@ -232,6 +254,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             // Append the reason if the admin typed one
             if (!empty($reject_reason)) {
                 $msgBody .= "\n\nReason: " . $reject_reason; // Already HTML-escaped above
+            }
+
+            // [LOGICAL FIX] Cleanup physical files to prevent orphans on rejection
+            if ($req['request_type'] === 'UPLOAD_DOC') {
+                $vaultPath = $config['VAULT_PATH'] ?? dirname(__DIR__) . DIRECTORY_SEPARATOR . 'vault' . DIRECTORY_SEPARATOR;
+                $filePath = $vaultPath . basename($data['file_path'] ?? '');
+                if (!empty($data['file_path']) && file_exists($filePath)) {
+                    @unlink($filePath);
+                }
+            } elseif ($req['request_type'] === 'ADD_EMPLOYEE') {
+                if (!empty($data['avatar_path']) && $data['avatar_path'] !== 'default.png') {
+                    $avatarPath = dirname(__DIR__) . '/uploads/avatars/' . basename($data['avatar_path']);
+                    if (file_exists($avatarPath)) @unlink($avatarPath);
+                }
+            } elseif ($req['request_type'] === 'EDIT_PROFILE') {
+                $oldIdStmt = $pdo->prepare("SELECT avatar_path FROM employees WHERE id = ?");
+                $oldIdStmt->execute([$req['target_id']]);
+                $oldEmp = $oldIdStmt->fetch();
+                // Only delete if they actually uploaded a NEW avatar
+                if (!empty($data['avatar_path']) && $data['avatar_path'] !== 'default.png' && (!$oldEmp || $oldEmp['avatar_path'] !== $data['avatar_path'])) {
+                    $avatarPath = dirname(__DIR__) . '/uploads/avatars/' . basename($data['avatar_path']);
+                    if (file_exists($avatarPath)) @unlink($avatarPath);
+                }
             }
 
             // Insert Notification
@@ -351,7 +396,7 @@ $tickets  = $pdo->query("SELECT r.*, u.username FROM requests r LEFT JOIN users 
                         <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
 
                         <label class="form-label fw-bold">Reason for Rejection:</label>
-                        <textarea name="reject_reason" class="form-control" rows="3" placeholder="e.g. Photo is blurry, please retake." required maxlength="255"></textarea>
+                        <textarea name="reject_reason" class="form-control" rows="3" placeholder="e.g. Photo is blurry, please retake." required maxlength="255" oninput="this.value = this.value.replace(/[<>]/g, '')"></textarea>
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>

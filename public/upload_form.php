@@ -3,6 +3,9 @@ require '../config/db.php';
 require '../src/Security.php';
 session_start();
 
+// Load Config
+$config = require '../config/config.php';
+
 // [SECURITY] Require Login
 if (!isset($_SESSION['user_id'])) {
     header("Location: login.php");
@@ -49,6 +52,26 @@ try {
 
 // [NEW] Pre-fill Category from URL
 $preFilledCat = isset($_GET['category']) ? $_GET['category'] : '';
+
+// [NEW] Fetch Vault Usage Details
+$vaultLimitMB = 1024;
+try {
+    $stmt = $pdo->query("SELECT setting_value FROM system_settings WHERE setting_key = 'vault_size_limit_mb'");
+    $val = $stmt->fetchColumn();
+    if ($val !== false) $vaultLimitMB = (int)$val;
+} catch (Exception $e) {}
+
+$currentVaultBytes = 0;
+$vaultPath = $config['VAULT_PATH'] ?? dirname(__DIR__) . DIRECTORY_SEPARATOR . 'vault' . DIRECTORY_SEPARATOR;
+if (is_dir($vaultPath)) {
+    $iterator = new FileSystemIterator($vaultPath, FileSystemIterator::SKIP_DOTS);
+    foreach ($iterator as $f) {
+        if ($f->isFile()) $currentVaultBytes += $f->getSize();
+    }
+}
+$currentVaultMB = round($currentVaultBytes / 1024 / 1024, 2);
+$vaultPercent = ($vaultLimitMB > 0) ? min(100, round(($currentVaultMB / $vaultLimitMB) * 100)) : 0;
+$isVaultFull = ($vaultLimitMB > 0 && $currentVaultMB >= $vaultLimitMB);
 ?>
 
 <!DOCTYPE html>
@@ -87,7 +110,12 @@ $preFilledCat = isset($_GET['category']) ? $_GET['category'] : '';
                 <div class="card shadow">
                     <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
                         <h4 class="mb-0 fs-5"><i class="bi bi-cloud-arrow-up-fill"></i> Upload Document</h4>
-                        <a href="index.php" class="btn btn-sm btn-outline-light">Back to Dashboard</a>
+                        <div class="d-flex align-items-center gap-2">
+                            <button id="darkModeToggle" class="btn btn-sm btn-outline-light border-0" title="Toggle Dark Mode">
+                                <i class="bi bi-moon-stars-fill"></i>
+                            </button>
+                            <a href="index.php" class="btn btn-sm btn-outline-light">Back to Dashboard</a>
+                        </div>
                     </div>
                     <div class="card-body">
 
@@ -204,10 +232,26 @@ $preFilledCat = isset($_GET['category']) ? $_GET['category'] : '';
 
                             <div class="d-flex justify-content-between">
                                 <a href="index.php" class="btn btn-secondary">Cancel</a>
-                                <button type="submit" id="submitBtn" class="btn btn-success px-4" <?php echo (empty($preFilledID) && empty($_POST['emp_id'])) ? 'disabled' : ''; ?>>
+                                <button type="submit" id="submitBtn" class="btn btn-success px-4" <?php echo ($isVaultFull || (empty($preFilledID) && empty($_POST['emp_id']))) ? 'disabled' : ''; ?>>
                                     <i class="bi bi-cloud-upload"></i> Upload Now
                                 </button>
                             </div>
+
+                            <!-- [NEW] Vault Space Display -->
+                            <?php if ($vaultLimitMB > 0): ?>
+                            <div class="mt-4 pt-3 border-top">
+                                <div class="d-flex justify-content-between small text-muted mb-1">
+                                    <span><i class="bi bi-hdd-fill"></i> Vault Storage Usage</span>
+                                    <span class="<?php echo $isVaultFull ? 'text-danger fw-bold' : ''; ?>"><?php echo number_format($currentVaultMB, 2); ?> MB / <?php echo number_format($vaultLimitMB); ?> MB</span>
+                                </div>
+                                <div class="progress" style="height: 6px;">
+                                    <div class="progress-bar <?php echo $vaultPercent > 90 ? 'bg-danger' : ($vaultPercent > 75 ? 'bg-warning' : 'bg-success'); ?>" role="progressbar" style="width: <?php echo $vaultPercent; ?>%;"></div>
+                                </div>
+                                <?php if ($isVaultFull): ?>
+                                <div class="text-danger small mt-1"><i class="bi bi-exclamation-triangle-fill"></i> Vault is full. File uploads are disabled.</div>
+                                <?php endif; ?>
+                            </div>
+                            <?php endif; ?>
                         </form>
 
                     </div>
@@ -464,6 +508,7 @@ $preFilledCat = isset($_GET['category']) ? $_GET['category'] : '';
         document.addEventListener('click', resetTimer);
         document.addEventListener('scroll', resetTimer);
     </script>
+    <script src="assets/dark_mode.js"></script>
 </body>
 
 </html>

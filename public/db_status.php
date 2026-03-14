@@ -7,6 +7,12 @@
 require '../config/db.php';
 require '../src/Security.php';
 session_start();
+
+// [SECURITY] CSRF Protection
+if (empty($_SESSION['csrf_token'])) {
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+}
+
 checkSessionTimeout($pdo); // [SECURITY] Enforce Timeout
 
 // [UX] Fetch Client Timeout
@@ -233,9 +239,18 @@ $tableSchema = [
 // ------------------------------------------------------
 // HANDLE AUTO-FIX
 // ------------------------------------------------------
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['auto_fix'])) {
+$dryRunLogs = []; // Store dry run results
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_POST['auto_fix']) || isset($_POST['dry_run']))) {
+    // CSRF Validation
+    if (empty($_POST['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'])) {
+        http_response_code(403);
+        die('CSRF token validation failed');
+    }
+
     $updates = 0;
     $errors = [];
+    $isDryRun = isset($_POST['dry_run']);
 
     // 1. Create Missing Tables
     foreach ($tableSchema as $tableName => $sql) {
@@ -243,8 +258,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['auto_fix'])) {
             // Check if table exists
             $check = $pdo->query("SHOW TABLES LIKE '$tableName'");
             if ($check->rowCount() == 0) {
-                $pdo->exec($sql);
-                $updates++;
+                if ($isDryRun) {
+                    $dryRunLogs[] = "[CREATE TABLE] $tableName";
+                } else {
+                    $pdo->exec($sql);
+                    $updates++;
+                }
             }
         } catch (Exception $e) {
             $errors[] = "Failed to create $tableName: " . $e->getMessage();
@@ -258,8 +277,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['auto_fix'])) {
                 // Check if column exists
                 $stmt = $pdo->query("SHOW COLUMNS FROM `$table` LIKE '$col'");
                 if ($stmt->rowCount() == 0) {
-                    $pdo->exec("ALTER TABLE `$table` ADD COLUMN `$col` $def");
-                    $updates++;
+                    if ($isDryRun) {
+                        $dryRunLogs[] = "[ADD COLUMN] ALTER TABLE `$table` ADD COLUMN `$col` $def";
+                    } else {
+                        $pdo->exec("ALTER TABLE `$table` ADD COLUMN `$col` $def");
+                        $updates++;
+                    }
                 }
             } catch (Exception $e) {
                 // Ignore if table doesn't exist (handled by step 1)
@@ -270,10 +293,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['auto_fix'])) {
         }
     }
 
-    if (empty($errors)) {
-        $msg = "✅ Database updated! ($updates changes applied)";
+    if ($isDryRun) {
+        if (empty($dryRunLogs)) {
+            $msg = "ℹ️ Simulation complete. No missing schema elements detected.";
+        } else {
+            $msg = "ℹ️ Simulation complete. Found " . count($dryRunLogs) . " missing elements.";
+        }
     } else {
-        $msg = "⚠️ Update completed with errors:<br>" . implode("<br>", $errors);
+        if (empty($errors)) {
+            $msg = "✅ Database updated! ($updates changes applied)";
+        } else {
+            $safeErrors = array_map(function ($e) {
+                return htmlspecialchars($e, ENT_QUOTES, 'UTF-8');
+            }, $errors);
+            $msg = "⚠️ Update completed with errors:<br>" . implode("<br>", $safeErrors);
+        }
     }
 }
 
@@ -306,14 +340,69 @@ foreach ($columnSchema as $table => $cols) {
     <title>Database Status</title>
     <link href="assets/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="assets/icons/bootstrap-icons.css">
+    <style>
+        /* =========================================
+           PRINT STYLES FOR COMPLIANCE REPORT
+           ========================================= */
+        @media print {
+            @page {
+                size: portrait;
+                margin: 0.5in;
+            }
+
+            nav,
+            .btn,
+            form,
+            .alert-info {
+                display: none !important;
+            }
+
+            body {
+                background: white !important;
+            }
+
+            .container {
+                width: 100% !important;
+                max-width: 100% !important;
+                padding: 0 !important;
+                margin: 0 !important;
+            }
+
+            .card {
+                border: none !important;
+                box-shadow: none !important;
+            }
+
+            body::before {
+                content: "Database Schema Compliance Report - v<?php echo $masterVersion; ?>";
+                display: block;
+                text-align: center;
+                font-size: 14pt;
+                font-weight: bold;
+                margin-bottom: 20px;
+                border-bottom: 2px solid #666;
+                padding-bottom: 10px;
+            }
+
+            * {
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+            }
+        }
+    </style>
 </head>
 
 <body class="bg-light">
     <nav class="navbar navbar-dark bg-dark mb-4">
         <div class="container">
             <a class="navbar-brand" href="index.php">Back to Dashboard</a>
-            <span class="navbar-text text-white"><i class="bi bi-database-check"></i> Database Status</span>
-            <span class="navbar-text text-white-50 ms-3 font-monospace small"><i class="bi bi-clock"></i> <span id="sessionTimer"></span></span>
+            <div class="d-flex align-items-center gap-2">
+                <button id="darkModeToggle" class="btn btn-sm btn-outline-light border-0" title="Toggle Dark Mode">
+                    <i class="bi bi-moon-stars-fill"></i>
+                </button>
+                <span class="navbar-text text-white"><i class="bi bi-database-check"></i> Database Status</span>
+                <span class="navbar-text text-white-50 ms-3 font-monospace small"><i class="bi bi-clock"></i> <span id="sessionTimer"></span></span>
+            </div>
         </div>
     </nav>
 
@@ -332,14 +421,32 @@ foreach ($columnSchema as $table => $cols) {
             <div class="alert alert-warning shadow-sm"><i class="bi bi-exclamation-triangle-fill"></i> <strong>Updates Available.</strong> Found <?php echo $issuesCount; ?> missing items.</div>
         <?php endif; ?>
 
+        <!-- DRY RUN RESULTS DISPLAY -->
+        <?php if (!empty($dryRunLogs)): ?>
+            <div class="alert alert-info border-info shadow-sm mb-4">
+                <h5 class="alert-heading"><i class="bi bi-terminal"></i> Simulation Results (Dry Run)</h5>
+                <p class="mb-2 text-dark">The following SQL changes <strong>would be applied</strong> if you run Auto-Fix. No data has been modified.</p>
+                <div class="bg-dark text-light p-3 rounded font-monospace small" style="max-height: 250px; overflow-y: auto;">
+                    <?php foreach ($dryRunLogs as $log): ?>
+                        <div><?php echo htmlspecialchars($log); ?></div>
+                    <?php endforeach; ?>
+                </div>
+            </div>
+        <?php endif; ?>
+
         <div class="card shadow-sm mb-4">
             <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
                 <span>Schema Verification</span>
                 <div class="d-flex gap-2">
+                    <button onclick="window.print()" class="btn btn-sm btn-secondary"><i class="bi bi-printer"></i> Print Report</button>
                     <a href="db_status.php" class="btn btn-sm btn-outline-light"><i class="bi bi-arrow-repeat"></i> Check for Updates</a>
                     <?php if ($issuesCount > 0): ?>
                         <form method="POST" class="d-inline">
-                            <button type="submit" name="auto_fix" class="btn btn-sm btn-success fw-bold">
+                            <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token'], ENT_QUOTES, 'UTF-8'); ?>">
+                            <button type="submit" name="dry_run" value="1" class="btn btn-sm btn-info text-white fw-bold me-1">
+                                <i class="bi bi-eye"></i> Simulate
+                            </button>
+                            <button type="submit" name="auto_fix" value="1" class="btn btn-sm btn-success fw-bold">
                                 <i class="bi bi-magic"></i> Auto-Fix All Issues
                             </button>
                         </form>
@@ -433,6 +540,7 @@ foreach ($columnSchema as $table => $cols) {
         setInterval(updateTimer, 1000);
         updateTimer();
     </script>
+    <script src="dark_mode.js"></script>
 </body>
 
 </html>

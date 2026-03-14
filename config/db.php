@@ -11,6 +11,28 @@ error_reporting(E_ALL);
 // Load settings directly from PHP file instead of .env to avoid permission errors
 $_ENV = require 'config.php';
 
+// ========================================================================
+// [SECURITY] GLOBAL INPUT SANITIZATION
+// Automatically neutralize XSS and Null-Byte injection on all incoming requests
+// ========================================================================
+function sanitize_global_input(&$array)
+{
+    foreach ($array as $key => &$value) {
+        // ALWAYS skip password fields to avoid altering intended hashes
+        if (stripos((string)$key, 'password') !== false) {
+            continue;
+        }
+        if (is_array($value)) {
+            sanitize_global_input($value);
+        } elseif (is_string($value)) {
+            $value = str_replace(chr(0), '', $value); // Strip null bytes
+            $value = htmlspecialchars(trim($value), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+        }
+    }
+}
+sanitize_global_input($_POST);
+sanitize_global_input($_GET);
+
 // [MHI 5.4] Enforce HTTPS (Skip for Localhost or CLI to avoid ERR_SSL_PROTOCOL_ERROR)
 // To test compliance locally, you can temporarily remove '127.0.0.1' from the array below.
 $isLocal = (php_sapi_name() === 'cli') || in_array($_SERVER['REMOTE_ADDR'] ?? '', ['127.0.0.1', '::1']);
@@ -73,15 +95,20 @@ try {
 }
 
 // [SECURITY] Strict Session Timeout Enforcer
-function checkSessionTimeout($pdo)
+function checkSessionTimeout($pdo, $serverTimeout = null)
 {
     if (session_status() === PHP_SESSION_NONE) return;
 
     $timeout = 1800; // Default 30 mins
-    try {
-        $val = $pdo->query("SELECT setting_value FROM system_settings WHERE setting_key = 'session_timeout_server'")->fetchColumn();
-        if ($val) $timeout = (int)$val;
-    } catch (Exception $e) {
+
+    if (!is_null($serverTimeout) && (int)$serverTimeout > 0) {
+        $timeout = (int)$serverTimeout;
+    } else {
+        try {
+            $val = $pdo->query("SELECT setting_value FROM system_settings WHERE setting_key = 'session_timeout_server'")->fetchColumn();
+            if ($val) $timeout = (int)$val;
+        } catch (Exception $e) {
+        }
     }
 
     if (isset($_SESSION['last_activity']) && (time() - $_SESSION['last_activity'] > $timeout)) {

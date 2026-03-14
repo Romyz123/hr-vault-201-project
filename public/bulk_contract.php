@@ -42,8 +42,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate_bulk'])) {
     $type = $_POST['doc_type'];
 
     // [NEW] Capture & Save Settings on the Fly
-    $marginL = $_POST['margin_left'] ?? $marginL;
-    $marginR = $_POST['margin_right'] ?? $marginR;
+    $marginL = min(500, max(0, (int)($_POST['margin_left'] ?? $marginL)));
+    $marginR = min(500, max(0, (int)($_POST['margin_right'] ?? $marginR)));
     $proj    = $_POST['project_name'] ?? '';
     $place   = $_POST['notice_place'] ?? '';
 
@@ -203,8 +203,8 @@ $where  = ["status = 'Active'"];
 $params = [];
 
 if ($filter_dept !== '') {
-    $where[]  = 'dept = ?';
-    $params[] = $filter_dept;
+    $where[]  = 'dept LIKE ?';
+    $params[] = "%{$filter_dept}%";
 }
 if ($filter_type !== '') {
     $where[] = '(employment_type = ? OR agency_name = ?)';
@@ -250,7 +250,12 @@ $allDepts = $pdo->query("SELECT DISTINCT dept FROM employees WHERE dept != '' OR
     <nav class="navbar navbar-dark bg-dark mb-4">
         <div class="container">
             <a class="navbar-brand" href="index.php">Back to Dashboard</a>
-            <span class="navbar-text text-white fw-bold"><i class="bi bi-printer-fill"></i> Bulk Contract Generator</span>
+            <div class="d-flex align-items-center gap-2">
+                <button id="darkModeToggle" class="btn btn-sm btn-outline-light border-0" title="Toggle Dark Mode">
+                    <i class="bi bi-moon-stars-fill"></i>
+                </button>
+                <span class="navbar-text text-white fw-bold"><i class="bi bi-printer-fill"></i> Bulk Contract Generator</span>
+            </div>
         </div>
     </nav>
 
@@ -364,11 +369,11 @@ $allDepts = $pdo->query("SELECT DISTINCT dept FROM employees WHERE dept != '' OR
 
                                 <div class="col-md-2">
                                     <label class="form-label small text-muted mb-1">Left Margin (px)</label>
-                                    <input type="number" name="margin_left" class="form-control form-control-sm" value="<?php echo htmlspecialchars($marginL); ?>" min="3" max="200" oninput="validateMargin(this)">
+                                    <input type="number" name="margin_left" class="form-control form-control-sm" value="<?php echo htmlspecialchars($marginL); ?>" min="3" max="500" oninput="validateMargin(this)">
                                 </div>
                                 <div class="col-md-2">
                                     <label class="form-label small text-muted mb-1">Right Margin (px)</label>
-                                    <input type="number" name="margin_right" class="form-control form-control-sm" value="<?php echo htmlspecialchars($marginR); ?>" min="3" max="200" oninput="validateMargin(this)">
+                                    <input type="number" name="margin_right" class="form-control form-control-sm" value="<?php echo htmlspecialchars($marginR); ?>" min="3" max="500" oninput="validateMargin(this)">
                                 </div>
                                 <div class="col-md-3">
                                     <div class="form-check mt-3">
@@ -481,10 +486,10 @@ $allDepts = $pdo->query("SELECT DISTINCT dept FROM employees WHERE dept != '' OR
         }
 
         function validateMargin(input) {
-            // [NEW] Strict Validation: Numbers only, max 200
+            // [NEW] Strict Validation: Numbers only, max 500
             input.value = input.value.replace(/[^0-9]/g, '');
             if (input.value.length > 3) input.value = input.value.slice(0, 3);
-            if (input.value !== '' && parseInt(input.value) > 200) input.value = '200';
+            if (input.value !== '' && parseInt(input.value) > 500) input.value = '500';
         }
 
         function resetMargins() {
@@ -562,6 +567,7 @@ $allDepts = $pdo->query("SELECT DISTINCT dept FROM employees WHERE dept != '' OR
             cb.addEventListener('change', updateCount);
         });
     </script>
+    <script src="dark_mode.js"></script>
 </body>
 
 </html>

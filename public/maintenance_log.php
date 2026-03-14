@@ -264,12 +264,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_log'])) {
 
         // Auth Check
         if (empty($msg)) {
-            $pwStmt = $pdo->prepare("SELECT password FROM users WHERE id = ?");
+            $pwStmt = $pdo->prepare("SELECT password, password_changed_at, created_at FROM users WHERE id = ?");
             $pwStmt->execute([$_SESSION['user_id']]);
             $user = $pwStmt->fetch(PDO::FETCH_ASSOC);
             if (!($user && password_verify($admin_pw, $user['password']))) {
                 $msg = 'Authentication failed. Incorrect password.';
                 $msgType = 'danger';
+            } else {
+                // [SECURITY] Enforce Password Age (45 Days) for sensitive actions
+                $lastChangeDate = $user['password_changed_at'] ?? $user['created_at'];
+                if (!$lastChangeDate) {
+                    $msg = 'Action blocked: Unable to verify password age. Please contact administrator.';
+                    $msgType = 'danger';
+                } else {
+                    $lastChange = new DateTime($lastChangeDate);
+                    $today = new DateTime();
+                    if ($today->diff($lastChange)->days > 45) {
+                        $msg = 'Action blocked: Your password has expired (older than 45 days). Please change it in Profile Settings.';
+                        $msgType = 'danger';
+                    }
+                }
             }
         }
 
@@ -290,7 +304,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_log'])) {
                 exit;
             } catch (PDOException $e) {
                 $pdo->rollBack();
-                $msg = 'Database error: ' . $e->getMessage();
+                // Log full exception for debugging without exposing details to the user
+                error_log('MAINTENANCE_LOG_EDIT_ERROR: ' . $e->getMessage() . "\n" . $e->getTraceAsString());
+                $msg = 'A database error occurred. Please contact support.';
                 $msgType = 'danger';
             }
         }
@@ -299,22 +315,43 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_log'])) {
 
 // [NEW] HANDLE DELETE LOG
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_log'])) {
-    try {
-        $security->checkCSRF($_POST['csrf_token'] ?? '');
-        $logId = $_POST['log_id'];
+    // Rate limit based on IP
+    if (!$security->checkRateLimit($_SERVER['REMOTE_ADDR'])) {
+        http_response_code(429);
+        $msg = 'Too many requests. Please wait a moment and try again.';
+        $msgType = 'danger';
+    } else {
+        try {
+            $security->checkCSRF($_POST['csrf_token'] ?? '');
+        } catch (Exception $e) {
+            $msg = 'CSRF validation failed.';
+            $msgType = 'danger';
+        }
+    }
 
-        $stmt = $pdo->prepare("DELETE FROM maintenance_logs WHERE id = ?");
-        $stmt->execute([$logId]);
+    if (empty($msg)) {
+        $logId = filter_var($_POST['log_id'] ?? 0, FILTER_VALIDATE_INT);
+        if ($logId === false || $logId <= 0) {
+            $msg = 'Invalid log ID.';
+            $msgType = 'danger';
+        }
+    }
 
-        $logger->log($_SESSION['user_id'], 'MAINTENANCE_DELETE', "Deleted maintenance log ID: $logId");
-        header("Location: maintenance_log.php?msg=" . urlencode("🗑️ Record deleted successfully.") . "&type=success");
-        exit;
-    } catch (Exception $e) {
-        $msg = "Error deleting record: " . $e->getMessage();
-        $msgType = "danger";
+    if (empty($msg)) {
+        try {
+            $stmt = $pdo->prepare("DELETE FROM maintenance_logs WHERE id = ?");
+            $stmt->execute([$logId]);
+
+            $logger->log($_SESSION['user_id'], 'MAINTENANCE_DELETE', "Deleted maintenance log ID: $logId");
+            header("Location: maintenance_log.php?msg=" . urlencode("🗑️ Record deleted successfully.") . "&type=success");
+            exit;
+        } catch (Exception $e) {
+            error_log('Error deleting maintenance record: ' . $e->getMessage());
+            $msg = 'An error occurred while deleting the record.';
+            $msgType = 'danger';
+        }
     }
 }
-
 // 3. FETCH LOGS
 $search = Validator::sanitizeSearch($_GET['search'] ?? '');
 // [NEW] Date Filters
@@ -381,7 +418,12 @@ $emps = $pdo->query("SELECT emp_id, first_name, last_name FROM employees WHERE s
     <nav class="navbar navbar-dark bg-dark mb-4">
         <div class="container">
             <a class="navbar-brand" href="index.php">Back to Dashboard</a>
-            <span class="navbar-text text-white"><i class="bi bi-tools"></i> Hardware Maintenance Log</span>
+            <div class="d-flex align-items-center gap-2">
+                <button id="darkModeToggle" class="btn btn-sm btn-outline-light border-0" title="Toggle Dark Mode">
+                    <i class="bi bi-moon-stars-fill"></i>
+                </button>
+                <span class="navbar-text text-white"><i class="bi bi-tools"></i> Hardware Maintenance Log</span>
+            </div>
         </div>
     </nav>
 
@@ -503,11 +545,11 @@ $emps = $pdo->query("SELECT emp_id, first_name, last_name FROM employees WHERE s
                             <?php endforeach; ?>
                         </select>
                     </div>
-                    <div class="mb-3"><label class="form-label">Equipment</label><input type="text" name="equipment_type" class="form-control" placeholder="e.g. Laptop Dell Latitude" required maxlength="50"></div>
-                    <div class="mb-3"><label class="form-label">Issue</label><input type="text" name="issue" class="form-control" placeholder="e.g. Slow performance, Battery replacement" required maxlength="255"></div>
+                    <div class="mb-3"><label class="form-label">Equipment</label><input type="text" name="equipment_type" class="form-control" placeholder="e.g. Laptop Dell Latitude" required maxlength="50" pattern="[a-zA-Z0-9\s\-\.\,\(\)]+" title="Allowed: Alphanumeric and basic punctuation" oninput="this.value = this.value.replace(/[^a-zA-Z0-9\s\-\.\,\(\)]/g, '')"></div>
+                    <div class="mb-3"><label class="form-label">Issue</label><input type="text" name="issue" class="form-control" placeholder="e.g. Slow performance, Battery replacement" required maxlength="255" pattern="[a-zA-Z0-9\s\-\.\,\(\)]+" title="Allowed: Alphanumeric and basic punctuation" oninput="this.value = this.value.replace(/[^a-zA-Z0-9\s\-\.\,\(\)]/g, '')"></div>
                     <div class="mb-3"><label class="form-label">Action Taken</label><textarea name="action_taken" class="form-control" rows="2" placeholder="e.g. Replaced battery, Re-imaged OS" maxlength="1000"></textarea></div>
                     <div class="mb-3"><label class="form-label">Date</label><input type="date" name="maintenance_date" class="form-control" value="<?php echo date('Y-m-d'); ?>" required></div>
-                    <div class="mb-3"><label class="form-label">External Vendor (Optional)</label><input type="text" name="vendor_name" class="form-control" placeholder="e.g. Dell Support, HP Technician" maxlength="100"></div>
+                    <div class="mb-3"><label class="form-label">External Vendor (Optional)</label><input type="text" name="vendor_name" class="form-control" placeholder="e.g. Dell Support, HP Technician" maxlength="100" pattern="[a-zA-Z0-9\s\-\.\,\(\)]+" title="Allowed: Alphanumeric and basic punctuation" oninput="this.value = this.value.replace(/[^a-zA-Z0-9\s\-\.\,\(\)]/g, '')"></div>
                     <div class="mb-3">
                         <label class="form-label">Confirm Password</label>
                         <div class="input-group">
@@ -545,7 +587,7 @@ $emps = $pdo->query("SELECT emp_id, first_name, last_name FROM employees WHERE s
                             <?php endforeach; ?>
                         </select>
                     </div>
-                    <div class="mb-3"><label class="form-label">Equipment</label><input type="text" name="equipment_type" id="edit_equipment_type" class="form-control" required maxlength="50"></div>
+                    <div class="mb-3"><label class="form-label">Equipment</label><input type="text" name="equipment_type" id="edit_equipment_type" class="form-control" required maxlength="50" pattern="[a-zA-Z0-9\s\-\.\,\(\)]+" title="Allowed: Alphanumeric and basic punctuation" oninput="this.value = this.value.replace(/[^a-zA-Z0-9\s\-\.\,\(\)]/g, '')"></div>
                     <div class="mb-3">
                         <label class="form-label fw-bold">Status</label>
                         <select name="status" id="edit_status" class="form-select" required>
@@ -553,10 +595,10 @@ $emps = $pdo->query("SELECT emp_id, first_name, last_name FROM employees WHERE s
                             <option value="Resolved">Resolved</option>
                         </select>
                     </div>
-                    <div class="mb-3"><label class="form-label">Issue</label><input type="text" name="issue" id="edit_issue" class="form-control" required maxlength="255"></div>
+                    <div class="mb-3"><label class="form-label">Issue</label><input type="text" name="issue" id="edit_issue" class="form-control" required maxlength="255" pattern="[a-zA-Z0-9\s\-\.\,\(\)]+" title="Allowed: Alphanumeric and basic punctuation" oninput="this.value = this.value.replace(/[^a-zA-Z0-9\s\-\.\,\(\)]/g, '')"></div>
                     <div class="mb-3"><label class="form-label">Action Taken</label><textarea name="action_taken" id="edit_action_taken" class="form-control" rows="2" maxlength="1000"></textarea></div>
                     <div class="mb-3"><label class="form-label">Date</label><input type="date" name="maintenance_date" id="edit_maintenance_date" class="form-control" required></div>
-                    <div class="mb-3"><label class="form-label">External Vendor (Optional)</label><input type="text" name="vendor_name" id="edit_vendor_name" class="form-control" maxlength="100"></div>
+                    <div class="mb-3"><label class="form-label">External Vendor (Optional)</label><input type="text" name="vendor_name" id="edit_vendor_name" class="form-control" maxlength="100" pattern="[a-zA-Z0-9\s\-\.\,\(\)]+" title="Allowed: Alphanumeric and basic punctuation" oninput="this.value = this.value.replace(/[^a-zA-Z0-9\s\-\.\,\(\)]/g, '')"></div>
                     <div class="mb-3">
                         <label class="form-label">Confirm Password</label>
                         <div class="input-group">
@@ -625,7 +667,7 @@ $emps = $pdo->query("SELECT emp_id, first_name, last_name FROM employees WHERE s
             document.getElementById('edit_issue').value = data.issue;
             document.getElementById('edit_action_taken').value = data.action_taken;
             document.getElementById('edit_maintenance_date').value = data.maintenance_date;
-            document.getElementById('edit_vendor_name').value = data.vendor_name;
+            document.getElementById('edit_vendor_name').value = data.vendor_name || '';
             document.getElementById('edit_admin_password').value = '';
             modal.show();
         }
@@ -642,6 +684,7 @@ $emps = $pdo->query("SELECT emp_id, first_name, last_name FROM employees WHERE s
             }
         }
     </script>
+    <script src="dark_mode.js"></script>
 </body>
 
 </html>

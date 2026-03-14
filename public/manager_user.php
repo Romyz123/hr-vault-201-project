@@ -223,7 +223,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         $file = $_FILES['restore_sql']['tmp_name'];
         $ext = pathinfo($_FILES['restore_sql']['name'], PATHINFO_EXTENSION);
-        $sqlContent = '';
+        $stream = null;
 
         // [FIX] Support ZIP uploads for restore
         if (strtolower($ext) === 'zip') {
@@ -234,7 +234,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $stat = $zip->statIndex($i);
                     // [FIX] Use substr for PHP < 8.0 compatibility instead of str_ends_with
                     if (substr($stat['name'], -4) === '.sql') {
-                        $sqlContent = $zip->getFromIndex($i);
+                        $stream = $zip->getStream($stat['name']);
                         break;
                     }
                 }
@@ -245,26 +245,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 goto end_of_post;
             }
         } elseif (strtolower($ext) === 'sql') {
-            $sqlContent = file_get_contents($file);
+            $stream = fopen($file, 'r');
         } else {
             $alertType = 'error';
             $alertMsg = "❌ Invalid file type. Please upload .sql or .zip";
             goto end_of_post;
         }
 
-        if ($sqlContent) {
+        if ($stream) {
             try {
-                // [FIX] Increase limits for large restores
-                set_time_limit(1800); // 30 minutes max
-                ini_set('memory_limit', '2G'); // 2GB max
-                // [FIX] Enable emulation to allow multiple statements in one go
+                set_time_limit(0); // Unlimited time for massive databases
                 $pdo->setAttribute(PDO::ATTR_EMULATE_PREPARES, true);
-
-                // Disable foreign key checks to allow dropping tables
                 $pdo->exec("SET FOREIGN_KEY_CHECKS = 0");
 
-                // Execute the SQL dump
-                $pdo->exec($sqlContent);
+                // [OPTIMIZATION] Read and execute line-by-line (Zero RAM consumption)
+                $query = '';
+                while (($line = fgets($stream)) !== false) {
+                    $trimLine = trim($line);
+                    if (empty($trimLine) || strpos($trimLine, '--') === 0 || strpos($trimLine, '/*') === 0) continue;
+                    $query .= $line . "\n";
+                    if (substr($trimLine, -1) === ';') {
+                        $pdo->exec($query);
+                        $query = '';
+                    }
+                }
 
                 $pdo->exec("SET FOREIGN_KEY_CHECKS = 1");
 
@@ -277,6 +281,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             } catch (PDOException $e) {
                 $alertType = 'error';
                 $alertMsg = "❌ Restore Failed: " . $e->getMessage();
+            } finally {
+                if ($stream) fclose($stream);
+                if (isset($zip)) $zip->close();
             }
         } else {
             $alertType = 'error';
@@ -306,7 +313,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         if (file_exists($filepath)) {
             $ext = strtolower(pathinfo($filepath, PATHINFO_EXTENSION));
-            $sqlContent = '';
+            $stream = null;
 
             if ($ext === 'zip') {
                 $zip = new ZipArchive;
@@ -322,30 +329,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $stat = $zip->statIndex($i);
                         // [FIX] Use substr for PHP < 8.0 compatibility
                         if (substr($stat['name'], -4) === '.sql') {
-                            $sqlContent = $zip->getFromIndex($i);
+                            $stream = $zip->getStream($stat['name']);
                             break;
                         }
                     }
-                    $zip->close();
                 } else {
                     $alertType = 'error';
                     $alertMsg = "❌ Failed to open ZIP archive.";
                     goto end_of_post;
                 }
             } elseif ($ext === 'sql') {
-                $sqlContent = file_get_contents($filepath);
+                $stream = fopen($filepath, 'r');
             }
 
-            if ($sqlContent) {
+            if ($stream) {
                 try {
-                    // [FIX] Increase limits for large restores
-                    set_time_limit(1800); // 30 minutes max
-                    ini_set('memory_limit', '2G'); // 2GB max
-                    // [FIX] Enable emulation for multi-statement execution
+                    set_time_limit(0);
                     $pdo->setAttribute(PDO::ATTR_EMULATE_PREPARES, true);
-
                     $pdo->exec("SET FOREIGN_KEY_CHECKS = 0");
-                    $pdo->exec($sqlContent);
+
+                    // [OPTIMIZATION] Stream execution line-by-line
+                    $query = '';
+                    while (($line = fgets($stream)) !== false) {
+                        $trimLine = trim($line);
+                        if (empty($trimLine) || strpos($trimLine, '--') === 0 || strpos($trimLine, '/*') === 0) continue;
+                        $query .= $line . "\n";
+                        if (substr($trimLine, -1) === ';') {
+                            $pdo->exec($query);
+                            $query = '';
+                        }
+                    }
+
                     $pdo->exec("SET FOREIGN_KEY_CHECKS = 1");
 
                     $pdo->setAttribute(PDO::ATTR_EMULATE_PREPARES, false);
@@ -356,6 +370,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 } catch (PDOException $e) {
                     $alertType = 'error';
                     $alertMsg = "❌ Restore Failed: " . $e->getMessage();
+                } finally {
+                    if ($stream) fclose($stream);
+                    if (isset($zip)) $zip->close();
                 }
             } else {
                 $alertType = 'error';
@@ -415,7 +432,12 @@ $vaultChecked = ($bkVaultSetting === '1') ? 'checked' : '';
     <nav class="navbar navbar-dark bg-dark mb-4">
         <div class="container">
             <a class="navbar-brand" href="index.php">Back to Dashboard</a>
-            <span class="navbar-text text-white"><i class="bi bi-shield-lock"></i> User Management Console</span>
+            <div class="d-flex align-items-center gap-2">
+                <button id="darkModeToggle" class="btn btn-sm btn-outline-light border-0" title="Toggle Dark Mode">
+                    <i class="bi bi-moon-stars-fill"></i>
+                </button>
+                <span class="navbar-text text-white"><i class="bi bi-shield-lock"></i> User Management Console</span>
+            </div>
         </div>
     </nav>
 
@@ -519,6 +541,7 @@ $vaultChecked = ($bkVaultSetting === '1') ? 'checked' : '';
                         <div class="form-check mb-3">
                             <input class="form-check-input" type="checkbox" name="include_vault" value="1" id="dlVault" <?php echo $vaultChecked; ?>>
                             <label class="form-check-label fw-bold" for="dlVault">Include Vault Files (Images/PDFs)</label>
+                            <div class="form-text text-danger"><i class="bi bi-exclamation-triangle"></i> Uncheck this if your vault exceeds 2GB to prevent server timeouts. See the User Manual for massive data backups.</div>
                         </div>
                         <div class="mb-3">
                             <label class="form-label">Password (Optional)</label>
@@ -542,6 +565,7 @@ $vaultChecked = ($bkVaultSetting === '1') ? 'checked' : '';
                         <div class="form-check mb-3">
                             <input class="form-check-input" type="checkbox" name="include_vault" value="1" id="svVault" <?php echo $vaultChecked; ?>>
                             <label class="form-check-label fw-bold" for="svVault">Include Vault Files (Images/PDFs)</label>
+                            <div class="form-text text-danger"><i class="bi bi-exclamation-triangle"></i> Uncheck this if your vault exceeds 2GB.</div>
                         </div>
                         <div class="mb-3">
                             <label class="form-label">Password (Optional)</label>
@@ -827,6 +851,7 @@ $vaultChecked = ($bkVaultSetting === '1') ? 'checked' : '';
     </div>
 
     <script src="assets/bootstrap.bundle.min.js"></script>
+    <script src="dark_mode.js"></script>
     <script>
         // ==========================================
         // [SECURITY] AUTO-LOGOUT (Client-Side)
@@ -937,12 +962,13 @@ $vaultChecked = ($bkVaultSetting === '1') ? 'checked' : '';
             if (val.length >= 12) score++;
             if (val.length >= 15) score++;
             if (/[A-Z]/.test(val)) score++;
+            if (/[a-z]/.test(val)) score++;
             if (/[0-9]/.test(val)) score++;
             if (/[^A-Za-z0-9]/.test(val)) score++;
 
-            let pct = Math.min(100, (score / 6) * 100);
+            let pct = Math.min(100, (score / 7) * 100);
             bar.style.width = pct + '%';
-            bar.className = 'progress-bar ' + (score > 4 ? 'bg-success' : (score > 2 ? 'bg-warning' : 'bg-danger'));
+            bar.className = 'progress-bar ' + (score > 5 ? 'bg-success' : (score > 3 ? 'bg-warning' : 'bg-danger'));
         }
     </script>
 </body>

@@ -1418,8 +1418,34 @@ if ($debug) {
                         chart.options.scales[axis].grid.color = gridColor;
                     }
                 });
+
+                // Update Legend Labels (for pie/doughnut charts)
+                if (chart.options.plugins && chart.options.plugins.legend) {
+                    chart.options.plugins.legend.labels = chart.options.plugins.legend.labels || {};
+                    chart.options.plugins.legend.labels.color = textColor;
+                }
                 chart.update();
             });
+
+            // Also update the full screen chart if it's active
+            if (typeof fsChartInstance !== 'undefined' && fsChartInstance) {
+                ['x', 'y'].forEach(axis => {
+                    if (fsChartInstance.options.scales[axis]) {
+                        fsChartInstance.options.scales[axis].ticks = fsChartInstance.options.scales[axis].ticks || {};
+                        fsChartInstance.options.scales[axis].ticks.color = textColor;
+                        fsChartInstance.options.scales[axis].grid = fsChartInstance.options.scales[axis].grid || {};
+                        fsChartInstance.options.scales[axis].grid.color = gridColor;
+                    }
+                });
+                if (fsChartInstance.options.plugins && fsChartInstance.options.plugins.legend) {
+                    fsChartInstance.options.plugins.legend.labels = fsChartInstance.options.plugins.legend.labels || {};
+                    fsChartInstance.options.plugins.legend.labels.color = textColor;
+                }
+                if (fsChartInstance.options.plugins && fsChartInstance.options.plugins.title) {
+                    fsChartInstance.options.plugins.title.color = textColor;
+                }
+                fsChartInstance.update();
+            }
         }
 
         new MutationObserver(updateChartsTheme).observe(document.documentElement, {

@@ -95,7 +95,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 } elseif (!preg_match('/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_])/', $new_pass)) {
                     $alertType = "error";
                     $alertMsg = "Password must contain Uppercase, Lowercase, Number, and Symbol.";
-                } elseif (isset($_SESSION['username']) && stripos($new_pass, $_SESSION['username']) !== false) {
+                } elseif (!empty($_SESSION['username']) && stripos($new_pass, $_SESSION['username']) !== false) {
                     $alertType = "error";
                     $alertMsg = "Password cannot contain your Username.";
                 } else {
@@ -155,8 +155,13 @@ end_post:
     <nav class="navbar navbar-dark bg-dark mb-4">
         <div class="container">
             <a class="navbar-brand" href="index.php">Back to Dashboard</a>
-            <span class="navbar-text text-white">My Profile Settings</span>
-            <span class="navbar-text text-white-50 ms-3 font-monospace small"><i class="bi bi-clock"></i> <span id="sessionTimer"></span></span>
+            <div class="d-flex align-items-center gap-2">
+                <button id="darkModeToggle" class="btn btn-sm btn-outline-light border-0" title="Toggle Dark Mode">
+                    <i class="bi bi-moon-stars-fill"></i>
+                </button>
+                <span class="navbar-text text-white">My Profile Settings</span>
+                <span class="navbar-text text-white-50 ms-3 font-monospace small"><i class="bi bi-clock"></i> <span id="sessionTimer"></span></span>
+            </div>
         </div>
     </nav>
 
@@ -303,10 +308,11 @@ end_post:
             document.getElementById('sessionTimer').innerText = `${m}:${s.toString().padStart(2, '0')}`;
         }
         document.addEventListener('mousemove', () => timeLeft = timeoutDuration);
-        document.addEventListener('keypress', () => timeLeft = timeoutDuration);
+        document.addEventListener('keydown', () => timeLeft = timeoutDuration);
         setInterval(updateTimer, 1000);
         updateTimer();
     </script>
+    <script src="dark_mode.js"></script>
 </body>
 
 </html>

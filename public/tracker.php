@@ -384,6 +384,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($_SESSION['role'], ['ADMIN
                     }
                 }
             }
+            // [FIX] Clean redirect to prevent form resubmission on refresh
             header("Location: tracker.php?msg=" . urlencode("✅ Bulk Action: Sent $sent reminders. Skipped $skipped (cooldown/no email)."));
             exit;
         } elseif ($_POST['action'] === 'bulk_move') {
@@ -605,8 +606,8 @@ $sql = "SELECT $selectCols FROM employees WHERE 1=1";
 $params = [];
 
 if (!empty($dept)) {
-    $sql .= " AND dept = ?";
-    $params[] = $dept;
+    $sql .= " AND dept LIKE ?";
+    $params[] = "%{$dept}%";
 }
 if (!empty($type)) {
     $sql .= " AND (employment_type = ? OR agency_name = ?)";
@@ -719,6 +720,16 @@ if ($compliance !== '') {
     }
     $employees = $filtered;
 }
+
+// [OPTIMIZATION] Paginate the results to prevent browser freezing
+$totalRows = count($employees);
+$perPage = 50;
+$page = isset($_GET['page']) ? max(1, (int)$_GET['page']) : 1;
+$totalPages = max(1, (int)ceil($totalRows / $perPage));
+if ($page > $totalPages) $page = max(1, $totalPages);
+$offset = ($page - 1) * $perPage;
+$paginatedEmployees = array_slice($employees, $offset, $perPage);
+
 ?>
 
 <!DOCTYPE html>
@@ -942,7 +953,7 @@ if ($compliance !== '') {
             <div class="card-header d-flex justify-content-between">
 
                 <h6 class="mb-0 pt-1">Compliance Matrix</h6>
-                <span class="badge bg-light text-dark"><?php echo count($employees); ?> Employees</span>
+                <span class="badge bg-light text-dark"><?php echo $totalRows; ?> Employees Found</span>
             </div>
             <form id="bulkForm" method="POST">
                 <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
@@ -961,7 +972,7 @@ if ($compliance !== '') {
                             </tr>
                         </thead>
                         <tbody>
-                            <?php foreach ($employees as $emp):
+                            <?php foreach ($paginatedEmployees as $emp):
                                 $id = $emp['emp_id'];
 
                                 // Calculate Score
@@ -1063,6 +1074,37 @@ if ($compliance !== '') {
                 </div>
             </form>
         </div>
+
+        <!-- [NEW] Pagination Controls -->
+        <?php if ($totalPages > 1): ?>
+            <nav class="mt-4" aria-label="Tracker pagination">
+                <ul class="pagination justify-content-center">
+                    <?php
+                    $qs = $_GET; // Preserve current filters
+
+                    // Previous Button
+                    $qs['page'] = max(1, $page - 1);
+                    $prevUrl = '?' . http_build_query($qs);
+                    echo '<li class="page-item ' . ($page <= 1 ? 'disabled' : '') . '"><a class="page-link" href="' . $prevUrl . '">&laquo; Prev</a></li>';
+
+                    // Page Numbers (Windowed)
+                    $start = max(1, $page - 2);
+                    $end = min($totalPages, $page + 2);
+                    for ($i = $start; $i <= $end; $i++) {
+                        $qs['page'] = $i;
+                        $url = '?' . http_build_query($qs);
+                        $active = ($page == $i) ? 'active' : '';
+                        echo '<li class="page-item ' . $active . '"><a class="page-link" href="' . $url . '">' . $i . '</a></li>';
+                    }
+
+                    // Next Button
+                    $qs['page'] = min($totalPages, $page + 1);
+                    $nextUrl = '?' . http_build_query($qs);
+                    echo '<li class="page-item ' . ($page >= $totalPages ? 'disabled' : '') . '"><a class="page-link" href="' . $nextUrl . '">Next &raquo;</a></li>';
+                    ?>
+                </ul>
+            </nav>
+        <?php endif; ?>
     </div>
 
     <!-- MANAGE REQUIREMENTS MODAL -->

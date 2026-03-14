@@ -628,7 +628,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     // Cascade to Maintenance Logs
                     $pdo->prepare("UPDATE maintenance_logs SET employee_id = ? WHERE employee_id = ?")->execute([$new_emp_id, $emp['emp_id']]);
 
-                    // Cascade to Exemptions
+                    // [FIX] Ensure Exemptions are moved
                     $pdo->prepare("UPDATE document_exemptions SET employee_id = ? WHERE employee_id = ?")->execute([$new_emp_id, $emp['emp_id']]);
 
                     $pdo->commit();

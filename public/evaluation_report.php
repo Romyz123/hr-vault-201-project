@@ -196,7 +196,7 @@ foreach ($data as $row) {
 
     <script>
         const ctx = document.getElementById('deptChart');
-        new Chart(ctx, {
+        const deptChart = new Chart(ctx, {
             type: 'bar',
             data: {
                 labels: <?php echo json_encode($labels); ?>,
@@ -221,6 +221,33 @@ foreach ($data as $row) {
                 }
             }
         });
+
+        // [NEW] Dark Mode Adapter for Chart
+        function updateChartTheme() {
+            const isDark = document.documentElement.getAttribute('data-bs-theme') === 'dark';
+            const textColor = isDark ? '#adb5bd' : '#6c757d';
+            const gridColor = isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)';
+
+            if (deptChart.options.scales.x) {
+                deptChart.options.scales.x.ticks = deptChart.options.scales.x.ticks || {};
+                deptChart.options.scales.x.ticks.color = textColor;
+                deptChart.options.scales.x.grid = deptChart.options.scales.x.grid || {};
+                deptChart.options.scales.x.grid.color = gridColor;
+            }
+            if (deptChart.options.scales.y) {
+                deptChart.options.scales.y.ticks = deptChart.options.scales.y.ticks || {};
+                deptChart.options.scales.y.ticks.color = textColor;
+                deptChart.options.scales.y.grid = deptChart.options.scales.y.grid || {};
+                deptChart.options.scales.y.grid.color = gridColor;
+            }
+            deptChart.update();
+        }
+
+        new MutationObserver(updateChartTheme).observe(document.documentElement, {
+            attributes: true,
+            attributeFilter: ['data-bs-theme']
+        });
+        updateChartTheme(); // Initial check
     </script>
 </body>
 

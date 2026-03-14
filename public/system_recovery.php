@@ -201,38 +201,121 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($id <= 0) {
             $msg = "❌ Invalid document ID.";
         } else {
-            // Get path to delete file
-            $stmt = $pdo->prepare("SELECT file_path FROM documents WHERE id = ?");
+            // Fetch record and file path for possible restore
+            $stmt = $pdo->prepare("SELECT * FROM documents WHERE id = ?");
             $stmt->execute([$id]);
-            $path = $stmt->fetchColumn();
+            $doc = $stmt->fetch(PDO::FETCH_ASSOC);
 
-            $canDeleteRecord = true;
-
-            if ($path) {
+            if (!$doc) {
+                $msg = "❌ Document not found.";
+            } else {
+                $path = $doc['file_path'];
                 $fullPath = $vaultPath . $path;
                 if (!file_exists($fullPath)) {
                     $fullPath = __DIR__ . '/uploads/' . $path;
                 }
 
-                if (file_exists($fullPath)) {
-                    // [FIX] Check if unlink succeeds before deleting DB record (Atomicity)
-                    if (!@unlink($fullPath)) {
-                        $canDeleteRecord = false;
-                        $msg = "❌ Failed to delete file. Database record preserved.";
-                    }
-                }
-            }
+                try {
+                    $pdo->beginTransaction();
+                    $pdo->prepare("DELETE FROM documents WHERE id = ?")->execute([$id]);
+                    $pdo->commit();
 
-            if ($canDeleteRecord) {
-                $pdo->prepare("DELETE FROM documents WHERE id = ?")->execute([$id]);
-                $msg = "🗑️ Duplicate record deleted.";
-                $logger = new Logger($pdo);
-                $logger->log($_SESSION['user_id'], 'DELETE_DUPLICATE', "Deleted duplicate document ID $id");
+                    $msg = "🗑️ Duplicate record deleted.";
+                    $logger = new Logger($pdo);
+                    $logger->log($_SESSION['user_id'], 'DELETE_DUPLICATE', "Deleted duplicate document ID $id");
+
+                    if (file_exists($fullPath) && !@unlink($fullPath)) {
+                        // Rollback to keep DB in sync if file deletion fails
+                        $pdo->beginTransaction();
+                        $cols = array_keys($doc);
+                        $colsStr = implode("`, `", $cols);
+                        $valsStr = implode(", ", array_fill(0, count($cols), "?"));
+                        $restoreStmt = $pdo->prepare("INSERT INTO documents (`$colsStr`) VALUES ($valsStr)");
+                        $restoreStmt->execute(array_values($doc));
+                        $pdo->commit();
+
+                        $msg = "❌ Failed to delete file after removing database record; record restored.";
+                        $logger->log($_SESSION['user_id'], 'DELETE_DUPLICATE_FAIL', "Deleted document ID $id from DB but failed to delete file; restored record.");
+                    }
+                } catch (Exception $e) {
+                    if ($pdo->inTransaction()) {
+                        $pdo->rollBack();
+                    }
+                    error_log("DELETE_DUPLICATE_ERROR: " . $e->getMessage());
+                    $msg = "❌ Error deleting duplicate record. Please try again later.";
+                }
             }
         }
     }
 
-    // --- MASTER SYNC (ONE-CLICK FIX) ---
+    // --- ZIP ARCHIVE & COMPRESS OLD FILES ---
+    if (isset($_POST['archive_old_vault'])) {
+        $months = (int)$_POST['months_old'];
+        if ($months < 1) $months = 12; // default 1 year
+
+        $cutoffDate = date('Y-m-d H:i:s', strtotime("-$months months"));
+
+        // Find docs older than cutoff date
+        $stmt = $pdo->prepare("SELECT id, file_path, original_name, category FROM documents WHERE uploaded_at < ? AND deleted_at IS NULL");
+        $stmt->execute([$cutoffDate]);
+        $docsToArchive = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        if (empty($docsToArchive)) {
+            $msg = "ℹ️ No active files older than $months months found to compress.";
+        } else {
+            $backupDir = realpath(__DIR__ . '/../backups');
+            if (!$backupDir) {
+                @mkdir(__DIR__ . '/../backups', 0755, true);
+                $backupDir = realpath(__DIR__ . '/../backups');
+            }
+
+            $zipFile = $backupDir . '/Vault_Archive_' . $months . 'MonthsOld_' . date('Ymd_His') . '.zip';
+            $zip = new ZipArchive();
+
+            if ($zip->open($zipFile, ZipArchive::CREATE) === TRUE) {
+                $archivedCount = 0;
+                $freedSpace = 0;
+                $idsToSoftDelete = [];
+
+                foreach ($docsToArchive as $doc) {
+                    $fullPath = $vaultPath . basename($doc['file_path']);
+                    if (file_exists($fullPath)) {
+                        $freedSpace += filesize($fullPath);
+                        // Organize cleanly inside the ZIP by category
+                        $zipName = preg_replace('/[^a-zA-Z0-9\-\._]/', '_', $doc['category']) . '/' . basename($doc['original_name']);
+                        $zip->addFile($fullPath, $zipName);
+                        $archivedCount++;
+                        $idsToSoftDelete[] = $doc['id'];
+                    }
+                }
+                $zip->close();
+
+                if ($archivedCount > 0) {
+                    // Soft delete from DB to hide from active views
+                    $placeholders = implode(',', array_fill(0, count($idsToSoftDelete), '?'));
+                    $pdo->prepare("UPDATE documents SET deleted_at = NOW(), description = CONCAT(COALESCE(description, ''), ' [Compressed to ZIP]') WHERE id IN ($placeholders)")->execute($idsToSoftDelete);
+
+                    // Delete physical files to free active vault space
+                    foreach ($docsToArchive as $doc) {
+                        if (in_array($doc['id'], $idsToSoftDelete)) {
+                            @unlink($vaultPath . basename($doc['file_path']));
+                        }
+                    }
+
+                    $freedMB = round($freedSpace / 1024 / 1024, 2);
+                    $msg = "✅ Successfully compressed $archivedCount old files into a ZIP archive, freeing up $freedMB MB of vault space. The archive is stored in your 'backups' folder.";
+                    $logger = new Logger($pdo);
+                    $logger->log($_SESSION['user_id'], 'VAULT_COMPRESS', "Zipped and removed $archivedCount files older than $months months ($freedMB MB freed).");
+                } else {
+                    $msg = "❌ Failed to archive files. Files might be missing on disk.";
+                }
+            } else {
+                $msg = "❌ Could not create ZIP archive.";
+            }
+        }
+    }
+
+    // --- MASTER SYNC ---
     if (isset($_POST['master_sync'])) {
         $logMessages = [];
 
@@ -268,6 +351,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $dbFiles = $pdo->query("SELECT file_path FROM documents")->fetchAll(PDO::FETCH_COLUMN);
         $discFiles = $pdo->query("SELECT attachment_path FROM disciplinary_cases WHERE attachment_path IS NOT NULL")->fetchAll(PDO::FETCH_COLUMN);
         $validFiles = array_merge($dbFiles, $discFiles);
+
+        // [LOGICAL FIX] Prevent deleting files currently waiting in Pending Requests
+        $reqStmt = $pdo->query("SELECT json_payload FROM requests WHERE request_type = 'UPLOAD_DOC' AND status = 'PENDING'");
+        while ($reqRow = $reqStmt->fetch(PDO::FETCH_ASSOC)) {
+            $payload = json_decode($reqRow['json_payload'], true);
+            if (!empty($payload['file_path'])) $validFiles[] = $payload['file_path'];
+        }
+
         $validFiles = array_map('basename', $validFiles); // Ensure we only compare filenames
         $validFiles[] = 'manifest_DO_NOT_DELETE.txt';
         $validFiles[] = '.gitkeep';
@@ -315,6 +406,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $avFiles = array_diff(scandir($avatarsPath), ['.', '..']);
             $validAvatars = $pdo->query("SELECT avatar_path FROM employees WHERE avatar_path IS NOT NULL")->fetchAll(PDO::FETCH_COLUMN);
             $validAvatars[] = 'default.png';
+
+            // [LOGICAL FIX] Prevent deleting avatars currently waiting in Pending Requests
+            $reqStmt = $pdo->query("SELECT json_payload FROM requests WHERE request_type IN ('ADD_EMPLOYEE', 'EDIT_PROFILE') AND status = 'PENDING'");
+            while ($reqRow = $reqStmt->fetch(PDO::FETCH_ASSOC)) {
+                $payload = json_decode($reqRow['json_payload'], true);
+                if (!empty($payload['avatar_path'])) $validAvatars[] = $payload['avatar_path'];
+            }
 
             foreach ($avFiles as $f) {
                 if (!in_array($f, $validAvatars)) @unlink($avatarsPath . $f);
@@ -394,7 +492,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // --- PRUNE BROKEN LINKS (Fix Charts) ---
     if (isset($_POST['prune_broken_links'])) {
         $idsToPrune = json_decode($_POST['broken_list'], true);
-        if (is_array($idsToPrune) && !empty($idsToPrune)) {
+        if (is_array($idsToPrune)) {
+            // Normalize and validate IDs
+            $idsToPrune = array_values(array_filter(array_map(function ($id) {
+                return is_numeric($id) ? (int)$id : 0;
+            }, $idsToPrune), function ($id) {
+                return $id > 0;
+            }));
+        }
+
+        if (!empty($idsToPrune)) {
             // Delete records where file is missing
             $placeholders = implode(',', array_fill(0, count($idsToPrune), '?'));
             $stmt = $pdo->prepare("DELETE FROM documents WHERE id IN ($placeholders)"); // Placeholders are safe here as they are generated by array_fill
@@ -474,11 +581,60 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $data = json_decode($matches[1], true);
             if ($data) {
                 try {
-                    $cols = array_keys($data);
+                    // Whitelist columns to prevent injection via malformed log data
+                    $allowedColumns = [
+                        'id',
+                        'emp_id',
+                        'first_name',
+                        'middle_name',
+                        'last_name',
+                        'job_title',
+                        'system_role',
+                        'dept',
+                        'section',
+                        'employment_type',
+                        'agency_name',
+                        'company_name',
+                        'previous_company',
+                        'hire_date',
+                        'gender',
+                        'birth_date',
+                        'contact_number',
+                        'email',
+                        'present_address',
+                        'permanent_address',
+                        'sss_no',
+                        'tin_no',
+                        'pagibig_no',
+                        'philhealth_no',
+                        'emergency_name',
+                        'emergency_contact',
+                        'emergency_address',
+                        'education',
+                        'experience',
+                        'skills',
+                        'licenses',
+                        'status',
+                        'exit_date',
+                        'exit_reason',
+                        'avatar_path',
+                        'import_batch',
+                        'last_reminded',
+                        'created_at',
+                        'updated_at',
+                        'deleted_at'
+                    ];
+                    $filteredData = array_intersect_key($data, array_flip($allowedColumns));
+
+                    if (empty($filteredData)) {
+                        throw new Exception('No valid employee columns found in backup data');
+                    }
+
+                    $cols = array_keys($filteredData);
                     $colsStr = implode("`, `", $cols);
                     $valsStr = implode(", ", array_fill(0, count($cols), "?"));
                     $stmt = $pdo->prepare("INSERT INTO employees (`$colsStr`) VALUES ($valsStr)");
-                    $stmt->execute(array_values($data));
+                    $stmt->execute(array_values($filteredData));
 
                     $msg = "✅ Magic Restore: Employee '$ghostId' recovered from audit logs!";
                     $logger = new Logger($pdo);
@@ -502,6 +658,17 @@ $dbFiles = $pdo->query("SELECT file_path FROM documents")->fetchAll(PDO::FETCH_C
 // [NEW] Also fetch known Disciplinary files (in uploads/) and Avatars
 $discFiles = $pdo->query("SELECT attachment_path FROM disciplinary_cases WHERE attachment_path IS NOT NULL")->fetchAll(PDO::FETCH_COLUMN);
 $avatarFiles = $pdo->query("SELECT avatar_path FROM employees WHERE avatar_path IS NOT NULL")->fetchAll(PDO::FETCH_COLUMN);
+
+// [LOGICAL FIX] Include Pending Files so they aren't falsely flagged as orphans in the UI
+$reqStmt = $pdo->query("SELECT request_type, json_payload FROM requests WHERE status = 'PENDING'");
+while ($reqRow = $reqStmt->fetch(PDO::FETCH_ASSOC)) {
+    $payload = json_decode($reqRow['json_payload'], true);
+    if ($reqRow['request_type'] === 'UPLOAD_DOC' && !empty($payload['file_path'])) {
+        $dbFiles[] = $payload['file_path'];
+    } elseif (in_array($reqRow['request_type'], ['ADD_EMPLOYEE', 'EDIT_PROFILE']) && !empty($payload['avatar_path'])) {
+        $avatarFiles[] = $payload['avatar_path'];
+    }
+}
 
 $allKnownFiles = array_merge($dbFiles, $discFiles);
 
@@ -650,8 +817,13 @@ $vaultChecked = ($bkVaultSetting === '1') ? 'checked' : '';
     <nav class="navbar navbar-dark bg-danger mb-4">
         <div class="container">
             <a class="navbar-brand" href="manager_user.php">⬅ Back to User Manager</a>
-            <span class="navbar-text text-white fw-bold"><i class="bi bi-tools"></i> System Recovery Console</span>
-            <span class="navbar-text text-white-50 ms-3 font-monospace small"><i class="bi bi-clock"></i> <span id="sessionTimer"></span></span>
+            <div class="d-flex align-items-center gap-2">
+                <button id="darkModeToggle" class="btn btn-sm btn-outline-light border-0" title="Toggle Dark Mode">
+                    <i class="bi bi-moon-stars-fill"></i>
+                </button>
+                <span class="navbar-text text-white fw-bold"><i class="bi bi-tools"></i> System Recovery Console</span>
+                <span class="navbar-text text-white-50 ms-3 font-monospace small"><i class="bi bi-clock"></i> <span id="sessionTimer"></span></span>
+            </div>
         </div>
     </nav>
 
@@ -670,6 +842,7 @@ $vaultChecked = ($bkVaultSetting === '1') ? 'checked' : '';
             <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#broken">⚠️ Broken Links (<?php echo count($brokenLinks); ?>)</button></li>
             <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#ghosts">🧟 Ghost Records (<?php echo count($ghostRecords); ?>)</button></li>
             <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#duplicates">👯 Duplicates (<?php echo count($duplicates); ?>)</button></li>
+            <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#compress">🗜️ Storage Optimization</button></li>
         </ul>
 
         <div class="tab-content">
@@ -934,7 +1107,7 @@ $vaultChecked = ($bkVaultSetting === '1') ? 'checked' : '';
                                             </td>
                                             <td class="fw-bold"><?php echo htmlspecialchars($d['original_name']); ?></td>
                                             <td><span class="badge bg-secondary"><?php echo htmlspecialchars($d['category']); ?></span></td>
-                                            <td class="small"><?php echo date('M d, Y h:i A', strtotime($d['uploaded_at'])); ?></td>
+                                            <td class="small"><?php echo $d['uploaded_at'] ? date('M d, Y h:i A', strtotime($d['uploaded_at'])) : 'Unknown'; ?></td>
                                             <td>
                                                 <form method="POST" onsubmit="return confirm('Delete this duplicate?');">
                                                     <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
@@ -950,6 +1123,40 @@ $vaultChecked = ($bkVaultSetting === '1') ? 'checked' : '';
                     </div>
                 </div>
             </div>
+
+            <!-- COMPRESS VAULT TAB -->
+            <div class="tab-pane fade" id="compress">
+                <div class="card shadow-sm border-warning">
+                    <div class="card-header bg-warning text-dark">
+                        <i class="bi bi-file-zip"></i> <strong>Compress & Archive Old Documents</strong>
+                        <small class="d-block text-muted">Move old, inactive documents out of the Vault into a highly compressed ZIP archive to save active disk space.</small>
+                    </div>
+                    <div class="card-body">
+                        <div class="alert alert-info small">
+                            <i class="bi bi-info-circle-fill"></i> <strong>How this works:</strong> This tool will package documents older than your selected timeframe into a ZIP file in the <code>backups/</code> folder. The original files will be deleted from the Vault, freeing up space, and their database records will be soft-deleted (moved to the Recycle Bin).
+                        </div>
+                        <form method="POST" onsubmit="return confirm('WARNING: This will remove old files from active employee profiles and archive them. This action is intended for saving disk space. Proceed?');">
+                            <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
+                            <div class="row align-items-end">
+                                <div class="col-md-4">
+                                    <label class="form-label fw-bold">Age of Documents to Archive</label>
+                                    <select name="months_old" class="form-select">
+                                        <option value="12">Older than 1 Year (12 months)</option>
+                                        <option value="24">Older than 2 Years (24 months)</option>
+                                        <option value="36">Older than 3 Years (36 months)</option>
+                                        <option value="60">Older than 5 Years (60 months)</option>
+                                        <option value="6">Older than 6 Months</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-4">
+                                    <button type="submit" name="archive_old_vault" class="btn btn-warning fw-bold w-100"><i class="bi bi-file-zip-fill"></i> Compress & Archive</button>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
         </div>
     </div>
 
@@ -1015,6 +1222,7 @@ $vaultChecked = ($bkVaultSetting === '1') ? 'checked' : '';
     </div>
 
     <script src="assets/bootstrap.bundle.min.js"></script>
+    <script src="dark_mode.js"></script>
     <script>
         // Select-all checkbox for ghost records
         document.addEventListener('DOMContentLoaded', function() {
