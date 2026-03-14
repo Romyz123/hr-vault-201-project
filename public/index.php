@@ -12,9 +12,8 @@ require '../src/Validator.php';
 require '../src/SearchHelper.php';
 require 'options.php'; // [NEW] Load dynamic options
 session_start();
-checkSessionTimeout($pdo); // [SECURITY] Enforce Timeout
 
-// [NEW] Fetch Session Timeout settings
+// [NEW] Fetch Session Timeout settings (required before enforcing timeout)
 $serverTimeout = 1800; // Default 30 mins
 $clientTimeout = 900;  // Default 15 mins
 try {
@@ -30,6 +29,8 @@ try {
 } catch (Exception $e) {
     // Settings table might not exist, use defaults
 }
+
+checkSessionTimeout($pdo, $serverTimeout); // [SECURITY] Enforce Timeout
 
 // Redirect guests to login
 if (!isset($_SESSION['user_id'])) {
@@ -149,21 +150,36 @@ if ($userRole === 'ADMIN') {
 
             // Add Vault (if enabled)
             if ($incVault) {
+                // [LOGICAL FIX] Include config.php to preserve VAULT_KEY
+                $configPath = realpath(__DIR__ . '/../config/config.php');
+                if ($configPath && file_exists($configPath)) {
+                    $zip->addFile($configPath, 'config/config.php');
+                    if ($zipPass) $zip->setEncryptionName('config/config.php', ZipArchive::EM_AES_256, $zipPass);
+                }
+
+                // [PHP SMART SYNC] Mirror Vault instead of Zipping
                 $vaultPath = realpath(__DIR__ . '/../vault');
-                if ($vaultPath) {
+                $mirrorPath = rtrim($primaryBackupPath, '/\\') . DIRECTORY_SEPARATOR . 'vault_mirror';
+                if (!is_dir($mirrorPath)) @mkdir($mirrorPath, 0755, true);
+
+                if ($vaultPath && is_dir($vaultPath)) {
                     $files = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($vaultPath), RecursiveIteratorIterator::LEAVES_ONLY);
                     foreach ($files as $name => $file) {
                         if (!$file->isDir()) {
-                            $filePath = $file->getRealPath();
-                            $relativePath = 'vault/' . substr($filePath, strlen($vaultPath) + 1);
-                            $zip->addFile($filePath, $relativePath);
-                            if ($zipPass) $zip->setEncryptionName($relativePath, ZipArchive::EM_AES_256, $zipPass);
+                            $src = $file->getRealPath();
+                            $dest = $mirrorPath . DIRECTORY_SEPARATOR . $file->getFilename();
+                            // Delta Sync: Only copy if missing or modified
+                            if (!file_exists($dest) || filemtime($src) > filemtime($dest) || filesize($src) !== filesize($dest)) {
+                                @copy($src, $dest);
+                            }
                         }
                     }
                 }
             }
 
             $zip->close();
+            // Cleanup Temp File
+            @unlink($tmpSqlFile);
 
             if (file_exists($zipFile)) {
                 $logger->log($_SESSION['user_id'], 'AUTO_BACKUP', "Backup created: " . basename($zipFile));
@@ -433,10 +449,10 @@ if ($filter_type !== '') {
     $params[] = $filter_type;
 }
 
-// Department filter (exact)
+// [LOGICAL FIX] Department filter (partial match for multi-dept employees)
 if ($filter_dept !== '') {
-    $where[]  = 'dept = ?';
-    $params[] = $filter_dept;
+    $where[]  = 'dept LIKE ?';
+    $params[] = "%{$filter_dept}%";
 }
 
 // Section filter (Partial match for multi-section support)
@@ -546,6 +562,28 @@ $targetEmpId = getQueryParamSafe('search',      150, '');
 $diskTotal = disk_total_space(".");
 $diskFree  = disk_free_space(".");
 $diskPercent = ($diskTotal > 0) ? round((($diskTotal - $diskFree) / $diskTotal) * 100) : 0;
+
+// [NEW] Vault Size Quota Check for Dashboard Alert
+$vaultLimitMB = 1024; // Default 1GB
+try {
+    $stmt = $pdo->query("SELECT setting_value FROM system_settings WHERE setting_key = 'vault_size_limit_mb'");
+    $val = $stmt->fetchColumn();
+    if ($val !== false) $vaultLimitMB = (int)$val;
+} catch (Exception $e) {
+}
+
+$currentVaultBytes = 0;
+$vaultPath = realpath(__DIR__ . '/../vault');
+if ($vaultPath && is_dir($vaultPath)) {
+    $iterator = new FileSystemIterator($vaultPath, FileSystemIterator::SKIP_DOTS);
+    foreach ($iterator as $f) {
+        if ($f->isFile()) $currentVaultBytes += $f->getSize();
+    }
+}
+$currentVaultMB = round($currentVaultBytes / 1024 / 1024, 2);
+$vaultQuotaPercent = ($vaultLimitMB > 0) ? min(100, round(($currentVaultMB / $vaultLimitMB) * 100)) : 0;
+
+$backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -909,6 +947,19 @@ $diskPercent = ($diskTotal > 0) ? round((($diskTotal - $diskFree) / $diskTotal) 
         <?php endif;
         endif; ?>
 
+        <!-- [SECURITY] Automated Backup Failure Alert -->
+        <?php if ($userRole === 'ADMIN' && $backupLastStatus === 'FAILED'): ?>
+            <div class="alert alert-danger shadow-sm fw-bold mb-4 border-danger border-3">
+                <div class="d-flex align-items-center">
+                    <i class="bi bi-exclamation-octagon-fill fs-2 me-3"></i>
+                    <div>
+                        <h5 class="mb-0 text-danger">CRITICAL WARNING: Automated Backup Failed</h5>
+                        <span class="small fw-normal text-dark">The scheduled database backup failed last night or generated a 0-byte file. Please check server storage or <a href="settings.php" class="text-danger text-decoration-underline">run a manual backup</a> immediately.</span>
+                    </div>
+                </div>
+            </div>
+        <?php endif; ?>
+
         <!-- [SECURITY] Password Expiry Warning (5 Days Notice) -->
         <?php
         $stmt = $pdo->prepare("SELECT password_changed_at, created_at FROM users WHERE id = ?");
@@ -970,6 +1021,16 @@ $diskPercent = ($diskTotal > 0) ? round((($diskTotal - $diskFree) / $diskTotal) 
                 <div>
                     <strong>Server Load High!</strong> Disk usage is at <?php echo $diskPercent; ?>%.
                     <br><span class="small fw-normal">Please clear old files or backups immediately to prevent system failure.</span>
+                </div>
+            </div>
+        <?php endif; ?>
+
+        <?php if ($vaultLimitMB > 0 && $vaultQuotaPercent >= 90): ?>
+            <div class="alert alert-warning shadow-sm fw-bold d-flex align-items-center mb-4 border-warning border-3">
+                <i class="bi bi-hdd-network fs-3 me-3 text-warning"></i>
+                <div>
+                    <strong>Vault Storage Warning:</strong> Your document vault is at <strong><?php echo $vaultQuotaPercent; ?>%</strong> capacity (<?php echo number_format($currentVaultMB, 2); ?> MB / <?php echo number_format($vaultLimitMB); ?> MB).
+                    <br><span class="small fw-normal">Please use the <strong>Storage Optimization</strong> tool in the Recovery Console to archive old files, or increase your limit in <a href="settings.php" class="alert-link">Settings</a>.</span>
                 </div>
             </div>
         <?php endif; ?>
@@ -1782,6 +1843,11 @@ $diskPercent = ($diskTotal > 0) ? round((($diskTotal - $diskFree) / $diskTotal) 
                     window.hrChartInstance.options.scales.x.ticks.color = textColor;
                     window.hrChartInstance.options.scales.y.ticks.color = textColor;
                     window.hrChartInstance.options.scales.y.grid.color = gridColor;
+
+                    if (window.hrChartInstance.options.plugins && window.hrChartInstance.options.plugins.legend) {
+                        window.hrChartInstance.options.plugins.legend.labels = window.hrChartInstance.options.plugins.legend.labels || {};
+                        window.hrChartInstance.options.plugins.legend.labels.color = textColor;
+                    }
                     window.hrChartInstance.update();
                 }
             }
@@ -2161,7 +2227,6 @@ $diskPercent = ($diskTotal > 0) ? round((($diskTotal - $diskFree) / $diskTotal) 
                 const spinner = document.getElementById('sync-spinner');
                 if (spinner) spinner.style.display = 'inline-block';
 
-                fetch('api/get_updates.php')
                 // [FIX] Add timestamp to prevent browser caching of old numbers
                 fetch('api/get_updates.php?_=' + new Date().getTime())
                     .then(response => response.json())
