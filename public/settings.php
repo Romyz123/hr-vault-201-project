@@ -19,6 +19,12 @@ $csrf_token = $security->generateCSRF();
 $msg = "";
 $error = "";
 
+// [NEW] Dynamically calculate total drive space to use as a realistic cap
+$vaultPathForDisk = realpath(__DIR__ . '/../vault') ?: __DIR__;
+$diskTotalBytes = @disk_total_space($vaultPathForDisk);
+$diskTotalGB = $diskTotalBytes ? floor($diskTotalBytes / 1024 / 1024 / 1024) : 1000;
+if ($diskTotalGB < 1) $diskTotalGB = 1; // Fallback minimum
+
 // 2. HANDLE FORM SUBMISSION
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
@@ -40,87 +46,123 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $errors = [];
         $updates = [];
 
+        // [FIX 1] Explicitly process checkboxes first. Browsers do not send unchecked boxes in POST.
+        foreach ($checkboxes as $cb) {
+            $updates[$cb] = isset($_POST['settings'][$cb]) ? '1' : '0';
+        }
+
         // Validate posted settings first
-        foreach ($_POST['settings'] as $key => $value) {
-            // Basic validation
-            $key = preg_replace('/[^a-zA-Z0-9_]/', '', $key); // Sanitize key
-            $value = trim((string)$value);
+        if (isset($_POST['settings']) && is_array($_POST['settings'])) {
+            foreach ($_POST['settings'] as $key => $value) {
+                // Basic validation
+                $key = preg_replace('/[^a-zA-Z0-9_]/', '', $key); // Sanitize key
 
-            // Handle checkboxes (they are not sent when unchecked)
-            if (in_array($key, $checkboxes, true)) {
-                $updates[$key] = isset($_POST['settings'][$key]) ? '1' : '0';
-                continue;
-            }
+                // Skip checkboxes as they are already handled safely above
+                if (in_array($key, $checkboxes, true)) continue;
 
-            // Handle backup password
-            if ($key === 'backup_password') {
-                if (isset($_POST['clear_backup_password'])) {
-                    $value = '';
-                } elseif ($value === '') {
-                    // Preserve existing password if user left it blank
-                    $value = $currentBackupPassword;
-                } else {
-                    if (strlen($value) > 50) {
-                        $errors[] = "ZIP Password is too long (Max 50 chars).";
-                    } elseif (strlen($value) < 8) {
-                        $errors[] = "ZIP Password must be at least 8 characters.";
-                    }
-                }
-            }
+                $value = trim((string)$value);
 
-            // Validate backup path
-            if ($key === 'backup_path') {
-                $clean = str_replace("\0", '', $value);
-                if (strpos($clean, '..') !== false) {
-                    $errors[] = "Backup path must not contain '..' sequences.";
-                } elseif (!preg_match('/^[A-Za-z0-9_:\/\\\s\-]+$/', $clean)) {
-                    $errors[] = "Backup path contains invalid characters.";
-                } else {
-                    $real = realpath($clean);
-                    if ($real === false || !is_dir($real)) {
-                        $errors[] = "Backup path must point to an existing directory.";
-                    } elseif (!is_writable($real)) {
-                        $errors[] = "Backup path is not writable by the web server.";
+                // Handle backup password
+                if ($key === 'backup_password') {
+                    if (isset($_POST['clear_backup_password'])) {
+                        $value = '';
+                    } elseif ($value === '') {
+                        // Preserve existing password if user left it blank
+                        $value = $currentBackupPassword;
                     } else {
-                        $value = $real;
+                        if (strlen($value) > 50) {
+                            $errors[] = "ZIP Password is too long (Max 50 chars).";
+                        } elseif (strlen($value) < 8) {
+                            $errors[] = "ZIP Password must be at least 8 characters.";
+                        }
                     }
                 }
-            }
 
-            // Validate Alert Email Length and Format
-            if ($key === 'backup_alert_email') {
-                if (strlen($value) > 100) {
-                    $errors[] = "Alert Email is too long (Max 100 chars).";
-                } elseif (!empty($value) && !filter_var($value, FILTER_VALIDATE_EMAIL)) {
-                    $errors[] = "Invalid Alert Email format.";
+                // Validate backup path
+                if ($key === 'backup_path') {
+                    $clean = str_replace("\0", '', $value);
+                    if ($clean === '') {
+                        $value = ''; // [FIX 2] Allow empty values to use default system path
+                    } elseif (strpos($clean, '..') !== false) {
+                        $errors[] = "Backup path must not contain '..' sequences.";
+                        // [FIX] Removed colon (:) from regex so Windows drive letters (C:\) are accepted
+                    } elseif (preg_match('/[<>"|?*]/', $clean) || strpos($clean, '://') !== false) {
+                        $errors[] = "Backup path contains invalid characters or protocol wrappers (e.g., < > \" | ? *).";
+                    } else {
+                        // [FIX] Loosen validation: Don't require the directory to exist yet.
+                        // Only check for writability if it *does* exist.
+                        if (file_exists($clean)) {
+                            if (!is_dir($clean)) {
+                                $errors[] = "Backup path exists but is not a directory.";
+                            } elseif (!is_writable($clean)) {
+                                $errors[] = "Backup path exists but is not writable by the web server.";
+                            }
+                        }
+                        $value = $clean; // Use the user's input directly after sanitization
+                    }
                 }
-            }
 
-            // Specific validation for timeouts (must be numeric, in seconds)
-            if (strpos($key, 'timeout') !== false || strpos($key, 'interval') !== false) {
-                if (!is_numeric($value) || (int)$value < 10) {
-                    $errors[] = "Timeout/Interval values must be numeric and at least 10 seconds.";
+                // Validate Alert Email Length and Format
+                if ($key === 'backup_alert_email') {
+                    if (strlen($value) > 100) {
+                        $errors[] = "Alert Email is too long (Max 100 chars).";
+                    } elseif (!empty($value) && !filter_var($value, FILTER_VALIDATE_EMAIL)) {
+                        $errors[] = "Invalid Alert Email format.";
+                    }
                 }
-                $value = (int)$value;
-            }
 
-            // Specific validation for margins (Max 500, numbers only)
-            if (strpos($key, 'margin') !== false) {
-                $value = preg_replace('/[^0-9]/', '', (string)$value);
-                if ($value === '' || (int)$value > 500) {
-                    $value = '500';
+                // Specific validation for timeouts (must be numeric, in seconds)
+                if (strpos($key, 'timeout') !== false || strpos($key, 'interval') !== false) {
+                    if (!is_numeric($value) || (int)$value < 10) {
+                        $errors[] = "Timeout/Interval values must be numeric and at least 10 seconds.";
+                    }
+                    $value = (int)$value;
+                    if ($key === 'auto_refresh_interval' && $value > 3600) {
+                        $value = 3600; // Cap at 3600s
+                    }
                 }
-            }
 
-            // Queue this setting for update
-            $updates[$key] = $value;
+                // Specific validation for margins (Max 500, numbers only)
+                if (strpos($key, 'margin') !== false) {
+                    $value = preg_replace('/[^0-9]/', '', (string)$value);
+                    if ($value === '' || (int)$value > 500) {
+                        $value = '500';
+                    }
+                }
+
+                // Validate Vault Size Limit (GB)
+                if ($key === 'vault_size_limit_gb') {
+                    $value = (float)$value;
+                    if ($value < 0) $value = 0; // Minimum 0 (Unlimited)
+                    if ($value > $diskTotalGB) $value = $diskTotalGB; // [FIX] Cap at actual drive size
+                }
+
+                // Validate Max Backup Size (GB)
+                if ($key === 'backup_max_size_gb') {
+                    // [NEW] Calculate limits based on the newly submitted backup path (the "other" drive)
+                    $newBackupPath = rtrim(trim($_POST['settings']['backup_path'] ?? ''), '\\/');
+                    $valBackupPathForDisk = (!empty($newBackupPath) && file_exists($newBackupPath)) ? realpath($newBackupPath) : realpath(__DIR__ . '/../backups');
+                    if (!$valBackupPathForDisk) $valBackupPathForDisk = __DIR__;
+                    $valBackupDiskBytes = @disk_total_space($valBackupPathForDisk);
+                    $valBackupDiskGB = $valBackupDiskBytes ? floor($valBackupDiskBytes / 1024 / 1024 / 1024) : 1000;
+                    if ($valBackupDiskGB < 1) $valBackupDiskGB = 1;
+
+                    $value = (float)$value;
+                    if ($value < 0.1) $value = 0.1; // Minimum 100MB
+                    if ($value > $valBackupDiskGB) $value = $valBackupDiskGB; // [FIX] Cap at Backup Drive size
+                }
+
+                // Queue this setting for update
+                $updates[$key] = $value;
+            }
         }
 
         if (empty($errors)) {
             // Persist all validated settings
             $stmt = $pdo->prepare("INSERT INTO system_settings (setting_key, setting_value) VALUES (?, ?) ON DUPLICATE KEY UPDATE setting_value = ?");
             foreach ($updates as $k => $v) {
-                $stmt->execute([$k, $v, $v]);
+                $valStr = (string)$v; // [FIX] Force string cast to prevent strict DB float rejection
+                $stmt->execute([$k, $valStr, $valStr]);
             }
 
             $msg = "✅ Settings updated successfully!";
@@ -128,7 +170,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             header("Location: settings.php?msg=" . urlencode($msg));
             exit;
         } else {
-            $error = implode('<br>', array_map('htmlspecialchars', $errors));
+            $error = implode('<br>', $errors); // [FIX] Allow line breaks so the alert is readable
         }
     } catch (Exception $e) {
         $error = "Error: " . htmlspecialchars($e->getMessage());
@@ -151,7 +193,7 @@ try {
 $serverTimeout = $settings['session_timeout_server'] ?? 1800;
 $clientTimeout = $settings['session_timeout_client'] ?? 900;
 $refreshInterval = $settings['auto_refresh_interval'] ?? 60;
-$vaultLimitMB = $settings['vault_size_limit_mb'] ?? '1024'; // Default 1GB
+$vaultLimitGB = $settings['vault_size_limit_gb'] ?? '1'; // Default 1GB
 $maintMode = $settings['maintenance_mode'] ?? '0';
 
 // [NEW from user code]
@@ -166,6 +208,46 @@ $backupPath = $settings['backup_path'] ?? '';
 $backupPass = $settings['backup_password'] ?? '';
 $backupVault = $settings['backup_include_vault'] ?? '0';
 $backupEmail = $settings['backup_alert_email'] ?? '';
+$backupMaxSize = $settings['backup_max_size_gb'] ?? '1.9'; // Default to 1.9GB
+
+// [FIX] If there was a validation error, restore the user's typed values so they don't lose their changes
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['settings'])) {
+    $p = $_POST['settings'];
+    $serverTimeout = $p['session_timeout_server'] ?? $serverTimeout;
+    $clientTimeout = $p['session_timeout_client'] ?? $clientTimeout;
+    $refreshInterval = $p['auto_refresh_interval'] ?? $refreshInterval;
+    $vaultLimitGB = $p['vault_size_limit_gb'] ?? $vaultLimitGB;
+    $maintMode = isset($p['maintenance_mode']) ? '1' : '0';
+    $staffDirect = isset($p['staff_direct_approval']);
+    $defProject = $p['default_project_name'] ?? $defProject;
+    $marginL = $p['bulk_margin_left'] ?? $marginL;
+    $marginR = $p['bulk_margin_right'] ?? $marginR;
+    $backupDay = $p['backup_day'] ?? $backupDay;
+    $backupTime = $p['backup_time'] ?? $backupTime;
+    $backupPath = $p['backup_path'] ?? $backupPath;
+    $backupVault = isset($p['backup_include_vault']) ? '1' : '0';
+    $backupEmail = $p['backup_alert_email'] ?? $backupEmail;
+    $backupMaxSize = $p['backup_max_size_gb'] ?? $backupMaxSize;
+}
+
+// [NEW] Calculate capacity specifically for the backup drive
+$actualBackupPathForDisk = (!empty($backupPath) && file_exists($backupPath)) ? realpath($backupPath) : realpath(__DIR__ . '/../backups');
+if (!$actualBackupPathForDisk) $actualBackupPathForDisk = __DIR__;
+$backupDiskTotalBytes = @disk_total_space($actualBackupPathForDisk);
+$backupDiskTotalGB = $backupDiskTotalBytes ? floor($backupDiskTotalBytes / 1024 / 1024 / 1024) : 1000;
+if ($backupDiskTotalGB < 1) $backupDiskTotalGB = 1;
+
+// [NEW] Detect if Backup Path is on the same drive as the app (Windows only)
+$isSameDrive = false;
+$targetDrive = '';
+if (PHP_OS_FAMILY === 'Windows') {
+    $appDrive = strtoupper(substr(realpath(__DIR__), 0, 2));
+    $actualBackupPath = (!empty($backupPath) && file_exists($backupPath)) ? realpath($backupPath) : realpath(__DIR__ . '/../backups');
+    if ($actualBackupPath) {
+        $targetDrive = strtoupper(substr($actualBackupPath, 0, 2));
+        $isSameDrive = ($appDrive === $targetDrive);
+    }
+}
 
 ?>
 <!DOCTYPE html>
@@ -194,7 +276,22 @@ $backupEmail = $settings['backup_alert_email'] ?? '';
 
     <div class="container">
         <?php if ($msg): ?><div class="alert alert-success"><?php echo htmlspecialchars($msg); ?></div><?php endif; ?>
-        <?php if ($error): ?><div class="alert alert-danger"><?php echo htmlspecialchars($error); ?></div><?php endif; ?>
+        <?php if ($error): ?>
+            <div class="alert alert-danger shadow-sm border-danger border-2">
+                <strong><i class="bi bi-exclamation-triangle-fill"></i> Settings could not be saved:</strong><br>
+                <?php echo $error; ?>
+            </div>
+            <!-- [FIX] Explicitly trigger SweetAlert so the user doesn't miss the validation failure -->
+            <script>
+                document.addEventListener("DOMContentLoaded", function() {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Save Failed',
+                        html: <?php echo json_encode($error); ?>
+                    });
+                });
+            </script>
+        <?php endif; ?>
 
         <form method="POST">
             <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token); ?>">
@@ -289,13 +386,13 @@ $backupEmail = $settings['backup_alert_email'] ?? '';
                             <div class="row">
                                 <div class="col-md-6 mb-3">
                                     <label for="refresh_interval" class="form-label fw-bold">Dashboard Auto-Refresh Interval (seconds)</label>
-                                    <input type="number" id="refresh_interval" name="settings[auto_refresh_interval]" class="form-control" value="<?php echo htmlspecialchars($refreshInterval); ?>" min="10">
-                                    <div class="form-text">How often the dashboard checks for new notifications. Minimum 10 seconds.</div>
+                                    <input type="number" id="refresh_interval" name="settings[auto_refresh_interval]" class="form-control" value="<?php echo htmlspecialchars($refreshInterval); ?>" min="10" max="3600" oninput="this.value = this.value.replace(/[^0-9]/g, ''); if(this.value.length > 4) this.value = this.value.slice(0, 4); if(parseInt(this.value) > 3600) this.value = '3600';">
+                                    <div class="form-text">How often the dashboard checks for new notifications. Min 10s, Max 3600s (1 hour).</div>
                                 </div>
                                 <div class="col-md-6 mb-3">
-                                    <label for="vault_size_limit_mb" class="form-label fw-bold">Vault Size Limit (MB)</label>
-                                    <input type="number" id="vault_size_limit_mb" name="settings[vault_size_limit_mb]" class="form-control" value="<?php echo htmlspecialchars($vaultLimitMB); ?>" min="0">
-                                    <div class="form-text">Maximum allowed storage for the Vault directory. Set to 0 for unlimited. (1024 MB = 1 GB)</div>
+                                    <label for="vault_size_limit_gb" class="form-label fw-bold">Vault Size Limit (GB)</label>
+                                    <input type="number" step="0.1" id="vault_size_limit_gb" name="settings[vault_size_limit_gb]" class="form-control" value="<?php echo htmlspecialchars($vaultLimitGB); ?>" min="0" max="<?php echo $diskTotalGB; ?>" oninput="this.value = this.value.replace(/[^0-9\.]/g, ''); if(this.value.split('.').length > 2) this.value = this.value.replace(/\.+$/, ''); if(parseFloat(this.value) > <?php echo $diskTotalGB; ?>) this.value = '<?php echo $diskTotalGB; ?>';">
+                                    <div class="form-text">Maximum allowed storage (Server Drive Capacity: <strong><?php echo $diskTotalGB; ?> GB</strong>). Set to 0 for unlimited.</div>
                                 </div>
                             </div>
                         </div>
@@ -308,7 +405,7 @@ $backupEmail = $settings['backup_alert_email'] ?? '';
                         </div>
                         <div class="card-body">
                             <div class="row">
-                                <div class="col-md-4 mb-3">
+                                <div class="col-md-3 mb-3">
                                     <label class="form-label fw-bold">Backup Day</label>
                                     <select name="settings[backup_day]" class="form-select">
                                         <?php $days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']; ?>
@@ -318,12 +415,17 @@ $backupEmail = $settings['backup_alert_email'] ?? '';
                                     </select>
                                     <div class="form-text">Day of the week to run the automated backup.</div>
                                 </div>
-                                <div class="col-md-4 mb-3">
+                                <div class="col-md-3 mb-3">
                                     <label class="form-label fw-bold">Backup Time</label>
                                     <input type="time" name="settings[backup_time]" class="form-control" value="<?php echo htmlspecialchars($backupTime); ?>">
                                     <div class="form-text">Time of day to run the backup (24-hour format).</div>
                                 </div>
-                                <div class="col-md-4 mb-3 d-flex align-items-center pt-3">
+                                <div class="col-md-3 mb-3">
+                                    <label class="form-label fw-bold">Max Split Size (GB)</label>
+                                    <input type="number" step="0.1" name="settings[backup_max_size_gb]" class="form-control" value="<?php echo htmlspecialchars($backupMaxSize); ?>" min="0.1" max="<?php echo $backupDiskTotalGB; ?>" oninput="if(parseFloat(this.value) > <?php echo $backupDiskTotalGB; ?>) this.value = '<?php echo $backupDiskTotalGB; ?>';">
+                                    <div class="form-text">Splits backup into multiple ZIPs if it exceeds this limit. (Drive Capacity: <strong><?php echo $backupDiskTotalGB; ?> GB</strong>)</div>
+                                </div>
+                                <div class="col-md-3 mb-3 d-flex align-items-center pt-3">
                                     <div class="form-check form-switch">
                                         <input class="form-check-input" type="checkbox" name="settings[backup_include_vault]" value="1" id="incVault" <?php echo ($backupVault === '1') ? 'checked' : ''; ?>>
                                         <label class="form-check-label fw-bold" for="incVault">Include Vault Files</label>
@@ -333,8 +435,16 @@ $backupEmail = $settings['backup_alert_email'] ?? '';
                             </div>
                             <div class="mb-3">
                                 <label class="form-label fw-bold">Backup Path (Optional)</label>
-                                <input type="text" name="settings[backup_path]" class="form-control" value="<?php echo htmlspecialchars($backupPath); ?>" placeholder="e.g. C:\backups\" maxlength="255" pattern="[a-zA-Z0-9\:\/\\ \-_]+" title="Allowed: Alphanumeric, Space, Colon, Slashes, Dash, Underscore">
+                                <div class="input-group">
+                                    <input type="text" name="settings[backup_path]" id="backupPathInput" class="form-control" value="<?php echo htmlspecialchars($backupPath); ?>" placeholder="e.g. C:\backups\" maxlength="255">
+                                    <button type="button" class="btn btn-outline-secondary" onclick="testBackupPath(this)" title="Verify Path Access"><i class="bi bi-folder-check"></i> Test Path</button>
+                                </div>
                                 <div class="form-text">Absolute path to a custom backup folder. Leave blank to use default `backups/` folder.</div>
+                                <?php if ($isSameDrive): ?>
+                                    <div class="alert alert-danger small mt-2 mb-0 border-danger border-2">
+                                        <i class="bi bi-exclamation-triangle-fill"></i> <strong>Critical Warning:</strong> Your backups are currently being saved to the exact same physical drive (<strong><?php echo htmlspecialchars($targetDrive); ?></strong>) as the main application. If this drive crashes, both your system and backups will be lost. Please attach an external drive and update this path.
+                                    </div>
+                                <?php endif; ?>
                             </div>
                             <!-- [NEW from user code] Backup Password -->
                             <div class="mb-3">
@@ -456,6 +566,43 @@ $backupEmail = $settings['backup_alert_email'] ?? '';
                 }
             });
             // In a real scenario, you'd fetch a test endpoint here.
+        }
+
+        function testBackupPath(btn) {
+            const input = document.getElementById('backupPathInput');
+            const path = input.value.trim();
+
+            if (!path) {
+                Swal.fire('Input Required', 'Please enter a custom backup path to test. (Leaving it blank safely uses the default system folder).', 'info');
+                return;
+            }
+
+            const originalHtml = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+
+            const formData = new FormData();
+            formData.append('path', path);
+            formData.append('csrf_token', '<?php echo $_SESSION['csrf_token']; ?>');
+
+            fetch('test_backup_path.php', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.status === 'success') Swal.fire('Verified', data.message, 'success');
+                    else if (data.status === 'warning') Swal.fire('Warning', data.message, 'warning');
+                    else Swal.fire('Test Failed', data.message, 'error');
+                })
+                .catch(e => {
+                    console.error(e);
+                    Swal.fire('Error', 'Network or server error occurred.', 'error');
+                })
+                .finally(() => {
+                    btn.disabled = false;
+                    btn.innerHTML = originalHtml;
+                });
         }
 
         function runManualBackup() {

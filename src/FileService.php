@@ -14,6 +14,11 @@ class FileService
         // Ensure path ends with slash
         $this->vaultPath = rtrim($vaultPath, '/\\') . DIRECTORY_SEPARATOR;
 
+        // [FIX] Auto-create vault directory if it doesn't exist to prevent silent failures
+        if (!is_dir($this->vaultPath)) {
+            @mkdir($this->vaultPath, 0755, true);
+        }
+
         // The Fail-Safe Map (Text file)
         $this->manifestFile = $this->vaultPath . 'manifest_DO_NOT_DELETE.txt';
 

@@ -61,6 +61,24 @@ $devFilesExist = false;
 foreach ($devFiles as $f) {
     if (file_exists($basePath . $f)) $devFilesExist = true;
 }
+
+// [NEW] Handle Dev File Cleanup directly from Checklist
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['cleanup_dev_files'])) {
+    if (empty($_POST['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'])) {
+        http_response_code(403);
+        die('CSRF token validation failed');
+    }
+    $deletedCount = 0;
+    foreach ($devFiles as $f) {
+        if (file_exists($basePath . $f)) {
+            @unlink($basePath . $f);
+            $deletedCount++;
+        }
+    }
+    $msg = "✅ Cleanup Complete: $deletedCount development files removed.";
+    $devFilesExist = false; // Reset state
+}
+
 // 2. Check Error Reporting
 $errorsOff = (ini_get('display_errors') == 0 || ini_get('display_errors') === 'Off' || ini_get('display_errors') === '');
 
@@ -488,6 +506,93 @@ foreach ($columnSchema as $table => $cols) {
             </div>
         <?php endif; ?>
 
+        <!-- PRODUCTION LAUNCH CHECKLIST -->
+        <div class="card shadow-sm mb-4 border-primary">
+            <div class="card-header bg-primary text-white fw-bold d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-rocket-takeoff-fill"></i> Final Launch Checklist</span>
+                <span class="badge bg-light text-primary">Pre-Flight Checks</span>
+            </div>
+            <div class="card-body p-0">
+                <ul class="list-group list-group-flush">
+                    <!-- 1. Dev Files -->
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        <div>
+                            <strong>1. Delete Development Files</strong><br>
+                            <small class="text-muted">Ensure installation and backdoor scripts are removed.</small>
+                        </div>
+                        <?php if (!$devFilesExist): ?>
+                            <span class="badge bg-success rounded-pill px-3 py-2"><i class="bi bi-check-circle-fill"></i> Secure</span>
+                        <?php else: ?>
+                            <div class="d-flex align-items-center gap-2">
+                                <span class="badge bg-danger rounded-pill px-3 py-2"><i class="bi bi-x-circle-fill"></i> Files Found</span>
+                                <form method="POST" class="m-0" onsubmit="return confirm('Delete all development files permanently?');">
+                                    <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token'], ENT_QUOTES, 'UTF-8'); ?>">
+                                    <button type="submit" name="cleanup_dev_files" class="btn btn-sm btn-danger py-0"><i class="bi bi-trash"></i> Fix Now</button>
+                                </form>
+                            </div>
+                        <?php endif; ?>
+                    </li>
+                    <!-- 2. Error Reporting -->
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        <div>
+                            <strong>2. Lock Down config/db.php</strong><br>
+                            <small class="text-muted">Ensure <code>display_errors = 0</code> to prevent path leakage.</small>
+                        </div>
+                        <?php if ($errorsOff): ?>
+                            <span class="badge bg-success rounded-pill px-3 py-2"><i class="bi bi-check-circle-fill"></i> Hidden</span>
+                        <?php else: ?>
+                            <span class="badge bg-danger rounded-pill px-3 py-2"><i class="bi bi-x-circle-fill"></i> Exposed</span>
+                        <?php endif; ?>
+                    </li>
+                    <!-- 3. Vault Key -->
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        <div>
+                            <strong>3. Generate Final VAULT_KEY</strong><br>
+                            <small class="text-muted">Ensure AES-256 encryption key is set and not default.</small>
+                        </div>
+                        <?php if ($keySecure): ?>
+                            <span class="badge bg-success rounded-pill px-3 py-2"><i class="bi bi-check-circle-fill"></i> Secure</span>
+                        <?php else: ?>
+                            <span class="badge bg-danger rounded-pill px-3 py-2"><i class="bi bi-x-circle-fill"></i> Default Key</span>
+                        <?php endif; ?>
+                    </li>
+                    <!-- 4. Permissions -->
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        <div>
+                            <strong>4. Set Directory Permissions</strong><br>
+                            <small class="text-muted">Verify Write access for <code>vault/</code>, <code>uploads/</code>, and <code>backups/</code>.</small>
+                        </div>
+                        <?php if ($permsOk): ?>
+                            <span class="badge bg-success rounded-pill px-3 py-2"><i class="bi bi-check-circle-fill"></i> Writable</span>
+                        <?php else: ?>
+                            <span class="badge bg-danger rounded-pill px-3 py-2"><i class="bi bi-x-circle-fill"></i> Permission Denied</span>
+                        <?php endif; ?>
+                    </li>
+                    <!-- 5. HTTPS -->
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        <div>
+                            <strong>5. Enforce HTTPS (SSL)</strong><br>
+                            <small class="text-muted">Verify active SSL certificate to protect network traffic.</small>
+                        </div>
+                        <?php if ($isHttps): ?>
+                            <span class="badge bg-success rounded-pill px-3 py-2"><i class="bi bi-check-circle-fill"></i> Encrypted</span>
+                        <?php else: ?>
+                            <span class="badge bg-warning text-dark rounded-pill px-3 py-2"><i class="bi bi-exclamation-triangle-fill"></i> Insecure (HTTP)</span>
+                        <?php endif; ?>
+                    </li>
+                    <!-- 6. Cron Jobs -->
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        <div>
+                            <strong>6. Activate Automated Backups</strong><br>
+                            <small class="text-muted">Configure Windows Task Scheduler to run <code>cron_backup.php</code></small>
+                        </div>
+                        <span class="badge bg-secondary rounded-pill px-3 py-2"><i class="bi bi-search"></i> Manual Check Req.</span>
+                    </li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- SCHEMA VERIFICATION -->
         <div class="card shadow-sm mb-4">
             <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
                 <span>Schema Verification</span>

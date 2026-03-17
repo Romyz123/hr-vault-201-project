@@ -58,35 +58,24 @@ if (!$backupDir) {
 
 $dateStr = date('Y-m-d_H-i-s');
 $baseName = "AutoBackup_" . $dateStr;
-$zipFile = rtrim($backupDir, '/\\') . DIRECTORY_SEPARATOR . $baseName . ".zip";
-$sqlFile = $baseName . ".sql";
+
+// [MULTI-VOLUME LOGIC] Dynamic GB Limit
+$maxSizeGB = (float)($settings['backup_max_size_gb'] ?? 1.9);
+$maxSizeBytes = $maxSizeGB * 1024 * 1024 * 1024;
+$currentBytes = 0;
+$partNumber = 1;
+$pendingUnlink = [];
+$generatedZips = [];
+
+$zipFile = rtrim($backupDir, '/\\') . DIRECTORY_SEPARATOR . $baseName . "_Part{$partNumber}.zip";
+$generatedZips[] = $zipFile;
 
 if (CLI_MODE) echo "Starting backup to: $zipFile\n";
 
-// 4. GENERATE SQL DUMP
+// 4. INITIALIZE ZIP & SQL
 $tables = [];
 $query = $pdo->query('SHOW TABLES');
 while ($row = $query->fetch(PDO::FETCH_NUM)) $tables[] = $row[0];
-
-// [OPTIMIZATION] Stream directly to a temporary file to save RAM
-$tmpSqlFile = tempnam(sys_get_temp_dir(), 'hr201_backup_');
-$handle = fopen($tmpSqlFile, 'w');
-
-fwrite($handle, "-- AUTOMATED BACKUP ($dateStr)\nSET FOREIGN_KEY_CHECKS=0;\n\n");
-foreach ($tables as $table) {
-    $row = $pdo->query("SHOW CREATE TABLE `$table`")->fetch(PDO::FETCH_NUM);
-    fwrite($handle, "DROP TABLE IF EXISTS `$table`;\n" . $row[1] . ";\n\n");
-    // stream the rows instead of loading entire table
-    $stmtRows = $pdo->prepare("SELECT * FROM `$table`");
-    $stmtRows->execute();
-    while ($r = $stmtRows->fetch(PDO::FETCH_ASSOC)) {
-        $vals = array_map(fn($v) => $v === null ? "NULL" : $pdo->quote($v), $r);
-        fwrite($handle, "INSERT INTO `$table` VALUES (" . implode(',', $vals) . ");\n");
-    }
-    fwrite($handle, "\n");
-}
-fwrite($handle, "SET FOREIGN_KEY_CHECKS=1;\n");
-fclose($handle);
 
 // 5. CREATE ZIP
 $success = true;
@@ -98,51 +87,164 @@ if ($zip->open($zipFile, ZipArchive::CREATE) !== TRUE) {
     if ($alertEmail) mail($alertEmail, "⚠️ HR System Backup Failed", "Manual/Cron backup failed: $errorMessage\n\nTime: " . date('Y-m-d H:i:s'));
 }
 if ($success) {
+    // [OPTIMIZATION] Stream directly to a temporary file to save RAM
+    $tmpSqlFile = tempnam(sys_get_temp_dir(), 'hr201_backup_');
+    $pendingUnlink[] = $tmpSqlFile;
+    $handle = fopen($tmpSqlFile, 'w');
+    $sqlBytes = 0;
 
-    // Add SQL
-    $zip->addFile($tmpSqlFile, $sqlFile);
-    if ($zipPass) $zip->setEncryptionName($sqlFile, ZipArchive::EM_AES_256, $zipPass);
+    $sqlBytes += fwrite($handle, "-- AUTOMATED BACKUP ($dateStr) PART {$partNumber}\nSET FOREIGN_KEY_CHECKS=0;\n\n");
+
+    foreach ($tables as $table) {
+        $row = $pdo->query("SHOW CREATE TABLE `$table`")->fetch(PDO::FETCH_NUM);
+        $sqlBytes += fwrite($handle, "DROP TABLE IF EXISTS `$table`;\n" . $row[1] . ";\n\n");
+
+        // stream the rows instead of loading entire table
+        $stmtRows = $pdo->prepare("SELECT * FROM `$table`");
+        $stmtRows->execute();
+        while ($r = $stmtRows->fetch(PDO::FETCH_ASSOC)) {
+            $vals = array_map(fn($v) => $v === null ? "NULL" : $pdo->quote($v), $r);
+            $line = "INSERT INTO `$table` VALUES (" . implode(',', $vals) . ");\n";
+            $len = strlen($line);
+
+            // [SPLIT LOGIC] Trigger split if adding this line exceeds limit
+            if ($currentBytes + $sqlBytes + $len > $maxSizeBytes) {
+                fwrite($handle, "SET FOREIGN_KEY_CHECKS=1;\n");
+                fclose($handle);
+
+                $sqlFileInZip = "database_Part{$partNumber}.sql";
+                $zip->addFile($tmpSqlFile, $sqlFileInZip);
+                if ($zipPass) $zip->setEncryptionName($sqlFileInZip, ZipArchive::EM_AES_256, $zipPass);
+
+                $zip->close();
+                foreach ($pendingUnlink as $f) @unlink($f);
+                $pendingUnlink = [];
+
+                $partNumber++;
+                $currentBytes = 0;
+                $zipFile = rtrim($backupDir, '/\\') . DIRECTORY_SEPARATOR . $baseName . "_Part{$partNumber}.zip";
+                $generatedZips[] = $zipFile;
+                if ($zip->open($zipFile, ZipArchive::CREATE) !== TRUE) {
+                    $success = false;
+                    $errorMessage = "Could not create ZIP file ($zipFile).";
+                    if ($alertEmail) mail($alertEmail, "⚠️ HR System Backup Failed", "Manual/Cron backup failed: $errorMessage\n\nTime: " . date('Y-m-d H:i:s'));
+                    goto backup_end;
+                }
+
+                $tmpSqlFile = tempnam(sys_get_temp_dir(), 'hr201_backup_');
+                $pendingUnlink[] = $tmpSqlFile;
+                $handle = fopen($tmpSqlFile, 'w');
+                $sqlBytes = 0;
+                $sqlBytes += fwrite($handle, "-- AUTOMATED BACKUP ($dateStr) PART {$partNumber}\nSET FOREIGN_KEY_CHECKS=0;\n\n");
+            }
+
+            $sqlBytes += fwrite($handle, $line);
+        }
+        $sqlBytes += fwrite($handle, "\n");
+    }
+
+    fwrite($handle, "SET FOREIGN_KEY_CHECKS=1;\n");
+    fclose($handle);
+
+    $sqlFileInZip = "database_Part{$partNumber}.sql";
+    $zip->addFile($tmpSqlFile, $sqlFileInZip);
+    if ($zipPass) $zip->setEncryptionName($sqlFileInZip, ZipArchive::EM_AES_256, $zipPass);
+
+    $currentBytes += $sqlBytes;
 
     // Add Vault & Key (CRITICAL for Encryption System)
     if ($incVault) {
         // [LOGICAL FIX] Backup the Encryption Key! Without this, vault files are permanently locked if server dies.
         $configPath = realpath(__DIR__ . '/../config/config.php');
         if ($configPath && file_exists($configPath)) {
+            $fsize = filesize($configPath);
+            if ($currentBytes + $fsize > $maxSizeBytes && $currentBytes > 0) {
+                $zip->close();
+                foreach ($pendingUnlink as $f) @unlink($f);
+                $pendingUnlink = [];
+
+                $partNumber++;
+                $currentBytes = 0;
+                $zipFile = rtrim($backupDir, '/\\') . DIRECTORY_SEPARATOR . $baseName . "_Part{$partNumber}.zip";
+                $generatedZips[] = $zipFile;
+                if ($zip->open($zipFile, ZipArchive::CREATE) !== TRUE) {
+                    $success = false;
+                    $errorMessage = "Could not create ZIP file ($zipFile).";
+                    if ($alertEmail) mail($alertEmail, "⚠️ HR System Backup Failed", "Manual/Cron backup failed: $errorMessage\n\nTime: " . date('Y-m-d H:i:s'));
+                    goto backup_end;
+                }
+            }
+
             $zip->addFile($configPath, 'config/config.php');
             if ($zipPass) $zip->setEncryptionName('config/config.php', ZipArchive::EM_AES_256, $zipPass);
+            $currentBytes += $fsize;
         }
 
-        // [PHP SMART SYNC] Mirror Vault instead of Zipping to handle massive data safely
-        $vaultPath = realpath(__DIR__ . '/../vault');
-        $mirrorPath = rtrim($backupDir, '/\\') . DIRECTORY_SEPARATOR . 'vault_mirror';
-        if (!is_dir($mirrorPath)) @mkdir($mirrorPath, 0755, true);
-
+        // [MULTI-VOLUME FILE SPLIT] Compress Vault items and track bytes
+        $configEnv = require __DIR__ . '/../config/config.php';
+        $vaultPath = $configEnv['VAULT_PATH'] ?? realpath(__DIR__ . '/../vault');
         if ($vaultPath && is_dir($vaultPath)) {
             $files = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($vaultPath), RecursiveIteratorIterator::LEAVES_ONLY);
             $syncCount = 0;
             foreach ($files as $name => $file) {
                 if (!$file->isDir()) {
                     $src = $file->getRealPath();
-                    $dest = $mirrorPath . DIRECTORY_SEPARATOR . $file->getFilename();
-                    // Delta Sync: Only copy if missing or modified
-                    if (!file_exists($dest) || filemtime($src) > filemtime($dest) || filesize($src) !== filesize($dest)) {
-                        @copy($src, $dest);
-                        $syncCount++;
+                    $fsize = filesize($src);
+
+                    // [SPLIT LOGIC]
+                    if ($currentBytes + $fsize > $maxSizeBytes && $currentBytes > 0) {
+                        $zip->close();
+                        foreach ($pendingUnlink as $f) @unlink($f);
+                        $pendingUnlink = [];
+
+                        $partNumber++;
+                        $currentBytes = 0;
+                        $zipFile = rtrim($backupDir, '/\\') . DIRECTORY_SEPARATOR . $baseName . "_Part{$partNumber}.zip";
+                        $generatedZips[] = $zipFile;
+                        if ($zip->open($zipFile, ZipArchive::CREATE) !== TRUE) {
+                            $success = false;
+                            $errorMessage = "Could not create ZIP file ($zipFile).";
+                            if ($alertEmail) mail($alertEmail, "⚠️ HR System Backup Failed", "Manual/Cron backup failed: $errorMessage\n\nTime: " . date('Y-m-d H:i:s'));
+                            goto backup_end;
+                        }
                     }
+
+                    $relativePath = 'vault/' . substr($src, strlen($vaultPath) + 1);
+                    $zip->addFile($src, $relativePath);
+                    if ($zipPass) $zip->setEncryptionName($relativePath, ZipArchive::EM_AES_256, $zipPass);
+
+                    $currentBytes += $fsize;
+                    $syncCount++;
                 }
             }
         }
     }
 
     $zip->close();
+    foreach ($pendingUnlink as $f) @unlink($f);
+    $pendingUnlink = [];
 }
 
-// Cleanup Temp File
-@unlink($tmpSqlFile);
+backup_end:
+if (isset($zip) && $zip instanceof ZipArchive) {
+    $zip->close();
+}
+foreach ($pendingUnlink as $f) @unlink($f);
+$pendingUnlink = [];
 
 // 6. LOG & FINISH
-// [EARLY WARNING CHECK] Validate 0-byte zip files
-if ($success && file_exists($zipFile) && filesize($zipFile) > 0) {
+// [EARLY WARNING CHECK] Validate generated zip files
+$totalSize = 0;
+$allValid = true;
+foreach ($generatedZips as $gz) {
+    if (!file_exists($gz) || filesize($gz) === 0) {
+        $allValid = false;
+        break;
+    }
+    $totalSize += filesize($gz);
+}
+
+if ($success && $allValid && count($generatedZips) > 0) {
     // Mark System Status as Healthy
     $pdo->exec("INSERT INTO system_settings (setting_key, setting_value) VALUES ('backup_last_status', 'OK') ON DUPLICATE KEY UPDATE setting_value = 'OK'");
 
@@ -157,20 +259,22 @@ if ($success && file_exists($zipFile) && filesize($zipFile) > 0) {
         }
     }
 
-    $size = round(filesize($zipFile) / 1024 / 1024, 2) . " MB";
-    if (CLI_MODE) echo "✅ Backup Complete! Size: $size\n";
+    $size = round($totalSize / 1024 / 1024, 2) . " MB (" . count($generatedZips) . " parts)";
+    if (CLI_MODE) echo "✅ Backup Complete! Total Size: $size\n";
     if (CLI_MODE && $deletedCount > 0) echo "🧹 Cleaned up $deletedCount old backups.\n";
 
     // Log to DB if possible
     try {
         $logger = new Logger($pdo);
         $userId = CLI_MODE ? 0 : ($_SESSION['user_id'] ?? 0);
-        $logger->log($userId, 'AUTO_BACKUP_CLI', "Created backup: " . basename($zipFile));
+        $partCount = count($generatedZips);
+        $partLabel = $partCount === 1 ? '1 part' : "$partCount parts";
+        $logger->log($userId, 'AUTO_BACKUP_CLI', "Created backup: " . basename($generatedZips[0]) . " ($partLabel)");
 
         // [NEW] Add to Notification Center (if triggered via web)
         if (!CLI_MODE && isset($_SESSION['user_id'])) {
             $pdo->prepare("INSERT INTO notifications (user_id, title, message, type) VALUES (?, 'Manual Backup', ?, 'success')")
-                ->execute([$_SESSION['user_id'], "Manual backup created: " . basename($zipFile)]);
+                ->execute([$_SESSION['user_id'], "Manual backup created in $partLabel."]);
         }
     } catch (Exception $e) {
     }
@@ -184,9 +288,9 @@ if ($success && file_exists($zipFile) && filesize($zipFile) > 0) {
         exit;
     }
 } else {
-    // adjust error message if archive is missing even when $success true
-    if ($success && (!file_exists($zipFile) || filesize($zipFile) == 0)) {
-        $errorMessage = "Archive generation failed or resulted in 0 bytes.";
+    // adjust error message if any part is missing/0 bytes
+    if ($success && !$allValid) {
+        $errorMessage = "Archive generation failed or one of the split parts resulted in 0 bytes.";
         $success = false;
     }
 

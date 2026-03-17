@@ -500,41 +500,58 @@ if ($debug) {
             .row {
                 display: flex !important;
                 flex-wrap: wrap !important;
-                page-break-inside: avoid;
+            }
+
+            /* Force Bootstrap Grid to hold shape perfectly on paper */
+            .col-md-2 {
+                width: 16.666667% !important;
+                flex: 0 0 16.666667% !important;
+                padding: 0 10px !important;
             }
 
             .col-md-3 {
-                float: left !important;
-                width: 50% !important;
-                padding: 6px !important;
+                width: 25% !important;
+                flex: 0 0 25% !important;
+                padding: 0 10px !important;
             }
 
-            /* Make Charts Full Width on Print */
-            .col-md-4,
-            .col-md-5,
-            .col-md-6,
+            .col-md-4 {
+                width: 33.333333% !important;
+                flex: 0 0 33.333333% !important;
+                padding: 0 10px !important;
+            }
+
+            .col-md-6 {
+                width: 50% !important;
+                flex: 0 0 50% !important;
+                padding: 0 10px !important;
+            }
+
             .col-md-8 {
-                float: left !important;
-                width: 100% !important;
-                padding: 6px !important;
+                width: 66.666667% !important;
+                flex: 0 0 66.666667% !important;
+                padding: 0 10px !important;
             }
 
             .col-12 {
                 width: 100% !important;
+                flex: 0 0 100% !important;
+                padding: 0 10px !important;
             }
 
             .card {
                 border: 1px solid #ddd !important;
                 box-shadow: none !important;
-                break-inside: avoid;
-                margin-bottom: 10px;
+                page-break-inside: avoid !important;
+                break-inside: avoid !important;
+                margin-bottom: 20px !important;
             }
 
             .card-header {
                 background-color: #f0f0f0 !important;
                 color: black !important;
                 font-size: 10pt;
-                padding: 5px;
+                padding: 8px !important;
             }
 
             .card-body {
@@ -542,7 +559,7 @@ if ($debug) {
             }
 
             canvas {
-                max-height: 220px !important;
+                max-height: 250px !important;
                 width: 100% !important;
             }
 

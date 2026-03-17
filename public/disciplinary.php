@@ -171,11 +171,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
                 // 2. Sync to Documents (If file exists)
                 if ($thisFilePath) {
-                    $file_uuid = md5(uniqid(rand(), true));
                     try {
                         // Check columns (Simplified for speed, assuming standard schema now)
-                        $docStmt = $pdo->prepare("INSERT INTO documents (employee_id, original_name, file_path, category, uploaded_by, file_uuid) VALUES (?, ?, ?, 'Disciplinary', ?, ?)");
-                        $docStmt->execute([$e_id, $originalName, $thisFilePath, $_SESSION['user_id'], $file_uuid]);
+                        $docStmt = $pdo->prepare("INSERT INTO documents (file_uuid, employee_id, original_name, file_path, category, uploaded_by) VALUES (UUID(), ?, ?, ?, 'Disciplinary', ?)");
+                        $docStmt->execute([$e_id, $originalName, $thisFilePath, $_SESSION['user_id']]);
                         $syncStatus = "✅ Synced";
                     } catch (Exception $e) {
                         // Ignore duplicate entry errors if any

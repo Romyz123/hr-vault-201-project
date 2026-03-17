@@ -8,6 +8,14 @@ ini_set('display_startup_errors', 0);
 ini_set('log_errors', 1);
 error_reporting(E_ALL);
 
+// ========================================================================
+// [SECURITY] GLOBAL HTTP HEADERS (MHI Compliance)
+// ========================================================================
+header('X-Frame-Options: SAMEORIGIN');
+header('X-Content-Type-Options: nosniff');
+header('Referrer-Policy: strict-origin-when-cross-origin');
+header("Content-Security-Policy: default-src 'self'; img-src 'self' data:; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline';");
+
 // Load settings directly from PHP file instead of .env to avoid permission errors
 $_ENV = require 'config.php';
 

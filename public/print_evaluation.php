@@ -253,7 +253,6 @@ if (file_exists($logo_path)) {
         </div>
     </div>
     <div class="section-title">EVALUATOR'S REMARKS / COMMENTS</div>
-    <div class="section-title">EVALUATOR'S REMARKS / COMMENTS</div>
     <div class="content-box"><?php echo nl2br(htmlspecialchars($data['remarks'] ?? 'N/A')); ?></div>
 
     <div class="footer">

@@ -13,19 +13,55 @@ require '../src/FileService.php';
 require '../src/Validator.php';
 session_start();
 
+// [DOWNLOAD HANDLER] Stream split export parts (GET) without requiring CSRF
+if (isset($_GET['download_part'])) {
+    if (empty($_SESSION['user_id']) || !in_array($_SESSION['role'] ?? '', ['ADMIN', 'MANAGER', 'HR'])) {
+        http_response_code(403);
+        exit;
+    }
+
+    $requested = basename($_GET['download_part']);
+    // Allow only safe export names (no quotes/newlines/etc.) to prevent header injection
+    if (!preg_match('/^HR_Export_[A-Za-z0-9_-]+_Part\\d+\\.zip$/', $requested)) {
+        http_response_code(404);
+        exit;
+    }
+
+    $exportDir = __DIR__ . '/../backups/exports';
+    $exportDirReal = realpath($exportDir);
+    $filePath = realpath($exportDir . DIRECTORY_SEPARATOR . $requested);
+
+    if (!$exportDirReal || !$filePath || strpos($filePath, $exportDirReal) !== 0 || !is_file($filePath)) {
+        http_response_code(404);
+        exit;
+    }
+
+    while (ob_get_level()) ob_end_clean();
+    if (ini_get('zlib.output_compression')) ini_set('zlib.output_compression', 'Off');
+
+    ignore_user_abort(true);
+    header('Content-Type: application/zip');
+    header('Content-Disposition: attachment; filename="' . $requested . '"');
+    header('Content-Length: ' . filesize($filePath));
+    readfile($filePath);
+    @unlink($filePath);
+    exit;
+}
+
 // [FIX] Load Config to ensure VAULT_PATH is available
 $config = require '../config/config.php';
 $vaultPath = $config['VAULT_PATH'] ?? dirname(__DIR__) . DIRECTORY_SEPARATOR . 'vault' . DIRECTORY_SEPARATOR;
 
 // 1. SECURITY
-if (!isset($_SESSION['user_id']) || !in_array($_SESSION['role'] ?? '', ['ADMIN', 'MANAGER', 'HR', 'STAFF'])) {
+if (!isset($_SESSION['user_id']) || !in_array($_SESSION['role'] ?? '', ['ADMIN', 'MANAGER', 'HR'])) {
     header("Location: index.php");
     exit;
 }
 
 // 2. SETTINGS
-ini_set('memory_limit', '1024M');
-ini_set('max_execution_time', 600);
+ini_set('memory_limit', '-1'); // [FIX] Maximize memory for large ZIP generation
+set_time_limit(0); // [FIX] Unlimited execution time
+ignore_user_abort(true); // [FIX] Continue building ZIP even if browser connection drops
 
 // [SECURITY] Verify CSRF Token
 $security = new Security($pdo);
@@ -43,6 +79,11 @@ $search   = Validator::sanitizeSearch($_POST['search'] ?? '');
 $zipPassword = trim($_POST['zip_password'] ?? '');
 
 // 4. VALIDATION
+if ($dept === 'ALL') {
+    $_SESSION['error'] = "Export Failed: Entire database export is disabled. Please filter by a specific Department.";
+    header("Location: index.php");
+    exit;
+}
 if (empty($dept) && empty($search)) {
     $_SESSION['error'] = "Export Failed: Select a Department OR type a Search Name.";
     header("Location: index.php");
@@ -64,7 +105,7 @@ if (!empty($search)) {
         array_push($params, $t, $t, $t);
     }
 }
-if ($dept !== 'ALL' && !empty($dept)) {
+if (!empty($dept)) {
     $sql .= " AND e.dept = ?";
     $params[] = $dept;
 }
@@ -115,15 +156,45 @@ if (!empty($empIds)) {
 // ======================================================
 // STEP 2: CREATE ZIP
 // ======================================================
-$zip = new ZipArchive();
-$zipFilename = "HR_Export_" . date('Y-m-d_Hi') . ".zip";
-$tempZipPath = sys_get_temp_dir() . "/" . $zipFilename;
 
-if ($zip->open($tempZipPath, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== TRUE) {
-    $_SESSION['error'] = "Server Error: Could not create ZIP file.";
-    header("Location: index.php");
-    exit;
+// [MULTI-VOLUME LOGIC] Fetch DB Limit
+$maxSizeGB = 1.9;
+try {
+    $stmt = $pdo->query("SELECT setting_value FROM system_settings WHERE setting_key = 'backup_max_size_gb'");
+    if ($val = $stmt->fetchColumn()) $maxSizeGB = (float)$val;
+} catch (Exception $e) {
 }
+$maxSizeBytes = $maxSizeGB * 1024 * 1024 * 1024;
+
+$exportDir = __DIR__ . '/../backups/exports';
+if (!is_dir($exportDir)) @mkdir($exportDir, 0755, true);
+
+// Cleanup old exports (older than 24 hours) to save server space
+foreach (glob($exportDir . '/*.zip') as $oldFile) {
+    if (filemtime($oldFile) < time() - 86400) @unlink($oldFile);
+}
+
+$baseFilename = "HR_Export_" . date('Y-m-d_Hi');
+$partNumber = 1;
+$currentBytes = 0;
+$generatedZips = [];
+$pendingUnlink = [];
+$zip = null;
+
+$startNewZip = function () use (&$zip, &$generatedZips, $exportDir, $baseFilename, &$partNumber, &$currentBytes, &$pendingUnlink) {
+    if ($zip !== null) {
+        $zip->close();
+        foreach ($pendingUnlink as $f) @unlink($f);
+        $pendingUnlink = [];
+    }
+    $path = $exportDir . DIRECTORY_SEPARATOR . $baseFilename . "_Part{$partNumber}.zip";
+    $generatedZips[] = $path;
+    $zip = new ZipArchive();
+    if ($zip->open($path, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== TRUE) die("Server Error: Could not create split ZIP file.");
+    $currentBytes = 0;
+};
+
+$startNewZip();
 
 function cleanName($str)
 {
@@ -298,11 +369,18 @@ foreach ($employees as $emp) {
     </html>';
 
     // Add HTML Profile to ZIP
+    $htmlSize = strlen($htmlContent);
+    if ($currentBytes > 0 && ($currentBytes + $htmlSize > $maxSizeBytes)) {
+        $partNumber++;
+        $startNewZip();
+    }
     $profilePath = $folderName . "/Employee_Profile.html";
+    /** @var ZipArchive $zip */
     $zip->addFromString($profilePath, $htmlContent);
     if ($zipPassword) {
         $zip->setEncryptionName($profilePath, ZipArchive::EM_AES_256, $zipPassword);
     }
+    $currentBytes += $htmlSize;
     $filesAdded++; // Count this as a "file" so empty folders still export
 
     // --- C. ADD DOCUMENTS ---
@@ -319,10 +397,22 @@ foreach ($employees as $emp) {
             }
 
             if ($content !== false) {
-                $zip->addFromString($docPathInZip, $content);
+                $docSize = strlen($content);
+                if ($currentBytes > 0 && ($currentBytes + $docSize > $maxSizeBytes)) {
+                    $partNumber++;
+                    $startNewZip();
+                }
+                // [FIX] Stream to temp file instead of holding gigabytes in RAM
+                $tmpDoc = tempnam(sys_get_temp_dir(), 'exp_doc_');
+                file_put_contents($tmpDoc, $content);
+                $pendingUnlink[] = $tmpDoc;
+
+                /** @var ZipArchive $zip */
+                $zip->addFile($tmpDoc, $docPathInZip);
                 if ($zipPassword) {
                     $zip->setEncryptionName($docPathInZip, ZipArchive::EM_AES_256, $zipPassword);
                 }
+                $currentBytes += $docSize;
             }
         }
     }
@@ -343,36 +433,112 @@ foreach ($employees as $emp) {
     ];
     $csvContent .= implode(",", $line) . "\n";
 }
+
+$csvSize = strlen($csvContent);
+if ($currentBytes > 0 && ($currentBytes + $csvSize > $maxSizeBytes)) {
+    $partNumber++;
+    $startNewZip();
+}
+/** @var ZipArchive $zip */
 $zip->addFromString('Master_Employee_List.csv', $csvContent);
 if ($zipPassword) {
     $zip->setEncryptionName('Master_Employee_List.csv', ZipArchive::EM_AES_256, $zipPassword);
 }
+$currentBytes += $csvSize;
 
 $readmeContent = "NOTE: Open the 'Employee_Profile.html' file inside each folder to view the Printable Data Sheet.";
+$readmeSize = strlen($readmeContent);
+if ($currentBytes > 0 && ($currentBytes + $readmeSize > $maxSizeBytes)) {
+    $partNumber++;
+    $startNewZip();
+}
+/** @var ZipArchive $zip */
 $zip->addFromString('README.txt', $readmeContent);
 if ($zipPassword) {
     $zip->setEncryptionName('README.txt', ZipArchive::EM_AES_256, $zipPassword);
 }
+$currentBytes += $readmeSize;
 
-$zip->close();
+if ($zip instanceof ZipArchive) {
+    $zip->close();
+}
+foreach ($pendingUnlink as $f) @unlink($f);
+$pendingUnlink = [];
 
 // 4. DOWNLOAD
-if (file_exists($tempZipPath)) {
-    $logger = new Logger($pdo);
-    $logger->log($_SESSION['user_id'], 'EXPORT_ZIP', "Exported " . count($employees) . " folders (Bulk/Single Download).");
+$logger = new Logger($pdo);
+$logger->log($_SESSION['user_id'], 'EXPORT_ZIP', "Exported " . count($employees) . " folders (Split into " . count($generatedZips) . " parts).");
 
-    // [FIX] Aggressively clean ALL output buffers (Loop until empty)
+// [NEW] Set cookie to tell the frontend to close the loading spinner
+setcookie("downloadToken", $_POST['csrf_token'] ?? '1', time() + 300, "/");
+
+if (count($generatedZips) === 1) {
+    // SINGLE FILE DOWNLOAD
     while (ob_get_level()) ob_end_clean();
-
-    // [FIX] Disable compression to prevent "Corrupted" errors on download
-    if (ini_get('zlib.output_compression')) {
-        ini_set('zlib.output_compression', 'Off');
-    }
+    if (ini_get('zlib.output_compression')) ini_set('zlib.output_compression', 'Off');
 
     header('Content-Type: application/zip');
-    header('Content-Disposition: attachment; filename="' . $zipFilename . '"');
-    header('Content-Length: ' . filesize($tempZipPath));
-    readfile($tempZipPath);
-    unlink($tempZipPath);
+    header('Content-Disposition: attachment; filename="' . basename($generatedZips[0]) . '"');
+    header('Content-Length: ' . filesize($generatedZips[0]));
+    readfile($generatedZips[0]);
+    @unlink($generatedZips[0]);
+    exit;
+} else {
+    // MULTI-PART UI & AUTO-DOWNLOADER
+    $downloadLinks = [];
+    foreach ($generatedZips as $path) {
+        $downloadLinks[] = 'export_files.php?download_part=' . urlencode(basename($path));
+    }
+?>
+    <!DOCTYPE html>
+    <html lang="en">
+
+    <head>
+        <title>Massive Export Complete</title>
+        <link href="assets/bootstrap.min.css" rel="stylesheet">
+        <link rel="stylesheet" href="assets/icons/bootstrap-icons.css">
+    </head>
+
+    <body class="bg-light d-flex align-items-center justify-content-center vh-100">
+        <div class="card shadow-sm p-4 text-center" style="max-width: 500px;">
+            <h4 class="text-success mb-3"><i class="bi bi-check-circle-fill"></i> Export Complete</h4>
+            <p>Your export was massive and has been automatically split into <strong><?php echo count($generatedZips); ?></strong> parts to prevent timeouts.</p>
+
+            <div id="statusText" class="text-primary mb-3 fw-bold"><span class="spinner-border spinner-border-sm"></span> Downloading Part 1...</div>
+
+            <div class="d-grid gap-2 mb-3">
+                <?php foreach ($downloadLinks as $i => $link): ?>
+                    <a href="<?php echo $link; ?>" class="btn btn-outline-dark" target="_blank"><i class="bi bi-file-zip"></i> Download Part <?php echo $i + 1; ?></a>
+                <?php endforeach; ?>
+            </div>
+            <p class="small text-muted mb-0">If the automatic downloads do not start or your browser blocks multiple popups, please click the buttons above.</p>
+            <a href="index.php" class="btn btn-link mt-2">Return to Dashboard</a>
+        </div>
+        <script>
+            const files = <?php echo json_encode($downloadLinks); ?>;
+            let i = 0;
+
+            function dl() {
+                if (i < files.length) {
+                    document.getElementById('statusText').innerHTML = `<span class="spinner-border spinner-border-sm"></span> Downloading Part ${i+1}...`;
+                    let a = document.createElement('a');
+                    a.href = files[i];
+                    a.download = '';
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    i++;
+                    setTimeout(dl, 3000); // 3 second delay to prevent browser anti-spam blocks
+                } else {
+                    document.getElementById('statusText').innerText = "All parts downloaded!";
+                    document.getElementById('statusText').classList.replace('text-primary', 'text-success');
+                }
+            }
+            setTimeout(dl, 1500); // Wait 1.5 seconds before starting first download
+        </script>
+    </body>
+
+    </html>
+<?php
     exit;
 }

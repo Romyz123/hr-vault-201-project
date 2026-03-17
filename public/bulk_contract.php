@@ -81,6 +81,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate_bulk'])) {
     $templateFile = $templateMap[$type] ?? '';
 
     if ($templateFile && file_exists($templateFile) && !empty($ids)) {
+        // [NEW] Set cookie to tell the frontend to close the loading spinner
+        setcookie("downloadToken", $_POST['csrf_token'] ?? '1', time() + 300, "/");
+
         // Start Output
         echo '<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>Bulk Contracts</title>';
         echo '<style>
@@ -554,6 +557,31 @@ $allDepts = $pdo->query("SELECT DISTINCT dept FROM employees WHERE dept != '' OR
                     hiddenInput.name = 'generate_bulk';
                     hiddenInput.value = '1';
                     form.appendChild(hiddenInput);
+
+                    // Show Loader
+                    Swal.fire({
+                        title: 'Generating Documents...',
+                        html: `
+                            <p class="text-muted small mb-3">Compiling data and formatting pages. Please wait...</p>
+                            <div class="progress mb-3" style="height: 25px;">
+                                <div class="progress-bar progress-bar-striped progress-bar-animated bg-success" style="width: 100%"></div>
+                            </div>
+                            <span class="text-danger fw-bold small">This may take a few moments. Do not close this window!</span>
+                        `,
+                        allowOutsideClick: false,
+                        allowEscapeKey: false,
+                        showConfirmButton: false
+                    });
+
+                    const csrf = form.querySelector('[name="csrf_token"]').value;
+                    const checkCookie = setInterval(() => {
+                        if (document.cookie.includes('downloadToken=' + csrf)) {
+                            clearInterval(checkCookie);
+                            Swal.close();
+                            document.cookie = "downloadToken=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+                        }
+                    }, 1000);
+
                     form.submit();
                 }
             });

@@ -526,6 +526,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // Avatar Logic
     $final_avatar_path = $emp['avatar_path'];
+    $remove_avatar = $_POST['remove_avatar'] ?? '0';
+
     if (isset($_FILES['avatar']) && $_FILES['avatar']['error'] === UPLOAD_ERR_OK) {
         $file = $_FILES['avatar'];
         $allowed = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/webp' => 'webp'];
@@ -534,9 +536,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (array_key_exists($mime, $allowed)) {
             $ext = $allowed[$mime];
             $newName = preg_replace('/[^A-Za-z0-9\-_]/', '_', $new_emp_id) . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
-            if (move_uploaded_file($file['tmp_name'], __DIR__ . '/uploads/avatars/' . $newName)) {
+
+            $dest = __DIR__ . '/uploads/avatars/' . $newName;
+            if (!is_dir(dirname($dest))) {
+                @mkdir(dirname($dest), 0755, true);
+            }
+            if (move_uploaded_file($file['tmp_name'], $dest)) {
                 $final_avatar_path = $newName;
             }
+        }
+    } elseif ($remove_avatar === '1') {
+        // [NEW] Remove the existing picture if the user clicked the trash icon
+        $final_avatar_path = 'default.png';
+
+        // Optional: Delete the old file from the hard drive to save space
+        if ($emp['avatar_path'] && $emp['avatar_path'] !== 'default.png') {
+            $oldPath = __DIR__ . '/uploads/avatars/' . basename($emp['avatar_path']);
+            if (file_exists($oldPath)) @unlink($oldPath);
         }
     }
 
@@ -780,6 +796,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 <div class="d-flex align-items-center gap-3 mb-4">
                     <img src="uploads/avatars/<?php echo h($emp['avatar_path'] ?: 'default.png'); ?>"
+                        data-original-src="uploads/avatars/<?php echo h($emp['avatar_path'] ?: 'default.png'); ?>"
                         class="avatar-preview"
                         alt="Profile Photo"
                         onerror="this.onerror=null; this.src='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI1MCIgZmlsbD0iI2UzZTNlMyIvPjxwYXRoIGQ9Ik01MCA1MCBhMjAgMjAgMCAxIDAgMC00MCAyMCAyMCAwIDEgMCAwIDQwIHptMCAxMCBjLTE1IDAtMzUgMTAtMzUgMzAgdjEwIGg3MCB2LTEwIGMtMC0yMC0yMC0zMC0zNS0zMCIgZmlsbD0iI2FhYSIvPjwvc3ZnPg==';">
@@ -803,6 +820,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <div class="tab-pane fade show active" id="details" role="tabpanel">
                         <form id="editEmployeeForm" method="POST" enctype="multipart/form-data">
                             <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
+                            <input type="hidden" name="remove_avatar" id="removeAvatarFlag" value="0">
 
                             <h6 class="text-secondary border-bottom pb-2 mb-3">Work Information</h6>
                             <div class="row g-3">
@@ -950,7 +968,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 </div>
                                 <div class="col-12">
                                     <label class="form-label">Change Photo</label>
-                                    <input type="file" name="avatar" class="form-control" accept="image/*">
+                                    <div class="input-group">
+                                        <input type="file" name="avatar" id="avatarInput" class="form-control" accept="image/*" onchange="previewAvatar(this)">
+                                        <button type="button" class="btn btn-outline-danger" onclick="clearAvatar()" title="Remove Photo"><i class="bi bi-trash"></i></button>
+                                        <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#cameraModal" onclick="startCamera()"><i class="bi bi-camera"></i> Take Photo</button>
+                                    </div>
                                 </div>
                             </div>
 
@@ -1418,7 +1440,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <!-- DOWNLOAD ALL MODAL -->
     <div class="modal fade" id="downloadAllModal" tabindex="-1">
         <div class="modal-dialog">
-            <form action="export_files.php" method="POST" class="modal-content" target="_blank">
+            <form action="export_files.php" method="POST" class="modal-content" onsubmit="showDownloadLoader(this)">
                 <div class="modal-header bg-dark text-white">
                     <h5 class="modal-title"><i class="bi bi-file-earmark-zip-fill"></i> Download 201 File</h5>
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
@@ -1590,6 +1612,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             <button type="submit" class="btn btn-success btn-lg" id="generateBtn" disabled onclick="return validateDocForm()">Generate PDF</button>
                         </div>
                     </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- CAMERA MODAL -->
+    <div class="modal fade" id="cameraModal" tabindex="-1" data-bs-backdrop="static">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header bg-dark text-white">
+                    <h5 class="modal-title"><i class="bi bi-camera"></i> Take Photo</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close" onclick="stopCamera()"></button>
+                </div>
+                <div class="modal-body text-center position-relative overflow-hidden p-0 bg-dark">
+                    <video id="cameraVideo" width="100%" autoplay playsinline style="background: #000; min-height: 350px; object-fit: cover;"></video>
+                    <img id="cameraPreviewImage" style="display:none; width: 100%; min-height: 350px; object-fit: cover;">
+                    <div class="camera-overlay" id="cameraOverlay">
+                        <div class="camera-guide-square"></div>
+                    </div>
+                    <canvas id="cameraCanvas" style="display:none;"></canvas>
+                </div>
+                <div class="modal-footer justify-content-between">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" onclick="stopCamera()">Cancel</button>
+                    <div id="cameraControls">
+                        <button type="button" class="btn btn-success fw-bold" onclick="capturePhotoPreview()"><i class="bi bi-circle-fill text-danger"></i> Capture</button>
+                    </div>
+                    <div id="previewControls" style="display:none;">
+                        <button type="button" class="btn btn-warning fw-bold" onclick="retakePhoto()"><i class="bi bi-arrow-counterclockwise"></i> Retake</button>
+                        <button type="button" class="btn btn-primary fw-bold" onclick="confirmPhoto()"><i class="bi bi-check-lg"></i> Confirm</button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -2181,6 +2233,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             });
         }
 
+        function showDownloadLoader(form) {
+            Swal.fire({
+                title: 'Compiling Data...',
+                html: `
+                    <p class="text-muted small mb-3">Scanning files and building the ZIP archive. Please wait...</p>
+                    <div class="progress mb-3" style="height: 25px;">
+                        <div class="progress-bar progress-bar-striped progress-bar-animated bg-success" style="width: 100%"></div>
+                    </div>
+                    <span class="text-danger fw-bold small">This may take a few minutes. Do not close this window!</span>
+                `,
+                allowOutsideClick: false,
+                allowEscapeKey: false,
+                showConfirmButton: false
+            });
+
+            const csrf = form.querySelector('[name="csrf_token"]').value;
+            const checkCookie = setInterval(() => {
+                if (document.cookie.includes('downloadToken=' + csrf)) {
+                    clearInterval(checkCookie);
+                    Swal.close();
+                    document.cookie = "downloadToken=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+
+                    const modalEl = document.getElementById('downloadAllModal');
+                    const modal = bootstrap.Modal.getInstance(modalEl);
+                    if (modal) modal.hide();
+                }
+            }, 1000);
+        }
+
         // [NEW] Employee Search Logic for "Move Document"
         document.addEventListener("DOMContentLoaded", () => {
             const searchInput = document.getElementById('edit_employeeSearch');
@@ -2280,6 +2361,119 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 });
             }
         });
+
+        // --- AVATAR PREVIEW & CAMERA LOGIC ---
+        function previewAvatar(input) {
+            // Un-flag removal if they select a new picture
+            document.getElementById('removeAvatarFlag').value = '0';
+            if (input.files && input.files[0]) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const preview = document.querySelector('.avatar-preview');
+                    if (preview) preview.src = e.target.result;
+                }
+                reader.readAsDataURL(input.files[0]);
+            }
+        }
+
+        function clearAvatar() {
+            document.getElementById('avatarInput').value = '';
+            document.getElementById('removeAvatarFlag').value = '1';
+            const preview = document.querySelector('.avatar-preview');
+            if (preview) {
+                preview.src = 'uploads/avatars/default.png';
+            }
+        }
+
+        let videoStream = null;
+        let capturedBlob = null;
+
+        async function startCamera() {
+            const video = document.getElementById('cameraVideo');
+            retakePhoto(); // Reset UI
+            try {
+                // Request camera (prioritizes front-facing/webcam)
+                videoStream = await navigator.mediaDevices.getUserMedia({
+                    video: {
+                        facingMode: "user"
+                    }
+                });
+                video.srcObject = videoStream;
+            } catch (err) {
+                console.error("Camera error:", err);
+                Swal.fire('Error', 'Unable to access camera. Please check permissions or ensure you are using HTTPS.', 'error');
+                bootstrap.Modal.getInstance(document.getElementById('cameraModal')).hide();
+            }
+        }
+
+        function stopCamera() {
+            if (videoStream) {
+                videoStream.getTracks().forEach(track => track.stop()); // Turn off webcam light
+                videoStream = null;
+            }
+        }
+
+        function capturePhotoPreview() {
+            const video = document.getElementById('cameraVideo');
+            const canvas = document.getElementById('cameraCanvas');
+            if (!videoStream) return;
+
+            // [NEW] Crop mathematically to a 1:1 square based on the center of the video
+            const size = Math.min(video.videoWidth, video.videoHeight);
+            const startX = (video.videoWidth - size) / 2;
+            const startY = (video.videoHeight - size) / 2;
+
+            // [FIX] Downscale to 800x800 to prevent massive file uploads crashing PHP
+            const outSize = Math.min(size, 800);
+            const outCanvas = document.createElement('canvas');
+            outCanvas.width = outSize;
+            outCanvas.height = outSize;
+            const ctx = outCanvas.getContext('2d');
+
+            ctx.drawImage(video, startX, startY, size, size, 0, 0, outSize, outSize);
+
+            outCanvas.toBlob(blob => {
+                capturedBlob = blob;
+                const previewImg = document.getElementById('cameraPreviewImage');
+                previewImg.src = URL.createObjectURL(blob);
+                previewImg.style.display = 'block';
+                video.style.display = 'none';
+                document.getElementById('cameraOverlay').style.display = 'none';
+                document.getElementById('cameraControls').style.display = 'none';
+                document.getElementById('previewControls').style.display = 'block';
+            }, 'image/jpeg', 0.85);
+        }
+
+        function retakePhoto() {
+            capturedBlob = null;
+            document.getElementById('cameraPreviewImage').style.display = 'none';
+            document.getElementById('cameraVideo').style.display = 'block';
+            document.getElementById('cameraOverlay').style.display = 'flex';
+            document.getElementById('cameraControls').style.display = 'block';
+            document.getElementById('previewControls').style.display = 'none';
+        }
+
+        function confirmPhoto() {
+            if (!capturedBlob) return;
+            const file = new File([capturedBlob], "profile_capture_" + Date.now() + ".jpg", {
+                type: "image/jpeg"
+            });
+            const dataTransfer = new DataTransfer();
+            dataTransfer.items.add(file);
+            const input = document.getElementById('avatarInput');
+            input.files = dataTransfer.files;
+            previewAvatar(input); // Trigger live preview update
+            bootstrap.Modal.getInstance(document.getElementById('cameraModal')).hide();
+            stopCamera();
+            Swal.fire({
+                toast: true,
+                position: 'top-end',
+                showConfirmButton: false,
+                timer: 4000,
+                icon: 'success',
+                title: 'Photo attached! Click "Save Changes" below to upload.'
+            });
+        }
     </script>
 </body>
 

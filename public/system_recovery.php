@@ -799,6 +799,7 @@ $duplicates = $pdo->query("
 // [NEW] Fetch default vault setting for checkboxes
 $bkVaultSetting = $pdo->query("SELECT setting_value FROM system_settings WHERE setting_key = 'backup_include_vault'")->fetchColumn();
 $vaultChecked = ($bkVaultSetting === '1') ? 'checked' : '';
+$bkMaxSize = $pdo->query("SELECT setting_value FROM system_settings WHERE setting_key = 'backup_max_size_gb'")->fetchColumn() ?: '1.9';
 ?>
 
 <!DOCTYPE html>
@@ -1177,7 +1178,7 @@ $vaultChecked = ($bkVaultSetting === '1') ? 'checked' : '';
     <!-- MODALS FOR BACKUP -->
     <div class="modal fade" id="downloadBackupModal" tabindex="-1">
         <div class="modal-dialog">
-            <form action="backup.php" method="POST" class="modal-content">
+            <form action="backup.php" method="POST" class="modal-content" onsubmit="showBackupLoader(this)">
                 <div class="modal-header">
                     <h5 class="modal-title">Download Database Backup</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
@@ -1186,6 +1187,9 @@ $vaultChecked = ($bkVaultSetting === '1') ? 'checked' : '';
                     <div class="form-check mb-3">
                         <input class="form-check-input" type="checkbox" name="include_vault" value="1" id="dlVault" <?php echo $vaultChecked; ?>>
                         <label class="form-check-label fw-bold" for="dlVault">Include Vault Files (Images/PDFs)</label>
+                        <div class="alert alert-warning small mb-0 mt-2 border-warning">
+                            <i class="bi bi-info-circle-fill"></i> <strong>Massive Data Reminder:</strong> If your backup exceeds the <strong><?php echo htmlspecialchars($bkMaxSize); ?> GB</strong> limit, the system will automatically split it into multiple volumes (Part 1, Part 2, etc.) and download them consecutively.
+                        </div>
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Password (Optional)</label>
@@ -1199,7 +1203,7 @@ $vaultChecked = ($bkVaultSetting === '1') ? 'checked' : '';
     </div>
     <div class="modal fade" id="serverBackupModal" tabindex="-1">
         <div class="modal-dialog">
-            <form action="backup.php?mode=server" method="POST" class="modal-content">
+            <form action="backup.php?mode=server" method="POST" class="modal-content" onsubmit="showBackupLoader(this)">
                 <div class="modal-header">
                     <h5 class="modal-title">Save Backup to Server</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
@@ -1209,6 +1213,9 @@ $vaultChecked = ($bkVaultSetting === '1') ? 'checked' : '';
                     <div class="form-check mb-3">
                         <input class="form-check-input" type="checkbox" name="include_vault" value="1" id="svVault" <?php echo $vaultChecked; ?>>
                         <label class="form-check-label fw-bold" for="svVault">Include Vault Files (Images/PDFs)</label>
+                        <div class="form-text text-muted mt-1" style="font-size: 0.75rem;">
+                            <i class="bi bi-info-circle"></i> Note: When saving to the server, Vault files are mirrored, not zipped.
+                        </div>
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Password (Optional)</label>

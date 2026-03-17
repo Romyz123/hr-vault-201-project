@@ -64,22 +64,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $customName = trim($_POST['custom_filename'] ?? ''); // Get custom name
     if (!empty($customName)) {
         if (strlen($customName) > 50) sendResponse('error', "Custom filename is too long (Max 50 chars).", $emp_id);
-        if (!preg_match('/^[a-zA-Z0-9\-_ ]+$/', $customName)) {
+        if (!preg_match('/^[a-zA-Z0-9\-_ \.]+$/', $customName)) {
             sendResponse('error', "Custom filename contains invalid characters.", $emp_id);
+        }
+        if (strpos($customName, '..') !== false) {
+            sendResponse('error', "Custom filename cannot contain consecutive dots.", $emp_id);
         }
     }
 
-
     // --- "OTHERS" CATEGORY LOGIC (NEW) ---
-    $category = $_POST['category'];
+    $category = $_POST['category'] ?? '';
     if (empty($category)) {
         sendResponse('error', "Error: You must select a document category.", $emp_id);
     }
 
     if ($category === 'Others') {
         // Use the specific text they typed instead
-        $other_cat = trim($_POST['other_category']);
-
+        $other_cat = trim($_POST['other_category'] ?? '');
         if (!empty($other_cat)) {
             // [SECURITY] Validation for Custom Category
             if (strlen($other_cat) > 50) sendResponse('error', "Custom category is too long (Max 50 chars).", $emp_id);
@@ -120,15 +121,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $fileService = new FileService($vaultPath);
 
     // [SECURITY] Vault Size Quota Check
-    $vaultLimitMB = 1024; // Default 1GB
+    $vaultLimitGB = 1; // Default 1GB
     try {
-        $stmt = $pdo->query("SELECT setting_value FROM system_settings WHERE setting_key = 'vault_size_limit_mb'");
+        $stmt = $pdo->query("SELECT setting_value FROM system_settings WHERE setting_key = 'vault_size_limit_gb'");
         $val = $stmt->fetchColumn();
-        if ($val !== false) $vaultLimitMB = (int)$val;
+        if ($val !== false) $vaultLimitGB = (float)$val;
     } catch (Exception $e) {
     }
 
-    if ($vaultLimitMB > 0) {
+    if ($vaultLimitGB > 0) {
         $currentVaultSize = 0;
         if (is_dir($vaultPath)) {
             $iterator = new FileSystemIterator($vaultPath, FileSystemIterator::SKIP_DOTS);
@@ -140,8 +141,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         foreach ($uploadedFiles as $f) {
             if ($f['error'] === UPLOAD_ERR_OK) $incomingSize += $f['size'];
         }
-        if (($currentVaultSize + $incomingSize) > ($vaultLimitMB * 1024 * 1024)) {
-            sendResponse('error', "Upload rejected: Vault size limit exceeded. (Limit: {$vaultLimitMB} MB)", $emp_id);
+        $vaultLimitBytes = $vaultLimitGB * 1024 * 1024 * 1024;
+        if (($currentVaultSize + $incomingSize) > $vaultLimitBytes) {
+            sendResponse('error', "Upload rejected: Vault size limit exceeded. (Limit: {$vaultLimitGB} GB)", $emp_id);
         }
     }
 
@@ -251,7 +253,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
                 $successCount++;
             } catch (Exception $e) {
-                $errors[] = "System Error: " . $e->getMessage();
+                error_log("Upload DB error: " . $e->getMessage());
+                $errors[] = "System Error: Unable to save document. Please try again.";
             }
         } else {
             $errors[] = "Failed to save file to vault. Check permissions.";

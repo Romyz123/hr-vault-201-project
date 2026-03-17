@@ -54,6 +54,69 @@ if (isset($_GET['msg'])) {
     $alertMsg = htmlspecialchars($_GET['error']);
 }
 
+// --- VIEW BACKUP CONTENTS (AJAX) ---
+if (isset($_GET['action']) && $_GET['action'] === 'view_backup') {
+    header('Content-Type: application/json');
+    $baseName = basename($_GET['base_name'] ?? '');
+    $backupDir = realpath(__DIR__ . '/../backups');
+
+    if (!$backupDir) {
+        echo json_encode(['status' => 'error', 'message' => 'Backups directory not found.']);
+        exit;
+    }
+
+    $backupDir .= DIRECTORY_SEPARATOR;
+    $parts = [];
+    foreach (scandir($backupDir) as $f) {
+        if ($f === $baseName || strpos($f, $baseName . '_Part') === 0) {
+            if (in_array(strtolower(pathinfo($f, PATHINFO_EXTENSION)), ['zip', 'sql'])) {
+                $parts[] = $backupDir . $f;
+            }
+        }
+    }
+
+    if (empty($parts)) {
+        echo json_encode(['status' => 'error', 'message' => 'Backup files not found on disk.']);
+        exit;
+    }
+
+    $summary = ['sql_files' => 0, 'vault_files' => 0, 'config_files' => 0, 'total_files' => 0, 'total_uncompressed' => 0];
+
+    foreach ($parts as $filepath) {
+        $ext = strtolower(pathinfo($filepath, PATHINFO_EXTENSION));
+        if ($ext === 'zip') {
+            $zip = new ZipArchive;
+            if ($zip->open($filepath) === TRUE) {
+                $summary['total_files'] += $zip->numFiles;
+                for ($i = 0; $i < $zip->numFiles; $i++) {
+                    $stat = $zip->statIndex($i);
+                    $summary['total_uncompressed'] += $stat['size'];
+                    $name = $stat['name'];
+                    if (substr($name, -4) === '.sql') $summary['sql_files']++;
+                    elseif (strpos($name, 'config.php') !== false) $summary['config_files']++;
+                    elseif (strpos($name, 'vault/') === 0) $summary['vault_files']++;
+                }
+                $zip->close();
+            }
+        } elseif ($ext === 'sql') {
+            $summary['total_files']++;
+            $summary['sql_files']++;
+            $summary['total_uncompressed'] += filesize($filepath);
+        }
+    }
+
+    $sizeMB = round($summary['total_uncompressed'] / 1024 / 1024, 2);
+    $html = "<ul class='list-group text-start shadow-sm'>";
+    $html .= "<li class='list-group-item d-flex justify-content-between align-items-center'>Database SQL Files <span class='badge bg-primary rounded-pill'>{$summary['sql_files']}</span></li>";
+    $html .= "<li class='list-group-item d-flex justify-content-between align-items-center'>Vault Documents <span class='badge bg-success rounded-pill'>{$summary['vault_files']}</span></li>";
+    $html .= "<li class='list-group-item d-flex justify-content-between align-items-center'>System Configs <span class='badge bg-warning text-dark rounded-pill'>{$summary['config_files']}</span></li>";
+    $html .= "<li class='list-group-item list-group-item-light fw-bold d-flex justify-content-between align-items-center'>Total Uncompressed Size <span>{$sizeMB} MB</span></li>";
+    $html .= "</ul>";
+
+    echo json_encode(['status' => 'success', 'html' => $html, 'parts' => count($parts)]);
+    exit;
+}
+
 // 2. HANDLE ACTIONS
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
@@ -223,93 +286,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             goto end_of_post;
         }
 
-        $passStmt = $pdo->prepare("SELECT password FROM users WHERE id = ?");
-        $passStmt->execute([$_SESSION['user_id']]);
-        $adminUser = $passStmt->fetch();
-        if (!$adminUser || !password_verify($_POST['admin_password'], $adminUser['password'])) {
-            $alertType = 'error';
-            $alertMsg = "❌ Restore Failed: Incorrect Admin Password.";
-            goto end_of_post;
-        }
-        $file = $_FILES['restore_sql']['tmp_name'];
-        $ext = pathinfo($_FILES['restore_sql']['name'], PATHINFO_EXTENSION);
-        $stream = null;
-
-        // [FIX] Support ZIP uploads for restore
-        if (strtolower($ext) === 'zip') {
-            $zip = new ZipArchive;
-            if ($zip->open($file) === TRUE) {
-                // Try to find SQL file
-                for ($i = 0; $i < $zip->numFiles; $i++) {
-                    $stat = $zip->statIndex($i);
-                    // [FIX] Use substr for PHP < 8.0 compatibility instead of str_ends_with
-                    if (substr($stat['name'], -4) === '.sql') {
-                        $stream = $zip->getStream($stat['name']);
-                        break;
-                    }
-                }
-                $zip->close();
-            } else {
-                $alertType = 'error';
-                $alertMsg = "❌ Failed to open ZIP file.";
-                goto end_of_post;
-            }
-        } elseif (strtolower($ext) === 'sql') {
-            $stream = fopen($file, 'r');
-        } else {
-            $alertType = 'error';
-            $alertMsg = "❌ Invalid file type. Please upload .sql or .zip";
-            goto end_of_post;
-        }
-
-        if ($stream) {
-            try {
-                set_time_limit(0); // Unlimited time for massive databases
-                $pdo->setAttribute(PDO::ATTR_EMULATE_PREPARES, true);
-                $pdo->exec("SET FOREIGN_KEY_CHECKS = 0");
-
-                // [OPTIMIZATION] Read and execute line-by-line (Zero RAM consumption)
-                $query = '';
-                while (($line = fgets($stream)) !== false) {
-                    $trimLine = trim($line);
-                    if (empty($trimLine) || strpos($trimLine, '--') === 0 || strpos($trimLine, '/*') === 0) continue;
-                    $query .= $line . "\n";
-                    if (substr($trimLine, -1) === ';') {
-                        $pdo->exec($query);
-                        $query = '';
-                    }
-                }
-
-                $pdo->exec("SET FOREIGN_KEY_CHECKS = 1");
-
-                // [FIX] Revert emulation setting
-                $pdo->setAttribute(PDO::ATTR_EMULATE_PREPARES, false);
-
-                $logger->log($_SESSION['user_id'], 'DB_RESTORE', "Restored database from backup.");
-                $alertType = 'success';
-                $alertMsg = "✅ Database restored successfully!";
-            } catch (PDOException $e) {
-                $alertType = 'error';
-                $alertMsg = "❌ Restore Failed: " . $e->getMessage();
-            } finally {
-                if ($stream) fclose($stream);
-                if (isset($zip)) $zip->close();
-            }
-        } else {
-            $alertType = 'error';
-            $alertMsg = "❌ No SQL file found inside the uploaded ZIP.";
-        }
-    }
-
-    // --- RESTORE FROM SERVER AUTO-BACKUP ---
-    if (isset($_POST['action']) && $_POST['action'] === 'restore_local') {
-        // [SECURITY] Enforce Password Check for Local Restore
-        if (empty($_POST['admin_password'])) {
-            $alertType = 'error';
-            $alertMsg = "❌ Restore Failed: Admin Password is required.";
-            goto end_of_post;
-        }
-        $passStmt = $pdo->prepare("SELECT password FROM users WHERE id = ?");
+        $passStmt = $pdo->prepare("SELECT password, email FROM users WHERE id = ?");
         $passStmt->execute([$_SESSION['user_id']]);
         $adminUser = $passStmt->fetch();
         if (!$adminUser || !password_verify($_POST['admin_password'], $adminUser['password'])) {
@@ -318,75 +295,338 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             goto end_of_post;
         }
 
-        $filename = basename($_POST['filename']);
-        $filepath = __DIR__ . '/../backups/' . $filename;
+        $uploadList = [];
+        $filesData = $_FILES['restore_sql'];
+        if (is_array($filesData['name'])) {
+            for ($i = 0; $i < count($filesData['name']); $i++) {
+                if ($filesData['error'][$i] === UPLOAD_ERR_OK) {
+                    $uploadList[] = [
+                        'name' => $filesData['name'][$i],
+                        'tmp_name' => $filesData['tmp_name'][$i],
+                        'ext' => pathinfo($filesData['name'][$i], PATHINFO_EXTENSION)
+                    ];
+                }
+            }
+            // Sort by original filename to ensure Part1 executes before Part2
+            usort($uploadList, function ($a, $b) {
+                return strcmp($a['name'], $b['name']);
+            });
+        } else {
+            $uploadList[] = [
+                'name' => $filesData['name'],
+                'tmp_name' => $filesData['tmp_name'],
+                'ext' => pathinfo($filesData['name'], PATHINFO_EXTENSION)
+            ];
+        }
 
-        if (file_exists($filepath)) {
-            $ext = strtolower(pathinfo($filepath, PATHINFO_EXTENSION));
-            $stream = null;
+        try {
+            set_time_limit(0); // Unlimited time for massive databases
+            ignore_user_abort(true); // [CRITICAL] Continue background restore even if Chrome times out
+            $pdo->setAttribute(PDO::ATTR_EMULATE_PREPARES, true);
+            $pdo->exec("SET FOREIGN_KEY_CHECKS = 0");
 
-            if ($ext === 'zip') {
-                $zip = new ZipArchive;
-                if ($zip->open($filepath) === TRUE) {
-                    // Fetch backup password if any
-                    $bkPass = $pdo->query("SELECT setting_value FROM system_settings WHERE setting_key = 'backup_password'")->fetchColumn();
-                    if ($bkPass) {
-                        $zip->setPassword($bkPass);
-                    }
+            // Begin transaction for the restore. Note: certain SQL statements (DDL) may force an implicit commit.
+            $pdo->beginTransaction();
 
-                    // Find the .sql file inside
-                    for ($i = 0; $i < $zip->numFiles; $i++) {
-                        $stat = $zip->statIndex($i);
-                        // [FIX] Use substr for PHP < 8.0 compatibility
-                        if (substr($stat['name'], -4) === '.sql') {
-                            $stream = $zip->getStream($stat['name']);
-                            break;
+            $partsRestored = 0;
+
+            foreach ($uploadList as $fileItem) {
+                $file = $fileItem['tmp_name'];
+                $ext = strtolower($fileItem['ext']);
+                $stream = null;
+                $zip = null;
+
+                // [FIX] Support ZIP uploads for restore
+                if ($ext === 'zip') {
+                    $zip = new ZipArchive;
+                    if ($zip->open($file) === TRUE) {
+                        // Try to find SQL file
+                        for ($i = 0; $i < $zip->numFiles; $i++) {
+                            $stat = $zip->statIndex($i);
+                            if (substr($stat['name'], -4) === '.sql') {
+                                $stream = $zip->getStream($stat['name']);
+                                break;
+                            }
                         }
+                    } else {
+                        throw new Exception("Failed to open ZIP file: " . $fileItem['name']);
                     }
+                } elseif ($ext === 'sql') {
+                    $stream = fopen($file, 'r');
                 } else {
-                    $alertType = 'error';
-                    $alertMsg = "❌ Failed to open ZIP archive.";
-                    goto end_of_post;
+                    throw new Exception("Invalid file type. Please upload .sql or .zip");
                 }
-            } elseif ($ext === 'sql') {
-                $stream = fopen($filepath, 'r');
-            }
 
-            if ($stream) {
-                try {
-                    set_time_limit(0);
-                    $pdo->setAttribute(PDO::ATTR_EMULATE_PREPARES, true);
-                    $pdo->exec("SET FOREIGN_KEY_CHECKS = 0");
-
-                    // [OPTIMIZATION] Stream execution line-by-line
+                if ($stream) {
+                    // [OPTIMIZATION] Read and execute line-by-line (Zero RAM consumption)
+                    // Use a small state machine to avoid stripping comment markers inside quoted strings.
                     $query = '';
+                    $inBlockComment = false;
+                    $inSingleQuote = false;
+                    $inDoubleQuote = false;
                     while (($line = fgets($stream)) !== false) {
-                        $trimLine = trim($line);
-                        if (empty($trimLine) || strpos($trimLine, '--') === 0 || strpos($trimLine, '/*') === 0) continue;
-                        $query .= $line . "\n";
+                        $len = strlen($line);
+                        $cleanLine = '';
+
+                        for ($i = 0; $i < $len; $i++) {
+                            $ch = $line[$i];
+                            $next = $line[$i + 1] ?? '';
+
+                            if ($inBlockComment) {
+                                if ($ch === '*' && $next === '/') {
+                                    $inBlockComment = false;
+                                    $i++; // Skip '/'
+                                }
+                                continue;
+                            }
+
+                            if ($inSingleQuote) {
+                                if ($ch === "\\") {
+                                    // Preserve escaped characters within strings
+                                    $cleanLine .= $ch;
+                                    if (isset($line[$i + 1])) {
+                                        $cleanLine .= $line[++$i];
+                                    }
+                                    continue;
+                                }
+                                if ($ch === "'") {
+                                    $inSingleQuote = false;
+                                }
+                                $cleanLine .= $ch;
+                                continue;
+                            }
+
+                            if ($inDoubleQuote) {
+                                if ($ch === "\\") {
+                                    $cleanLine .= $ch;
+                                    if (isset($line[$i + 1])) {
+                                        $cleanLine .= $line[++$i];
+                                    }
+                                    continue;
+                                }
+                                if ($ch === '"') {
+                                    $inDoubleQuote = false;
+                                }
+                                $cleanLine .= $ch;
+                                continue;
+                            }
+
+                            // Not inside a quote or comment
+                            if ($ch === '-' && $next === '-') {
+                                // Only treat as a line comment if followed by whitespace or end-of-line
+                                $after = $line[$i + 2] ?? '';
+                                if ($after === '' || ctype_space($after)) {
+                                    break; // ignore rest of the line
+                                }
+                            }
+
+                            if ($ch === '/' && $next === '*') {
+                                $inBlockComment = true;
+                                $i++; // Skip '*'
+                                continue;
+                            }
+
+                            if ($ch === "'") {
+                                $inSingleQuote = true;
+                                $cleanLine .= $ch;
+                                continue;
+                            }
+
+                            if ($ch === '"') {
+                                $inDoubleQuote = true;
+                                $cleanLine .= $ch;
+                                continue;
+                            }
+
+                            $cleanLine .= $ch;
+                        }
+
+                        $trimLine = trim($cleanLine);
+                        if ($trimLine === '') {
+                            continue;
+                        }
+
+                        $query .= $trimLine . "\n";
+                        // Execute when we reach a statement terminator outside quotes
                         if (substr($trimLine, -1) === ';') {
                             $pdo->exec($query);
                             $query = '';
                         }
                     }
-
-                    $pdo->exec("SET FOREIGN_KEY_CHECKS = 1");
-
-                    $pdo->setAttribute(PDO::ATTR_EMULATE_PREPARES, false);
-
-                    $logger->log($_SESSION['user_id'], 'DB_RESTORE', "Restored from auto-backup: $filename");
-                    $alertType = 'success';
-                    $alertMsg = "✅ Database successfully restored from auto-backup: $filename";
-                } catch (PDOException $e) {
-                    $alertType = 'error';
-                    $alertMsg = "❌ Restore Failed: " . $e->getMessage();
-                } finally {
-                    if ($stream) fclose($stream);
-                    if (isset($zip)) $zip->close();
+                    fclose($stream);
+                    if ($zip) $zip->close();
+                    $partsRestored++;
+                } else {
+                    if ($zip) $zip->close();
+                    throw new Exception("No SQL file found inside the uploaded ZIP: " . $fileItem['name']);
                 }
-            } else {
-                $alertType = 'error';
-                $alertMsg = "❌ No SQL file found in backup (or wrong password).";
+            }
+
+            $pdo->exec("SET FOREIGN_KEY_CHECKS = 1");
+            $pdo->setAttribute(PDO::ATTR_EMULATE_PREPARES, false);
+            $pdo->commit();
+
+            $logger->log($_SESSION['user_id'], 'DB_RESTORE', "Restored database from $partsRestored uploaded parts.");
+            $alertType = 'success';
+            $alertMsg = "✅ Database restored successfully from $partsRestored file(s)!";
+
+            // [NEW] Notify Admin on Success
+            if (!empty($adminUser['email'])) {
+                @mail($adminUser['email'], "System Restore Complete", "The background database restore process has successfully completed from $partsRestored uploaded file(s).");
+            }
+        } catch (Exception $e) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            $pdo->exec("SET FOREIGN_KEY_CHECKS = 1");
+            $alertType = 'error';
+            $alertMsg = "❌ Restore Failed: " . $e->getMessage();
+
+            // [NEW] Notify Admin on Failure
+            if (!empty($adminUser['email'])) {
+                @mail($adminUser['email'], "System Restore FAILED", "The background database restore process failed.\n\nError: " . $e->getMessage());
+            }
+        }
+    }
+
+    // --- RESTORE FROM SERVER AUTO-BACKUP ---
+    if (isset($_POST['action']) && $_POST['action'] === 'restore_local') {
+        // [SECURITY] Enforce Password Check for Server Restore
+        if (empty($_POST['admin_password'])) {
+            $alertType = 'error';
+            $alertMsg = "❌ Restore Failed: Admin Password is required.";
+            goto end_of_post;
+        }
+        $passStmt = $pdo->prepare("SELECT password, email FROM users WHERE id = ?");
+        $passStmt->execute([$_SESSION['user_id']]);
+        $adminUser = $passStmt->fetch();
+        if (!$adminUser || !password_verify($_POST['admin_password'], $adminUser['password'])) {
+            $alertType = 'error';
+            $alertMsg = "❌ Restore Failed: Incorrect Admin Password.";
+            goto end_of_post;
+        }
+
+        $baseName = basename($_POST['base_name']);
+        $backupDir = __DIR__ . '/../backups/';
+
+        $partsToRestore = [];
+        $files = scandir($backupDir);
+        foreach ($files as $f) {
+            if ($f === $baseName || strpos($f, $baseName . '_Part') === 0) {
+                if (in_array(pathinfo($f, PATHINFO_EXTENSION), ['zip', 'sql'])) {
+                    $partsToRestore[] = $backupDir . $f;
+                }
+            }
+        }
+
+        if (empty($partsToRestore)) {
+            $alertType = 'error';
+            $alertMsg = "❌ Restore Failed: Backup files not found.";
+            goto end_of_post;
+        }
+
+        sort($partsToRestore); // Ensure sequential execution
+
+        try {
+            set_time_limit(0);
+            ignore_user_abort(true); // [CRITICAL] Continue background restore even if Chrome times out
+            $pdo->setAttribute(PDO::ATTR_EMULATE_PREPARES, true);
+            $pdo->exec("SET FOREIGN_KEY_CHECKS = 0");
+
+            $bkPass = $pdo->query("SELECT setting_value FROM system_settings WHERE setting_key = 'backup_password'")->fetchColumn();
+
+            foreach ($partsToRestore as $filepath) {
+                $ext = strtolower(pathinfo($filepath, PATHINFO_EXTENSION));
+                $stream = null;
+                $zip = null;
+
+                if ($ext === 'zip') {
+                    $zip = new ZipArchive;
+                    if ($zip->open($filepath) === TRUE) {
+                        if ($bkPass) {
+                            $zip->setPassword($bkPass);
+                        }
+                        for ($i = 0; $i < $zip->numFiles; $i++) {
+                            $stat = $zip->statIndex($i);
+                            if (substr($stat['name'], -4) === '.sql') {
+                                $stream = $zip->getStream($stat['name']);
+                                break;
+                            }
+                        }
+                    } else {
+                        throw new Exception("Failed to open ZIP archive: " . basename($filepath));
+                    }
+                } elseif ($ext === 'sql') {
+                    $stream = fopen($filepath, 'r');
+                }
+
+                if ($stream) {
+                    $query = '';
+                    $inBlockComment = false;
+                    while (($line = fgets($stream)) !== false) {
+                        $trimLine = trim($line);
+
+                        if ($inBlockComment) {
+                            $endPos = strpos($trimLine, '*/');
+                            if ($endPos !== false) {
+                                $trimLine = trim(substr($trimLine, $endPos + 2));
+                                $inBlockComment = false;
+                                if ($trimLine === '') continue;
+                            } else {
+                                continue;
+                            }
+                        }
+
+                        $startPos = strpos($trimLine, '/*');
+                        if ($startPos !== false) {
+                            $endPos = strpos($trimLine, '*/', $startPos + 2);
+                            if ($endPos !== false) {
+                                // Remove inline block comment
+                                $trimLine = trim(substr($trimLine, 0, $startPos) . ' ' . substr($trimLine, $endPos + 2));
+                                if ($trimLine === '') continue;
+                            } else {
+                                // Start of block comment; ignore rest of line
+                                $trimLine = trim(substr($trimLine, 0, $startPos));
+                                $inBlockComment = true;
+                                if ($trimLine === '') continue;
+                            }
+                        }
+
+                        if (empty($trimLine) || strpos($trimLine, '--') === 0) continue;
+
+                        $query .= $trimLine . "\n";
+                        if (substr($trimLine, -1) === ';') {
+                            $pdo->exec($query);
+                            $query = '';
+                        }
+                    }
+                    fclose($stream);
+                    if ($zip) $zip->close();
+                } else {
+                    if ($zip) $zip->close();
+                    throw new Exception("No SQL file found in backup part: " . basename($filepath));
+                }
+            }
+
+            $pdo->exec("SET FOREIGN_KEY_CHECKS = 1");
+            $pdo->setAttribute(PDO::ATTR_EMULATE_PREPARES, false);
+
+            $logger->log($_SESSION['user_id'], 'DB_RESTORE', "Restored from server backup: $baseName (" . count($partsToRestore) . " parts)");
+            $alertType = 'success';
+            $alertMsg = "✅ Database successfully restored from " . count($partsToRestore) . " part(s)!";
+
+            // [NEW] Notify Admin on Success
+            if (!empty($adminUser['email'])) {
+                @mail($adminUser['email'], "System Restore Complete", "The background database restore process from server backup '$baseName' has successfully completed.");
+            }
+        } catch (Exception $e) {
+            $pdo->exec("SET FOREIGN_KEY_CHECKS = 1");
+            $alertType = 'error';
+            $alertMsg = "❌ Restore Failed: " . $e->getMessage();
+
+            // [NEW] Notify Admin on Failure
+            if (!empty($adminUser['email'])) {
+                @mail($adminUser['email'], "System Restore FAILED", "The background database restore process from server backup '$baseName' failed.\n\nError: " . $e->getMessage());
             }
         }
     }
@@ -404,25 +644,58 @@ $users = $pdo->query("SELECT * FROM users ORDER BY created_at DESC")->fetchAll(P
 
 // 4. FETCH SERVER BACKUPS
 $backupDir = __DIR__ . '/../backups/';
-$serverBackups = [];
+$groupedBackups = [];
 if (is_dir($backupDir)) {
     $files = scandir($backupDir);
     foreach ($files as $f) {
-        if (in_array(pathinfo($f, PATHINFO_EXTENSION), ['sql', 'zip'])) {
-            $serverBackups[] = [
-                'name' => $f,
-                'size' => round(filesize($backupDir . $f) / 1024, 2) . ' KB',
-                'date' => date('M d, Y H:i', filemtime($backupDir . $f))
-            ];
+        $ext = pathinfo($f, PATHINFO_EXTENSION);
+        if (in_array($ext, ['sql', 'zip'])) {
+            $baseName = $f;
+            $isMultiPart = false;
+            if (preg_match('/^(.+)_Part\d+\.zip$/', $f, $matches)) {
+                $baseName = $matches[1];
+                $isMultiPart = true;
+            }
+
+            if (!isset($groupedBackups[$baseName])) {
+                $groupedBackups[$baseName] = [
+                    'base_name' => $baseName,
+                    'display_name' => $isMultiPart ? $baseName . ' (Multi-Part)' : $f,
+                    'parts' => [],
+                    'total_size_bytes' => 0,
+                    'date' => filemtime($backupDir . $f),
+                    'is_multipart' => $isMultiPart
+                ];
+            }
+            $groupedBackups[$baseName]['parts'][] = $f;
+            $groupedBackups[$baseName]['total_size_bytes'] += filesize($backupDir . $f);
+            if (filemtime($backupDir . $f) > $groupedBackups[$baseName]['date']) {
+                $groupedBackups[$baseName]['date'] = filemtime($backupDir . $f);
+            }
         }
     }
-    // Sort by name desc (usually date desc for Y-m-d filenames)
-    rsort($serverBackups);
 }
+$serverBackups = [];
+foreach ($groupedBackups as $b) {
+    sort($b['parts']);
+    $serverBackups[] = [
+        'base_name' => $b['base_name'],
+        'display_name' => $b['display_name'],
+        'parts' => $b['parts'],
+        'size' => round($b['total_size_bytes'] / 1024 / 1024, 2) . ' MB',
+        'date' => date('M d, Y H:i', $b['date']),
+        'part_count' => count($b['parts'])
+    ];
+}
+// Sort desc by date
+usort($serverBackups, function ($a, $b) {
+    return strtotime($b['date']) <=> strtotime($a['date']);
+});
 
 // [NEW] Fetch default vault setting for checkboxes
 $bkVaultSetting = $pdo->query("SELECT setting_value FROM system_settings WHERE setting_key = 'backup_include_vault'")->fetchColumn();
 $vaultChecked = ($bkVaultSetting === '1') ? 'checked' : '';
+$bkMaxSize = $pdo->query("SELECT setting_value FROM system_settings WHERE setting_key = 'backup_max_size_gb'")->fetchColumn() ?: '1.9';
 ?>
 
 <!DOCTYPE html>
@@ -458,6 +731,7 @@ $vaultChecked = ($bkVaultSetting === '1') ? 'checked' : '';
                 <div class="card border-danger shadow-sm">
                     <div class="card-header bg-danger text-white d-flex justify-content-between align-items-center">
                         <span class="fw-bold"><i class="bi bi-shield-exclamation"></i> Disaster Recovery Zone</span>
+                        <span class="fw-bold"><i class="bi bi-shield-exclamation"></i> <i class="bi bi-eye-fill"></i> Disaster Recovery Zone</span>
                         <div>
                             <button class="btn btn-sm btn-outline-light me-2" data-bs-toggle="modal" data-bs-target="#restoreHelpModal"><i class="bi bi-question-circle"></i> How to Restore</button>
                             <small class="bg-white text-danger px-2 rounded fw-bold">ADMIN ONLY</small>
@@ -485,9 +759,12 @@ $vaultChecked = ($bkVaultSetting === '1') ? 'checked' : '';
                                 <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
                                 <div>
                                     <label class="form-label small fw-bold text-muted mb-0">Restore SQL</label>
-                                    <input type="file" name="restore_sql" class="form-control form-control-sm" accept=".sql,.zip" required>
+                                    <input type="file" name="restore_sql[]" class="form-control form-control-sm" accept=".sql,.zip" multiple required title="You can select multiple parts at once.">
                                 </div>
-                                <input type="password" name="admin_password" class="form-control form-control-sm mt-2" placeholder="Confirm Admin Password" required maxlength="128" title="Enter your admin password to confirm">
+                                <div class="input-group input-group-sm mt-2 w-100">
+                                    <input type="password" name="admin_password" id="restoreAdminPass" class="form-control" placeholder="Confirm Admin Password" required maxlength="128" title="Enter your admin password to confirm">
+                                    <button class="btn btn-outline-secondary bg-white" type="button" onclick="togglePass('restoreAdminPass')"><i class="bi bi-eye"></i></button>
+                                </div>
                                 <button type="submit" class="btn btn-danger btn-sm mt-2 w-100" onclick="confirmRestore(event)"><i class="bi bi-upload"></i> Restore</button>
                             </form>
                         </div>
@@ -502,7 +779,7 @@ $vaultChecked = ($bkVaultSetting === '1') ? 'checked' : '';
                 <div class="col-12">
                     <div class="card shadow-sm">
                         <div class="card-header bg-secondary text-white">
-                            <h5 class="mb-0"><i class="bi bi-clock-history"></i> Available Auto-Backups (Server)</h5>
+                            <h5 class="mb-0"><i class="bi bi-clock-history"></i> <i class="bi bi-eye-fill"></i> Available Auto-Backups (Server)</h5>
                         </div>
                         <div class="card-body p-0 table-responsive">
                             <table class="table table-hover mb-0">
@@ -516,16 +793,27 @@ $vaultChecked = ($bkVaultSetting === '1') ? 'checked' : '';
                                 </thead>
                                 <tbody>
                                     <?php foreach ($serverBackups as $b): ?>
-                                        <tr id="row-<?php echo htmlspecialchars(str_replace('.', '-', $b['name'])); ?>">
-                                            <td><?php echo htmlspecialchars($b['name']); ?></td>
+                                        <tr id="row-<?php echo htmlspecialchars(str_replace('.', '-', $b['base_name'])); ?>">
+                                            <td>
+                                                <?php echo htmlspecialchars($b['display_name']); ?>
+                                                <?php if ($b['part_count'] > 1): ?>
+                                                    <span class="badge bg-info text-dark ms-2"><?php echo $b['part_count']; ?> Parts</span>
+                                                <?php endif; ?>
+                                            </td>
                                             <td><?php echo $b['date']; ?></td>
                                             <td><?php echo $b['size']; ?></td>
                                             <td>
-                                                <form method="POST" onsubmit="confirmForm(event, <?php echo htmlspecialchars(json_encode('Restore from ' . $b['name'] . '? Current data will be replaced.'), ENT_QUOTES, 'UTF-8'); ?>)">
+                                                <button type="button" class="btn btn-sm btn-info text-white fw-bold mb-1 w-100" onclick="viewBackupDetails('<?php echo htmlspecialchars($b['base_name'], ENT_QUOTES, 'UTF-8'); ?>', '<?php echo htmlspecialchars($b['display_name'], ENT_QUOTES, 'UTF-8'); ?>')">
+                                                    <i class="bi bi-search"></i> View Contents
+                                                </button>
+                                                <form method="POST" onsubmit="confirmServerRestore(event, <?php echo htmlspecialchars(json_encode('Restore from ' . $b['display_name'] . '? Current data will be replaced.'), ENT_QUOTES, 'UTF-8'); ?>)">
                                                     <input type="hidden" name="action" value="restore_local">
                                                     <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
-                                                    <input type="hidden" name="filename" value="<?php echo htmlspecialchars($b['name']); ?>">
-                                                    <input type="password" name="admin_password" class="form-control form-control-sm mb-1" placeholder="Admin Password" required maxlength="128" style="width: 140px;" title="Enter your admin password to confirm">
+                                                    <input type="hidden" name="base_name" value="<?php echo htmlspecialchars($b['base_name']); ?>">
+                                                    <div class="input-group input-group-sm mb-1" style="width: 160px;">
+                                                        <input type="password" name="admin_password" id="serverPass_<?php echo htmlspecialchars(str_replace('.', '-', $b['base_name'])); ?>" class="form-control" placeholder="Admin Password" required maxlength="128" title="Enter your admin password to confirm">
+                                                        <button class="btn btn-outline-secondary bg-white" type="button" onclick="togglePass('serverPass_<?php echo htmlspecialchars(str_replace('.', '-', $b['base_name'])); ?>')"><i class="bi bi-eye"></i></button>
+                                                    </div>
                                                     <button type="submit" class="btn btn-sm btn-warning fw-bold w-100">Restore This</button>
                                                 </form>
                                             </td>
@@ -542,7 +830,7 @@ $vaultChecked = ($bkVaultSetting === '1') ? 'checked' : '';
         <!-- MODALS FOR BACKUP -->
         <div class="modal fade" id="downloadBackupModal" tabindex="-1">
             <div class="modal-dialog">
-                <form action="backup.php" method="POST" class="modal-content">
+                <form action="backup.php" method="POST" class="modal-content" onsubmit="showBackupLoader(this)">
                     <div class="modal-header">
                         <h5 class="modal-title">Download Database Backup</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                     </div>
@@ -551,11 +839,16 @@ $vaultChecked = ($bkVaultSetting === '1') ? 'checked' : '';
                         <div class="form-check mb-3">
                             <input class="form-check-input" type="checkbox" name="include_vault" value="1" id="dlVault" <?php echo $vaultChecked; ?>>
                             <label class="form-check-label fw-bold" for="dlVault">Include Vault Files (Images/PDFs)</label>
-                            <div class="form-text text-danger"><i class="bi bi-exclamation-triangle"></i> Uncheck this if your vault exceeds 2GB to prevent server timeouts. See the User Manual for massive data backups.</div>
+                            <div class="alert alert-warning small mb-0 mt-2 border-warning">
+                                <i class="bi bi-info-circle-fill"></i> <strong>Massive Data Reminder:</strong> If your backup exceeds the <strong><?php echo htmlspecialchars($bkMaxSize); ?> GB</strong> limit, the system will automatically split it into multiple volumes (Part 1, Part 2, etc.) and download them consecutively.
+                            </div>
                         </div>
                         <div class="mb-3">
                             <label class="form-label">Password (Optional)</label>
-                            <input type="password" name="backup_password" class="form-control" placeholder="Leave blank for unencrypted SQL" maxlength="50" autocomplete="new-password">
+                            <div class="input-group">
+                                <input type="password" name="backup_password" id="dlBackupPass" class="form-control" placeholder="Leave blank for unencrypted SQL" maxlength="50" autocomplete="new-password">
+                                <button class="btn btn-outline-secondary" type="button" onclick="togglePass('dlBackupPass')"><i class="bi bi-eye"></i></button>
+                            </div>
                             <div class="form-text">Creates a password-protected ZIP file.</div>
                         </div>
                     </div>
@@ -565,7 +858,7 @@ $vaultChecked = ($bkVaultSetting === '1') ? 'checked' : '';
         </div>
         <div class="modal fade" id="serverBackupModal" tabindex="-1">
             <div class="modal-dialog">
-                <form action="backup.php?mode=server" method="POST" class="modal-content">
+                <form action="backup.php?mode=server" method="POST" class="modal-content" onsubmit="showBackupLoader(this)">
                     <div class="modal-header">
                         <h5 class="modal-title">Save Backup to Server</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                     </div>
@@ -575,11 +868,16 @@ $vaultChecked = ($bkVaultSetting === '1') ? 'checked' : '';
                         <div class="form-check mb-3">
                             <input class="form-check-input" type="checkbox" name="include_vault" value="1" id="svVault" <?php echo $vaultChecked; ?>>
                             <label class="form-check-label fw-bold" for="svVault">Include Vault Files (Images/PDFs)</label>
-                            <div class="form-text text-danger"><i class="bi bi-exclamation-triangle"></i> Uncheck this if your vault exceeds 2GB.</div>
+                            <div class="form-text text-muted mt-1" style="font-size: 0.75rem;">
+                                <i class="bi bi-info-circle"></i> Note: When saving to the server, Vault files are mirrored, not zipped.
+                            </div>
                         </div>
                         <div class="mb-3">
                             <label class="form-label">Password (Optional)</label>
-                            <input type="password" name="backup_password" class="form-control" placeholder="Leave blank for unencrypted SQL" maxlength="50" autocomplete="new-password">
+                            <div class="input-group">
+                                <input type="password" name="backup_password" id="svBackupPass" class="form-control" placeholder="Leave blank for unencrypted SQL" maxlength="50" autocomplete="new-password">
+                                <button class="btn btn-outline-secondary" type="button" onclick="togglePass('svBackupPass')"><i class="bi bi-eye"></i></button>
+                            </div>
                             <div class="form-text">Creates a password-protected ZIP file on the server. <strong>Note:</strong> This may complicate automated restores.</div>
                         </div>
                     </div>
@@ -925,8 +1223,102 @@ $vaultChecked = ($bkVaultSetting === '1') ? 'checked' : '';
                 confirmButtonColor: '#d33',
                 confirmButtonText: 'YES, OVERWRITE DATABASE'
             }).then((result) => {
-                if (result.isConfirmed) form.submit();
+                if (result.isConfirmed) {
+                    Swal.fire({
+                        title: 'Restoring Database...',
+                        html: 'Please wait. The system is importing the data.<br><br><span class="text-danger fw-bold small">Note: Massive databases take time. If your browser shows a "Timeout" error after 5 minutes, DO NOT PANIC. The server will safely continue the restore in the background!</span>',
+                        allowOutsideClick: false,
+                        allowEscapeKey: false,
+                        didOpen: () => {
+                            Swal.showLoading();
+                        }
+                    });
+                    form.submit();
+                }
             });
+        }
+
+        function confirmServerRestore(e, msg) {
+            e.preventDefault();
+            const form = e.target;
+            Swal.fire({
+                title: 'Are you sure?',
+                text: msg,
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#d33',
+                confirmButtonText: 'Yes, proceed!'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    Swal.fire({
+                        title: 'Restoring Database...',
+                        html: 'Please wait. The system is stitching and importing the data.<br><br><span class="text-danger fw-bold small">Note: Massive databases take time. If your browser shows a "Timeout" error after 5 minutes, DO NOT PANIC. The server will safely continue the restore in the background!</span>',
+                        allowOutsideClick: false,
+                        allowEscapeKey: false,
+                        didOpen: () => {
+                            Swal.showLoading();
+                        }
+                    });
+                    form.submit();
+                }
+            });
+        }
+
+        function viewBackupDetails(baseName, displayName) {
+            Swal.fire({
+                title: 'Analyzing Backup...',
+                text: 'Scanning ' + displayName + ', please wait.',
+                allowOutsideClick: false,
+                allowEscapeKey: false,
+                didOpen: () => {
+                    Swal.showLoading();
+                }
+            });
+
+            fetch('manager_user.php?action=view_backup&base_name=' + encodeURIComponent(baseName))
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        Swal.fire({
+                            title: 'Backup Contents',
+                            html: `<p class="text-muted small mb-3">${displayName} (${data.parts} part${data.parts > 1 ? 's' : ''})</p>` + data.html,
+                            icon: 'info',
+                            confirmButtonText: 'Close'
+                        });
+                    } else {
+                        Swal.fire('Error', data.message || 'Failed to read backup.', 'error');
+                    }
+                })
+                .catch(err => {
+                    console.error(err);
+                    Swal.fire('Error', 'Network error occurred while reading the backup.', 'error');
+                });
+        }
+
+        function showBackupLoader(form) {
+            const isServer = form.action.includes('mode=server');
+            Swal.fire({
+                title: isServer ? 'Saving to Server...' : 'Generating Backup...',
+                html: `
+                    <p class="text-muted small mb-3">Scanning files and compressing data. Please wait...</p>
+                    <div class="progress mb-3" style="height: 25px;">
+                        <div class="progress-bar progress-bar-striped progress-bar-animated bg-success" style="width: 100%"></div>
+                    </div>
+                    <span class="text-danger fw-bold small">This may take a few minutes. Do not close this window!</span>
+                `,
+                allowOutsideClick: false,
+                allowEscapeKey: false,
+                showConfirmButton: false
+            });
+
+            const csrf = form.querySelector('[name="csrf_token"]').value;
+            const checkCookie = setInterval(() => {
+                if (document.cookie.includes('downloadToken=' + csrf)) {
+                    clearInterval(checkCookie);
+                    Swal.close();
+                    document.cookie = "downloadToken=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+                }
+            }, 1000);
         }
 
         // [NEW] Auto-scroll to target backup if requested

@@ -12,12 +12,6 @@ require '../src/Validator.php';
 session_start();
 checkSessionTimeout($pdo); // [SECURITY] Enforce Timeout
 
-// ------------ Security Headers ------------
-header('X-Frame-Options: DENY');
-header('X-Content-Type-Options: nosniff');
-header('Referrer-Policy: no-referrer-when-downgrade');
-header("Content-Security-Policy: default-src 'self'; img-src 'self' data:; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline';");
-
 if (!isset($_SESSION['user_id'])) {
     header("Location: login.php");
     exit;
@@ -578,7 +572,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         </div>
                         <div class="col-12">
                             <label class="form-label">Photo (Optional)</label>
-                            <input type="file" name="avatar" class="form-control" accept=".jpg,.png,.webp">
+                            <div class="d-flex align-items-center gap-3">
+                                <img src="uploads/avatars/default.png" id="avatarPreview" class="rounded-circle border shadow-sm" style="width: 60px; height: 60px; object-fit: cover;" alt="Preview">
+                                <div class="input-group">
+                                    <input type="file" name="avatar" id="avatarInput" class="form-control" accept=".jpg,.png,.webp" onchange="previewAvatar(this)">
+                                    <button type="button" class="btn btn-outline-danger" onclick="clearAvatar()" title="Remove Photo"><i class="bi bi-trash"></i></button>
+                                    <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#cameraModal" onclick="startCamera()"><i class="bi bi-camera"></i> Take Photo</button>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
@@ -676,6 +677,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         </div>
                     </div>
                 </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- CAMERA MODAL -->
+    <div class="modal fade" id="cameraModal" tabindex="-1" data-bs-backdrop="static">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header bg-dark text-white">
+                    <h5 class="modal-title"><i class="bi bi-camera"></i> Take Photo</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close" onclick="stopCamera()"></button>
+                </div>
+                <div class="modal-body text-center position-relative overflow-hidden p-0 bg-dark">
+                    <video id="cameraVideo" width="100%" autoplay playsinline style="background: #000; min-height: 350px; object-fit: cover;"></video>
+                    <img id="cameraPreviewImage" style="display:none; width: 100%; min-height: 350px; object-fit: cover;">
+                    <div class="camera-overlay" id="cameraOverlay">
+                        <div class="camera-guide-square"></div>
+                    </div>
+                    <canvas id="cameraCanvas" style="display:none;"></canvas>
+                </div>
+                <div class="modal-footer justify-content-between">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" onclick="stopCamera()">Cancel</button>
+                    <div id="cameraControls">
+                        <button type="button" class="btn btn-success fw-bold" onclick="capturePhotoPreview()"><i class="bi bi-circle-fill text-danger"></i> Capture</button>
+                    </div>
+                    <div id="previewControls" style="display:none;">
+                        <button type="button" class="btn btn-warning fw-bold" onclick="retakePhoto()"><i class="bi bi-arrow-counterclockwise"></i> Retake</button>
+                        <button type="button" class="btn btn-primary fw-bold" onclick="confirmPhoto()"><i class="bi bi-check-lg"></i> Confirm</button>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -1046,6 +1077,89 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         function autoResize(el) {
             el.style.height = 'auto';
             el.style.height = el.scrollHeight + 'px';
+        }
+
+        function previewAvatar(input) {
+            if (input.files && input.files[0]) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    document.getElementById('avatarPreview').src = e.target.result;
+                }
+                reader.readAsDataURL(input.files[0]);
+            }
+        }
+
+        function clearAvatar() {
+            document.getElementById('avatarInput').value = '';
+            document.getElementById('avatarPreview').src = 'uploads/avatars/default.png';
+        }
+
+        // --- CAMERA LOGIC ---
+        let videoStream = null;
+        let capturedBlob = null;
+
+        async function startCamera() {
+            const video = document.getElementById('cameraVideo');
+            retakePhoto(); // Reset UI
+            try {
+                videoStream = await navigator.mediaDevices.getUserMedia({
+                    video: {
+                        facingMode: "user"
+                    }
+                });
+                video.srcObject = videoStream;
+            } catch (err) {
+                console.error("Camera error:", err);
+                Swal.fire('Error', 'Unable to access camera. Please check permissions.', 'error');
+                bootstrap.Modal.getInstance(document.getElementById('cameraModal')).hide();
+            }
+        }
+
+        function stopCamera() {
+            if (videoStream) {
+                videoStream.getTracks().forEach(track => track.stop());
+                videoStream = null;
+            }
+        }
+
+        function capturePhotoPreview() {
+            const video = document.getElementById('cameraVideo');
+            const canvas = document.getElementById('cameraCanvas');
+            if (!videoStream) return;
+
+            // [NEW] Crop mathematically to a 1:1 square based on the center of the video
+            const size = Math.min(video.videoWidth, video.videoHeight);
+            const startX = (video.videoWidth - size) / 2;
+            const startY = (video.videoHeight - size) / 2;
+
+            canvas.width = size;
+            canvas.height = size;
+            const ctx = canvas.getContext('2d');
+
+            ctx.drawImage(video, startX, startY, size, size, 0, 0, size, size);
+
+            const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
+            fetch(dataUrl).then(res => res.blob()).then(blob => {
+                const file = new File([blob], "profile_capture_" + Date.now() + ".jpg", {
+                    type: "image/jpeg"
+                });
+                const dataTransfer = new DataTransfer();
+                dataTransfer.items.add(file);
+                const input = document.getElementById('avatarInput');
+                input.files = dataTransfer.files;
+                previewAvatar(input);
+
+                bootstrap.Modal.getInstance(document.getElementById('cameraModal')).hide();
+                stopCamera();
+                Swal.fire({
+                    toast: true,
+                    position: 'top-end',
+                    showConfirmButton: false,
+                    timer: 4000,
+                    icon: 'success',
+                    title: 'Photo attached! Click "Save Employee" below to upload.'
+                });
+            });
         }
     </script>
 </body>

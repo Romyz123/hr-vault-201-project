@@ -53,13 +53,34 @@ try {
 // [NEW] Pre-fill Category from URL
 $preFilledCat = isset($_GET['category']) ? $_GET['category'] : '';
 
+// [NEW] Dynamically calculate Server Upload Limits from php.ini
+function return_bytes($val)
+{
+    $val = trim($val);
+    $last = strtolower($val[strlen($val) - 1]);
+    $val = (int)$val;
+    switch ($last) {
+        case 'g':
+            $val *= 1024;
+        case 'm':
+            $val *= 1024;
+        case 'k':
+            $val *= 1024;
+    }
+    return $val;
+}
+$maxUploadBytes = min(return_bytes(ini_get('upload_max_filesize')), return_bytes(ini_get('post_max_size')));
+if ($maxUploadBytes <= 0) $maxUploadBytes = 128 * 1024 * 1024; // Fallback to 128MB
+$maxUploadMB = floor($maxUploadBytes / (1024 * 1024));
+
 // [NEW] Fetch Vault Usage Details
-$vaultLimitMB = 1024;
+$vaultLimitGB = 1; // Default 1GB
 try {
-    $stmt = $pdo->query("SELECT setting_value FROM system_settings WHERE setting_key = 'vault_size_limit_mb'");
+    $stmt = $pdo->query("SELECT setting_value FROM system_settings WHERE setting_key = 'vault_size_limit_gb'");
     $val = $stmt->fetchColumn();
-    if ($val !== false) $vaultLimitMB = (int)$val;
-} catch (Exception $e) {}
+    if ($val !== false) $vaultLimitGB = (float)$val;
+} catch (Exception $e) {
+}
 
 $currentVaultBytes = 0;
 $vaultPath = $config['VAULT_PATH'] ?? dirname(__DIR__) . DIRECTORY_SEPARATOR . 'vault' . DIRECTORY_SEPARATOR;
@@ -69,9 +90,10 @@ if (is_dir($vaultPath)) {
         if ($f->isFile()) $currentVaultBytes += $f->getSize();
     }
 }
-$currentVaultMB = round($currentVaultBytes / 1024 / 1024, 2);
-$vaultPercent = ($vaultLimitMB > 0) ? min(100, round(($currentVaultMB / $vaultLimitMB) * 100)) : 0;
-$isVaultFull = ($vaultLimitMB > 0 && $currentVaultMB >= $vaultLimitMB);
+$currentVaultGB = round($currentVaultBytes / 1024 / 1024 / 1024, 2);
+$vaultLimitBytes = $vaultLimitGB * 1024 * 1024 * 1024;
+$vaultPercent = ($vaultLimitBytes > 0) ? min(100, round(($currentVaultBytes / $vaultLimitBytes) * 100)) : 0;
+$isVaultFull = ($vaultLimitBytes > 0 && $currentVaultBytes >= $vaultLimitBytes);
 ?>
 
 <!DOCTYPE html>
@@ -99,6 +121,27 @@ $isVaultFull = ($vaultLimitMB > 0 && $currentVaultMB >= $vaultLimitMB);
             border-color: #0d6efd;
             background-color: #f8f9fa;
         }
+
+        /* [NEW] Camera Scanning Overlay */
+        .camera-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .camera-guide-doc {
+            width: 85%;
+            height: 60%;
+            border: 3px dashed rgba(255, 255, 255, 0.8);
+            border-radius: 8px;
+            box-shadow: 0 0 0 2000px rgba(0, 0, 0, 0.5);
+        }
     </style>
 </head>
 
@@ -124,8 +167,8 @@ $isVaultFull = ($vaultLimitMB > 0 && $currentVaultMB >= $vaultLimitMB);
                         <?php endif; ?>
 
                         <form id="uploadForm" action="process_upload.php" method="POST" enctype="multipart/form-data" onsubmit="return validateAndConfirm()">
-                            <!-- [FIX] Help PHP handle large files gracefully -->
-                            <input type="hidden" name="MAX_FILE_SIZE" value="134217728">
+                            <!-- [FIX] Dynamically set max file size from PHP configuration -->
+                            <input type="hidden" name="MAX_FILE_SIZE" value="<?php echo $maxUploadBytes; ?>">
                             <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
 
                             <div class="mb-4 position-relative">
@@ -167,7 +210,10 @@ $isVaultFull = ($vaultLimitMB > 0 && $currentVaultMB >= $vaultLimitMB);
                                 </div>
                                 <div id="fileList" class="mt-2 list-group"></div>
                                 <div id="fileListFooter"></div>
-                                <div class="form-text mt-2">Allowed: PDF, JPG, PNG. Max size: 50MB per file.</div>
+                                <div class="d-grid gap-2 mt-2">
+                                    <button type="button" class="btn btn-outline-primary btn-sm fw-bold" data-bs-toggle="modal" data-bs-target="#cameraModal" onclick="startCamera()"><i class="bi bi-camera"></i> Scan Document / ID with Camera</button>
+                                </div>
+                                <div class="form-text mt-2">Allowed: PDF, JPG, PNG. Max size: <?php echo $maxUploadMB; ?>MB per upload.</div>
                             </div>
 
                             <div class="mb-3">
@@ -238,22 +284,53 @@ $isVaultFull = ($vaultLimitMB > 0 && $currentVaultMB >= $vaultLimitMB);
                             </div>
 
                             <!-- [NEW] Vault Space Display -->
-                            <?php if ($vaultLimitMB > 0): ?>
-                            <div class="mt-4 pt-3 border-top">
-                                <div class="d-flex justify-content-between small text-muted mb-1">
-                                    <span><i class="bi bi-hdd-fill"></i> Vault Storage Usage</span>
-                                    <span class="<?php echo $isVaultFull ? 'text-danger fw-bold' : ''; ?>"><?php echo number_format($currentVaultMB, 2); ?> MB / <?php echo number_format($vaultLimitMB); ?> MB</span>
+                            <?php if ($vaultLimitGB > 0): ?>
+                                <div class="mt-4 pt-3 border-top">
+                                    <div class="d-flex justify-content-between small text-muted mb-1">
+                                        <span><i class="bi bi-hdd-fill"></i> Vault Storage Usage</span>
+                                        <span class="<?php echo $isVaultFull ? 'text-danger fw-bold' : ''; ?>"><?php echo number_format($currentVaultGB, 2); ?> GB / <?php echo number_format($vaultLimitGB, 2); ?> GB</span>
+                                    </div>
+                                    <div class="progress" style="height: 6px;">
+                                        <div class="progress-bar <?php echo $vaultPercent > 90 ? 'bg-danger' : ($vaultPercent > 75 ? 'bg-warning' : 'bg-success'); ?>" role="progressbar" style="width: <?php echo $vaultPercent; ?>%;"></div>
+                                    </div>
+                                    <?php if ($isVaultFull): ?>
+                                        <div class="text-danger small mt-1"><i class="bi bi-exclamation-triangle-fill"></i> Vault is full. File uploads are disabled.</div>
+                                    <?php endif; ?>
                                 </div>
-                                <div class="progress" style="height: 6px;">
-                                    <div class="progress-bar <?php echo $vaultPercent > 90 ? 'bg-danger' : ($vaultPercent > 75 ? 'bg-warning' : 'bg-success'); ?>" role="progressbar" style="width: <?php echo $vaultPercent; ?>%;"></div>
-                                </div>
-                                <?php if ($isVaultFull): ?>
-                                <div class="text-danger small mt-1"><i class="bi bi-exclamation-triangle-fill"></i> Vault is full. File uploads are disabled.</div>
-                                <?php endif; ?>
-                            </div>
                             <?php endif; ?>
                         </form>
 
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- [NEW] CAMERA SCANNER MODAL -->
+    <div class="modal fade" id="cameraModal" tabindex="-1" data-bs-backdrop="static">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header bg-dark text-white">
+                    <h5 class="modal-title"><i class="bi bi-upc-scan"></i> Scan Document</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close" onclick="stopCamera()"></button>
+                </div>
+                <div class="modal-body text-center position-relative overflow-hidden p-0 bg-dark">
+                    <div class="alert alert-dark small rounded-0 mb-0 border-0"><i class="bi bi-info-circle-fill"></i> Align your document or ID card within the frame.</div>
+                    <video id="cameraVideo" width="100%" autoplay playsinline style="min-height: 400px; background: #000; object-fit: cover;"></video>
+                    <img id="cameraPreviewImage" style="display:none; width: 100%; min-height: 400px; object-fit: cover;">
+                    <div class="camera-overlay" id="cameraOverlay">
+                        <div class="camera-guide-doc"></div>
+                    </div>
+                    <canvas id="cameraCanvas" style="display:none;"></canvas>
+                </div>
+                <div class="modal-footer justify-content-between">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" onclick="stopCamera()">Cancel</button>
+                    <div id="cameraControls">
+                        <button type="button" class="btn btn-success fw-bold" onclick="capturePhotoPreview()"><i class="bi bi-circle-fill text-danger"></i> Capture Scan</button>
+                    </div>
+                    <div id="previewControls" style="display:none;">
+                        <button type="button" class="btn btn-warning fw-bold" onclick="retakePhoto()"><i class="bi bi-arrow-counterclockwise"></i> Retake</button>
+                        <button type="button" class="btn btn-primary fw-bold" onclick="confirmPhoto()"><i class="bi bi-check-lg"></i> Confirm & Add</button>
                     </div>
                 </div>
             </div>
@@ -409,7 +486,35 @@ $isVaultFull = ($vaultLimitMB > 0 && $currentVaultMB >= $vaultLimitMB);
             const fileInput = document.getElementById('fileInput');
             fileList.innerHTML = '';
             let totalSize = 0;
-            const MAX_TOTAL_SIZE = 128 * 1024 * 1024; // 128MB
+            const MAX_TOTAL_SIZE = <?php echo $maxUploadBytes; ?>; // Dynamic Server Limit
+            const maxMB = <?php echo $maxUploadMB; ?>;
+
+            if (fileInput.files.length === 0) {
+                document.getElementById('fileListFooter').innerHTML = '';
+                return;
+            }
+
+            const dt = new DataTransfer();
+            let oversizedFound = false;
+
+            Array.from(fileInput.files).forEach((file) => {
+                if (file.size > MAX_TOTAL_SIZE) {
+                    oversizedFound = true;
+                    return; // Skip oversized file
+                }
+                dt.items.add(file);
+            });
+
+            if (oversizedFound) {
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'File Too Large',
+                    text: `One or more files exceeded the maximum upload limit of ${maxMB} MB and were removed from your selection.`
+                });
+            }
+
+            // Update the input with only the allowed files
+            fileInput.files = dt.files;
 
             if (fileInput.files.length === 0) {
                 document.getElementById('fileListFooter').innerHTML = '';
@@ -440,7 +545,7 @@ $isVaultFull = ($vaultLimitMB > 0 && $currentVaultMB >= $vaultLimitMB);
             // Update Footer (Total Size)
             const footer = document.getElementById('fileListFooter');
             const totalMB = (totalSize / 1024 / 1024).toFixed(2);
-            const limitMB = 128; // 128MB limit
+            const limitMB = <?php echo $maxUploadMB; ?>; // Dynamic Server Limit
             const percent = (totalSize / MAX_TOTAL_SIZE) * 100;
 
             let colorClass = 'bg-success';
@@ -466,6 +571,14 @@ $isVaultFull = ($vaultLimitMB > 0 && $currentVaultMB >= $vaultLimitMB);
             `;
         }
 
+        // [NEW] Allows user to clear the file list if they scanned the wrong picture
+        function clearAllFiles() {
+            const fileInput = document.getElementById('fileInput');
+            const dataTransfer = new DataTransfer();
+            fileInput.files = dataTransfer.files; // Clears the input completely
+            updateFileList(); // Refreshes the UI to show it's empty
+        }
+
         function validateAndConfirm() {
             const fileInput = document.getElementById('fileInput');
             if (fileInput.files.length === 0) {
@@ -474,6 +587,105 @@ $isVaultFull = ($vaultLimitMB > 0 && $currentVaultMB >= $vaultLimitMB);
             }
             // Native browser confirmation - 100% reliable blocking
             return confirm('Are you sure you want to upload these files?');
+        }
+
+        // --- [NEW] CAMERA SCANNING LOGIC ---
+        let videoStream = null;
+        let capturedBlob = null;
+
+        async function startCamera() {
+            const video = document.getElementById('cameraVideo');
+            retakePhoto(); // Reset UI
+            try {
+                // Request environment camera (back camera) for documents if on mobile
+                videoStream = await navigator.mediaDevices.getUserMedia({
+                    video: {
+                        facingMode: "environment"
+                    }
+                });
+                video.srcObject = videoStream;
+            } catch (err) {
+                console.error("Camera error:", err);
+                Swal.fire('Error', 'Unable to access camera. Please check permissions.', 'error');
+                bootstrap.Modal.getInstance(document.getElementById('cameraModal')).hide();
+            }
+        }
+
+        function stopCamera() {
+            if (videoStream) {
+                videoStream.getTracks().forEach(track => track.stop());
+                videoStream = null;
+            }
+        }
+
+        function capturePhotoPreview() {
+            const video = document.getElementById('cameraVideo');
+            const canvas = document.getElementById('cameraCanvas');
+            if (!videoStream) return;
+
+            let width = video.videoWidth;
+            let height = video.videoHeight;
+
+            // [FIX] Scale down document to max 1600px to avoid 20MB file sizes and PHP crashes
+            const MAX_DIM = 1600;
+            if (width > height && width > MAX_DIM) {
+                height = Math.round(height * (MAX_DIM / width));
+                width = MAX_DIM;
+            } else if (height > MAX_DIM) {
+                width = Math.round(width * (MAX_DIM / height));
+                height = MAX_DIM;
+            }
+
+            const outCanvas = document.createElement('canvas');
+            outCanvas.width = width;
+            outCanvas.height = height;
+            const ctx = outCanvas.getContext('2d');
+            ctx.drawImage(video, 0, 0, width, height);
+
+            outCanvas.toBlob(blob => {
+                capturedBlob = blob;
+                const previewImg = document.getElementById('cameraPreviewImage');
+                previewImg.src = URL.createObjectURL(blob);
+                previewImg.style.display = 'block';
+                video.style.display = 'none';
+                document.getElementById('cameraOverlay').style.display = 'none';
+                document.getElementById('cameraControls').style.display = 'none';
+                document.getElementById('previewControls').style.display = 'block';
+            }, 'image/jpeg', 0.85);
+        }
+
+        function retakePhoto() {
+            capturedBlob = null;
+            document.getElementById('cameraPreviewImage').style.display = 'none';
+            document.getElementById('cameraVideo').style.display = 'block';
+            document.getElementById('cameraOverlay').style.display = 'flex';
+            document.getElementById('cameraControls').style.display = 'block';
+            document.getElementById('previewControls').style.display = 'none';
+        }
+
+        function confirmPhoto() {
+            if (!capturedBlob) return;
+            const file = new File([capturedBlob], "Scanned_Doc_" + Date.now() + ".jpg", {
+                type: "image/jpeg"
+            });
+            const dataTransfer = new DataTransfer();
+            const existingFiles = document.getElementById('fileInput').files;
+            for (let i = 0; i < existingFiles.length; i++) dataTransfer.items.add(existingFiles[i]); // Keep existing files
+            dataTransfer.items.add(file); // Append new scan
+            document.getElementById('fileInput').files = dataTransfer.files;
+            updateFileList(); // Update UI
+
+            bootstrap.Modal.getInstance(document.getElementById('cameraModal')).hide();
+            stopCamera();
+
+            Swal.fire({
+                toast: true,
+                position: 'top-end',
+                showConfirmButton: false,
+                timer: 4000,
+                icon: 'success',
+                title: 'Document scanned! Click "Upload Now" below to save it.'
+            });
         }
     </script>
 

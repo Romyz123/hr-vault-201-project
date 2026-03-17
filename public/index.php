@@ -564,24 +564,25 @@ $diskFree  = disk_free_space(".");
 $diskPercent = ($diskTotal > 0) ? round((($diskTotal - $diskFree) / $diskTotal) * 100) : 0;
 
 // [NEW] Vault Size Quota Check for Dashboard Alert
-$vaultLimitMB = 1024; // Default 1GB
+$vaultLimitGB = 1; // Default 1GB
 try {
-    $stmt = $pdo->query("SELECT setting_value FROM system_settings WHERE setting_key = 'vault_size_limit_mb'");
+    $stmt = $pdo->query("SELECT setting_value FROM system_settings WHERE setting_key = 'vault_size_limit_gb'");
     $val = $stmt->fetchColumn();
-    if ($val !== false) $vaultLimitMB = (int)$val;
+    if ($val !== false) $vaultLimitGB = (float)$val;
 } catch (Exception $e) {
 }
 
 $currentVaultBytes = 0;
-$vaultPath = realpath(__DIR__ . '/../vault');
+$configEnv = require '../config/config.php';
+$vaultPath = $configEnv['VAULT_PATH'] ?? realpath(__DIR__ . '/../vault');
 if ($vaultPath && is_dir($vaultPath)) {
     $iterator = new FileSystemIterator($vaultPath, FileSystemIterator::SKIP_DOTS);
     foreach ($iterator as $f) {
         if ($f->isFile()) $currentVaultBytes += $f->getSize();
     }
 }
-$currentVaultMB = round($currentVaultBytes / 1024 / 1024, 2);
-$vaultQuotaPercent = ($vaultLimitMB > 0) ? min(100, round(($currentVaultMB / $vaultLimitMB) * 100)) : 0;
+$currentVaultGB = round($currentVaultBytes / 1024 / 1024 / 1024, 2);
+$vaultQuotaPercent = ($vaultLimitGB > 0) ? min(100, round(($currentVaultGB / $vaultLimitGB) * 100)) : 0;
 
 $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
 ?>
@@ -1025,11 +1026,11 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
             </div>
         <?php endif; ?>
 
-        <?php if ($vaultLimitMB > 0 && $vaultQuotaPercent >= 90): ?>
+        <?php if ($vaultLimitGB > 0 && $vaultQuotaPercent >= 90): ?>
             <div class="alert alert-warning shadow-sm fw-bold d-flex align-items-center mb-4 border-warning border-3">
                 <i class="bi bi-hdd-network fs-3 me-3 text-warning"></i>
                 <div>
-                    <strong>Vault Storage Warning:</strong> Your document vault is at <strong><?php echo $vaultQuotaPercent; ?>%</strong> capacity (<?php echo number_format($currentVaultMB, 2); ?> MB / <?php echo number_format($vaultLimitMB); ?> MB).
+                    <strong>Vault Storage Warning:</strong> Your document vault is at <strong><?php echo $vaultQuotaPercent; ?>%</strong> capacity (<?php echo number_format($currentVaultGB, 2); ?> GB / <?php echo number_format($vaultLimitGB, 2); ?> GB).
                     <br><span class="small fw-normal">Please use the <strong>Storage Optimization</strong> tool in the Recovery Console to archive old files, or increase your limit in <a href="settings.php" class="alert-link">Settings</a>.</span>
                 </div>
             </div>
@@ -1600,7 +1601,7 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
     <!-- Export Modal (single instance) -->
     <div class="modal fade" id="exportModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog">
-            <form action="export_files.php" method="POST" class="modal-content" target="_blank">
+            <form action="export_files.php" method="POST" class="modal-content" onsubmit="showExportLoader(this)">
                 <div class="modal-header bg-success text-white">
                     <h5 class="modal-title"><i class="bi bi-archive-fill"></i> Bulk Export</h5>
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
@@ -1621,7 +1622,6 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
                         <label class="form-label fw-bold">Department</label>
                         <select name="dept" id="exportDept" class="form-select">
                             <option value="" selected>-- Select Scope --</option>
-                            <option value="ALL" class="fw-bold text-danger">-- ENTIRE DATABASE --</option>
                             <option value="ADMIN">ADMIN</option>
                             <option value="OP">OP (Office of President)</option>
                             <option value="HMS">HMS</option>
@@ -1748,9 +1748,17 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
                     <hr>
                     <div class="mb-2">
                         <label class="form-label fw-bold text-danger">ZIP Password (Optional)</label>
-                        <input type="password" name="zip_password" class="form-control" placeholder="Leave blank for no password" maxlength="50">
+                        <div class="input-group">
+                            <input type="password" name="zip_password" id="exportZipPass" class="form-control" placeholder="Leave blank for no password" maxlength="50">
+                            <button class="btn btn-outline-secondary" type="button" onclick="togglePass('exportZipPass')"><i class="bi bi-eye"></i></button>
+                        </div>
                         <div class="form-text">Sets a password to open the downloaded ZIP file.</div>
                     </div>
+
+                    <div class="alert alert-warning small mb-0 mt-3 border-warning">
+                        <i class="bi bi-info-circle-fill"></i> <strong>Massive Data Reminder:</strong> If your requested export exceeds the <strong>1.9 GB</strong> limit, the system will automatically split it into multiple volumes (Part 1, Part 2, etc.) and download them consecutively.
+                    </div>
+
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
@@ -2079,6 +2087,45 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
             nameField.innerText = fileName;
             const modal = new bootstrap.Modal(modalEl);
             modal.show();
+        }
+
+        // [NEW] Toggle Password Visibility
+        function togglePass(id) {
+            const input = document.getElementById(id);
+            const icon = input.nextElementSibling.querySelector('i');
+            if (input.type === 'password') {
+                input.type = 'text';
+                icon.classList.replace('bi-eye', 'bi-eye-slash');
+            } else {
+                input.type = 'password';
+                icon.classList.replace('bi-eye-slash', 'bi-eye');
+            }
+        }
+
+        // [NEW] Show Export Loader
+        function showExportLoader(form) {
+            Swal.fire({
+                title: 'Compiling Data...',
+                html: `
+                    <p class="text-muted small mb-3">Scanning files and building the ZIP archive. Please wait...</p>
+                    <div class="progress mb-3" style="height: 25px;">
+                        <div class="progress-bar progress-bar-striped progress-bar-animated bg-success" style="width: 100%"></div>
+                    </div>
+                    <span class="text-danger fw-bold small">This may take a few minutes. Do not close this window!</span>
+                `,
+                allowOutsideClick: false,
+                allowEscapeKey: false,
+                showConfirmButton: false
+            });
+
+            const csrf = form.querySelector('[name="csrf_token"]').value;
+            const checkCookie = setInterval(() => {
+                if (document.cookie.includes('downloadToken=' + csrf)) {
+                    clearInterval(checkCookie);
+                    Swal.close();
+                    document.cookie = "downloadToken=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+                }
+            }, 1000);
         }
 
         // ---------- Prevent "stuck" screen with nested modals ----------

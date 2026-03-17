@@ -209,14 +209,21 @@ try {
                         <h6 class="fw-bold text-danger mt-3">PHASE 1: BACKUP PROCEDURE</h6>
                         <ol>
                             <li><strong>Database:</strong> Go to <em>Manager Users -> Disaster Recovery</em>. Click <strong>Download Backup</strong>. (Leave "Include Vault Files" unchecked). This safely streams your SQL data and Encryption Key without overloading PHP RAM.</li>
-                            <li><strong>Vault Files:</strong> Open Windows File Explorer on the server (via Remote Desktop) OR use an SFTP Client (like WinSCP). Navigate to the system folder: <code>htdocs\hr 201\vault\</code></li>
-                            <li>Copy the entire <code>vault</code> folder and paste it into your external backup drive.</li>
+                            <li><strong>Multi-Part ZIPs:</strong> If your automated backup exceeded the GB limit, the system created multiple files (e.g., <code>Part1.zip</code>, <code>Part2.zip</code>). Collect all parts.</li>
+                            <li><strong>Vault Files (Manual Shortcut):</strong> If skipping the web-backup, open Windows File Explorer on the server, navigate to <code>htdocs\hr 201\vault\</code>, and manually copy it to an external drive.</li>
                         </ol>
 
                         <h6 class="fw-bold text-success mt-3">PHASE 2: RESTORE PROCEDURE</h6>
                         <ol>
-                            <li><strong>Vault Files:</strong> Using Windows File Explorer or SFTP, copy your backed-up <code>vault</code> folder back into the <code>htdocs\hr 201\</code> directory on the new server.</li>
-                            <li><strong>Database:</strong> Go to <em>Manager Users -> Disaster Recovery</em>. Use the <strong>Restore SQL</strong> tool to upload your <code>.sql</code> or <code>.zip</code> database backup. (The PHP restore tool is specially designed to stream massive SQL files line-by-line without crashing).</li>
+                            <li><strong>Vault Files:</strong> Extract ALL your backup ZIP parts. Merge all the extracted <code>vault</code> folders together, and place them back into the <code>htdocs\hr 201\</code> directory on the new server.</li>
+                            <li><strong>Database (Web UI):</strong> Go to <em>Manage Users -> Disaster Recovery</em>. Use the <strong>Restore SQL</strong> tool. You can hold CTRL/CMD and select ALL parts at once. The system will automatically stitch them together.</li>
+                            <li><strong>Database (GUI Client - Massive Restores without CMD):</strong> If your database is so massive that it exceeds browser capabilities, and Command Line is forbidden by MHI policy, use a standard Database GUI tool (like MySQL Workbench, HeidiSQL, or DBeaver).
+                                <ul>
+                                    <li>Open your Database GUI and connect to the server (<code>127.0.0.1</code>, Port <code>3306</code>) using your database administrator credentials.</li>
+                                    <li>Select the <code>hr201_prod</code> database. Go to <strong>File > Run SQL Script...</strong> (or <strong>Import > Load SQL File</strong>).</li>
+                                    <li>Select your extracted <code>.sql</code> backup parts one by one and execute them. This bypasses all browser limits instantly and securely.</li>
+                                </ul>
+                            </li>
                             <li><strong>Alignment:</strong> Go to <em>System Recovery Console -> Orphaned Files</em> and run a <strong>Master Sync</strong>. This instantly aligns the database records with the physical files you just copied over.</li>
                         </ol>
                     </div>
