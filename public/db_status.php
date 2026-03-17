@@ -34,6 +34,60 @@ $msg = "";
 $masterVersion = "2.1.0"; // Master Schema Version
 
 // ------------------------------------------------------
+// PRODUCTION LAUNCH CHECKLIST LOGIC
+// ------------------------------------------------------
+$config = require '../config/config.php';
+
+// 1. Check Dev Files
+$devFiles = [
+    'utils/install.php',
+    'auth_login.php',
+    'create_admin.php',
+    'test_vault.php',
+    'debug_whitespace.php',
+    'test_system.php',
+    'test_email.php',
+    'test_email_alert.php',
+    'test_zip_password.php',
+    'debug_vault.php',
+    'debug_upload.php',
+    'ValidatorTest.php',
+    'download_assets.php',
+    'stress_test_backup.php',
+    'system_diagnostics.php'
+];
+$basePath = __DIR__ . '/';
+$devFilesExist = false;
+foreach ($devFiles as $f) {
+    if (file_exists($basePath . $f)) $devFilesExist = true;
+}
+// 2. Check Error Reporting
+$errorsOff = (ini_get('display_errors') == 0 || ini_get('display_errors') === 'Off' || ini_get('display_errors') === '');
+
+// 3. Check Vault Key
+$vaultKey = $config['VAULT_KEY'] ?? '';
+$keySecure = (strlen($vaultKey) >= 32 && $vaultKey !== 'GENERATE_RANDOM_32_CHAR_STRING_HERE!!');
+
+// 4. Check Directory Permissions
+$vaultPath = $config['VAULT_PATH'] ?? realpath(__DIR__ . '/../vault');
+$backupsPath = realpath(__DIR__ . '/../backups');
+if (!$backupsPath && !is_dir(__DIR__ . '/../backups')) @mkdir(__DIR__ . '/../backups', 0755, true);
+$backupsPath = realpath(__DIR__ . '/../backups');
+$permsOk = (is_writable($vaultPath) && is_writable(__DIR__ . '/uploads') && is_writable($backupsPath));
+
+// 5. HTTPS
+$isHttps = (
+    (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+    || ($_SERVER['SERVER_PORT'] ?? 80) == 443
+    || (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && stripos($_SERVER['HTTP_X_FORWARDED_PROTO'], 'https') !== false)
+    || (isset($_SERVER['HTTP_X_FORWARDED_SSL']) && strtolower($_SERVER['HTTP_X_FORWARDED_SSL']) === 'on')
+);
+
+// 6. Cron Backup (Informational - we can't check Windows Task Scheduler from PHP easily)
+$cronStatus = "Manual verification required.";
+
+
+// ------------------------------------------------------
 // SCHEMA DEFINITIONS
 // ------------------------------------------------------
 

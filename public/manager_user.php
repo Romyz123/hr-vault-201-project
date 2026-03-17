@@ -205,7 +205,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 
     // --- RESTORE DATABASE ---
-    if (isset($_FILES['restore_sql']) && $_FILES['restore_sql']['error'] === UPLOAD_ERR_OK) {
+    $hasRestoreFiles = false;
+    if (isset($_FILES['restore_sql'])) {
+        foreach ((array)$_FILES['restore_sql']['error'] as $err) {
+            if ($err === UPLOAD_ERR_OK) {
+                $hasRestoreFiles = true;
+                break;
+            }
+        }
+    }
+
+    if ($hasRestoreFiles) {
         // [SECURITY] Enforce Password Check
         if (empty($_POST['admin_password'])) {
             $alertType = 'error';
