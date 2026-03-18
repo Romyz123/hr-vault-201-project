@@ -260,9 +260,14 @@ if ($search_query !== '') {
     // Limit to 5
     $recentSearches = array_slice($recentSearches, 0, 5);
     // Save cookie (30 days)
-    setcookie('recent_searches', json_encode($recentSearches), time() + (86400 * 30), "/");
+    setcookie('recent_searches', json_encode($recentSearches), [
+        'expires'  => time() + (86400 * 30),
+        'path'     => '/',
+        'secure'   => !empty($_SERVER['HTTPS']),
+        'httponly' => false, // JS reads this cookie for suggestions
+        'samesite' => 'Lax',
+    ]);
 }
-
 // Sort whitelist (prevents SQL injection)
 // [FIX] Handle empty hire_date by pushing them to the end (CASE WHEN)
 $sortWhitelist = [
@@ -2119,11 +2124,25 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
             });
 
             const csrf = form.querySelector('[name="csrf_token"]').value;
+            let attempts = 0;
+            const maxAttempts = 300; // 5 minutes
             const checkCookie = setInterval(() => {
+                attempts++;
                 if (document.cookie.includes('downloadToken=' + csrf)) {
                     clearInterval(checkCookie);
                     Swal.close();
                     document.cookie = "downloadToken=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+                    return;
+                }
+                if (attempts >= maxAttempts) {
+                    clearInterval(checkCookie);
+                    Swal.close();
+                    document.cookie = "downloadToken=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Timeout',
+                        text: 'The export did not start within a few minutes. Please try again or check your browser settings.'
+                    });
                 }
             }, 1000);
         }

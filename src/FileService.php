@@ -16,9 +16,10 @@ class FileService
 
         // [FIX] Auto-create vault directory if it doesn't exist to prevent silent failures
         if (!is_dir($this->vaultPath)) {
-            @mkdir($this->vaultPath, 0755, true);
+            if (!mkdir($this->vaultPath, 0700, true) && !is_dir($this->vaultPath)) {
+                throw new Exception("Failed to create vault directory: " . $this->vaultPath);
+            }
         }
-
         // The Fail-Safe Map (Text file)
         $this->manifestFile = $this->vaultPath . 'manifest_DO_NOT_DELETE.txt';
 

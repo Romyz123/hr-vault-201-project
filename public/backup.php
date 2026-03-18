@@ -14,25 +14,46 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'ADMIN') {
 
 // [NEW] MULTI-PART DOWNLOAD HANDLER
 if (isset($_GET['download_part'])) {
+    $security = new Security($pdo);
+    $token = $_GET['csrf_token'] ?? '';
+    try {
+        $security->checkCSRF($token);
+    } catch (Exception $e) {
+        http_response_code(403);
+        exit;
+    }
+
     $requested = basename($_GET['download_part']);
-    if (!preg_match('/^(FULL_SYSTEM_|Encrypted_Backup_)[A-Za-z0-9_-]+_Part\d+\.zip$/', $requested)) {
+    if (!preg_match('/^(FULL_SYSTEM_|Encrypted_Backup_)[A-Za-z0-9_-]+_Part\\d+\\.zip$/', $requested)) {
         http_response_code(404);
         exit;
     }
-    $tempDir = realpath(__DIR__ . '/../backups/temp_downloads');
-    $filePath = realpath($tempDir . DIRECTORY_SEPARATOR . $requested);
-    if ($filePath && file_exists($filePath) && strpos($filePath, $tempDir) === 0) {
-        while (ob_get_level()) ob_end_clean();
-        if (ini_get('zlib.output_compression')) ini_set('zlib.output_compression', 'Off');
-        ignore_user_abort(true);
-        header('Content-Type: application/zip');
-        header('Content-Disposition: attachment; filename="' . $requested . '"');
-        header('Content-Length: ' . filesize($filePath));
-        readfile($filePath);
-        @unlink($filePath);
+
+    $tempDir = __DIR__ . '/../backups/temp_downloads';
+    if (!is_dir($tempDir)) {
+        @mkdir($tempDir, 0700, true);
+        @file_put_contents($tempDir . DIRECTORY_SEPARATOR . '.htaccess', "Deny from all\n");
+    }
+    $tempDirReal = realpath($tempDir);
+
+    $filePath = realpath($tempDirReal . DIRECTORY_SEPARATOR . $requested);
+    $dirPrefix = rtrim($tempDirReal, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR;
+    if (!$tempDirReal || !$filePath || strncmp($filePath, $dirPrefix, strlen($dirPrefix)) !== 0 || !is_file($filePath)) {
+        http_response_code(404);
         exit;
     }
-    die("Backup part not found or has expired.");
+
+    while (ob_get_level()) ob_end_clean();
+    if (ini_get('zlib.output_compression')) ini_set('zlib.output_compression', 'Off');
+
+    ignore_user_abort(true);
+    header('Content-Type: application/zip');
+    header('Content-Disposition: attachment; filename="' . $requested . '"');
+    header('Content-Length: ' . filesize($filePath));
+    readfile($filePath);
+    // Optionally delete after successful download (may need coordination for multi-part)
+    // @unlink($filePath);
+    exit;
 }
 
 // [SECURITY] Verify CSRF Token
@@ -121,11 +142,15 @@ $incVault = isset($_POST['include_vault']); // Checkbox from modal
 $useZip = ($password || $incVault);
 $tempZipPath = '';
 $generatedZips = [];
+$pendingUnlink = [];
 
 // [FIX] Force ZIP if password is set OR if vault is included
 if ($useZip) {
     $tempDir = __DIR__ . '/../backups/temp_downloads';
-    if (!is_dir($tempDir)) @mkdir($tempDir, 0755, true);
+    if (!is_dir($tempDir)) {
+        @mkdir($tempDir, 0700, true);
+        @file_put_contents($tempDir . DIRECTORY_SEPARATOR . '.htaccess', "Deny from all\n");
+    }
 
     // Use a consistent name inside the zip
     $sql_filename_in_zip = "TESP_HR_BACKUP_" . date("Y-m-d_H-i-s") . ".sql";
@@ -134,25 +159,44 @@ if ($useZip) {
     $currentBytes = 0;
     $zip = null;
 
-    $startNewZip = function () use (&$zip, &$generatedZips, $tempDir, $baseFilename, &$partNumber, &$currentBytes) {
+    $cleanupOnError = function ($msg) use (&$generatedZips, &$pendingUnlink) {
+        foreach ($generatedZips as $f) {
+            if (file_exists($f)) @unlink($f);
+        }
+        foreach ($pendingUnlink as $f) {
+            if (file_exists($f)) @unlink($f);
+        }
+        exit($msg);
+    };
+
+    $startNewZip = function () use (&$zip, &$generatedZips, $tempDir, $baseFilename, &$partNumber, &$currentBytes, $cleanupOnError) {
         if ($zip instanceof ZipArchive) $zip->close();
         $path = $tempDir . DIRECTORY_SEPARATOR . $baseFilename . "_Part{$partNumber}.zip";
         $generatedZips[] = $path;
         $zip = new ZipArchive();
-        if ($zip->open($path, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== TRUE) die("Server Error: Could not create split ZIP.");
+        if ($zip->open($path, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== TRUE) {
+            $cleanupOnError("Server Error: Could not create split ZIP.");
+        }
         $currentBytes = 0;
     };
 
-    $startNewZip();
-
     $sqlSize = filesize($tmpSqlFile);
+    // If the current part already has data and adding the SQL would exceed the limit, start a new part
     if ($currentBytes > 0 && ($currentBytes + $sqlSize > $maxSizeBytes)) {
         $partNumber++;
         $startNewZip();
     }
+    if ($zip === null) {
+        $startNewZip();
+    }
+
     /** @var ZipArchive $zip */
     $zip->addFile($tmpSqlFile, $sql_filename_in_zip);
-    if ($password) $zip->setEncryptionName($sql_filename_in_zip, ZipArchive::EM_AES_256, $password);
+    if ($password) {
+        if (!$zip->setEncryptionName($sql_filename_in_zip, ZipArchive::EM_AES_256, $password)) {
+            $cleanupOnError("Server Error: Encryption not supported by libzip for $sql_filename_in_zip.");
+        }
+    }
     $currentBytes += $sqlSize;
 
     // [NEW] Add Vault Files & Key
@@ -173,9 +217,10 @@ if ($useZip) {
                         $relativePath = substr($src, strlen($vaultPath) + 1);
                         $dest = $mirrorPath . DIRECTORY_SEPARATOR . $relativePath;
                         $destDir = dirname($dest);
-                        if (!is_dir($destDir)) @mkdir($destDir, 0755, true);
                         if (!file_exists($dest) || filemtime($src) > filemtime($dest) || filesize($src) !== filesize($dest)) {
-                            @copy($src, $dest);
+                            if (!@copy($src, $dest)) {
+                                error_log("Failed to copy vault file: $src to $dest");
+                            }
                         }
                     }
                 }
@@ -195,7 +240,11 @@ if ($useZip) {
                         $relativePath = 'vault/' . substr($filePath, strlen($vaultPath) + 1);
                         /** @var ZipArchive $zip */
                         $zip->addFile($filePath, $relativePath);
-                        if ($password) $zip->setEncryptionName($relativePath, ZipArchive::EM_AES_256, $password);
+                        if ($password) {
+                            if (!$zip->setEncryptionName($relativePath, ZipArchive::EM_AES_256, $password)) {
+                                $cleanupOnError("Server Error: Encryption not supported by libzip for $relativePath.");
+                            }
+                        }
                         $currentBytes += $fsize;
                     }
                 }
@@ -238,15 +287,30 @@ if ($mode === 'server') {
                 $msg .= " AND Secondary Location.";
             }
         }
+
+        // Cleanup any temporary ZIP parts created during this backup
+        if ($useZip && !empty($generatedZips)) {
+            foreach ($generatedZips as $gz) {
+                if (file_exists($gz)) @unlink($gz);
+            }
+        }
+        // Cleanup temporary SQL dump
+        if (file_exists($tmpSqlFile)) @unlink($tmpSqlFile);
+
         $logger->log($_SESSION['user_id'], 'MANUAL_BACKUP_SERVER', "Triggered manual backup to server drives.");
         header("Location: manager_user.php?msg=" . urlencode($msg));
         exit;
     } else {
+        // Cleanup temp artifacts even on failure
+        if ($useZip && !empty($generatedZips)) {
+            foreach ($generatedZips as $gz) {
+                if (file_exists($gz)) @unlink($gz);
+            }
+        }
+        if (file_exists($tmpSqlFile)) @unlink($tmpSqlFile);
+
         header("Location: manager_user.php?error=" . urlencode("❌ Failed to write to backup path. Check folder permissions."));
         exit;
-    }
-    if ($useZip && !empty($generatedZips)) {
-        foreach ($generatedZips as $gz) @unlink($gz);
     }
 } else {
     $logger->log($_SESSION['user_id'], 'SYSTEM_BACKUP', 'Admin downloaded full database backup.');
@@ -256,13 +320,12 @@ if ($mode === 'server') {
     if (ini_get('zlib.output_compression')) ini_set('zlib.output_compression', 'Off');
 
     // [NEW] Set cookie to tell the frontend to close the loading spinner
-    setcookie("downloadToken", $_POST['csrf_token'] ?? '1', time() + 300, "/");
-
+    setcookie("downloadToken", bin2hex(random_bytes(16)), time() + 300, "/");
     if ($useZip && count($generatedZips) > 1) {
         // MULTI-PART UI & AUTO-DOWNLOADER
         $downloadLinks = [];
         foreach ($generatedZips as $path) {
-            $downloadLinks[] = 'backup.php?download_part=' . urlencode(basename($path));
+            $downloadLinks[] = 'backup.php?download_part=' . urlencode(basename($path)) . '&csrf_token=' . urlencode($_POST['csrf_token'] ?? '');
         }
 ?>
         <!DOCTYPE html>
@@ -322,7 +385,6 @@ if ($mode === 'server') {
         header("Content-disposition: attachment; filename=\"" . $final_filename . "\"");
         header('Content-Length: ' . filesize($generatedZips[0]));
         readfile($generatedZips[0]);
-        @unlink($generatedZips[0]);
     } else {
         header('Content-Type: ' . $final_mimetype);
         header("Content-Transfer-Encoding: Binary");

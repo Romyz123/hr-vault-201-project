@@ -390,6 +390,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             background-color: #6c757d !important;
             /* Grey */
         }
+
+        /* Camera overlay / cropping guide */
+        .camera-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            pointer-events: none;
+        }
+
+        .camera-guide-square {
+            width: 240px;
+            height: 240px;
+            border: 3px dashed rgba(255, 255, 255, 0.9);
+            border-radius: 16px;
+            box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.35);
+        }
     </style>
 </head>
 
@@ -1100,16 +1121,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         async function startCamera() {
             const video = document.getElementById('cameraVideo');
-            retakePhoto(); // Reset UI
+            retakePhoto(); // Reset UI and stop any existing stream
+
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                console.error('Camera API not available in this browser.');
+                Swal.fire('Error', 'Camera is not supported by your browser.', 'error');
+                bootstrap.Modal.getInstance(document.getElementById('cameraModal')).hide();
+                return;
+            }
+
             try {
                 videoStream = await navigator.mediaDevices.getUserMedia({
                     video: {
-                        facingMode: "user"
+                        facingMode: 'user'
                     }
                 });
                 video.srcObject = videoStream;
             } catch (err) {
-                console.error("Camera error:", err);
+                console.error('Camera error:', err);
                 Swal.fire('Error', 'Unable to access camera. Please check permissions.', 'error');
                 bootstrap.Modal.getInstance(document.getElementById('cameraModal')).hide();
             }
@@ -1122,9 +1151,58 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
 
+        function retakePhoto() {
+            const video = document.getElementById('cameraVideo');
+            const previewImg = document.getElementById('cameraPreviewImage');
+            const cameraControls = document.getElementById('cameraControls');
+            const previewControls = document.getElementById('previewControls');
+            const avatarInput = document.getElementById('avatarInput');
+
+            stopCamera();
+            capturedBlob = null;
+
+            if (video) video.style.display = '';
+            if (previewImg) previewImg.style.display = 'none';
+
+            if (cameraControls) cameraControls.style.display = '';
+            if (previewControls) previewControls.style.display = 'none';
+
+            if (avatarInput) avatarInput.value = '';
+        }
+
+        function confirmPhoto() {
+            if (!capturedBlob) return;
+
+            const file = new File([capturedBlob], "profile_capture_" + Date.now() + ".jpg", {
+                type: "image/jpeg"
+            });
+            const dataTransfer = new DataTransfer();
+            dataTransfer.items.add(file);
+            const input = document.getElementById('avatarInput');
+            input.files = dataTransfer.files;
+            previewAvatar(input);
+
+            const modal = bootstrap.Modal.getInstance(document.getElementById('cameraModal'));
+            if (modal) modal.hide();
+            stopCamera();
+
+            Swal.fire({
+                toast: true,
+                position: 'top-end',
+                showConfirmButton: false,
+                timer: 4000,
+                icon: 'success',
+                title: 'Photo attached! Click "Save Employee" below to upload.'
+            });
+        }
+
         function capturePhotoPreview() {
             const video = document.getElementById('cameraVideo');
             const canvas = document.getElementById('cameraCanvas');
+            const previewImg = document.getElementById('cameraPreviewImage');
+            const cameraControls = document.getElementById('cameraControls');
+            const previewControls = document.getElementById('previewControls');
+
             if (!videoStream) return;
 
             // [NEW] Crop mathematically to a 1:1 square based on the center of the video
@@ -1140,25 +1218,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
             fetch(dataUrl).then(res => res.blob()).then(blob => {
-                const file = new File([blob], "profile_capture_" + Date.now() + ".jpg", {
-                    type: "image/jpeg"
-                });
-                const dataTransfer = new DataTransfer();
-                dataTransfer.items.add(file);
-                const input = document.getElementById('avatarInput');
-                input.files = dataTransfer.files;
-                previewAvatar(input);
+                capturedBlob = blob;
 
-                bootstrap.Modal.getInstance(document.getElementById('cameraModal')).hide();
-                stopCamera();
-                Swal.fire({
-                    toast: true,
-                    position: 'top-end',
-                    showConfirmButton: false,
-                    timer: 4000,
-                    icon: 'success',
-                    title: 'Photo attached! Click "Save Employee" below to upload.'
-                });
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    if (previewImg) {
+                        previewImg.src = e.target.result;
+                        previewImg.style.display = '';
+                    }
+                };
+                reader.readAsDataURL(blob);
+
+                if (video) video.style.display = 'none';
+                if (cameraControls) cameraControls.style.display = 'none';
+                if (previewControls) previewControls.style.display = '';
             });
         }
     </script>

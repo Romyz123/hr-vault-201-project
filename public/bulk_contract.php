@@ -574,11 +574,25 @@ $allDepts = $pdo->query("SELECT DISTINCT dept FROM employees WHERE dept != '' OR
                     });
 
                     const csrf = form.querySelector('[name="csrf_token"]').value;
+                    let attempts = 0;
+                    const maxAttempts = 300; // 5 minutes
                     const checkCookie = setInterval(() => {
+                        attempts++;
                         if (document.cookie.includes('downloadToken=' + csrf)) {
                             clearInterval(checkCookie);
                             Swal.close();
                             document.cookie = "downloadToken=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+                            return;
+                        }
+                        if (attempts >= maxAttempts) {
+                            clearInterval(checkCookie);
+                            Swal.close();
+                            document.cookie = "downloadToken=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+                            Swal.fire({
+                                icon: 'error',
+                                title: 'Timeout',
+                                text: 'The download did not start within a few minutes. Please try again or check your browser settings.'
+                            });
                         }
                     }, 1000);
 

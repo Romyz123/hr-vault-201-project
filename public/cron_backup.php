@@ -209,10 +209,9 @@ if ($success) {
                         }
                     }
 
-                    $relativePath = 'vault/' . substr($src, strlen($vaultPath) + 1);
+                    $relativePath = 'vault/' . str_replace(DIRECTORY_SEPARATOR, '/', substr($src, strlen($vaultPath) + 1));
                     $zip->addFile($src, $relativePath);
                     if ($zipPass) $zip->setEncryptionName($relativePath, ZipArchive::EM_AES_256, $zipPass);
-
                     $currentBytes += $fsize;
                     $syncCount++;
                 }

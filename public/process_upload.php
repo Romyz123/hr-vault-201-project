@@ -127,8 +127,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $val = $stmt->fetchColumn();
         if ($val !== false) $vaultLimitGB = (float)$val;
     } catch (Exception $e) {
+        error_log("Failed to fetch vault_size_limit_gb setting: " . $e->getMessage());
     }
-
     if ($vaultLimitGB > 0) {
         $currentVaultSize = 0;
         if (is_dir($vaultPath)) {
@@ -254,6 +254,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $successCount++;
             } catch (Exception $e) {
                 error_log("Upload DB error: " . $e->getMessage());
+                // Cleanup uploaded file if database insert fails
+                $vaultFile = $vaultPath . $storedName;
+                if (!empty($storedName) && file_exists($vaultFile)) {
+                    if (!@unlink($vaultFile)) {
+                        error_log("Failed to delete orphaned vault file: " . $vaultFile);
+                    }
+                }
                 $errors[] = "System Error: Unable to save document. Please try again.";
             }
         } else {

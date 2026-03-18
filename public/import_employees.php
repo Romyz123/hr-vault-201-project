@@ -121,18 +121,31 @@ function findDept($section, $map)
     return "SUBCONS-OTHERS";
 }
 
+// [FIX] Upgraded Date Parser to properly handle MS Forms (M/d/yyyy)
 function parseDate($dateStr)
 {
+    $dateStr = trim($dateStr);
     if (empty($dateStr)) return NULL;
-    $timestamp = strtotime($dateStr);
-    if ($timestamp === false || $timestamp < 0) {
-        // Excel dd/mm/yyyy fix
-        if (preg_match('/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/', $dateStr, $matches)) {
-            return $matches[3] . '-' . $matches[2] . '-' . $matches[1];
+
+    // Handle formats like M/D/YYYY or MM/DD/YYYY outputted by Forms
+    if (preg_match('/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/', $dateStr, $matches)) {
+        $p1 = (int)$matches[1];
+        $p2 = (int)$matches[2];
+        $y = $matches[3];
+
+        if ($p1 > 12) {
+            return sprintf('%04d-%02d-%02d', $y, $p2, $p1); // Must be DD/MM/YYYY
+        } elseif ($p2 > 12) {
+            return sprintf('%04d-%02d-%02d', $y, $p1, $p2); // Must be MM/DD/YYYY
+        } else {
+            // Ambiguous (e.g. 05/06/2024), favor US MM/DD/YYYY per user request
+            return sprintf('%04d-%02d-%02d', $y, $p1, $p2);
         }
-        return NULL;
     }
-    return date('Y-m-d', $timestamp);
+
+    $timestamp = strtotime($dateStr);
+    if ($timestamp !== false && $timestamp > 0) return date('Y-m-d', $timestamp);
+    return NULL;
 }
 
 // ======================================================
@@ -319,10 +332,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['undo_batch'])) {
         die("Invalid CSRF Token");
     }
 
-    $agency = $_POST['agency_select'] ?? '';
+    $format = $_POST['agency_select'] ?? '';
+    $target_agency = $_POST['target_agency'] ?? '';
 
-    if ($agency === "") {
-        $error = "Please select an Agency first.";
+    if ($format === "") {
+        $error = "Please select an Import Format first.";
+    } elseif ($format === 'CUSTOM' && empty($target_agency)) {
+        $error = "Please assign a Target Agency for your Custom Form import.";
     } elseif (!isset($_FILES['csv_file']) || $_FILES['csv_file']['error'] !== UPLOAD_ERR_OK) {
         $error = "File upload error. Please try again.";
     } else {
@@ -338,9 +354,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['undo_batch'])) {
                 // detect delimiter based on first line sample
                 $success_count = 0;
                 $updated_count = 0; // [NEW] Track updates
-                $firstLine = fgets($handle);
+                $firstChunk = fread($handle, 4096);
                 rewind($handle);
-                $delimiter = (substr_count($firstLine, ';') > substr_count($firstLine, ',')) ? ';' : ',';
+
+                $delimComma = substr_count($firstChunk, ',');
+                $delimSemi  = substr_count($firstChunk, ';');
+                $delimTab   = substr_count($firstChunk, "\t");
+
+                $delimiter = ',';
+                if ($delimSemi > $delimComma && $delimSemi > $delimTab) $delimiter = ';';
+                if ($delimTab > $delimComma && $delimTab > $delimSemi) $delimiter = "\t";
 
                 $batch_id = "BATCH_" . date('Ymd_His');
                 $success_count = 0;
@@ -356,9 +379,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['undo_batch'])) {
 
                     // DEFAULT VARIABLES
                     $emp_id = "";
-                    $first_name = ".";
+                    $first_name = "";
+                    $middle_name = "";
                     $last_name = "";
                     $section_raw = "";
+                    $dept_raw = "";
                     $contact_raw = "";
                     $birth_raw = "";
                     $hire_raw = "";
@@ -368,12 +393,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['undo_batch'])) {
                     $phil_raw = "";
                     $job_title = "Staff";
                     $email = "";
+                    $gender = "Male";
+                    $present_addr = "To be updated";
+                    $permanent_addr = "";
+                    $emg_name = "";
+                    $emg_contact = "";
+                    $emg_addr = "";
 
                     // ----------------------------------------------------
                     // SWITCH LOGIC: MAP COLUMNS BASED ON AGENCY
                     // ----------------------------------------------------
 
-                    if ($agency === 'JORATECH') {
+                    if ($format === 'JORATECH') {
                         // [JORATECH FORMAT]
                         // 0:NO | 1:SECTION | 2:POSITION | 3:HIRED | 4:NUM(Ignore) | 5:PIC(Ignore) | 6:NAME | 7:CODE | 8:CONTRACT
 
@@ -399,7 +430,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['undo_batch'])) {
                                 $first_name = '';
                             }
                         }
-                    } elseif ($agency === 'UNLISOLUTIONS') {
+                    } elseif ($format === 'UNLISOLUTIONS') {
                         // [UNLISOLUTIONS FORMAT]
                         $emp_id = trim($data[1] ?? '');
 
@@ -429,33 +460,74 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['undo_batch'])) {
                         $pagibig_raw = $data[11] ?? '';
                         $phil_raw    = $data[12] ?? '';
                         $email       = strtolower(trim($data[14] ?? ''));
-                    } elseif ($agency === 'CUSTOM') {
+                    } elseif ($format === 'CUSTOM') {
                         // [NEW] Dynamic Header Mapping
-                        $h = array_map('strtoupper', array_map('trim', $headerRow));
-                        $idx = function ($keys) use ($h) {
-                            foreach ($keys as $k) {
-                                $i = array_search($k, $h);
-                                if ($i !== false) return $i;
+                        $h = array_map(function ($val) {
+                            // Clean weird Excel BOM or invisible characters
+                            return strtoupper(trim(preg_replace('/[\x00-\x1F\x7F]/', '', $val)));
+                        }, $headerRow);
+
+                        $getVal = function ($keys) use ($h, $data) {
+                            $ignoreHeaders = ['ID', 'START TIME', 'COMPLETION TIME', 'EMAIL', 'NAME', 'LAST MODIFIED TIME'];
+                            foreach ($h as $index => $headerName) {
+                                if (in_array($headerName, $ignoreHeaders, true)) continue;
+                                // Automatically strip trailing numbers generated by MS Forms
+                                $cleanHeader = trim(preg_replace('/[0-9]+$/', '', $headerName));
+                                foreach ($keys as $k) {
+                                    // Soft match: Check if the required key is anywhere in the header
+                                    if (strpos($cleanHeader, strtoupper($k)) !== false && !empty(trim($data[$index] ?? ''))) {
+                                        return trim($data[$index]);
+                                    }
+                                }
                             }
-                            return -1;
+                            return '';
                         };
-                        $iID = $idx(['ID', 'EMP_ID', 'EMPLOYEE ID', 'CODE']);
-                        $iName = $idx(['NAME', 'FULL NAME', 'EMPLOYEE NAME']);
-                        $iPos = $idx(['POSITION', 'JOB TITLE', 'ROLE']);
-                        $iSec = $idx(['SECTION', 'DEPT', 'DEPARTMENT']);
-                        $iHired = $idx(['HIRED', 'DATE HIRED', 'JOIN DATE']);
 
-                        $emp_id = ($iID >= 0) ? trim($data[$iID] ?? '') : '';
-                        $job_title = ($iPos >= 0) ? ucwords(strtolower(trim($data[$iPos] ?? 'Staff'))) : 'Staff';
-                        $section_raw = ($iSec >= 0) ? ($data[$iSec] ?? '') : '';
-                        $hire_raw = ($iHired >= 0) ? ($data[$iHired] ?? '') : '';
+                        $emp_id         = $getVal(['EMPLOYEE ID NUMBER', 'EMPLOYEE ID', 'EMP_ID', 'CODE']);
+                        $first_name     = $getVal(['FIRST NAME']);
+                        $middle_name    = $getVal(['MIDDLE NAME']);
+                        $last_name      = $getVal(['LAST NAME']);
+                        $full_name      = $getVal(['FULL NAME', 'EMPLOYEE NAME']);
 
-                        if ($iName >= 0) {
-                            $full_name = trim($data[$iName] ?? '');
+                        $job_title      = $getVal(['POSITION / JOB TITLE', 'POSITION', 'JOB TITLE', 'ROLE']);
+                        if (empty($job_title)) $job_title = 'Staff'; // fallback
+
+                        $dept_raw       = $getVal(['DEPARTMENT', 'DEPT']);
+                        $section_raw    = $getVal(['SECTION']);
+                        $hire_raw       = $getVal(['DATE HIRED', 'HIRED', 'JOIN DATE']);
+                        $birth_raw      = $getVal(['DATE OF BIRTH', 'BIRTH DATE', 'BDAY']);
+                        $gender_raw     = $getVal(['GENDER', 'SEX']);
+                        $contact_raw    = $getVal(['MOBILE NUMBER', 'CONTACT NUMBER', 'PHONE']);
+                        $email          = strtolower($getVal(['PERSONAL EMAIL ADDRESS', 'EMAIL']));
+
+                        $present_addr   = $getVal(['COMPLETE PRESENT ADDRESS', 'PRESENT ADDRESS', 'ADDRESS']);
+                        if (empty($present_addr)) $present_addr = 'To be updated'; // fallback
+
+                        $permanent_addr = $getVal(['COMPLETE PERMANENT ADDRESS', 'PERMANENT ADDRESS']);
+                        $sss_raw        = $getVal(['SSS NUMBER', 'SSS']);
+                        $pagibig_raw    = $getVal(['PAG-IBIG (HDMF) NUMBER', 'PAG-IBIG', 'HDMF']);
+                        $phil_raw       = $getVal(['PHILHEALTH NUMBER', 'PHILHEALTH']);
+                        $tin_raw        = $getVal(['TIN (TAX IDENTIFICATION NUMBER)', 'TIN']);
+                        $emg_name       = ucwords(strtolower($getVal(['EMERGENCY CONTACT NAME', 'EMERGENCY CONTACT'])));
+                        $emg_contact    = $getVal(['EMERGENCY CONTACT NUMBER']);
+                        $emg_addr       = $getVal(['EMERGENCY CONTACT ADDRESS']);
+
+                        if (!empty($gender_raw)) {
+                            $g = strtolower($gender_raw);
+                            if ($g === 'woman' || $g === 'female') $gender = 'Female';
+                            elseif ($g === 'man' || $g === 'male') $gender = 'Male';
+                        }
+
+                        if (!empty($first_name) || !empty($last_name)) {
+                            $first_name = ucwords(strtolower($first_name));
+                            $last_name = ucwords(strtolower($last_name));
+                            $middle_name = ucwords(strtolower($middle_name));
+                        } else {
+                            $full_name = trim($full_name);
                             if (strpos($full_name, ',') !== false) {
                                 $parts = explode(',', $full_name);
                                 $last_name = ucwords(strtolower(trim($parts[0] ?? '')));
-                                $first_name = ucwords(strtolower(trim($parts[1] ?? $full_name)));
+                                $first_name = ucwords(strtolower(trim($parts[1] ?? '')));
                             } else {
                                 $words = preg_split('/\s+/', trim($full_name));
                                 if (count($words) > 1) {
@@ -498,23 +570,43 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['undo_batch'])) {
 
                     // --- PROCESSING ---
                     $section = strtoupper(trim($section_raw));
-                    $dept    = findDept($section, $deptMap);
+
+                    // [FIX] Favor Form Dept over Section Map if provided
+                    if (!empty($dept_raw)) {
+                        $dStr = strtoupper(trim($dept_raw));
+                        if (strpos($dStr, 'OP') !== false) $dept = 'OP';
+                        elseif (strpos($dStr, 'SUBCONS') !== false) $dept = 'SUBCONS-OTHERS';
+                        else $dept = array_key_exists($dStr, $deptMap) ? $dStr : (findDept($section, $deptMap) ?: $dStr);
+                    } else {
+                        $dept = findDept($section, $deptMap);
+                    }
 
                     $birth_date = parseDate(trim($birth_raw));
                     $hire_date  = parseDate(trim($hire_raw));
 
                     // [SECURITY] Enforce Limits & Whitelist (Match Add/Edit Rules)
                     $emp_id     = substr(preg_replace('/[^a-zA-Z0-9\-_]/', '', $emp_id), 0, 20);
+
+                    // [FIX] Auto-Generate Employee ID for New Hires if left blank in the CSV
+                    if ($emp_id === '') {
+                        $emp_id = "NEW-" . date('ym') . "-" . strtoupper(substr(bin2hex(random_bytes(2)), 0, 4));
+                    }
+
+                    // [FIX] Prevent Database Crashes if names are missing
+                    if (empty($first_name)) $first_name = "-";
+                    if (empty($last_name)) $last_name = "Unknown Applicant";
+
                     $first_name = substr(preg_replace('/[^a-zA-Z0-9\s\-\.\(\)]/', '', $first_name), 0, 50);
                     $last_name  = substr(preg_replace('/[^a-zA-Z0-9\s\-\.\(\)]/', '', $last_name), 0, 50);
                     $job_title  = substr(preg_replace('/[^a-zA-Z0-9\s\-\.\,\(\)]/', '', $job_title), 0, 50);
 
                     // Defaults
-                    $gender = "Male";
                     $photo  = "default.png";
                     $status = "Active";
-                    $address = "To be updated";
-                    $empType = ($agency === 'TESP') ? 'TESP Direct' : 'Agency';
+
+                    // Target Agency Assignment
+                    $actual_agency = ($format === 'CUSTOM') ? $target_agency : $format;
+                    $empType = ($actual_agency === 'TESP') ? 'TESP Direct' : 'Agency';
 
                     if ($emp_id != '') {
                         // [NEW] Check if ID exists
@@ -537,29 +629,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['undo_batch'])) {
 
                                 // UPDATE EXISTING RECORD, also tag with current batch
                                 $sql = "UPDATE employees SET 
-                                        first_name=?, last_name=?, dept=?, section=?, 
+                                        first_name=?, middle_name=?, last_name=?, dept=?, section=?, 
                                         employment_type=?, agency_name=?, job_title=?, 
-                                        birth_date=?, hire_date=?, contact_number=?, 
-                                        sss_no=?, tin_no=?, pagibig_no=?, philhealth_no=?, email=?,
+                                        gender=?, birth_date=?, hire_date=?, contact_number=?, 
+                                        present_address=?, permanent_address=?, sss_no=?, tin_no=?, pagibig_no=?, philhealth_no=?, email=?,
+                                        emergency_name=?, emergency_contact=?, emergency_address=?,
                                         import_batch=?, updated_at=NOW()
                                         WHERE id=?";
                                 $stmt = $pdo->prepare($sql);
                                 $stmt->execute([
                                     $first_name,
+                                    $middle_name,
                                     $last_name,
                                     $dept,
                                     $section,
                                     $empType,
-                                    $agency,
+                                    $actual_agency,
                                     $job_title,
+                                    $gender,
                                     $birth_date,
                                     $hire_date,
                                     trim($contact_raw),
+                                    $present_addr,
+                                    $permanent_addr,
                                     trim($sss_raw),
                                     trim($tin_raw),
                                     trim($pagibig_raw),
                                     trim($phil_raw),
                                     $email,
+                                    $emg_name,
+                                    $emg_contact,
+                                    $emg_addr,
                                     $batch_id,
                                     $existingId
                                 ]);
@@ -567,36 +667,42 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['undo_batch'])) {
                             } elseif (!$existingId) {
                                 // INSERT NEW RECORD
                                 $sql = "INSERT INTO employees 
-                                (emp_id, first_name, last_name, dept, section, 
+                                (emp_id, first_name, middle_name, last_name, dept, section, 
                                 employment_type, agency_name, job_title, status, 
                                 gender, birth_date, hire_date, contact_number, 
-                                present_address, avatar_path, import_batch,
-                                sss_no, tin_no, pagibig_no, philhealth_no, email) 
-                                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+                                present_address, permanent_address, avatar_path, import_batch,
+                                sss_no, tin_no, pagibig_no, philhealth_no, email,
+                                emergency_name, emergency_contact, emergency_address) 
+                                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
                                 $stmt = $pdo->prepare($sql);
                                 $stmt->execute([
                                     $emp_id,
                                     $first_name,
+                                    $middle_name,
                                     $last_name,
                                     $dept,
                                     $section,
                                     $empType,
-                                    $agency,
+                                    $actual_agency,
                                     $job_title,
                                     $status,
                                     $gender,
                                     $birth_date,
                                     $hire_date,
                                     trim($contact_raw),
-                                    $address,
+                                    $present_addr,
+                                    $permanent_addr,
                                     $photo,
                                     $batch_id,
                                     trim($sss_raw),
                                     trim($tin_raw),
                                     trim($pagibig_raw),
                                     trim($phil_raw),
-                                    $email
+                                    $email,
+                                    $emg_name,
+                                    $emg_contact,
+                                    $emg_addr
                                 ]);
                                 $success_count++;
                             }
@@ -614,7 +720,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['undo_batch'])) {
             }
 
             if ($success_count > 0 || $updated_count > 0) {
-                $logger->log($_SESSION['user_id'], 'IMPORT_SUCCESS', "Imported $success_count, Updated $updated_count ($agency)");
+                $logger->log($_SESSION['user_id'], 'IMPORT_SUCCESS', "Imported $success_count, Updated $updated_count (Format: $format)");
                 $msg = "✅ Success! Added $success_count new, Updated $updated_count existing employees.";
             } else {
                 $error = "No valid records found or all were duplicates.";
@@ -641,10 +747,29 @@ $history = $pdo->query("SELECT import_batch, agency_name, COUNT(*) as count, MAX
         .format-box {
             display: none;
         }
+
+        /* Custom scrollbar to make horizontal scrolling obvious and professional */
+        .table-responsive::-webkit-scrollbar {
+            height: 8px;
+        }
+
+        .table-responsive::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.05);
+            border-radius: 4px;
+        }
+
+        .table-responsive::-webkit-scrollbar-thumb {
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 4px;
+        }
+
+        .table-responsive::-webkit-scrollbar-thumb:hover {
+            background: rgba(0, 0, 0, 0.3);
+        }
     </style>
 </head>
 
-<body class="bg-light">
+<body class="bg-body-tertiary">
 
     <nav class="navbar navbar-dark bg-dark mb-4">
         <div class="container">
@@ -660,71 +785,205 @@ $history = $pdo->query("SELECT import_batch, agency_name, COUNT(*) as count, MAX
 
     <div class="container">
 
-        <div id="instr_tesp" class="alert alert-info shadow-sm mb-4 format-box" style="display:block;">
-            <h6 class="fw-bold">Standard Format (TESP / GUNJIN)</h6>
-            <div class="table-responsive">
-                <table class="table table-sm small table-bordered mb-0 bg-white">
-                    <tr>
-                        <th>NO</th>
-                        <th>ID</th>
-                        <th>PIC</th>
-                        <th>NAME</th>
-                        <th>SECTION</th>
-                        <th>CONTACT</th>
-                        <th>BDAY</th>
-                        <th>HIRED</th>
-                        <th>SSS</th>
-                    </tr>
+        <div id="instr_tesp" class="alert alert-info shadow-sm mb-4 format-box">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <h6 class="fw-bold mb-0">Standard Format (TESP / GUNJIN)</h6>
+                <a href="download_template.php?type=TESP" class="btn btn-sm btn-info fw-bold text-dark"><i class="bi bi-download"></i> Download Template</a>
+            </div>
+            <div class="table-responsive scroll-horizontal rounded border shadow-sm">
+                <table class="table table-sm small table-bordered mb-0" style="white-space: nowrap;">
+                    <thead class="table-light">
+                        <tr>
+                            <th>NO.</th>
+                            <th>EMPLOYEE CODE</th>
+                            <th>PICTURE</th>
+                            <th>NAME</th>
+                            <th>SECTION</th>
+                            <th>CONTACT DETAILS:</th>
+                            <th>BIRTHDAY</th>
+                            <th>DATE OF HIRED</th>
+                            <th>SSS</th>
+                            <th>TIN</th>
+                            <th>PAG-IBIG</th>
+                            <th>PHILHEALTH</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr class="text-muted fst-italic">
+                            <td>1</td>
+                            <td>TESP-001</td>
+                            <td></td>
+                            <td>Doe, John</td>
+                            <td>SQP</td>
+                            <td>09123456789</td>
+                            <td>1990-01-01</td>
+                            <td>2023-01-01</td>
+                            <td></td>
+                            <td></td>
+                            <td></td>
+                            <td></td>
+                        </tr>
+                    </tbody>
                 </table>
             </div>
         </div>
 
         <div id="instr_unli" class="alert alert-warning shadow-sm mb-4 format-box">
-            <h6 class="fw-bold">UnliSolutions Format</h6>
-            <div class="table-responsive">
-                <table class="table table-sm small table-bordered mb-0 bg-white">
-                    <tr>
-                        <th>NO</th>
-                        <th>ID</th>
-                        <th>PIC</th>
-                        <th>NAME</th>
-                        <th class="text-danger">POSITION</th>
-                        <th>SECTION</th>
-                        <th>...</th>
-                        <th class="text-danger">EMAIL</th>
-                    </tr>
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <h6 class="fw-bold mb-0">UnliSolutions Format</h6>
+                <a href="download_template.php?type=UNLISOLUTIONS" class="btn btn-sm btn-warning fw-bold text-dark"><i class="bi bi-download"></i> Download Template</a>
+            </div>
+            <div class="table-responsive scroll-horizontal rounded border shadow-sm">
+                <table class="table table-sm small table-bordered mb-0" style="white-space: nowrap;">
+                    <thead class="table-light">
+                        <tr>
+                            <th>NO</th>
+                            <th>ID</th>
+                            <th>PIC</th>
+                            <th>NAME</th>
+                            <th>POSITION</th>
+                            <th>SECTION</th>
+                            <th>CONTACT</th>
+                            <th>BDAY</th>
+                            <th>HIRED</th>
+                            <th>SSS</th>
+                            <th>TIN</th>
+                            <th>PAGIBIG</th>
+                            <th>PHILHEALTH</th>
+                            <th>ADDRESS</th>
+                            <th>EMAIL</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr class="text-muted fst-italic">
+                            <td>1</td>
+                            <td>UNLI-001</td>
+                            <td></td>
+                            <td>Doe, John</td>
+                            <td>Staff</td>
+                            <td>ADMIN</td>
+                            <td>09123456789</td>
+                            <td>1990-01-01</td>
+                            <td>2023-01-01</td>
+                            <td></td>
+                            <td></td>
+                            <td></td>
+                            <td></td>
+                            <td></td>
+                            <td>john@example.com</td>
+                        </tr>
+                    </tbody>
                 </table>
             </div>
         </div>
 
         <div id="instr_jora" class="alert alert-success shadow-sm mb-4 format-box">
-            <h6 class="fw-bold">Joratech Format (Special)</h6>
-            <div class="table-responsive">
-                <table class="table table-sm small table-bordered mb-0 bg-white">
-                    <tr>
-                        <th>NO</th>
-                        <th>SECTION</th>
-                        <th class="text-danger">POSITION</th>
-                        <th>HIRED</th>
-                        <th>NUM</th>
-                        <th>PIC</th>
-                        <th>NAME</th>
-                        <th class="text-danger">CODE</th>
-                    </tr>
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <h6 class="fw-bold mb-0">Joratech Format (Special)</h6>
+                <a href="download_template.php?type=JORATECH" class="btn btn-sm btn-success fw-bold text-white"><i class="bi bi-download"></i> Download Template</a>
+            </div>
+            <div class="table-responsive scroll-horizontal rounded border shadow-sm">
+                <table class="table table-sm small table-bordered mb-0" style="white-space: nowrap;">
+                    <thead class="table-light">
+                        <tr>
+                            <th>NO</th>
+                            <th>SECTION</th>
+                            <th>POSITION</th>
+                            <th>DATE HIRED</th>
+                            <th>NUM</th>
+                            <th>PIC</th>
+                            <th>NAME</th>
+                            <th>CODE</th>
+                            <th>CONTRACT</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr class="text-muted fst-italic">
+                            <td>1</td>
+                            <td>MAINTENANCE</td>
+                            <td>Technician</td>
+                            <td>2023-01-15</td>
+                            <td></td>
+                            <td></td>
+                            <td>Doe, John</td>
+                            <td>JOR-001</td>
+                            <td>Project</td>
+                        </tr>
+                    </tbody>
                 </table>
             </div>
         </div>
 
         <div id="instr_custom" class="alert alert-secondary shadow-sm mb-4 format-box">
-            <h6 class="fw-bold">Custom Format (Auto-Detect)</h6>
-            <p class="small mb-2">The system will look for these headers in your CSV (Row 1):</p>
-            <ul class="small mb-0">
-                <li><strong>ID:</strong> ID, EMP_ID, CODE</li>
-                <li><strong>Name:</strong> NAME, FULL NAME (Format: Last, First)</li>
-                <li><strong>Position:</strong> POSITION, JOB TITLE</li>
-                <li><strong>Section:</strong> SECTION, DEPT</li>
-                <li><strong>Hired:</strong> HIRED, DATE HIRED</li>
-            </ul>
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <h6 class="fw-bold mb-0">Custom Format (Microsoft/Google Forms)</h6>
+                <a href="download_template.php?type=CUSTOM" class="btn btn-sm btn-dark fw-bold text-white"><i class="bi bi-file-earmark-excel"></i> Download Excel Template</a>
+            </div>
+            <p class="small mb-2">The system will perfectly map 22 fields. Ensure these standard headers are present in Row 1:</p>
+            <div class="table-responsive scroll-horizontal rounded border shadow-sm pb-1">
+                <table class="table table-sm small table-bordered mb-0" style="white-space: nowrap;">
+                    <thead class="table-secondary text-center align-middle">
+                        <tr class="table-dark text-white">
+                            <th colspan="4">Employee Name</th>
+                            <th colspan="3">Demographics</th>
+                            <th colspan="4">Contact & Address</th>
+                            <th colspan="4">Government IDs</th>
+                            <th colspan="3">Emergency Contact</th>
+                            <th colspan="4">Job Details</th>
+                        </tr>
+                        <tr>
+                            <th>First Name</th>
+                            <th>Middle Name</th>
+                            <th>Last Name</th>
+                            <th>Suffix</th>
+                            <th>Date of Birth</th>
+                            <th>Gender</th>
+                            <th>Civil Status</th>
+                            <th>Mobile Number</th>
+                            <th>Personal Email Address</th>
+                            <th>Complete Present Address</th>
+                            <th>Complete Permanent Address</th>
+                            <th>SSS Number</th>
+                            <th>Pag-IBIG (HDMF) Number</th>
+                            <th>PhilHealth Number</th>
+                            <th>TIN (Tax Identification Number)</th>
+                            <th>Emergency Contact Name</th>
+                            <th>Emergency Contact Number</th>
+                            <th>Emergency Contact Address</th>
+                            <th>Employee ID Number</th>
+                            <th>Department</th>
+                            <th>Position / Job Title</th>
+                            <th>Date Hired</th>
+                        </tr>
+                    </thead>
+                    <tbody class="text-center">
+                        <tr class="text-muted fst-italic">
+                            <td>Juan</td>
+                            <td>Dela</td>
+                            <td>Cruz</td>
+                            <td></td>
+                            <td>1/15/1990</td>
+                            <td>Man</td>
+                            <td>Single</td>
+                            <td>09123456789</td>
+                            <td>juan.delacruz@example.com</td>
+                            <td>123 Main St, Quezon City</td>
+                            <td>Same as present</td>
+                            <td>12-3456789-0</td>
+                            <td>1234-5678-9012</td>
+                            <td>12-345678901-2</td>
+                            <td>123-456-789-000</td>
+                            <td>Maria Cruz</td>
+                            <td>09987654321</td>
+                            <td>123 Main St, Quezon City</td>
+                            <td>CUST-001</td>
+                            <td>ADMIN</td>
+                            <td>Staff</td>
+                            <td>5/1/2024</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
         </div>
 
         <div class="card shadow mb-4">
@@ -737,9 +996,9 @@ $history = $pdo->query("SELECT import_batch, agency_name, COUNT(*) as count, MAX
                     <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
                     <div class="row g-3">
                         <div class="col-md-6">
-                            <label class="form-label fw-bold">Select Agency</label>
+                            <label class="form-label fw-bold">Select Import Format</label>
                             <select name="agency_select" id="agency_select" class="form-select border-success" onchange="toggleFormat()" required>
-                                <option value="">-- Choose Agency --</option>
+                                <option value="">-- Choose Format --</option>
                                 <option value="TESP">TESP Direct</option>
                                 <option value="UNLISOLUTIONS">UnliSolutions</option>
                                 <option value="JORATECH">Joratech</option>
@@ -748,6 +1007,20 @@ $history = $pdo->query("SELECT import_batch, agency_name, COUNT(*) as count, MAX
                                 <option value="CUSTOM">Custom (Detect Headers)</option>
                             </select>
                         </div>
+
+                        <div class="col-md-6" id="target_agency_container" style="display:none;">
+                            <label class="form-label fw-bold text-primary">Assign to Agency <span class="text-danger">*</span></label>
+                            <select name="target_agency" id="target_agency" class="form-select border-primary">
+                                <option value="">-- Select Agency --</option>
+                                <option value="TESP">TESP Direct</option>
+                                <option value="UNLISOLUTIONS">UnliSolutions</option>
+                                <option value="JORATECH">Joratech</option>
+                                <option value="GUNJIN">Gunjin</option>
+                                <option value="OTHERS - SUBCONS">Others / Subcons</option>
+                            </select>
+                            <div class="form-text small">Since you are using a custom form, please specify which agency these employees belong to.</div>
+                        </div>
+
                         <div class="col-md-6">
                             <label class="form-label fw-bold">Upload CSV</label>
                             <input type="file" name="csv_file" class="form-control" accept=".csv" required>
@@ -829,17 +1102,30 @@ $history = $pdo->query("SELECT import_batch, agency_name, COUNT(*) as count, MAX
 
     <script>
         function toggleFormat() {
-            const agency = document.getElementById('agency_select').value;
+            const format = document.getElementById('agency_select').value;
+            const targetAgencyBox = document.getElementById('target_agency_container');
+            const targetAgencySelect = document.getElementById('target_agency');
+
             document.querySelectorAll('.format-box').forEach(el => el.style.display = 'none');
 
-            if (agency === 'JORATECH') {
+            if (format === 'JORATECH') {
                 document.getElementById('instr_jora').style.display = 'block';
-            } else if (agency === 'UNLISOLUTIONS') {
+            } else if (format === 'UNLISOLUTIONS') {
                 document.getElementById('instr_unli').style.display = 'block';
-            } else if (agency === 'CUSTOM') {
+            } else if (format === 'CUSTOM') {
                 document.getElementById('instr_custom').style.display = 'block';
-            } else {
+            } else if (format !== '') {
                 document.getElementById('instr_tesp').style.display = 'block';
+            }
+
+            // [NEW] Toggle the secondary Agency selector if Custom Form is chosen
+            if (format === 'CUSTOM') {
+                targetAgencyBox.style.display = 'block';
+                targetAgencySelect.required = true;
+            } else {
+                targetAgencyBox.style.display = 'none';
+                targetAgencySelect.required = false;
+                targetAgencySelect.value = '';
             }
         }
 
@@ -847,7 +1133,8 @@ $history = $pdo->query("SELECT import_batch, agency_name, COUNT(*) as count, MAX
         document.getElementById('importForm').addEventListener('submit', function(e) {
             e.preventDefault();
             const form = this;
-            const agency = document.getElementById('agency_select').value;
+            const selectEl = document.getElementById('agency_select');
+            const formatText = selectEl.options[selectEl.selectedIndex].text;
             const fileInput = document.querySelector('input[name="csv_file"]');
             const file = fileInput.files[0];
 
@@ -856,40 +1143,82 @@ $history = $pdo->query("SELECT import_batch, agency_name, COUNT(*) as count, MAX
                 return;
             }
 
-            // Read first 10KB for preview (avoids freezing on large files)
             const reader = new FileReader();
-            const blob = file.slice(0, 1024 * 10);
+            const blob = file; // Read entire file to show all rows
 
             reader.onload = function(e) {
-                const text = e.target.result;
-                const rows = text.split(/\r\n|\n/).filter(r => r.trim() !== '');
-                const previewRows = rows.slice(0, 6); // Header + 5 Data
+                let text = e.target.result;
 
-                let tableHtml = '<div class="table-responsive" style="max-height:300px; text-align:left;"><table class="table table-sm table-bordered table-striped" style="font-size:0.75rem;">';
+                // [FIX] Neutralize newlines inside quoted strings so the table doesn't break!
+                let inQuote = false;
+                let cleanText = "";
+                for (let i = 0; i < text.length; i++) {
+                    let char = text[i];
+                    if (char === '"') inQuote = !inQuote;
+                    if (inQuote && (char === '\n' || char === '\r')) {
+                        cleanText += ' ';
+                    } else {
+                        cleanText += char;
+                    }
+                }
+
+                const rows = cleanText.split(/\r\n|\n|\r/).filter(r => r.trim() !== '');
+                const previewRows = rows; // Show all rows
+                const employeeCount = Math.max(0, rows.length - 1); // Exclude header row
+
+                let tableHtml = '<div class="scroll-horizontal scroll-vertical" style="text-align:left;"><table class="table table-sm table-bordered table-striped" style="font-size:0.75rem; white-space: nowrap;">';
+
+                const firstLine = rows[0] || '';
+                const delimComma = (firstLine.match(/,/g) || []).length;
+                const delimSemi = (firstLine.match(/;/g) || []).length;
+                const delimTab = (firstLine.match(/\t/g) || []).length;
+
+                let delimiter = ',';
+                if (delimSemi > delimComma && delimSemi > delimTab) delimiter = ';';
+                if (delimTab > delimComma && delimTab > delimSemi) delimiter = '\t';
+
+                const splitRegex = (delimiter === '\t') ? /\t/ : new RegExp(`${delimiter}(?=(?:(?:[^"]*"){2})*[^"]*$)`);
 
                 previewRows.forEach((row, index) => {
-                    // Split CSV by comma (ignoring commas inside quotes)
-                    const cols = row.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/);
+                    const cols = row.split(splitRegex);
                     tableHtml += '<tr>';
                     cols.forEach(col => {
                         let clean = col.trim().replace(/^"|"$/g, ''); // Remove quotes
-                        tableHtml += (index === 0) ? `<th class="bg-light">${clean}</th>` : `<td>${clean}</td>`;
+                        tableHtml += (index === 0) ? `<th class="table-secondary sticky-top" style="z-index: 1;">${clean}</th>` : `<td>${clean}</td>`;
                     });
                     tableHtml += '</tr>';
                 });
                 tableHtml += '</table></div>';
-                if (rows.length > 6) tableHtml += `<div class="text-muted small mt-1 text-center">... and more rows</div>`;
 
                 Swal.fire({
                     title: 'Confirm Import',
-                    html: `<p>Importing into <strong>${agency}</strong>. Check the preview below:</p>${tableHtml}`,
+                    html: `<p>Importing via <strong>${formatText}</strong>. Check the preview below:</p>${tableHtml}<div class="alert alert-success mt-3 py-2 fw-bold text-center border-success"><i class="bi bi-people-fill"></i> Total Employees to Import: ${employeeCount}</div>`,
                     icon: 'info',
                     width: '800px',
                     showCancelButton: true,
                     confirmButtonColor: '#198754',
                     confirmButtonText: 'Yes, Import Data'
                 }).then((result) => {
-                    if (result.isConfirmed) form.submit();
+                    if (result.isConfirmed) {
+                        // Disable button and show spinner
+                        const submitBtn = form.querySelector('button[type="submit"]');
+                        if (submitBtn) {
+                            submitBtn.disabled = true;
+                            submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span> Processing...';
+                        }
+                        // Show un-closable loading alert
+                        Swal.fire({
+                            title: 'Importing Data...',
+                            html: 'Please wait while we process the records.<br><br><span class="text-danger fw-bold small">Do not close or refresh this window!</span>',
+                            allowOutsideClick: false,
+                            allowEscapeKey: false,
+                            showConfirmButton: false,
+                            didOpen: () => {
+                                Swal.showLoading();
+                            }
+                        });
+                        form.submit();
+                    }
                 });
             };
 
@@ -906,6 +1235,16 @@ $history = $pdo->query("SELECT import_batch, agency_name, COUNT(*) as count, MAX
                 confirmButtonText: 'Yes, delete it!'
             }).then((result) => {
                 if (result.isConfirmed) {
+                    Swal.fire({
+                        title: 'Reverting Import...',
+                        html: 'Please wait while we remove the records.<br><br><span class="text-danger fw-bold small">Do not close or refresh this window!</span>',
+                        allowOutsideClick: false,
+                        allowEscapeKey: false,
+                        showConfirmButton: false,
+                        didOpen: () => {
+                            Swal.showLoading();
+                        }
+                    });
                     btn.form.submit();
                 }
             });

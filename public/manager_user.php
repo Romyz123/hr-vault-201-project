@@ -513,12 +513,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $files = scandir($backupDir);
         foreach ($files as $f) {
             if ($f === $baseName || strpos($f, $baseName . '_Part') === 0) {
-                if (in_array(pathinfo($f, PATHINFO_EXTENSION), ['zip', 'sql'])) {
+                if (in_array(strtolower(pathinfo($f, PATHINFO_EXTENSION)), ['zip', 'sql'])) {
                     $partsToRestore[] = $backupDir . $f;
                 }
             }
         }
-
         if (empty($partsToRestore)) {
             $alertType = 'error';
             $alertMsg = "❌ Restore Failed: Backup files not found.";
@@ -532,6 +531,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ignore_user_abort(true); // [CRITICAL] Continue background restore even if Chrome times out
             $pdo->setAttribute(PDO::ATTR_EMULATE_PREPARES, true);
             $pdo->exec("SET FOREIGN_KEY_CHECKS = 0");
+            $pdo->beginTransaction();
 
             $bkPass = $pdo->query("SELECT setting_value FROM system_settings WHERE setting_key = 'backup_password'")->fetchColumn();
 
@@ -561,38 +561,90 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
 
                 if ($stream) {
+                    // [PARSE] Use a small state machine to avoid stripping comment markers inside quoted strings.
                     $query = '';
                     $inBlockComment = false;
-                    while (($line = fgets($stream)) !== false) {
-                        $trimLine = trim($line);
+                    $inSingleQuote = false;
+                    $inDoubleQuote = false;
 
-                        if ($inBlockComment) {
-                            $endPos = strpos($trimLine, '*/');
-                            if ($endPos !== false) {
-                                $trimLine = trim(substr($trimLine, $endPos + 2));
-                                $inBlockComment = false;
-                                if ($trimLine === '') continue;
-                            } else {
+                    while (($line = fgets($stream)) !== false) {
+                        $len = strlen($line);
+                        $cleanLine = '';
+
+                        for ($i = 0; $i < $len; $i++) {
+                            $ch = $line[$i];
+                            $next = $line[$i + 1] ?? '';
+
+                            if ($inBlockComment) {
+                                if ($ch === '*' && $next === '/') {
+                                    $inBlockComment = false;
+                                    $i++;
+                                }
                                 continue;
                             }
-                        }
 
-                        $startPos = strpos($trimLine, '/*');
-                        if ($startPos !== false) {
-                            $endPos = strpos($trimLine, '*/', $startPos + 2);
-                            if ($endPos !== false) {
-                                // Remove inline block comment
-                                $trimLine = trim(substr($trimLine, 0, $startPos) . ' ' . substr($trimLine, $endPos + 2));
-                                if ($trimLine === '') continue;
-                            } else {
-                                // Start of block comment; ignore rest of line
-                                $trimLine = trim(substr($trimLine, 0, $startPos));
-                                $inBlockComment = true;
-                                if ($trimLine === '') continue;
+                            if ($inSingleQuote) {
+                                if ($ch === "\\") {
+                                    $cleanLine .= $ch;
+                                    if (isset($line[$i + 1])) {
+                                        $cleanLine .= $line[++$i];
+                                    }
+                                    continue;
+                                }
+                                if ($ch === "'") {
+                                    $inSingleQuote = false;
+                                }
+                                $cleanLine .= $ch;
+                                continue;
                             }
+
+                            if ($inDoubleQuote) {
+                                if ($ch === "\\") {
+                                    $cleanLine .= $ch;
+                                    if (isset($line[$i + 1])) {
+                                        $cleanLine .= $line[++$i];
+                                    }
+                                    continue;
+                                }
+                                if ($ch === '"') {
+                                    $inDoubleQuote = false;
+                                }
+                                $cleanLine .= $ch;
+                                continue;
+                            }
+
+                            if ($ch === '-' && $next === '-') {
+                                $after = $line[$i + 2] ?? '';
+                                if ($after === '' || ctype_space($after)) {
+                                    break;
+                                }
+                            }
+
+                            if ($ch === '/' && $next === '*') {
+                                $inBlockComment = true;
+                                $i++;
+                                continue;
+                            }
+
+                            if ($ch === "'") {
+                                $inSingleQuote = true;
+                                $cleanLine .= $ch;
+                                continue;
+                            }
+
+                            if ($ch === '"') {
+                                $inDoubleQuote = true;
+                                $cleanLine .= $ch;
+                                continue;
+                            }
+
+                            $cleanLine .= $ch;
                         }
 
-                        if (empty($trimLine) || strpos($trimLine, '--') === 0) continue;
+                        $trimLine = trim($cleanLine);
+                        if ($trimLine === '') {
+                            continue;
+                        }
 
                         $query .= $trimLine . "\n";
                         if (substr($trimLine, -1) === ';') {
@@ -600,6 +652,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             $query = '';
                         }
                     }
+
                     fclose($stream);
                     if ($zip) $zip->close();
                 } else {
@@ -609,6 +662,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
             $pdo->exec("SET FOREIGN_KEY_CHECKS = 1");
+            if ($pdo->inTransaction()) {
+                $pdo->commit();
+            }
             $pdo->setAttribute(PDO::ATTR_EMULATE_PREPARES, false);
 
             $logger->log($_SESSION['user_id'], 'DB_RESTORE', "Restored from server backup: $baseName (" . count($partsToRestore) . " parts)");
@@ -620,6 +676,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 @mail($adminUser['email'], "System Restore Complete", "The background database restore process from server backup '$baseName' has successfully completed.");
             }
         } catch (Exception $e) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
             $pdo->exec("SET FOREIGN_KEY_CHECKS = 1");
             $alertType = 'error';
             $alertMsg = "❌ Restore Failed: " . $e->getMessage();
@@ -652,11 +711,10 @@ if (is_dir($backupDir)) {
         if (in_array($ext, ['sql', 'zip'])) {
             $baseName = $f;
             $isMultiPart = false;
-            if (preg_match('/^(.+)_Part\d+\.zip$/', $f, $matches)) {
+            if (preg_match('/^(.+)_Part\d+\.(zip|sql)$/i', $f, $matches)) {
                 $baseName = $matches[1];
                 $isMultiPart = true;
             }
-
             if (!isset($groupedBackups[$baseName])) {
                 $groupedBackups[$baseName] = [
                     'base_name' => $baseName,
@@ -730,649 +788,650 @@ $bkMaxSize = $pdo->query("SELECT setting_value FROM system_settings WHERE settin
             <div class="col-12">
                 <div class="card border-danger shadow-sm">
                     <div class="card-header bg-danger text-white d-flex justify-content-between align-items-center">
-                        <span class="fw-bold"><i class="bi bi-shield-exclamation"></i> Disaster Recovery Zone</span>
-                        <span class="fw-bold"><i class="bi bi-shield-exclamation"></i> <i class="bi bi-eye-fill"></i> Disaster Recovery Zone</span>
-                        <div>
-                            <button class="btn btn-sm btn-outline-light me-2" data-bs-toggle="modal" data-bs-target="#restoreHelpModal"><i class="bi bi-question-circle"></i> How to Restore</button>
-                            <small class="bg-white text-danger px-2 rounded fw-bold">ADMIN ONLY</small>
-                        </div>
-                    </div>
-                    <div class="card-body d-flex justify-content-between align-items-center">
-                        <div class="w-50">
-                            <h5 class="card-title text-danger fw-bold">Database Backup</h5>
-                            <p class="card-text text-muted mb-0">
-                                Download a full SQL dump. Use this to restore data if the server crashes.
-                            </p>
-                        </div>
-                        <div class="d-flex gap-2">
-                            <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#downloadBackupModal">
-                                <i class="bi bi-database-down"></i> Download Backup
-                            </button>
-                            <button type="button" class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#serverBackupModal">
-                                <i class="bi bi-hdd-network"></i> Save to Server
-                            </button>
-                            <a href="system_recovery.php" class="btn btn-outline-dark">
-                                <i class="bi bi-tools"></i> Recovery Console
-                            </a>
-
-                            <form method="POST" enctype="multipart/form-data" class="d-flex align-items-center gap-2 border-start ps-3">
-                                <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
+                        <div class="card-header bg-danger text-white d-flex justify-content-between align-items-center">
+                            <span class="fw-bold"><i class="bi bi-shield-exclamation"></i> <i class="bi bi-eye-fill"></i> Disaster Recovery Zone</span>
+                            <div>
                                 <div>
-                                    <label class="form-label small fw-bold text-muted mb-0">Restore SQL</label>
-                                    <input type="file" name="restore_sql[]" class="form-control form-control-sm" accept=".sql,.zip" multiple required title="You can select multiple parts at once.">
+                                    <button class="btn btn-sm btn-outline-light me-2" data-bs-toggle="modal" data-bs-target="#restoreHelpModal"><i class="bi bi-question-circle"></i> How to Restore</button>
+                                    <small class="bg-white text-danger px-2 rounded fw-bold">ADMIN ONLY</small>
                                 </div>
-                                <div class="input-group input-group-sm mt-2 w-100">
-                                    <input type="password" name="admin_password" id="restoreAdminPass" class="form-control" placeholder="Confirm Admin Password" required maxlength="128" title="Enter your admin password to confirm">
-                                    <button class="btn btn-outline-secondary bg-white" type="button" onclick="togglePass('restoreAdminPass')"><i class="bi bi-eye"></i></button>
+                            </div>
+                            <div class="card-body d-flex justify-content-between align-items-center">
+                                <div class="w-50">
+                                    <h5 class="card-title text-danger fw-bold">Database Backup</h5>
+                                    <p class="card-text text-muted mb-0">
+                                        Download a full SQL dump. Use this to restore data if the server crashes.
+                                    </p>
                                 </div>
-                                <button type="submit" class="btn btn-danger btn-sm mt-2 w-100" onclick="confirmRestore(event)"><i class="bi bi-upload"></i> Restore</button>
-                            </form>
+                                <div class="d-flex gap-2">
+                                    <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#downloadBackupModal">
+                                        <i class="bi bi-database-down"></i> Download Backup
+                                    </button>
+                                    <button type="button" class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#serverBackupModal">
+                                        <i class="bi bi-hdd-network"></i> Save to Server
+                                    </button>
+                                    <a href="system_recovery.php" class="btn btn-outline-dark">
+                                        <i class="bi bi-tools"></i> Recovery Console
+                                    </a>
+
+                                    <form method="POST" enctype="multipart/form-data" class="d-flex align-items-center gap-2 border-start ps-3">
+                                        <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
+                                        <div>
+                                            <label class="form-label small fw-bold text-muted mb-0">Restore SQL</label>
+                                            <input type="file" name="restore_sql[]" class="form-control form-control-sm" accept=".sql,.zip" multiple required title="You can select multiple parts at once.">
+                                        </div>
+                                        <div class="input-group input-group-sm mt-2 w-100">
+                                            <input type="password" name="admin_password" id="restoreAdminPass" class="form-control" placeholder="Confirm Admin Password" required maxlength="128" title="Enter your admin password to confirm">
+                                            <button class="btn btn-outline-secondary bg-white" type="button" onclick="togglePass('restoreAdminPass')"><i class="bi bi-eye"></i></button>
+                                        </div>
+                                        <button type="submit" class="btn btn-danger btn-sm mt-2 w-100" onclick="confirmRestore(event)"><i class="bi bi-upload"></i> Restore</button>
+                                    </form>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
-            </div>
-        </div>
 
-        <!-- AUTO-BACKUPS LIST -->
-        <?php if (!empty($serverBackups)): ?>
-            <div class="row mb-4">
-                <div class="col-12">
-                    <div class="card shadow-sm">
-                        <div class="card-header bg-secondary text-white">
-                            <h5 class="mb-0"><i class="bi bi-clock-history"></i> <i class="bi bi-eye-fill"></i> Available Auto-Backups (Server)</h5>
-                        </div>
-                        <div class="card-body p-0 table-responsive">
-                            <table class="table table-hover mb-0">
-                                <thead>
-                                    <tr>
-                                        <th>Filename</th>
-                                        <th>Date Created</th>
-                                        <th>Size</th>
-                                        <th>Action</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <?php foreach ($serverBackups as $b): ?>
-                                        <tr id="row-<?php echo htmlspecialchars(str_replace('.', '-', $b['base_name'])); ?>">
-                                            <td>
-                                                <?php echo htmlspecialchars($b['display_name']); ?>
-                                                <?php if ($b['part_count'] > 1): ?>
-                                                    <span class="badge bg-info text-dark ms-2"><?php echo $b['part_count']; ?> Parts</span>
-                                                <?php endif; ?>
-                                            </td>
-                                            <td><?php echo $b['date']; ?></td>
-                                            <td><?php echo $b['size']; ?></td>
-                                            <td>
-                                                <button type="button" class="btn btn-sm btn-info text-white fw-bold mb-1 w-100" onclick="viewBackupDetails('<?php echo htmlspecialchars($b['base_name'], ENT_QUOTES, 'UTF-8'); ?>', '<?php echo htmlspecialchars($b['display_name'], ENT_QUOTES, 'UTF-8'); ?>')">
-                                                    <i class="bi bi-search"></i> View Contents
-                                                </button>
-                                                <form method="POST" onsubmit="confirmServerRestore(event, <?php echo htmlspecialchars(json_encode('Restore from ' . $b['display_name'] . '? Current data will be replaced.'), ENT_QUOTES, 'UTF-8'); ?>)">
-                                                    <input type="hidden" name="action" value="restore_local">
-                                                    <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
-                                                    <input type="hidden" name="base_name" value="<?php echo htmlspecialchars($b['base_name']); ?>">
-                                                    <div class="input-group input-group-sm mb-1" style="width: 160px;">
-                                                        <input type="password" name="admin_password" id="serverPass_<?php echo htmlspecialchars(str_replace('.', '-', $b['base_name'])); ?>" class="form-control" placeholder="Admin Password" required maxlength="128" title="Enter your admin password to confirm">
-                                                        <button class="btn btn-outline-secondary bg-white" type="button" onclick="togglePass('serverPass_<?php echo htmlspecialchars(str_replace('.', '-', $b['base_name'])); ?>')"><i class="bi bi-eye"></i></button>
-                                                    </div>
-                                                    <button type="submit" class="btn btn-sm btn-warning fw-bold w-100">Restore This</button>
-                                                </form>
-                                            </td>
-                                        </tr>
-                                    <?php endforeach; ?>
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        <?php endif; ?>
-
-        <!-- MODALS FOR BACKUP -->
-        <div class="modal fade" id="downloadBackupModal" tabindex="-1">
-            <div class="modal-dialog">
-                <form action="backup.php" method="POST" class="modal-content" onsubmit="showBackupLoader(this)">
-                    <div class="modal-header">
-                        <h5 class="modal-title">Download Database Backup</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                    </div>
-                    <div class="modal-body">
-                        <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
-                        <div class="form-check mb-3">
-                            <input class="form-check-input" type="checkbox" name="include_vault" value="1" id="dlVault" <?php echo $vaultChecked; ?>>
-                            <label class="form-check-label fw-bold" for="dlVault">Include Vault Files (Images/PDFs)</label>
-                            <div class="alert alert-warning small mb-0 mt-2 border-warning">
-                                <i class="bi bi-info-circle-fill"></i> <strong>Massive Data Reminder:</strong> If your backup exceeds the <strong><?php echo htmlspecialchars($bkMaxSize); ?> GB</strong> limit, the system will automatically split it into multiple volumes (Part 1, Part 2, etc.) and download them consecutively.
-                            </div>
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label">Password (Optional)</label>
-                            <div class="input-group">
-                                <input type="password" name="backup_password" id="dlBackupPass" class="form-control" placeholder="Leave blank for unencrypted SQL" maxlength="50" autocomplete="new-password">
-                                <button class="btn btn-outline-secondary" type="button" onclick="togglePass('dlBackupPass')"><i class="bi bi-eye"></i></button>
-                            </div>
-                            <div class="form-text">Creates a password-protected ZIP file.</div>
-                        </div>
-                    </div>
-                    <div class="modal-footer"><button type="submit" class="btn btn-primary">Download</button></div>
-                </form>
-            </div>
-        </div>
-        <div class="modal fade" id="serverBackupModal" tabindex="-1">
-            <div class="modal-dialog">
-                <form action="backup.php?mode=server" method="POST" class="modal-content" onsubmit="showBackupLoader(this)">
-                    <div class="modal-header">
-                        <h5 class="modal-title">Save Backup to Server</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                    </div>
-                    <div class="modal-body">
-                        <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
-                        <p>This will save a backup to the configured server paths. This is recommended for automated recovery.</p>
-                        <div class="form-check mb-3">
-                            <input class="form-check-input" type="checkbox" name="include_vault" value="1" id="svVault" <?php echo $vaultChecked; ?>>
-                            <label class="form-check-label fw-bold" for="svVault">Include Vault Files (Images/PDFs)</label>
-                            <div class="form-text text-muted mt-1" style="font-size: 0.75rem;">
-                                <i class="bi bi-info-circle"></i> Note: When saving to the server, Vault files are mirrored, not zipped.
-                            </div>
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label">Password (Optional)</label>
-                            <div class="input-group">
-                                <input type="password" name="backup_password" id="svBackupPass" class="form-control" placeholder="Leave blank for unencrypted SQL" maxlength="50" autocomplete="new-password">
-                                <button class="btn btn-outline-secondary" type="button" onclick="togglePass('svBackupPass')"><i class="bi bi-eye"></i></button>
-                            </div>
-                            <div class="form-text">Creates a password-protected ZIP file on the server. <strong>Note:</strong> This may complicate automated restores.</div>
-                        </div>
-                    </div>
-                    <div class="modal-footer"><button type="submit" class="btn btn-danger">Save to Server</button></div>
-                </form>
-            </div>
-        </div>
-
-        <!-- RESTORE HELP MODAL -->
-        <div class="modal fade" id="restoreHelpModal" tabindex="-1">
-            <div class="modal-dialog">
-                <div class="modal-content">
-                    <div class="modal-header bg-info text-white">
-                        <h5 class="modal-title"><i class="bi bi-life-preserver"></i> Restoration Guide</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                    </div>
-                    <div class="modal-body">
-                        <h6 class="fw-bold text-primary">Option 1: Database Restore (Automatic)</h6>
-                        <p class="small text-muted">Use this to roll back data changes (e.g. accidental deletion).</p>
-                        <ol class="small">
-                            <li>Locate a backup in the <strong>Available Auto-Backups</strong> list.</li>
-                            <li>Click the <strong>Restore This</strong> button.</li>
-                            <li>Enter your Admin Password to confirm.</li>
-                        </ol>
-                        <hr>
-                        <h6 class="fw-bold text-danger">Option 2: Full System Recovery (Manual)</h6>
-                        <p class="small text-muted">Use this if the server crashed or you moved to a new PC.</p>
-                        <ol class="small">
-                            <li><strong>Database:</strong> Upload your <code>.zip</code> or <code>.sql</code> backup file using the "Restore SQL" form on this page. This restores employee records.</li>
-                            <li><strong>Documents (Vault):</strong>
-                                <ul>
-                                    <li>Open your Backup ZIP file.</li>
-                                    <li>Extract the <code>vault</code> folder.</li>
-                                    <li>Copy it to your server folder: <code>C:\xampp\htdocs\hr 201\vault\</code></li>
-                                </ul>
-                            </li>
-                            <li><strong>Encryption Key:</strong> Ensure <code>src/FileService.php</code> is restored if lost, as it contains the secret key.</li>
-                        </ol>
-                    </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="row">
-            <div class="col-md-4">
-                <div class="card shadow-sm mb-4">
-                    <div class="card-header bg-primary text-white">
-                        <h5 class="mb-0"><i class="bi bi-person-plus-fill"></i> Add New User</h5>
-                    </div>
-                    <div class="card-body">
-                        <form method="POST">
-                            <input type="hidden" name="action" value="add">
-                            <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
-                            <div class="mb-3">
-                                <label class="form-label fw-bold">Username</label>
-                                <input type="text" name="username" class="form-control" placeholder="e.g. hrofficer" required
-                                    maxlength="50"
-                                    pattern="[a-zA-Z0-9]+"
-                                    title="Only letters and numbers are allowed. No spaces or special characters."
-                                    oninput="this.value = this.value.replace(/[^a-zA-Z0-9]/g, '')">
-                                <div class="form-text text-muted small">Max 50 chars. Letters & numbers only. No spaces allowed.</div>
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label fw-bold">Email Address</label>
-                                <input type="email" name="email" class="form-control" placeholder="user@company.com" required
-                                    maxlength="120"
-                                    oninput="this.value = this.value.replace(/[^a-zA-Z0-9@._%+-]/g, '')">
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label fw-bold">Password</label>
-                                <input type="password" name="password" class="form-control" placeholder="Enter strong password..." required minlength="15" maxlength="128" pattern="(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).{15,}" title="Must be at least 15 characters, contain Uppercase, Lowercase, Number, and Symbol." oninput="updateStrength(this.value, 'addStrengthBar')">
-                                <div class="form-text text-muted small">
-                                    Requirements: 15+ chars, Uppercase, Lowercase, Number, Symbol.
+                <!-- AUTO-BACKUPS LIST -->
+                <?php if (!empty($serverBackups)): ?>
+                    <div class="row mb-4">
+                        <div class="col-12">
+                            <div class="card shadow-sm">
+                                <div class="card-header bg-secondary text-white">
+                                    <h5 class="mb-0"><i class="bi bi-clock-history"></i> <i class="bi bi-eye-fill"></i> Available Auto-Backups (Server)</h5>
                                 </div>
-                                <div class="progress mt-1" style="height: 5px;">
-                                    <div id="addStrengthBar" class="progress-bar bg-danger" role="progressbar" style="width: 0%"></div>
+                                <div class="card-body p-0 table-responsive">
+                                    <table class="table table-hover mb-0">
+                                        <thead>
+                                            <tr>
+                                                <th>Filename</th>
+                                                <th>Date Created</th>
+                                                <th>Size</th>
+                                                <th>Action</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <?php foreach ($serverBackups as $b): ?>
+                                                <tr id="row-<?php echo htmlspecialchars(str_replace('.', '-', $b['base_name'])); ?>">
+                                                    <td>
+                                                        <?php echo htmlspecialchars($b['display_name']); ?>
+                                                        <?php if ($b['part_count'] > 1): ?>
+                                                            <span class="badge bg-info text-dark ms-2"><?php echo $b['part_count']; ?> Parts</span>
+                                                        <?php endif; ?>
+                                                    </td>
+                                                    <td><?php echo $b['date']; ?></td>
+                                                    <td><?php echo $b['size']; ?></td>
+                                                    <td>
+                                                        <button type="button" class="btn btn-sm btn-info text-white fw-bold mb-1 w-100" onclick="viewBackupDetails('<?php echo htmlspecialchars($b['base_name'], ENT_QUOTES, 'UTF-8'); ?>', '<?php echo htmlspecialchars($b['display_name'], ENT_QUOTES, 'UTF-8'); ?>')">
+                                                            <i class="bi bi-search"></i> View Contents
+                                                        </button>
+                                                        <form method="POST" onsubmit="confirmServerRestore(event, <?php echo htmlspecialchars(json_encode('Restore from ' . $b['display_name'] . '? Current data will be replaced.'), ENT_QUOTES, 'UTF-8'); ?>)">
+                                                            <input type="hidden" name="action" value="restore_local">
+                                                            <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
+                                                            <input type="hidden" name="base_name" value="<?php echo htmlspecialchars($b['base_name']); ?>">
+                                                            <div class="input-group input-group-sm mb-1" style="width: 160px;">
+                                                                <input type="password" name="admin_password" id="serverPass_<?php echo htmlspecialchars(str_replace('.', '-', $b['base_name'])); ?>" class="form-control" placeholder="Admin Password" required maxlength="128" title="Enter your admin password to confirm">
+                                                                <button class="btn btn-outline-secondary bg-white" type="button" onclick="togglePass('serverPass_<?php echo htmlspecialchars(str_replace('.', '-', $b['base_name'])); ?>')"><i class="bi bi-eye"></i></button>
+                                                            </div>
+                                                            <button type="submit" class="btn btn-sm btn-warning fw-bold w-100">Restore This</button>
+                                                        </form>
+                                                    </td>
+                                                </tr>
+                                            <?php endforeach; ?>
+                                        </tbody>
+                                    </table>
                                 </div>
                             </div>
-                            <div class="mb-3">
-                                <label class="form-label fw-bold">Role Permission</label>
-                                <select name="role" class="form-select" required>
-                                    <option value="STAFF">Staff (Encoder - Add/Edit Only)</option>
-                                    <option value="HR">HR Officer (Full Edit + Reports)</option>
-                                    <option value="MANAGER">Manager (HR Head - Approvals + Logs)</option>
-                                    <option value="ADMIN">Admin Manager (Full System Access)</option>
-                                </select>
+                        </div>
+                    </div>
+                <?php endif; ?>
+
+                <!-- MODALS FOR BACKUP -->
+                <div class="modal fade" id="downloadBackupModal" tabindex="-1">
+                    <div class="modal-dialog">
+                        <form action="backup.php" method="POST" class="modal-content" onsubmit="showBackupLoader(this)">
+                            <div class="modal-header">
+                                <h5 class="modal-title">Download Database Backup</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                             </div>
-                            <div class="form-check mb-3">
-                                <input class="form-check-input" type="checkbox" name="is_2fa" id="add2fa">
-                                <label class="form-check-label" for="add2fa">Enable 2FA (Email OTP)</label>
+                            <div class="modal-body">
+                                <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
+                                <div class="form-check mb-3">
+                                    <input class="form-check-input" type="checkbox" name="include_vault" value="1" id="dlVault" <?php echo $vaultChecked; ?>>
+                                    <label class="form-check-label fw-bold" for="dlVault">Include Vault Files (Images/PDFs)</label>
+                                    <div class="alert alert-warning small mb-0 mt-2 border-warning">
+                                        <i class="bi bi-info-circle-fill"></i> <strong>Massive Data Reminder:</strong> If your backup exceeds the <strong><?php echo htmlspecialchars($bkMaxSize); ?> GB</strong> limit, the system will automatically split it into multiple volumes (Part 1, Part 2, etc.) and download them consecutively.
+                                    </div>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Password (Optional)</label>
+                                    <div class="input-group">
+                                        <input type="password" name="backup_password" id="dlBackupPass" class="form-control" placeholder="Leave blank for unencrypted SQL" maxlength="50" autocomplete="new-password">
+                                        <button class="btn btn-outline-secondary" type="button" onclick="togglePass('dlBackupPass')"><i class="bi bi-eye"></i></button>
+                                    </div>
+                                    <div class="form-text">Creates a password-protected ZIP file.</div>
+                                </div>
                             </div>
-                            <div class="form-check mb-2">
-                                <input class="form-check-input" type="checkbox" name="is_shared" id="addShared" onchange="document.getElementById('addOwnerDiv').style.display = this.checked ? 'block' : 'none'">
-                                <label class="form-check-label" for="addShared">Shared Account (MHI Regulated)</label>
-                            </div>
-                            <div class="mb-3" id="addOwnerDiv" style="display:none;">
-                                <label class="form-label fw-bold">Account Owner</label>
-                                <input type="text" name="account_owner" class="form-control" placeholder="Name of responsible person" maxlength="100">
-                            </div>
-                            <button type="submit" class="btn btn-success w-100">Create Account</button>
+                            <div class="modal-footer"><button type="submit" class="btn btn-primary">Download</button></div>
                         </form>
                     </div>
                 </div>
-            </div>
-
-            <div class="col-md-8">
-                <div class="card shadow-sm">
-                    <div class="card-header bg-white border-bottom">
-                        <h5 class="mb-0 text-primary"><i class="bi bi-people-fill"></i> Authorized Users</h5>
+                <div class="modal fade" id="serverBackupModal" tabindex="-1">
+                    <div class="modal-dialog">
+                        <form action="backup.php?mode=server" method="POST" class="modal-content" onsubmit="showBackupLoader(this)">
+                            <div class="modal-header">
+                                <h5 class="modal-title">Save Backup to Server</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                            </div>
+                            <div class="modal-body">
+                                <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
+                                <p>This will save a backup to the configured server paths. This is recommended for automated recovery.</p>
+                                <div class="form-check mb-3">
+                                    <input class="form-check-input" type="checkbox" name="include_vault" value="1" id="svVault" <?php echo $vaultChecked; ?>>
+                                    <label class="form-check-label fw-bold" for="svVault">Include Vault Files (Images/PDFs)</label>
+                                    <div class="form-text text-muted mt-1" style="font-size: 0.75rem;">
+                                        <i class="bi bi-info-circle"></i> Note: When saving to the server, Vault files are mirrored, not zipped.
+                                    </div>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Password (Optional)</label>
+                                    <div class="input-group">
+                                        <input type="password" name="backup_password" id="svBackupPass" class="form-control" placeholder="Leave blank for unencrypted SQL" maxlength="50" autocomplete="new-password">
+                                        <button class="btn btn-outline-secondary" type="button" onclick="togglePass('svBackupPass')"><i class="bi bi-eye"></i></button>
+                                    </div>
+                                    <div class="form-text">Creates a password-protected ZIP file on the server. <strong>Note:</strong> This may complicate automated restores.</div>
+                                </div>
+                            </div>
+                            <div class="modal-footer"><button type="submit" class="btn btn-danger">Save to Server</button></div>
+                        </form>
                     </div>
-                    <div class="card-body p-0 table-responsive">
-                        <table class="table table-hover mb-0 align-middle">
-                            <thead class="table-light">
-                                <tr>
-                                    <th>Username</th>
-                                    <th>Email</th>
-                                    <th>Role</th>
-                                    <th>Status / Attempts</th>
-                                    <th>Created</th>
-                                    <th class="text-end">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <?php foreach ($users as $u): ?>
-                                    <tr>
-                                        <?php
-                                        $isLocked = false;
-                                        if (!empty($u['locked_until'])) {
-                                            try {
-                                                $isLocked = new DateTime($u['locked_until']) > new DateTime();
-                                            } catch (Exception $e) {
-                                                $isLocked = false; // Treat invalid date as not locked
-                                            }
-                                        }
-                                        ?> <td class="fw-bold">
-                                            <?php echo htmlspecialchars($u['username']); ?>
-                                            <?php if ($u['id'] == $_SESSION['user_id']) echo ' <span class="badge bg-info text-dark ms-1">You</span>'; ?>
-                                        </td>
-                                        <td><?php echo htmlspecialchars($u['email'] ?? ''); ?></td>
-                                        <td>
-                                            <?php
-                                            $badge = match ($u['role']) {
-                                                'ADMIN' => 'bg-danger',
-                                                'HR' => 'bg-primary',
-                                                'MANAGER' => 'bg-warning text-dark',
-                                                default => 'bg-secondary'
-                                            };
-                                            ?>
-                                            <span class="badge <?php echo $badge; ?>"><?php echo $u['role']; ?></span>
-                                            <?php if (!empty($u['is_2fa_enabled'])): ?>
-                                                <span class="badge bg-info text-dark" title="2FA Enabled"><i class="bi bi-shield-lock"></i> 2FA</span>
-                                            <?php endif; ?>
-                                            <?php if (!empty($u['is_shared'])): ?>
-                                                <span class="badge bg-dark border border-light" title="Owner: <?php echo htmlspecialchars($u['account_owner']); ?>"><i class="bi bi-people"></i> Shared</span>
-                                            <?php endif; ?>
-                                        </td>
-                                        <td>
-                                            <?php if ($isLocked): ?>
-                                                <span class="badge bg-danger">LOCKED</span>
-                                            <?php elseif (($u['failed_attempts'] ?? 0) > 0): ?>
-                                                <span class="badge bg-warning text-dark"><?php echo (int)$u['failed_attempts']; ?> Failed</span>
-                                            <?php else: ?>
-                                                <span class="badge bg-success">Active</span>
-                                            <?php endif; ?>
-                                        </td>
-                                        <td class="small text-muted"><?php echo date('M d, Y', strtotime($u['created_at'])); ?></td>
-                                        <td class="text-end">
-                                            <?php if ($isLocked): ?>
-                                                <form method="POST" class="d-inline" onsubmit="return confirm('Unlock this user account?')">
-                                                    <input type="hidden" name="action" value="unlock">
-                                                    <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
-                                                    <input type="hidden" name="user_id" value="<?php echo $u['id']; ?>">
-                                                    <button type="submit" class="btn btn-sm btn-warning fw-bold"><i class="bi bi-unlock-fill"></i> Unlock</button>
-                                                </form>
-                                            <?php endif; ?>
-                                            <button class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#editUser<?php echo $u['id']; ?>">
-                                                <i class="bi bi-pencil-square"></i> Edit
-                                            </button>
+                </div>
 
-                                            <?php if ($u['id'] != $_SESSION['user_id']): ?>
-                                                <form method="POST" class="d-inline" onsubmit="confirmForm(event, 'Permanently delete this user?')">
-                                                    <input type="hidden" name="action" value="delete">
-                                                    <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
-                                                    <input type="hidden" name="user_id" value="<?php echo $u['id']; ?>">
-                                                    <button type="submit" class="btn btn-sm btn-outline-danger ms-1">
-                                                        <i class="bi bi-trash"></i>
-                                                    </button>
-                                                </form>
-                                            <?php endif; ?>
-                                        </td>
-                                    </tr>
+                <!-- RESTORE HELP MODAL -->
+                <div class="modal fade" id="restoreHelpModal" tabindex="-1">
+                    <div class="modal-dialog">
+                        <div class="modal-content">
+                            <div class="modal-header bg-info text-white">
+                                <h5 class="modal-title"><i class="bi bi-life-preserver"></i> Restoration Guide</h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                            </div>
+                            <div class="modal-body">
+                                <h6 class="fw-bold text-primary">Option 1: Database Restore (Automatic)</h6>
+                                <p class="small text-muted">Use this to roll back data changes (e.g. accidental deletion).</p>
+                                <ol class="small">
+                                    <li>Locate a backup in the <strong>Available Auto-Backups</strong> list.</li>
+                                    <li>Click the <strong>Restore This</strong> button.</li>
+                                    <li>Enter your Admin Password to confirm.</li>
+                                </ol>
+                                <hr>
+                                <h6 class="fw-bold text-danger">Option 2: Full System Recovery (Manual)</h6>
+                                <p class="small text-muted">Use this if the server crashed or you moved to a new PC.</p>
+                                <ol class="small">
+                                    <li><strong>Database:</strong> Upload your <code>.zip</code> or <code>.sql</code> backup file using the "Restore SQL" form on this page. This restores employee records.</li>
+                                    <li><strong>Documents (Vault):</strong>
+                                        <ul>
+                                            <li>Open your Backup ZIP file.</li>
+                                            <li>Extract the <code>vault</code> folder.</li>
+                                            <li>Copy it to your server folder: <code>C:\xampp\htdocs\hr 201\vault\</code></li>
+                                        </ul>
+                                    </li>
+                                    <li><strong>Encryption Key:</strong> Ensure <code>src/FileService.php</code> is restored if lost, as it contains the secret key.</li>
+                                </ol>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
 
-                                    <div class="modal fade" id="editUser<?php echo $u['id']; ?>" tabindex="-1">
-                                        <div class="modal-dialog">
-                                            <div class="modal-content">
-                                                <div class="modal-header bg-primary text-white">
-                                                    <h5 class="modal-title">Edit User: <?php echo htmlspecialchars($u['username']); ?></h5>
-                                                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-                                                </div>
-                                                <form method="POST">
-                                                    <div class="modal-body">
-                                                        <input type="hidden" name="action" value="edit">
-                                                        <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
-                                                        <input type="hidden" name="user_id" value="<?php echo $u['id']; ?>">
-
-                                                        <div class="mb-3">
-                                                            <label class="form-label">Username</label>
-                                                            <input type="text" name="username" class="form-control"
-                                                                value="<?php echo htmlspecialchars($u['username']); ?>"
-                                                                required
-                                                                maxlength="50"
-                                                                pattern="[a-zA-Z0-9]+"
-                                                                title="Only letters and numbers are allowed. No spaces or special characters."
-                                                                oninput="this.value = this.value.replace(/[^a-zA-Z0-9]/g, '')">
-                                                            <div class="form-text small text-muted">* Max 50 chars. No spaces allowed.</div>
-                                                        </div>
-
-                                                        <div class="mb-3">
-                                                            <label class="form-label">Email</label>
-                                                            <input type="email" name="email" class="form-control"
-                                                                value="<?php echo htmlspecialchars($u['email'] ?? ''); ?>"
-                                                                required
-                                                                maxlength="120"
-                                                                title="Please enter a valid email address"
-                                                                oninput="this.value = this.value.replace(/[^a-zA-Z0-9@._%+-]/g, '')">
-                                                        </div>
-                                                        <div class="mb-3">
-                                                            <label class="form-label">Role</label>
-                                                            <select name="role" class="form-select">
-                                                                <option value="STAFF" <?php if ($u['role'] == 'STAFF') echo 'selected'; ?>>Staff</option>
-                                                                <option value="HR" <?php if ($u['role'] == 'HR') echo 'selected'; ?>>HR Officer</option>
-                                                                <option value="MANAGER" <?php if ($u['role'] == 'MANAGER') echo 'selected'; ?>>Manager</option>
-                                                                <option value="ADMIN" <?php if ($u['role'] == 'ADMIN') echo 'selected'; ?>>Admin Manager</option>
-                                                            </select>
-                                                        </div>
-                                                        <div class="form-check mb-3">
-                                                            <input class="form-check-input" type="checkbox" name="is_2fa" id="edit2fa<?php echo $u['id']; ?>" <?php echo (!empty($u['is_2fa_enabled'])) ? 'checked' : ''; ?>>
-                                                            <label class="form-check-label" for="edit2fa<?php echo $u['id']; ?>">Enable 2FA (Email OTP)</label>
-                                                        </div>
-                                                        <div class="form-check mb-2">
-                                                            <input class="form-check-input" type="checkbox" name="is_shared" id="editShared<?php echo $u['id']; ?>" <?php echo (!empty($u['is_shared'])) ? 'checked' : ''; ?> onchange="document.getElementById('editOwnerDiv<?php echo $u['id']; ?>').style.display = this.checked ? 'block' : 'none'">
-                                                            <label class="form-check-label" for="editShared<?php echo $u['id']; ?>">Shared Account</label>
-                                                        </div>
-                                                        <div class="mb-3" id="editOwnerDiv<?php echo $u['id']; ?>" style="display: <?php echo (!empty($u['is_shared'])) ? 'block' : 'none'; ?>;">
-                                                            <label class="form-label fw-bold">Account Owner</label>
-                                                            <input type="text" name="account_owner" class="form-control" value="<?php echo htmlspecialchars($u['account_owner'] ?? ''); ?>" maxlength="100">
-                                                        </div>
-                                                        <hr>
-                                                        <div class="mb-3">
-                                                            <label class="form-label text-danger fw-bold">Reset Password (Optional)</label>
-                                                            <div class="input-group">
-                                                                <input type="password" name="password" id="resetPass<?php echo $u['id']; ?>" class="form-control" placeholder="New Password (Min 15 chars)" minlength="15" maxlength="128" pattern="(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).{15,}" title="Must be at least 15 characters, contain Uppercase, Lowercase, Number, and Symbol." oninput="updateStrength(this.value, 'strengthBar<?php echo $u['id']; ?>')">
-                                                                <button class="btn btn-outline-secondary" type="button" onclick="togglePass('resetPass<?php echo $u['id']; ?>')"><i class="bi bi-eye"></i></button>
-                                                            </div>
-                                                            <div class="progress mt-1" style="height: 5px;">
-                                                                <div id="strengthBar<?php echo $u['id']; ?>" class="progress-bar bg-danger" role="progressbar" style="width: 0%"></div>
-                                                            </div>
-                                                            <div class="form-text small">Optional. Requirements: 15+ chars, Upper, Lower, #, Symbol.</div>
-                                                        </div>
-                                                    </div>
-                                                    <div class="modal-footer">
-                                                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                                                        <button type="submit" class="btn btn-primary">Save Changes</button>
-                                                    </div>
-                                                </form>
-                                            </div>
+                <div class="row">
+                    <div class="col-md-4">
+                        <div class="card shadow-sm mb-4">
+                            <div class="card-header bg-primary text-white">
+                                <h5 class="mb-0"><i class="bi bi-person-plus-fill"></i> Add New User</h5>
+                            </div>
+                            <div class="card-body">
+                                <form method="POST">
+                                    <input type="hidden" name="action" value="add">
+                                    <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
+                                    <div class="mb-3">
+                                        <label class="form-label fw-bold">Username</label>
+                                        <input type="text" name="username" class="form-control" placeholder="e.g. hrofficer" required
+                                            maxlength="50"
+                                            pattern="[a-zA-Z0-9]+"
+                                            title="Only letters and numbers are allowed. No spaces or special characters."
+                                            oninput="this.value = this.value.replace(/[^a-zA-Z0-9]/g, '')">
+                                        <div class="form-text text-muted small">Max 50 chars. Letters & numbers only. No spaces allowed.</div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label fw-bold">Email Address</label>
+                                        <input type="email" name="email" class="form-control" placeholder="user@company.com" required
+                                            maxlength="120"
+                                            oninput="this.value = this.value.replace(/[^a-zA-Z0-9@._%+-]/g, '')">
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label fw-bold">Password</label>
+                                        <input type="password" name="password" class="form-control" placeholder="Enter strong password..." required minlength="15" maxlength="128" pattern="(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).{15,}" title="Must be at least 15 characters, contain Uppercase, Lowercase, Number, and Symbol." oninput="updateStrength(this.value, 'addStrengthBar')">
+                                        <div class="form-text text-muted small">
+                                            Requirements: 15+ chars, Uppercase, Lowercase, Number, Symbol.
+                                        </div>
+                                        <div class="progress mt-1" style="height: 5px;">
+                                            <div id="addStrengthBar" class="progress-bar bg-danger" role="progressbar" style="width: 0%"></div>
                                         </div>
                                     </div>
-                                <?php endforeach; ?>
-                            </tbody>
-                        </table>
+                                    <div class="mb-3">
+                                        <label class="form-label fw-bold">Role Permission</label>
+                                        <select name="role" class="form-select" required>
+                                            <option value="STAFF">Staff (Encoder - Add/Edit Only)</option>
+                                            <option value="HR">HR Officer (Full Edit + Reports)</option>
+                                            <option value="MANAGER">Manager (HR Head - Approvals + Logs)</option>
+                                            <option value="ADMIN">Admin Manager (Full System Access)</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-check mb-3">
+                                        <input class="form-check-input" type="checkbox" name="is_2fa" id="add2fa">
+                                        <label class="form-check-label" for="add2fa">Enable 2FA (Email OTP)</label>
+                                    </div>
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input" type="checkbox" name="is_shared" id="addShared" onchange="document.getElementById('addOwnerDiv').style.display = this.checked ? 'block' : 'none'">
+                                        <label class="form-check-label" for="addShared">Shared Account (MHI Regulated)</label>
+                                    </div>
+                                    <div class="mb-3" id="addOwnerDiv" style="display:none;">
+                                        <label class="form-label fw-bold">Account Owner</label>
+                                        <input type="text" name="account_owner" class="form-control" placeholder="Name of responsible person" maxlength="100">
+                                    </div>
+                                    <button type="submit" class="btn btn-success w-100">Create Account</button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-md-8">
+                        <div class="card shadow-sm">
+                            <div class="card-header bg-white border-bottom">
+                                <h5 class="mb-0 text-primary"><i class="bi bi-people-fill"></i> Authorized Users</h5>
+                            </div>
+                            <div class="card-body p-0 table-responsive">
+                                <table class="table table-hover mb-0 align-middle">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>Username</th>
+                                            <th>Email</th>
+                                            <th>Role</th>
+                                            <th>Status / Attempts</th>
+                                            <th>Created</th>
+                                            <th class="text-end">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <?php foreach ($users as $u): ?>
+                                            <tr>
+                                                <?php
+                                                $isLocked = false;
+                                                if (!empty($u['locked_until'])) {
+                                                    try {
+                                                        $isLocked = new DateTime($u['locked_until']) > new DateTime();
+                                                    } catch (Exception $e) {
+                                                        $isLocked = false; // Treat invalid date as not locked
+                                                    }
+                                                }
+                                                ?> <td class="fw-bold">
+                                                    <?php echo htmlspecialchars($u['username']); ?>
+                                                    <?php if ($u['id'] == $_SESSION['user_id']) echo ' <span class="badge bg-info text-dark ms-1">You</span>'; ?>
+                                                </td>
+                                                <td><?php echo htmlspecialchars($u['email'] ?? ''); ?></td>
+                                                <td>
+                                                    <?php
+                                                    $badge = match ($u['role']) {
+                                                        'ADMIN' => 'bg-danger',
+                                                        'HR' => 'bg-primary',
+                                                        'MANAGER' => 'bg-warning text-dark',
+                                                        default => 'bg-secondary'
+                                                    };
+                                                    ?>
+                                                    <span class="badge <?php echo $badge; ?>"><?php echo $u['role']; ?></span>
+                                                    <?php if (!empty($u['is_2fa_enabled'])): ?>
+                                                        <span class="badge bg-info text-dark" title="2FA Enabled"><i class="bi bi-shield-lock"></i> 2FA</span>
+                                                    <?php endif; ?>
+                                                    <?php if (!empty($u['is_shared'])): ?>
+                                                        <span class="badge bg-dark border border-light" title="Owner: <?php echo htmlspecialchars($u['account_owner']); ?>"><i class="bi bi-people"></i> Shared</span>
+                                                    <?php endif; ?>
+                                                </td>
+                                                <td>
+                                                    <?php if ($isLocked): ?>
+                                                        <span class="badge bg-danger">LOCKED</span>
+                                                    <?php elseif (($u['failed_attempts'] ?? 0) > 0): ?>
+                                                        <span class="badge bg-warning text-dark"><?php echo (int)$u['failed_attempts']; ?> Failed</span>
+                                                    <?php else: ?>
+                                                        <span class="badge bg-success">Active</span>
+                                                    <?php endif; ?>
+                                                </td>
+                                                <td class="small text-muted"><?php echo date('M d, Y', strtotime($u['created_at'])); ?></td>
+                                                <td class="text-end">
+                                                    <?php if ($isLocked): ?>
+                                                        <form method="POST" class="d-inline" onsubmit="return confirm('Unlock this user account?')">
+                                                            <input type="hidden" name="action" value="unlock">
+                                                            <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
+                                                            <input type="hidden" name="user_id" value="<?php echo $u['id']; ?>">
+                                                            <button type="submit" class="btn btn-sm btn-warning fw-bold"><i class="bi bi-unlock-fill"></i> Unlock</button>
+                                                        </form>
+                                                    <?php endif; ?>
+                                                    <button class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#editUser<?php echo $u['id']; ?>">
+                                                        <i class="bi bi-pencil-square"></i> Edit
+                                                    </button>
+
+                                                    <?php if ($u['id'] != $_SESSION['user_id']): ?>
+                                                        <form method="POST" class="d-inline" onsubmit="confirmForm(event, 'Permanently delete this user?')">
+                                                            <input type="hidden" name="action" value="delete">
+                                                            <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
+                                                            <input type="hidden" name="user_id" value="<?php echo $u['id']; ?>">
+                                                            <button type="submit" class="btn btn-sm btn-outline-danger ms-1">
+                                                                <i class="bi bi-trash"></i>
+                                                            </button>
+                                                        </form>
+                                                    <?php endif; ?>
+                                                </td>
+                                            </tr>
+
+                                            <div class="modal fade" id="editUser<?php echo $u['id']; ?>" tabindex="-1">
+                                                <div class="modal-dialog">
+                                                    <div class="modal-content">
+                                                        <div class="modal-header bg-primary text-white">
+                                                            <h5 class="modal-title">Edit User: <?php echo htmlspecialchars($u['username']); ?></h5>
+                                                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                                                        </div>
+                                                        <form method="POST">
+                                                            <div class="modal-body">
+                                                                <input type="hidden" name="action" value="edit">
+                                                                <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
+                                                                <input type="hidden" name="user_id" value="<?php echo $u['id']; ?>">
+
+                                                                <div class="mb-3">
+                                                                    <label class="form-label">Username</label>
+                                                                    <input type="text" name="username" class="form-control"
+                                                                        value="<?php echo htmlspecialchars($u['username']); ?>"
+                                                                        required
+                                                                        maxlength="50"
+                                                                        pattern="[a-zA-Z0-9]+"
+                                                                        title="Only letters and numbers are allowed. No spaces or special characters."
+                                                                        oninput="this.value = this.value.replace(/[^a-zA-Z0-9]/g, '')">
+                                                                    <div class="form-text small text-muted">* Max 50 chars. No spaces allowed.</div>
+                                                                </div>
+
+                                                                <div class="mb-3">
+                                                                    <label class="form-label">Email</label>
+                                                                    <input type="email" name="email" class="form-control"
+                                                                        value="<?php echo htmlspecialchars($u['email'] ?? ''); ?>"
+                                                                        required
+                                                                        maxlength="120"
+                                                                        title="Please enter a valid email address"
+                                                                        oninput="this.value = this.value.replace(/[^a-zA-Z0-9@._%+-]/g, '')">
+                                                                </div>
+                                                                <div class="mb-3">
+                                                                    <label class="form-label">Role</label>
+                                                                    <select name="role" class="form-select">
+                                                                        <option value="STAFF" <?php if ($u['role'] == 'STAFF') echo 'selected'; ?>>Staff</option>
+                                                                        <option value="HR" <?php if ($u['role'] == 'HR') echo 'selected'; ?>>HR Officer</option>
+                                                                        <option value="MANAGER" <?php if ($u['role'] == 'MANAGER') echo 'selected'; ?>>Manager</option>
+                                                                        <option value="ADMIN" <?php if ($u['role'] == 'ADMIN') echo 'selected'; ?>>Admin Manager</option>
+                                                                    </select>
+                                                                </div>
+                                                                <div class="form-check mb-3">
+                                                                    <input class="form-check-input" type="checkbox" name="is_2fa" id="edit2fa<?php echo $u['id']; ?>" <?php echo (!empty($u['is_2fa_enabled'])) ? 'checked' : ''; ?>>
+                                                                    <label class="form-check-label" for="edit2fa<?php echo $u['id']; ?>">Enable 2FA (Email OTP)</label>
+                                                                </div>
+                                                                <div class="form-check mb-2">
+                                                                    <input class="form-check-input" type="checkbox" name="is_shared" id="editShared<?php echo $u['id']; ?>" <?php echo (!empty($u['is_shared'])) ? 'checked' : ''; ?> onchange="document.getElementById('editOwnerDiv<?php echo $u['id']; ?>').style.display = this.checked ? 'block' : 'none'">
+                                                                    <label class="form-check-label" for="editShared<?php echo $u['id']; ?>">Shared Account</label>
+                                                                </div>
+                                                                <div class="mb-3" id="editOwnerDiv<?php echo $u['id']; ?>" style="display: <?php echo (!empty($u['is_shared'])) ? 'block' : 'none'; ?>;">
+                                                                    <label class="form-label fw-bold">Account Owner</label>
+                                                                    <input type="text" name="account_owner" class="form-control" value="<?php echo htmlspecialchars($u['account_owner'] ?? ''); ?>" maxlength="100">
+                                                                </div>
+                                                                <hr>
+                                                                <div class="mb-3">
+                                                                    <label class="form-label text-danger fw-bold">Reset Password (Optional)</label>
+                                                                    <div class="input-group">
+                                                                        <input type="password" name="password" id="resetPass<?php echo $u['id']; ?>" class="form-control" placeholder="New Password (Min 15 chars)" minlength="15" maxlength="128" pattern="(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).{15,}" title="Must be at least 15 characters, contain Uppercase, Lowercase, Number, and Symbol." oninput="updateStrength(this.value, 'strengthBar<?php echo $u['id']; ?>')">
+                                                                        <button class="btn btn-outline-secondary" type="button" onclick="togglePass('resetPass<?php echo $u['id']; ?>')"><i class="bi bi-eye"></i></button>
+                                                                    </div>
+                                                                    <div class="progress mt-1" style="height: 5px;">
+                                                                        <div id="strengthBar<?php echo $u['id']; ?>" class="progress-bar bg-danger" role="progressbar" style="width: 0%"></div>
+                                                                    </div>
+                                                                    <div class="form-text small">Optional. Requirements: 15+ chars, Upper, Lower, #, Symbol.</div>
+                                                                </div>
+                                                            </div>
+                                                            <div class="modal-footer">
+                                                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                                                                <button type="submit" class="btn btn-primary">Save Changes</button>
+                                                            </div>
+                                                        </form>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        <?php endforeach; ?>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
-        </div>
-    </div>
 
-    <script src="assets/bootstrap.bundle.min.js"></script>
-    <script src="dark_mode.js"></script>
-    <script>
-        // ==========================================
-        // [SECURITY] AUTO-LOGOUT (Client-Side)
-        // ==========================================
-        const INACTIVITY_LIMIT = <?php echo $clientTimeout * 1000; ?>; // Dynamic value in milliseconds
-        let autoLogoutTimer;
+            <script src="assets/bootstrap.bundle.min.js"></script>
+            <script src="dark_mode.js"></script>
+            <script>
+                // ==========================================
+                // [SECURITY] AUTO-LOGOUT (Client-Side)
+                // ==========================================
+                const INACTIVITY_LIMIT = <?php echo $clientTimeout * 1000; ?>; // Dynamic value in milliseconds
+                let autoLogoutTimer;
 
-        function resetTimer() {
-            clearTimeout(autoLogoutTimer);
-            autoLogoutTimer = setTimeout(doLogout, INACTIVITY_LIMIT);
-        }
+                function resetTimer() {
+                    clearTimeout(autoLogoutTimer);
+                    autoLogoutTimer = setTimeout(doLogout, INACTIVITY_LIMIT);
+                }
 
-        function doLogout() {
-            window.location.href = 'logout.php?msg=Session_Expired_Auto';
-        }
+                function doLogout() {
+                    window.location.href = 'logout.php?msg=Session_Expired_Auto';
+                }
 
-        window.onload = resetTimer;
-        document.addEventListener('mousemove', resetTimer);
-        document.addEventListener('keydown', resetTimer);
-        document.addEventListener('click', resetTimer);
-        document.addEventListener('scroll', resetTimer);
-    </script>
-    <script>
-        <?php if ($alertMsg): ?>
-            Swal.fire({
-                icon: '<?php echo $alertType; ?>',
-                html: <?php echo json_encode($alertMsg); ?>
-            });
-            // [FIX] Clear URL parameters to prevent message from reappearing on refresh
-            if (window.history.replaceState && window.location.search) {
-                const url = new URL(window.location.href);
-                url.searchParams.delete('msg');
-                url.searchParams.delete('error');
-                window.history.replaceState(null, null, url.toString());
-            }
-        <?php endif; ?>
-
-        function confirmForm(e, msg) {
-            e.preventDefault();
-            const form = e.target;
-            Swal.fire({
-                title: 'Are you sure?',
-                text: msg,
-                icon: 'warning',
-                showCancelButton: true,
-                confirmButtonColor: '#d33',
-                confirmButtonText: 'Yes, proceed!'
-            }).then((result) => {
-                if (result.isConfirmed) form.submit();
-            });
-        }
-
-        function confirmRestore(e) {
-            e.preventDefault();
-            const form = e.target.closest('form');
-            Swal.fire({
-                title: '⚠️ CRITICAL WARNING',
-                text: "This will OVERWRITE your current database. This cannot be undone. Are you sure?",
-                icon: 'error',
-                showCancelButton: true,
-                confirmButtonColor: '#d33',
-                confirmButtonText: 'YES, OVERWRITE DATABASE'
-            }).then((result) => {
-                if (result.isConfirmed) {
+                window.onload = resetTimer;
+                document.addEventListener('mousemove', resetTimer);
+                document.addEventListener('keydown', resetTimer);
+                document.addEventListener('click', resetTimer);
+                document.addEventListener('scroll', resetTimer);
+            </script>
+            <script>
+                <?php if ($alertMsg): ?>
                     Swal.fire({
-                        title: 'Restoring Database...',
-                        html: 'Please wait. The system is importing the data.<br><br><span class="text-danger fw-bold small">Note: Massive databases take time. If your browser shows a "Timeout" error after 5 minutes, DO NOT PANIC. The server will safely continue the restore in the background!</span>',
-                        allowOutsideClick: false,
-                        allowEscapeKey: false,
-                        didOpen: () => {
-                            Swal.showLoading();
-                        }
+                        icon: '<?php echo $alertType; ?>',
+                        html: <?php echo json_encode($alertMsg); ?>
                     });
-                    form.submit();
-                }
-            });
-        }
-
-        function confirmServerRestore(e, msg) {
-            e.preventDefault();
-            const form = e.target;
-            Swal.fire({
-                title: 'Are you sure?',
-                text: msg,
-                icon: 'warning',
-                showCancelButton: true,
-                confirmButtonColor: '#d33',
-                confirmButtonText: 'Yes, proceed!'
-            }).then((result) => {
-                if (result.isConfirmed) {
-                    Swal.fire({
-                        title: 'Restoring Database...',
-                        html: 'Please wait. The system is stitching and importing the data.<br><br><span class="text-danger fw-bold small">Note: Massive databases take time. If your browser shows a "Timeout" error after 5 minutes, DO NOT PANIC. The server will safely continue the restore in the background!</span>',
-                        allowOutsideClick: false,
-                        allowEscapeKey: false,
-                        didOpen: () => {
-                            Swal.showLoading();
-                        }
-                    });
-                    form.submit();
-                }
-            });
-        }
-
-        function viewBackupDetails(baseName, displayName) {
-            Swal.fire({
-                title: 'Analyzing Backup...',
-                text: 'Scanning ' + displayName + ', please wait.',
-                allowOutsideClick: false,
-                allowEscapeKey: false,
-                didOpen: () => {
-                    Swal.showLoading();
-                }
-            });
-
-            fetch('manager_user.php?action=view_backup&base_name=' + encodeURIComponent(baseName))
-                .then(response => response.json())
-                .then(data => {
-                    if (data.status === 'success') {
-                        Swal.fire({
-                            title: 'Backup Contents',
-                            html: `<p class="text-muted small mb-3">${displayName} (${data.parts} part${data.parts > 1 ? 's' : ''})</p>` + data.html,
-                            icon: 'info',
-                            confirmButtonText: 'Close'
-                        });
-                    } else {
-                        Swal.fire('Error', data.message || 'Failed to read backup.', 'error');
+                    // [FIX] Clear URL parameters to prevent message from reappearing on refresh
+                    if (window.history.replaceState && window.location.search) {
+                        const url = new URL(window.location.href);
+                        url.searchParams.delete('msg');
+                        url.searchParams.delete('error');
+                        window.history.replaceState(null, null, url.toString());
                     }
-                })
-                .catch(err => {
-                    console.error(err);
-                    Swal.fire('Error', 'Network error occurred while reading the backup.', 'error');
-                });
-        }
+                <?php endif; ?>
 
-        function showBackupLoader(form) {
-            const isServer = form.action.includes('mode=server');
-            Swal.fire({
-                title: isServer ? 'Saving to Server...' : 'Generating Backup...',
-                html: `
+                function confirmForm(e, msg) {
+                    e.preventDefault();
+                    const form = e.target;
+                    Swal.fire({
+                        title: 'Are you sure?',
+                        text: msg,
+                        icon: 'warning',
+                        showCancelButton: true,
+                        confirmButtonColor: '#d33',
+                        confirmButtonText: 'Yes, proceed!'
+                    }).then((result) => {
+                        if (result.isConfirmed) form.submit();
+                    });
+                }
+
+                function confirmRestore(e) {
+                    e.preventDefault();
+                    const form = e.target.closest('form');
+                    Swal.fire({
+                        title: '⚠️ CRITICAL WARNING',
+                        text: "This will OVERWRITE your current database. This cannot be undone. Are you sure?",
+                        icon: 'error',
+                        showCancelButton: true,
+                        confirmButtonColor: '#d33',
+                        confirmButtonText: 'YES, OVERWRITE DATABASE'
+                    }).then((result) => {
+                        if (result.isConfirmed) {
+                            Swal.fire({
+                                title: 'Restoring Database...',
+                                html: 'Please wait. The system is importing the data.<br><br><span class="text-danger fw-bold small">Note: Massive databases take time. If your browser shows a "Timeout" error after 5 minutes, DO NOT PANIC. The server will safely continue the restore in the background!</span>',
+                                allowOutsideClick: false,
+                                allowEscapeKey: false,
+                                didOpen: () => {
+                                    Swal.showLoading();
+                                }
+                            });
+                            form.submit();
+                        }
+                    });
+                }
+
+                function confirmServerRestore(e, msg) {
+                    e.preventDefault();
+                    const form = e.target;
+                    Swal.fire({
+                        title: 'Are you sure?',
+                        text: msg,
+                        icon: 'warning',
+                        showCancelButton: true,
+                        confirmButtonColor: '#d33',
+                        confirmButtonText: 'Yes, proceed!'
+                    }).then((result) => {
+                        if (result.isConfirmed) {
+                            Swal.fire({
+                                title: 'Restoring Database...',
+                                html: 'Please wait. The system is stitching and importing the data.<br><br><span class="text-danger fw-bold small">Note: Massive databases take time. If your browser shows a "Timeout" error after 5 minutes, DO NOT PANIC. The server will safely continue the restore in the background!</span>',
+                                allowOutsideClick: false,
+                                allowEscapeKey: false,
+                                didOpen: () => {
+                                    Swal.showLoading();
+                                }
+                            });
+                            form.submit();
+                        }
+                    });
+                }
+
+                function viewBackupDetails(baseName, displayName) {
+                    Swal.fire({
+                        title: 'Analyzing Backup...',
+                        text: 'Scanning ' + displayName + ', please wait.',
+                        allowOutsideClick: false,
+                        allowEscapeKey: false,
+                        didOpen: () => {
+                            Swal.showLoading();
+                        }
+                    });
+
+                    fetch('manager_user.php?action=view_backup&base_name=' + encodeURIComponent(baseName))
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.status === 'success') {
+                                Swal.fire({
+                                    title: 'Backup Contents',
+                                    html: `<p class="text-muted small mb-3">${displayName} (${data.parts} part${data.parts > 1 ? 's' : ''})</p>` + data.html,
+                                    icon: 'info',
+                                    confirmButtonText: 'Close'
+                                });
+                            } else {
+                                Swal.fire('Error', data.message || 'Failed to read backup.', 'error');
+                            }
+                        })
+                        .catch(err => {
+                            console.error(err);
+                            Swal.fire('Error', 'Network error occurred while reading the backup.', 'error');
+                        });
+                }
+
+                function showBackupLoader(form) {
+                    const isServer = form.action.includes('mode=server');
+                    Swal.fire({
+                        title: isServer ? 'Saving to Server...' : 'Generating Backup...',
+                        html: `
                     <p class="text-muted small mb-3">Scanning files and compressing data. Please wait...</p>
                     <div class="progress mb-3" style="height: 25px;">
                         <div class="progress-bar progress-bar-striped progress-bar-animated bg-success" style="width: 100%"></div>
                     </div>
                     <span class="text-danger fw-bold small">This may take a few minutes. Do not close this window!</span>
                 `,
-                allowOutsideClick: false,
-                allowEscapeKey: false,
-                showConfirmButton: false
-            });
-
-            const csrf = form.querySelector('[name="csrf_token"]').value;
-            const checkCookie = setInterval(() => {
-                if (document.cookie.includes('downloadToken=' + csrf)) {
-                    clearInterval(checkCookie);
-                    Swal.close();
-                    document.cookie = "downloadToken=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
-                }
-            }, 1000);
-        }
-
-        // [NEW] Auto-scroll to target backup if requested
-        document.addEventListener("DOMContentLoaded", function() {
-            const urlParams = new URLSearchParams(window.location.search);
-            const target = urlParams.get('restore_target');
-            if (target) {
-                const rowId = 'row-' + target.replace(/\./g, '-');
-                const row = document.getElementById(rowId);
-                if (row) {
-                    row.scrollIntoView({
-                        behavior: 'smooth',
-                        block: 'center'
+                        allowOutsideClick: false,
+                        allowEscapeKey: false,
+                        showConfirmButton: false
                     });
-                    row.classList.add('table-warning'); // Highlight
-                    Swal.fire({
-                        icon: 'info',
-                        title: 'Restore Backup',
-                        text: 'Please enter your Admin Password in the highlighted row to confirm restoration.',
-                        timer: 5000
-                    });
+
+                    const csrf = form.querySelector('[name="csrf_token"]').value;
+                    const checkCookie = setInterval(() => {
+                        if (document.cookie.includes('downloadToken=' + csrf)) {
+                            clearInterval(checkCookie);
+                            Swal.close();
+                            document.cookie = "downloadToken=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+                        }
+                    }, 1000);
                 }
-            }
-        });
 
-        function togglePass(id) {
-            const input = document.getElementById(id);
-            const icon = input.nextElementSibling.querySelector('i');
-            if (input.type === 'password') {
-                input.type = 'text';
-                icon.classList.replace('bi-eye', 'bi-eye-slash');
-            } else {
-                input.type = 'password';
-                icon.classList.replace('bi-eye-slash', 'bi-eye');
-            }
-        }
+                // [NEW] Auto-scroll to target backup if requested
+                document.addEventListener("DOMContentLoaded", function() {
+                    const urlParams = new URLSearchParams(window.location.search);
+                    const target = urlParams.get('restore_target');
+                    if (target) {
+                        const rowId = 'row-' + target.replace(/\./g, '-');
+                        const row = document.getElementById(rowId);
+                        if (row) {
+                            row.scrollIntoView({
+                                behavior: 'smooth',
+                                block: 'center'
+                            });
+                            row.classList.add('table-warning'); // Highlight
+                            Swal.fire({
+                                icon: 'info',
+                                title: 'Restore Backup',
+                                text: 'Please enter your Admin Password in the highlighted row to confirm restoration.',
+                                timer: 5000
+                            });
+                        }
+                    }
+                });
 
-        function updateStrength(val, barId) {
-            const bar = document.getElementById(barId);
-            if (!bar) return;
-            let score = 0;
-            if (val.length >= 8) score++;
-            if (val.length >= 12) score++;
-            if (val.length >= 15) score++;
-            if (/[A-Z]/.test(val)) score++;
-            if (/[a-z]/.test(val)) score++;
-            if (/[0-9]/.test(val)) score++;
-            if (/[^A-Za-z0-9]/.test(val)) score++;
+                function togglePass(id) {
+                    const input = document.getElementById(id);
+                    const icon = input.nextElementSibling.querySelector('i');
+                    if (input.type === 'password') {
+                        input.type = 'text';
+                        icon.classList.replace('bi-eye', 'bi-eye-slash');
+                    } else {
+                        input.type = 'password';
+                        icon.classList.replace('bi-eye-slash', 'bi-eye');
+                    }
+                }
 
-            let pct = Math.min(100, (score / 7) * 100);
-            bar.style.width = pct + '%';
-            bar.className = 'progress-bar ' + (score > 5 ? 'bg-success' : (score > 3 ? 'bg-warning' : 'bg-danger'));
-        }
-    </script>
+                function updateStrength(val, barId) {
+                    const bar = document.getElementById(barId);
+                    if (!bar) return;
+                    let score = 0;
+                    if (val.length >= 8) score++;
+                    if (val.length >= 12) score++;
+                    if (val.length >= 15) score++;
+                    if (/[A-Z]/.test(val)) score++;
+                    if (/[a-z]/.test(val)) score++;
+                    if (/[0-9]/.test(val)) score++;
+                    if (/[^A-Za-z0-9]/.test(val)) score++;
+
+                    let pct = Math.min(100, (score / 7) * 100);
+                    bar.style.width = pct + '%';
+                    bar.className = 'progress-bar ' + (score > 5 ? 'bg-success' : (score > 3 ? 'bg-warning' : 'bg-danger'));
+                }
+            </script>
 </body>
 
 </html>

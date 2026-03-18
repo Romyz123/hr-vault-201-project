@@ -31,7 +31,8 @@ if (isset($_GET['download_part'])) {
     $exportDirReal = realpath($exportDir);
     $filePath = realpath($exportDir . DIRECTORY_SEPARATOR . $requested);
 
-    if (!$exportDirReal || !$filePath || strpos($filePath, $exportDirReal) !== 0 || !is_file($filePath)) {
+    $exportDirPrefix = rtrim($exportDirReal, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR;
+    if (!$exportDirReal || !$filePath || strncmp($filePath, $exportDirPrefix, strlen($exportDirPrefix)) !== 0 || !is_file($filePath)) {
         http_response_code(404);
         exit;
     }
@@ -44,7 +45,6 @@ if (isset($_GET['download_part'])) {
     header('Content-Disposition: attachment; filename="' . $requested . '"');
     header('Content-Length: ' . filesize($filePath));
     readfile($filePath);
-    @unlink($filePath);
     exit;
 }
 
@@ -59,10 +59,9 @@ if (!isset($_SESSION['user_id']) || !in_array($_SESSION['role'] ?? '', ['ADMIN',
 }
 
 // 2. SETTINGS
-ini_set('memory_limit', '-1'); // [FIX] Maximize memory for large ZIP generation
+ini_set('memory_limit', '2G'); // [FIX] Allow large ZIP generation with bounded memory
 set_time_limit(0); // [FIX] Unlimited execution time
 ignore_user_abort(true); // [FIX] Continue building ZIP even if browser connection drops
-
 // [SECURITY] Verify CSRF Token
 $security = new Security($pdo);
 if (empty($_POST['csrf_token']) || !hash_equals($_SESSION['csrf_token'] ?? '', $_POST['csrf_token'])) {
@@ -181,7 +180,17 @@ $generatedZips = [];
 $pendingUnlink = [];
 $zip = null;
 
-$startNewZip = function () use (&$zip, &$generatedZips, $exportDir, $baseFilename, &$partNumber, &$currentBytes, &$pendingUnlink) {
+$cleanupExportFiles = function ($message) use (&$generatedZips, &$pendingUnlink) {
+    foreach ($generatedZips as $f) {
+        if (file_exists($f)) @unlink($f);
+    }
+    foreach ($pendingUnlink as $f) {
+        if (file_exists($f)) @unlink($f);
+    }
+    exit($message);
+};
+
+$startNewZip = function () use (&$zip, &$generatedZips, $exportDir, $baseFilename, &$partNumber, &$currentBytes, &$pendingUnlink, $cleanupExportFiles) {
     if ($zip !== null) {
         $zip->close();
         foreach ($pendingUnlink as $f) @unlink($f);
@@ -190,7 +199,9 @@ $startNewZip = function () use (&$zip, &$generatedZips, $exportDir, $baseFilenam
     $path = $exportDir . DIRECTORY_SEPARATOR . $baseFilename . "_Part{$partNumber}.zip";
     $generatedZips[] = $path;
     $zip = new ZipArchive();
-    if ($zip->open($path, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== TRUE) die("Server Error: Could not create split ZIP file.");
+    if ($zip->open($path, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== TRUE) {
+        $cleanupExportFiles("Server Error: Could not create split ZIP file.");
+    }
     $currentBytes = 0;
 };
 
@@ -235,10 +246,14 @@ foreach ($employees as $emp) {
     if (!empty($sectDisplay)) $folderName .= " - " . cleanName($sectDisplay);
 
     // --- A. PREPARE AVATAR (Embedded) ---
-    $avatarFile = "uploads/avatars/" . ($emp['avatar_path'] ?: 'default.png');
-    $avatarData = getBase64Image($avatarFile);
+    $avatarBasePath = __DIR__ . '/uploads/avatars/';
+    $avatarFile = $avatarBasePath . basename($emp['avatar_path'] ?: 'default.png');
+    $avatarRealPath = realpath($avatarFile);
+    $avatarData = '';
+    if ($avatarRealPath && strpos($avatarRealPath, realpath($avatarBasePath)) === 0) {
+        $avatarData = getBase64Image($avatarRealPath);
+    }
     if (!$avatarData) $avatarData = 'https://via.placeholder.com/150'; // Fallback
-
     // --- B. GENERATE HTML (Matches "Print Employee" Design) ---
     // We use inline CSS so it looks perfect offline
     $htmlContent = '
@@ -402,15 +417,29 @@ foreach ($employees as $emp) {
                     $partNumber++;
                     $startNewZip();
                 }
-                // [FIX] Stream to temp file instead of holding gigabytes in RAM
+
+                // [FIX] Create temp file with error handling
                 $tmpDoc = tempnam(sys_get_temp_dir(), 'exp_doc_');
-                file_put_contents($tmpDoc, $content);
+                if ($tmpDoc === false) {
+                    error_log("Failed to create temp file for export document: " . $doc['original_name']);
+                    continue;
+                }
+
+                $written = file_put_contents($tmpDoc, $content);
+                if ($written === false || $written !== $docSize) {
+                    @unlink($tmpDoc);
+                    error_log("Failed to write export document to temp file: " . $doc['original_name']);
+                    continue;
+                }
+
                 $pendingUnlink[] = $tmpDoc;
 
                 /** @var ZipArchive $zip */
                 $zip->addFile($tmpDoc, $docPathInZip);
                 if ($zipPassword) {
-                    $zip->setEncryptionName($docPathInZip, ZipArchive::EM_AES_256, $zipPassword);
+                    if (!$zip->setEncryptionName($docPathInZip, ZipArchive::EM_AES_256, $zipPassword)) {
+                        error_log("Failed to apply ZIP encryption to document: " . $doc['original_name']);
+                    }
                 }
                 $currentBytes += $docSize;
             }
@@ -467,8 +496,7 @@ $pendingUnlink = [];
 
 // 4. DOWNLOAD
 $logger = new Logger($pdo);
-$logger->log($_SESSION['user_id'], 'EXPORT_ZIP', "Exported " . count($employees) . " folders (Split into " . count($generatedZips) . " parts).");
-
+setcookie("downloadToken", bin2hex(random_bytes(8)), time() + 300, "/");
 // [NEW] Set cookie to tell the frontend to close the loading spinner
 setcookie("downloadToken", $_POST['csrf_token'] ?? '1', time() + 300, "/");
 
@@ -481,7 +509,6 @@ if (count($generatedZips) === 1) {
     header('Content-Disposition: attachment; filename="' . basename($generatedZips[0]) . '"');
     header('Content-Length: ' . filesize($generatedZips[0]));
     readfile($generatedZips[0]);
-    @unlink($generatedZips[0]);
     exit;
 } else {
     // MULTI-PART UI & AUTO-DOWNLOADER
