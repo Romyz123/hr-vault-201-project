@@ -54,7 +54,8 @@ $devFiles = [
     'ValidatorTest.php',
     'download_assets.php',
     'stress_test_backup.php',
-    'system_diagnostics.php'
+    'system_diagnostics.php',
+    'qa_test.php'
 ];
 $basePath = __DIR__ . '/';
 $devFilesExist = false;
@@ -94,6 +95,7 @@ $backupsPath = realpath(__DIR__ . '/../backups');
 $permsOk = (is_writable($vaultPath) && is_writable(__DIR__ . '/uploads') && is_writable($backupsPath));
 
 // 5. HTTPS
+$isLocal = in_array($_SERVER['REMOTE_ADDR'] ?? '', ['127.0.0.1', '::1']);
 $isHttps = (
     (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
     || ($_SERVER['SERVER_PORT'] ?? 80) == 443
@@ -113,6 +115,8 @@ $cronStatus = "Manual verification required.";
 $columnSchema = [
     'users' => [
         'is_2fa_enabled' => "TINYINT(1) DEFAULT 0",
+        'totp_secret' => "VARCHAR(255) NULL",
+        'recovery_codes' => "TEXT NULL",
         'otp_code' => "VARCHAR(6) NULL",
         'otp_expires' => "DATETIME NULL",
         'last_otp_sent' => "DATETIME NULL",
@@ -576,6 +580,8 @@ foreach ($columnSchema as $table => $cols) {
                         </div>
                         <?php if ($isHttps): ?>
                             <span class="badge bg-success rounded-pill px-3 py-2"><i class="bi bi-check-circle-fill"></i> Encrypted</span>
+                        <?php elseif ($isLocal): ?>
+                            <span class="badge bg-info text-dark rounded-pill px-3 py-2"><i class="bi bi-info-circle-fill"></i> Localhost</span>
                         <?php else: ?>
                             <span class="badge bg-warning text-dark rounded-pill px-3 py-2"><i class="bi bi-exclamation-triangle-fill"></i> Insecure (HTTP)</span>
                         <?php endif; ?>

@@ -343,7 +343,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['cleanup_dev_files']) 
         'ValidatorTest.php',
         'download_assets.php',
         'stress_test_backup.php',
-        'system_diagnostics.php'
+        'system_diagnostics.php',
+        'qa_test.php'
     ];
 
     $deletedCount = 0;
@@ -968,7 +969,7 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
 
         <!-- [SECURITY] Password Expiry Warning (5 Days Notice) -->
         <?php
-        $stmt = $pdo->prepare("SELECT password_changed_at, created_at FROM users WHERE id = ?");
+        $stmt = $pdo->prepare("SELECT password_changed_at, created_at, security_question FROM users WHERE id = ?");
         $stmt->execute([$_SESSION['user_id']]);
         $u = $stmt->fetch();
         if ($u && ($u['password_changed_at'] || $u['created_at'])) {
@@ -988,6 +989,33 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
                 </div>
         <?php endif;
         } ?>
+
+        <!-- [SECURITY] Missing Security Question Alert -->
+        <?php if ($u && empty($u['security_question'])): ?>
+            <div class="alert alert-danger shadow-sm fw-bold d-flex align-items-center mb-4 border-danger border-3">
+                <i class="bi bi-patch-question-fill fs-3 me-3 text-danger"></i>
+                <div>
+                    <h5 class="mb-0 text-danger">Security Vulnerability: Missing Recovery Data</h5>
+                    <span class="small fw-normal text-dark">You have not set up your Account Recovery Security Question. Please <a href="profile_settings.php" class="alert-link text-decoration-underline">configure it now</a> to ensure you don't lose access to your account.</span>
+                </div>
+            </div>
+        <?php endif; ?>
+
+        <!-- [SECURITY] Admin Password Reset Notification -->
+        <?php
+        $adminResetStmt = $pdo->prepare("SELECT created_at FROM activity_logs WHERE action = 'ADMIN_PASSWORD_RESET' AND details LIKE ? ORDER BY created_at DESC LIMIT 1");
+        $adminResetStmt->execute(["%(ID: {$_SESSION['user_id']})%"]);
+        $lastAdminReset = $adminResetStmt->fetchColumn();
+        if ($lastAdminReset && (time() - strtotime($lastAdminReset) < 259200)): // Show for 3 days (72 hours)
+        ?>
+            <div class="alert alert-info shadow-sm fw-bold d-flex align-items-center mb-4 border-info border-3">
+                <i class="bi bi-info-circle-fill fs-3 me-3 text-info"></i>
+                <div>
+                    <h5 class="mb-0 text-info">Security Notice: Password Reset</h5>
+                    <span class="small fw-normal text-dark">Your password was recently reset by an Administrator on <strong><?php echo date('F j, Y, g:i a', strtotime($lastAdminReset)); ?></strong>. If you did not request this, please <a href="profile_settings.php" class="alert-link text-decoration-underline">change your password</a> immediately to secure your account.</span>
+                </div>
+            </div>
+        <?php endif; ?>
 
         <!-- [ADMIN] System Health & Server Config (Professional View) -->
         <?php if ($userRole === 'ADMIN'): ?>
@@ -1444,12 +1472,40 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
                                         </div>
                                         <div class="tab-content flex-grow-1 p-4">
                                             <div class="tab-pane fade show active" id="info-<?php echo (int)$emp['id']; ?>">
+                                                <h6 class="text-primary fw-bold mb-3 border-bottom pb-2"><i class="bi bi-briefcase"></i> Work Information</h6>
+                                                <div class="row g-3 mb-4">
+                                                    <div class="col-6"><span class="info-label">Department:</span><br><span class="fw-medium"><?php echo h($emp['dept']); ?></span></div>
+                                                    <div class="col-6"><span class="info-label">Section:</span><br><span class="fw-medium"><?php echo h($emp['section']); ?></span></div>
+                                                    <div class="col-6"><span class="info-label">Employment Type:</span><br><span class="fw-medium"><?php echo h($emp['employment_type']); ?></span></div>
+                                                    <div class="col-6"><span class="info-label">Date Hired:</span><br><span class="fw-medium"><?php echo h($emp['hire_date'] ? date('M d, Y', strtotime($emp['hire_date'])) : 'Not specified'); ?></span></div>
+                                                </div>
+
+                                                <h6 class="text-primary fw-bold mb-3 border-bottom pb-2"><i class="bi bi-person-lines-fill"></i> Personal Details</h6>
+                                                <div class="row g-3 mb-4">
+                                                    <div class="col-6"><span class="info-label">Contact:</span><br><span class="fw-medium"><?php echo h($emp['contact_number']); ?></span></div>
+                                                    <div class="col-6"><span class="info-label">Email:</span><br><span class="fw-medium"><?php echo h($emp['email'] ?: 'N/A'); ?></span></div>
+                                                    <div class="col-12"><span class="info-label">Present Address:</span><br><span class="fw-medium"><?php echo h($emp['present_address']); ?></span></div>
+                                                </div>
+
+                                                <h6 class="text-primary fw-bold mb-3 border-bottom pb-2"><i class="bi bi-card-checklist"></i> Government IDs</h6>
+                                                <div class="row g-3 mb-4">
+                                                    <div class="col-6"><span class="info-label">SSS No:</span><br><span class="fw-medium font-monospace"><?php echo h($emp['sss_no'] ?: 'N/A'); ?></span></div>
+                                                    <div class="col-6"><span class="info-label">TIN:</span><br><span class="fw-medium font-monospace"><?php echo h($emp['tin_no'] ?: 'N/A'); ?></span></div>
+                                                    <div class="col-6"><span class="info-label">PhilHealth:</span><br><span class="fw-medium font-monospace"><?php echo h($emp['philhealth_no'] ?: 'N/A'); ?></span></div>
+                                                    <div class="col-6"><span class="info-label">Pag-IBIG:</span><br><span class="fw-medium font-monospace"><?php echo h($emp['pagibig_no'] ?: 'N/A'); ?></span></div>
+                                                </div>
+
+                                                <h6 class="text-primary fw-bold mb-3 border-bottom pb-2"><i class="bi bi-mortarboard"></i> Qualifications</h6>
+                                                <div class="row g-3 mb-4">
+                                                    <div class="col-12"><span class="info-label">Education:</span><br><span class="fw-medium"><?php echo !empty($emp['education']) ? nl2br(h($emp['education'])) : '<span class="text-muted fst-italic">Not specified</span>'; ?></span></div>
+                                                    <div class="col-12"><span class="info-label">Experience:</span><br><span class="fw-medium"><?php echo !empty($emp['experience']) ? nl2br(h($emp['experience'])) : '<span class="text-muted fst-italic">Not specified</span>'; ?></span></div>
+                                                    <div class="col-12"><span class="info-label">Licenses / Certifications:</span><br><span class="fw-medium"><?php echo !empty($emp['licenses']) ? nl2br(h($emp['licenses'])) : '<span class="text-muted fst-italic">Not specified</span>'; ?></span></div>
+                                                </div>
+
+                                                <h6 class="text-danger fw-bold mb-3 border-bottom pb-2"><i class="bi bi-heart-pulse"></i> Emergency Contact</h6>
                                                 <div class="row g-3">
-                                                    <div class="col-6"><span class="info-label">Department:</span><br><?php echo h($emp['dept']); ?></div>
-                                                    <div class="col-6"><span class="info-label">Section:</span><br><?php echo h($emp['section']); ?></div>
-                                                    <div class="col-6"><span class="info-label">Contact:</span><br><?php echo h($emp['contact_number']); ?></div>
-                                                    <div class="col-6"><span class="info-label">Email:</span><br><?php echo h($emp['email']); ?></div>
-                                                    <div class="col-12"><span class="info-label">Address:</span><br><?php echo h($emp['present_address']); ?></div>
+                                                    <div class="col-6"><span class="info-label">Name:</span><br><span class="fw-medium"><?php echo h($emp['emergency_name'] ?: 'N/A'); ?></span></div>
+                                                    <div class="col-6"><span class="info-label">Contact No:</span><br><span class="fw-medium"><?php echo h($emp['emergency_contact'] ?: 'N/A'); ?></span></div>
                                                 </div>
                                             </div>
                                             <div class="tab-pane fade" id="files-<?php echo (int)$emp['id']; ?>">

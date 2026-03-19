@@ -105,6 +105,7 @@ $isVaultFull = ($vaultLimitBytes > 0 && $currentVaultBytes >= $vaultLimitBytes);
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <link href="assets/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="assets/icons/bootstrap-icons.css">
+    <script src="assets/sweetalert2.all.min.js"></script>
     <style>
         .drop-zone {
             border: 2px dashed #ced4da;
@@ -316,8 +317,8 @@ $isVaultFull = ($vaultLimitBytes > 0 && $currentVaultBytes >= $vaultLimitBytes);
                 </div>
                 <div class="modal-body text-center position-relative overflow-hidden p-0 bg-dark">
                     <div class="alert alert-dark small rounded-0 mb-0 border-0"><i class="bi bi-info-circle-fill"></i> Align your document or ID card within the frame.</div>
-                    <video id="cameraVideo" width="100%" autoplay playsinline style="min-height: 400px; background: #000; object-fit: cover;"></video>
-                    <img id="cameraPreviewImage" style="display:none; width: 100%; min-height: 400px; object-fit: cover;">
+                    <video id="cameraVideo" width="100%" autoplay playsinline style="min-height: 400px; max-height: 600px; background: #000; object-fit: contain;"></video>
+                    <img id="cameraPreviewImage" style="display:none; width: 100%; min-height: 400px; max-height: 600px; object-fit: contain; background: #000;">
                     <div class="camera-overlay" id="cameraOverlay">
                         <div class="camera-guide-doc"></div>
                     </div>
@@ -595,19 +596,44 @@ $isVaultFull = ($vaultLimitBytes > 0 && $currentVaultBytes >= $vaultLimitBytes);
 
         async function startCamera() {
             const video = document.getElementById('cameraVideo');
+            stopCamera(); // Ensure previous stream is killed
             retakePhoto(); // Reset UI
+
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                console.error("Camera API not available.");
+                Swal.fire({
+                    icon: 'error',
+                    title: 'HTTPS Required',
+                    html: 'Modern browsers strictly block camera access on unsecure (HTTP) networks.<br><br>Please access this system via <b>HTTPS</b> or <b>localhost</b> to use the scanner.',
+                    confirmButtonColor: '#dc3545'
+                });
+                const modalEl = document.getElementById('cameraModal');
+                if (modalEl) {
+                    const modal = bootstrap.Modal.getInstance(modalEl);
+                    if (modal) modal.hide();
+                }
+                return;
+            }
+
             try {
                 // Request environment camera (back camera) for documents if on mobile
                 videoStream = await navigator.mediaDevices.getUserMedia({
                     video: {
-                        facingMode: "environment"
+                        facingMode: {
+                            ideal: "environment"
+                        }
                     }
                 });
                 video.srcObject = videoStream;
+                video.play().catch(e => console.error("Play error:", e));
             } catch (err) {
                 console.error("Camera error:", err);
-                Swal.fire('Error', 'Unable to access camera. Please check permissions.', 'error');
-                bootstrap.Modal.getInstance(document.getElementById('cameraModal')).hide();
+                Swal.fire('Error', 'Unable to access camera. Please check your browser permissions.', 'error');
+                const modalEl = document.getElementById('cameraModal');
+                if (modalEl) {
+                    const modal = bootstrap.Modal.getInstance(modalEl);
+                    if (modal) modal.hide();
+                }
             }
         }
 
@@ -623,8 +649,32 @@ $isVaultFull = ($vaultLimitBytes > 0 && $currentVaultBytes >= $vaultLimitBytes);
             const canvas = document.getElementById('cameraCanvas');
             if (!videoStream) return;
 
+            // --- VISUAL SHUTTER FLASH ---
+            const modalBody = video.closest('.modal-body');
+            if (modalBody) {
+                const flash = document.createElement('div');
+                flash.style.position = 'absolute';
+                flash.style.inset = '0';
+                flash.style.backgroundColor = '#ffffff';
+                flash.style.zIndex = '9999';
+                flash.style.transition = 'opacity 0.25s ease-out';
+                modalBody.appendChild(flash);
+                setTimeout(() => {
+                    flash.style.opacity = '0';
+                }, 10);
+                setTimeout(() => {
+                    flash.remove();
+                }, 300);
+            }
+
             let width = video.videoWidth;
             let height = video.videoHeight;
+
+            // [FIX] Fallback if video hasn't loaded metadata properly yet
+            if (width === 0 || height === 0) {
+                width = video.clientWidth || 640;
+                height = video.clientHeight || 480;
+            }
 
             // [FIX] Scale down document to max 1600px to avoid 20MB file sizes and PHP crashes
             const MAX_DIM = 1600;
@@ -636,29 +686,45 @@ $isVaultFull = ($vaultLimitBytes > 0 && $currentVaultBytes >= $vaultLimitBytes);
                 height = MAX_DIM;
             }
 
-            const outCanvas = document.createElement('canvas');
-            outCanvas.width = width;
-            outCanvas.height = height;
-            const ctx = outCanvas.getContext('2d');
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
             ctx.drawImage(video, 0, 0, width, height);
 
-            outCanvas.toBlob(blob => {
-                capturedBlob = blob;
-                const previewImg = document.getElementById('cameraPreviewImage');
-                previewImg.src = URL.createObjectURL(blob);
+            // [FIX] Use Data URL for 100% reliable instant preview on all mobile browsers
+            const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+            const previewImg = document.getElementById('cameraPreviewImage');
+            if (previewImg) {
+                previewImg.src = dataUrl;
                 previewImg.style.display = 'block';
-                video.style.display = 'none';
-                document.getElementById('cameraOverlay').style.display = 'none';
-                document.getElementById('cameraControls').style.display = 'none';
-                document.getElementById('previewControls').style.display = 'block';
+            }
+            if (video) video.style.display = 'none';
+            const overlay = document.getElementById('cameraOverlay');
+            if (overlay) overlay.style.display = 'none';
+            document.getElementById('cameraControls').style.display = 'none';
+            document.getElementById('previewControls').style.display = 'block';
+
+            canvas.toBlob(blob => {
+                if (!blob) {
+                    return;
+                }
+                capturedBlob = blob;
             }, 'image/jpeg', 0.85);
         }
 
         function retakePhoto() {
             capturedBlob = null;
-            document.getElementById('cameraPreviewImage').style.display = 'none';
-            document.getElementById('cameraVideo').style.display = 'block';
-            document.getElementById('cameraOverlay').style.display = 'flex';
+            const previewImg = document.getElementById('cameraPreviewImage');
+            const video = document.getElementById('cameraVideo');
+            const overlay = document.getElementById('cameraOverlay');
+            if (previewImg) previewImg.style.display = 'none';
+            if (video) {
+                video.style.display = 'block';
+                if (video.paused && typeof videoStream !== 'undefined' && videoStream) {
+                    video.play().catch(e => console.error("Play error:", e));
+                }
+            }
+            if (overlay) overlay.style.display = 'flex';
             document.getElementById('cameraControls').style.display = 'block';
             document.getElementById('previewControls').style.display = 'none';
         }

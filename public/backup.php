@@ -7,6 +7,16 @@ require '../src/Logger.php';
 require '../src/Security.php';
 session_start();
 
+// Cleanup any leftover temp backup parts from previous sessions
+if (!empty($_SESSION['backup_temp_files']) && is_array($_SESSION['backup_temp_files'])) {
+    foreach ($_SESSION['backup_temp_files'] as $f) {
+        if (file_exists($f)) {
+            @unlink($f);
+        }
+    }
+    unset($_SESSION['backup_temp_files']);
+}
+
 // 1. SECURITY: Only ADMIN can download backups
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'ADMIN') {
     die("ACCESS DENIED: You do not have permission to download backups.");
@@ -51,8 +61,10 @@ if (isset($_GET['download_part'])) {
     header('Content-Disposition: attachment; filename="' . $requested . '"');
     header('Content-Length: ' . filesize($filePath));
     readfile($filePath);
-    // Optionally delete after successful download (may need coordination for multi-part)
-    // @unlink($filePath);
+    // Clean up the temporary generated part after serving
+    if (file_exists($filePath)) {
+        @unlink($filePath);
+    }
     exit;
 }
 
@@ -173,6 +185,10 @@ if ($useZip) {
         if ($zip instanceof ZipArchive) $zip->close();
         $path = $tempDir . DIRECTORY_SEPARATOR . $baseFilename . "_Part{$partNumber}.zip";
         $generatedZips[] = $path;
+        if (!isset($_SESSION['backup_temp_files']) || !is_array($_SESSION['backup_temp_files'])) {
+            $_SESSION['backup_temp_files'] = [];
+        }
+        $_SESSION['backup_temp_files'][] = $path;
         $zip = new ZipArchive();
         if ($zip->open($path, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== TRUE) {
             $cleanupOnError("Server Error: Could not create split ZIP.");
@@ -271,8 +287,33 @@ if ($mode === 'server') {
     $fullPath = rtrim($primaryPath, '/\\') . '/' . $final_filename;
 
     $saved = false;
-    if ($useZip && !empty($generatedZips) && file_exists($generatedZips[0])) {
-        $saved = copy($generatedZips[0], $fullPath);
+    if ($useZip && !empty($generatedZips)) {
+        $saved = true;
+        $totalParts = count($generatedZips);
+        $savedDests = [];
+        foreach ($generatedZips as $idx => $src) {
+            if (!file_exists($src)) {
+                $saved = false;
+                break;
+            }
+
+            $dest = $fullPath;
+            if ($totalParts > 1) {
+                $ext = pathinfo($fullPath, PATHINFO_EXTENSION);
+                $base = basename($fullPath, $ext ? ".{$ext}" : '');
+                $dest = dirname($fullPath) . DIRECTORY_SEPARATOR . $base . '_Part' . ($idx + 1) . ($ext ? ".{$ext}" : '');
+            }
+
+            if (!copy($src, $dest)) {
+                $saved = false;
+                // Cleanup partially saved files
+                foreach ($savedDests as $d) {
+                    if (file_exists($d)) @unlink($d);
+                }
+                break;
+            }
+            $savedDests[] = $dest;
+        }
     } else {
         $saved = copy($tmpSqlFile, $fullPath);
     }
@@ -320,13 +361,14 @@ if ($mode === 'server') {
     if (ini_get('zlib.output_compression')) ini_set('zlib.output_compression', 'Off');
 
     // [NEW] Set cookie to tell the frontend to close the loading spinner
-    setcookie("downloadToken", bin2hex(random_bytes(16)), time() + 300, "/");
+    setcookie("downloadToken", $_POST['csrf_token'] ?? '1', time() + 300, "/");
     if ($useZip && count($generatedZips) > 1) {
         // MULTI-PART UI & AUTO-DOWNLOADER
         $downloadLinks = [];
         foreach ($generatedZips as $path) {
             $downloadLinks[] = 'backup.php?download_part=' . urlencode(basename($path)) . '&csrf_token=' . urlencode($_POST['csrf_token'] ?? '');
         }
+
 ?>
         <!DOCTYPE html>
         <html lang="en">
@@ -385,6 +427,9 @@ if ($mode === 'server') {
         header("Content-disposition: attachment; filename=\"" . $final_filename . "\"");
         header('Content-Length: ' . filesize($generatedZips[0]));
         readfile($generatedZips[0]);
+        if (file_exists($generatedZips[0])) {
+            @unlink($generatedZips[0]);
+        }
     } else {
         header('Content-Type: ' . $final_mimetype);
         header("Content-Transfer-Encoding: Binary");

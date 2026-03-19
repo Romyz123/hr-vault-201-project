@@ -450,12 +450,16 @@ if (PHP_OS_FAMILY === 'Windows') {
                             <div class="mb-3">
                                 <label class="form-label fw-bold">ZIP Password</label>
                                 <div class="input-group">
-                                    <input type="password" name="settings[backup_password]" id="backupPassInput" class="form-control" placeholder="Enter new to change" minlength="8" maxlength="50" autocomplete="new-password">
+                                    <input type="password" name="settings[backup_password]" id="backupPassInput" class="form-control" placeholder="Enter new to change" minlength="8" maxlength="50" autocomplete="new-password" oninput="updateStrength(this.value, 'backupStrengthBar')">
+                                    <button class="btn btn-outline-secondary" type="button" onclick="togglePass('backupPassInput')"><i class="bi bi-eye"></i></button>
                                     <button type="button" class="btn btn-outline-secondary" onclick="testZipPassword(this)" title="Verify Password"><i class="bi bi-check-circle"></i> Test</button>
                                     <div class="input-group-text bg-white">
                                         <input class="form-check-input mt-0" type="checkbox" name="clear_backup_password" value="1" aria-label="Clear password">
                                         <span class="ms-2 small">Clear</span>
                                     </div>
+                                </div>
+                                <div class="progress mt-1" style="height: 5px;">
+                                    <div id="backupStrengthBar" class="progress-bar bg-danger" role="progressbar" style="width: 0%"></div>
                                 </div>
                                 <div class="form-text">Encrypts the backup ZIP file. Max 50 characters. (Leave blank to keep current)</div>
                             </div>
@@ -603,6 +607,36 @@ if (PHP_OS_FAMILY === 'Windows') {
                     btn.disabled = false;
                     btn.innerHTML = originalHtml;
                 });
+        }
+
+        function togglePass(id) {
+            const input = document.getElementById(id);
+            const icon = input.nextElementSibling.querySelector('i');
+            if (input.type === 'password') {
+                input.type = 'text';
+                icon.classList.replace('bi-eye', 'bi-eye-slash');
+            } else {
+                input.type = 'password';
+                icon.classList.replace('bi-eye-slash', 'bi-eye');
+            }
+        }
+
+        function updateStrength(val, barId) {
+            const bar = document.getElementById(barId);
+            if (!bar) return;
+            let score = 0;
+            if (val.length >= 8) score++;
+            if (val.length >= 12) score++;
+            if (val.length >= 15) score++;
+            if (/[A-Z]/.test(val)) score++;
+            if (/[a-z]/.test(val)) score++;
+            if (/[0-9]/.test(val)) score++;
+            if (/[^A-Za-z0-9]/.test(val)) score++;
+
+            let pct = Math.min(100, (score / 7) * 100);
+            bar.style.width = pct + '%';
+            bar.className = 'progress-bar ' + (score > 5 ? 'bg-success' : (score > 3 ? 'bg-warning' : 'bg-danger'));
+            if (val.length === 0) bar.style.width = '0%';
         }
 
         function runManualBackup() {

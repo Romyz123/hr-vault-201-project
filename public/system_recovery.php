@@ -88,10 +88,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // --- DELETE ORPHANED FILE ---
     if (isset($_POST['delete_orphan'])) {
         $filename = $_POST['filename'];
-        // [FIX] Decode and check for path traversal
-        $decoded = urldecode($filename);
-        if (strpos($decoded, '..') !== false || strpos($filename, '..') !== false) {
-            die("Invalid path");
+        // [SECURITY] Neutralize double/triple URL encoding path traversal bypass
+        $decoded = $filename;
+        while (preg_match('/%[0-9a-fA-F]{2}/', $decoded)) {
+            $decoded = urldecode($decoded);
+        }
+        if (strpos($decoded, '..') !== false || strpos($filename, '..') !== false || strpos($decoded, "\0") !== false) {
+            die("Security Violation: Invalid path traversal detected.");
         }
 
         if (strpos($filename, 'uploads/') === 0) {
@@ -131,9 +134,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $orphansToDelete = json_decode($_POST['orphan_list'], true);
         if (is_array($orphansToDelete)) {
             foreach ($orphansToDelete as $file) {
-                // [FIX] Path traversal check
-                $decoded = urldecode($file);
-                if (strpos($decoded, '..') !== false || strpos($file, '..') !== false) continue;
+                // [SECURITY] Path traversal check
+                $decoded = $file;
+                while (preg_match('/%[0-9a-fA-F]{2}/', $decoded)) {
+                    $decoded = urldecode($decoded);
+                }
+                if (strpos($decoded, '..') !== false || strpos($file, '..') !== false || strpos($decoded, "\0") !== false) continue;
 
                 if (strpos($file, 'uploads/') === 0) {
                     // [FIX] Secure path construction
@@ -165,9 +171,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $count = 0;
         if (is_array($filesToDelete)) {
             foreach ($filesToDelete as $file) {
-                // [FIX] Path traversal check
-                $decoded = urldecode($file);
-                if (strpos($decoded, '..') !== false || strpos($file, '..') !== false) continue;
+                // [SECURITY] Path traversal check
+                $decoded = $file;
+                while (preg_match('/%[0-9a-fA-F]{2}/', $decoded)) {
+                    $decoded = urldecode($decoded);
+                }
+                if (strpos($decoded, '..') !== false || strpos($file, '..') !== false || strpos($decoded, "\0") !== false) continue;
 
                 if (strpos($file, 'uploads/') === 0) {
                     // [FIX] Secure path construction
@@ -819,6 +828,7 @@ $bkMaxSize = $pdo->query("SELECT setting_value FROM system_settings WHERE settin
         <div class="container">
             <a class="navbar-brand" href="manager_user.php">⬅ Back to User Manager</a>
             <div class="d-flex align-items-center gap-2">
+                <button type="button" class="btn btn-sm btn-outline-light fw-bold" onclick="downloadRestorationGuide()"><i class="bi bi-file-earmark-text"></i> Restoration Guide</button>
                 <button id="darkModeToggle" class="btn btn-sm btn-outline-light border-0" title="Toggle Dark Mode">
                     <i class="bi bi-moon-stars-fill"></i>
                 </button>
@@ -1305,10 +1315,54 @@ $bkMaxSize = $pdo->query("SELECT setting_value FROM system_settings WHERE settin
         function showBackupLoader(form) {
             const submitBtn = form.querySelector('button[type="submit"]');
             if (submitBtn) {
+                const originalHtml = submitBtn.innerHTML;
                 submitBtn.disabled = true;
                 submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Working...';
+                const csrf = form.querySelector('[name="csrf_token"]').value;
+                let pollCount = 0;
+                const maxPollAttempts = 300; // 5 minutes at 1s intervals
+                const checkCookie = setInterval(() => {
+                    pollCount++;
+                    if (document.cookie.includes('downloadToken=' + csrf)) {
+                        clearInterval(checkCookie);
+                        submitBtn.disabled = false;
+                        submitBtn.innerHTML = originalHtml;
+                        document.cookie = "downloadToken=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+                    } else if (pollCount >= maxPollAttempts) {
+                        clearInterval(checkCookie);
+                        submitBtn.disabled = false;
+                        submitBtn.innerHTML = originalHtml;
+                    }
+                }, 1000);
             }
             return true;
+        }
+
+        const guideText = `RESTORATION GUIDE\n\nOption 1: Database Restore (Automatic)\nUse this to roll back data changes (e.g. accidental deletion).\n1. Locate a backup in the Available Auto-Backups list.\n2. Click the Restore This button.\n3. Enter your Admin Password to confirm.\n\nOption 2: Full System Recovery (Manual & Split ZIPs)\nUse this if the server crashed, you moved to a new PC, or you have a multi-part backup.\n1. Database: Under "2. System Restore", click the "Choose Files" button.\n2. Upload: Browse to your backup file. If your backup is split into multiple parts (e.g., Part1.zip, Part2.zip), highlight and select ALL of them at the exact same time.\n3. Confirm: Type in your Admin Password and click "Restore Database". The server will automatically organize the parts, silently unpack the SQL inside them, and reconstruct your entire database!\n4. Documents (Vault):\n   Note: The ZIP files above only restore the database records.\n   - If your backup included Vault Files, open the ZIP file manually on your computer.\n   - Extract the 'vault' folder from the ZIP.\n   - Paste it into your server's directory: C:\\xampp\\htdocs\\hr 201\\vault\\\n5. Encryption Key: Ensure config/config.php is restored if lost, as it contains your secure Vault Key.`;
+
+        function downloadRestorationGuide() {
+            const blob = new Blob([guideText], {
+                type: "text/plain;charset=utf-8"
+            });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = "HR_System_Restoration_Guide.txt";
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+
+            if (typeof Swal !== 'undefined') {
+                Swal.fire({
+                    toast: true,
+                    position: 'top-end',
+                    icon: 'success',
+                    title: 'Guide downloaded successfully!',
+                    showConfirmButton: false,
+                    timer: 2000
+                });
+            }
         }
     </script>
 </body>

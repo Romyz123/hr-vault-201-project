@@ -37,7 +37,7 @@ class FileService
     private function encrypt($data)
     {
         $ivlen = openssl_cipher_iv_length($this->cipher);
-        $iv = openssl_random_pseudo_bytes($ivlen);
+        $iv = random_bytes($ivlen); // [SECURITY] MHI Compliance: Use CSPRNG
         // [FIX] Use OPENSSL_RAW_DATA for cleaner binary handling
         $ciphertext = openssl_encrypt($data, $this->cipher, $this->key, OPENSSL_RAW_DATA, $iv);
         if ($ciphertext === false) return false;

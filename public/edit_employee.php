@@ -728,45 +728,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             background: #fff;
         }
 
-        .exit-field {
-            display: none;
-        }
-
-        /* Default hidden */
-
-        /* [NEW] Timeline Styles */
-        .timeline {
-            position: relative;
-            padding: 20px 0 20px 20px;
-            border-left: 2px solid #e9ecef;
-            margin-left: 10px;
-        }
-
-        .timeline-item {
-            position: relative;
-            padding-left: 30px;
-            margin-bottom: 30px;
-        }
-
-        .timeline-marker {
-            position: absolute;
-            left: -28px;
-            /* Aligns dot on the line */
-            top: 0;
-            width: 14px;
-            height: 14px;
-            border-radius: 50%;
-            background: #adb5bd;
-            /* Grey for past */
-            border: 2px solid #fff;
-            box-shadow: 0 0 0 1px #dee2e6;
-            z-index: 1;
-        }
-
-        .timeline-item:first-child .timeline-marker {
-            background: #0d6efd;
-            /* Blue for latest */
-            box-shadow: 0 0 0 4px rgba(13, 110, 253, 0.2);
+        #cameraVideo,
+        #cameraPreviewImage {
+            transform: scaleX(-1);
+            /* Selfie mirror effect */
         }
     </style>
 </head>
@@ -1626,11 +1591,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close" onclick="stopCamera()"></button>
                 </div>
                 <div class="modal-body text-center position-relative overflow-hidden p-0 bg-dark">
-                    <video id="cameraVideo" width="100%" autoplay playsinline style="background: #000; min-height: 350px; object-fit: cover;"></video>
-                    <img id="cameraPreviewImage" style="display:none; width: 100%; min-height: 350px; object-fit: cover;">
-                    <div class="camera-overlay" id="cameraOverlay">
-                        <div class="camera-guide-square"></div>
-                    </div>
+                    <video id="cameraVideo" width="100%" autoplay playsinline style="background: #000; min-height: 350px; max-height: 450px; object-fit: contain;"></video>
+                    <img id="cameraPreviewImage" style="display:none; width: 100%; min-height: 350px; max-height: 450px; object-fit: contain; background: #000;">
                     <canvas id="cameraCanvas" style="display:none;"></canvas>
                 </div>
                 <div class="modal-footer justify-content-between">
@@ -2390,19 +2352,44 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         async function startCamera() {
             const video = document.getElementById('cameraVideo');
+            stopCamera(); // Ensure previous stream is killed
             retakePhoto(); // Reset UI
+
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                console.error("Camera API not available.");
+                Swal.fire({
+                    icon: 'error',
+                    title: 'HTTPS Required',
+                    html: 'Modern browsers strictly block camera access on unsecure (HTTP) networks.<br><br>Please access this system via <b>HTTPS</b> or <b>localhost</b> to use the camera.',
+                    confirmButtonColor: '#dc3545'
+                });
+                const modalEl = document.getElementById('cameraModal');
+                if (modalEl) {
+                    const modal = bootstrap.Modal.getInstance(modalEl);
+                    if (modal) modal.hide();
+                }
+                return;
+            }
+
             try {
                 // Request camera (prioritizes front-facing/webcam)
                 videoStream = await navigator.mediaDevices.getUserMedia({
                     video: {
-                        facingMode: "user"
+                        facingMode: {
+                            ideal: "user"
+                        }
                     }
                 });
                 video.srcObject = videoStream;
+                video.play().catch(e => console.error("Play error:", e));
             } catch (err) {
                 console.error("Camera error:", err);
                 Swal.fire('Error', 'Unable to access camera. Please check permissions or ensure you are using HTTPS.', 'error');
-                bootstrap.Modal.getInstance(document.getElementById('cameraModal')).hide();
+                const modalEl = document.getElementById('cameraModal');
+                if (modalEl) {
+                    const modal = bootstrap.Modal.getInstance(modalEl);
+                    if (modal) modal.hide();
+                }
             }
         }
 
@@ -2418,39 +2405,97 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             const canvas = document.getElementById('cameraCanvas');
             if (!videoStream) return;
 
-            // [NEW] Crop mathematically to a 1:1 square based on the center of the video
-            const size = Math.min(video.videoWidth, video.videoHeight);
-            const startX = (video.videoWidth - size) / 2;
-            const startY = (video.videoHeight - size) / 2;
+            // --- VISUAL SHUTTER FLASH ---
+            const modalBody = video.closest('.modal-body');
+            if (modalBody) {
+                const flash = document.createElement('div');
+                flash.style.position = 'absolute';
+                flash.style.inset = '0';
+                flash.style.backgroundColor = '#ffffff';
+                flash.style.zIndex = '9999';
+                flash.style.transition = 'opacity 0.25s ease-out';
+                modalBody.appendChild(flash);
+                setTimeout(() => {
+                    flash.style.opacity = '0';
+                }, 10);
+                setTimeout(() => {
+                    flash.remove();
+                }, 300);
+            }
 
-            // [FIX] Downscale to 800x800 to prevent massive file uploads crashing PHP
-            const outSize = Math.min(size, 800);
-            const outCanvas = document.createElement('canvas');
-            outCanvas.width = outSize;
-            outCanvas.height = outSize;
-            const ctx = outCanvas.getContext('2d');
+            // [FIX] Remove crop and downscale to max 800px width/height while keeping aspect ratio
+            const MAX_DIM = 800;
+            let outWidth = video.videoWidth;
+            let outHeight = video.videoHeight;
 
-            ctx.drawImage(video, startX, startY, size, size, 0, 0, outSize, outSize);
+            // [FIX] Fallback if video metadata isn't loaded yet to prevent 0x0 blank images
+            if (outWidth === 0 || outHeight === 0) {
+                outWidth = video.clientWidth || 640;
+                outHeight = video.clientHeight || 480;
+            }
 
-            outCanvas.toBlob(blob => {
-                capturedBlob = blob;
-                const previewImg = document.getElementById('cameraPreviewImage');
-                previewImg.src = URL.createObjectURL(blob);
+            if (outWidth > MAX_DIM || outHeight > MAX_DIM) {
+                if (outWidth > outHeight) {
+                    outHeight = Math.floor(outHeight * (MAX_DIM / outWidth));
+                    outWidth = MAX_DIM;
+                } else {
+                    outWidth = Math.floor(outWidth * (MAX_DIM / outHeight));
+                    outHeight = MAX_DIM;
+                }
+            }
+
+            canvas.width = outWidth;
+            canvas.height = outHeight;
+            const ctx = canvas.getContext('2d');
+
+            ctx.drawImage(video, 0, 0, outWidth, outHeight);
+
+            // [FIX] Use Data URL for 100% reliable instant preview on all mobile browsers
+            const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+            const previewImg = document.getElementById('cameraPreviewImage');
+            if (previewImg) {
+                previewImg.src = dataUrl;
                 previewImg.style.display = 'block';
-                video.style.display = 'none';
-                document.getElementById('cameraOverlay').style.display = 'none';
-                document.getElementById('cameraControls').style.display = 'none';
-                document.getElementById('previewControls').style.display = 'block';
+            }
+            if (video) video.style.display = 'none';
+            const overlay = document.getElementById('cameraOverlay');
+            if (overlay) overlay.style.display = 'none';
+            document.getElementById('cameraControls').style.display = 'none';
+            document.getElementById('previewControls').style.display = 'block';
+
+            // Disable confirm button until blob is ready
+            const confirmBtn = document.querySelector('#previewControls button.btn-primary');
+            if (confirmBtn) confirmBtn.disabled = true;
+
+            canvas.toBlob(blob => {
+                if (!blob) {
+                    Swal.fire('Error', 'Failed to capture image. Please try again.', 'error');
+                    retakePhoto();
+                    return;
+                }
+                capturedBlob = blob;
+                if (confirmBtn) confirmBtn.disabled = false;
             }, 'image/jpeg', 0.85);
         }
 
         function retakePhoto() {
             capturedBlob = null;
-            document.getElementById('cameraPreviewImage').style.display = 'none';
-            document.getElementById('cameraVideo').style.display = 'block';
-            document.getElementById('cameraOverlay').style.display = 'flex';
-            document.getElementById('cameraControls').style.display = 'block';
-            document.getElementById('previewControls').style.display = 'none';
+            const previewImg = document.getElementById('cameraPreviewImage');
+            const video = document.getElementById('cameraVideo');
+            const overlay = document.getElementById('cameraOverlay');
+            const cameraControls = document.getElementById('cameraControls');
+            const previewControls = document.getElementById('previewControls');
+
+            if (previewImg) previewImg.style.display = 'none';
+            if (video) {
+                video.style.display = 'block';
+                if (video.paused && typeof videoStream !== 'undefined' && videoStream) {
+                    video.play().catch(e => console.error("Play error:", e));
+                }
+            }
+            if (overlay) overlay.style.display = 'flex';
+            if (cameraControls) cameraControls.style.display = 'block';
+            if (previewControls) previewControls.style.display = 'none';
         }
 
         function confirmPhoto() {

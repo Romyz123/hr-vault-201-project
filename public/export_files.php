@@ -78,6 +78,11 @@ $search   = Validator::sanitizeSearch($_POST['search'] ?? '');
 $zipPassword = trim($_POST['zip_password'] ?? '');
 
 // 4. VALIDATION
+if (strlen($dept) > 50 || strlen($section) > 100 || strlen($agency) > 50 || strlen($status) > 20 || strlen($category) > 100 || strlen($search) > 100 || strlen($zipPassword) > 50) {
+    $_SESSION['error'] = "Export Failed: One or more input parameters exceed maximum length limits.";
+    header("Location: index.php");
+    exit;
+}
 if ($dept === 'ALL') {
     $_SESSION['error'] = "Export Failed: Entire database export is disabled. Please filter by a specific Department.";
     header("Location: index.php");
@@ -448,7 +453,7 @@ foreach ($employees as $emp) {
 }
 
 // --- D. MASTER LIST CSV ---
-$csvContent = "ID,Last Name,First Name,Dept,Section,Job Title,Agency,Status\n";
+$csvContent = "ID,Last Name,First Name,Dept,Section,Job Title,Agency,Status,Education,Experience,Licenses\n";
 foreach ($employees as $emp) {
     $line = [
         $emp['emp_id'],
@@ -458,7 +463,10 @@ foreach ($employees as $emp) {
         $emp['section'],
         $emp['job_title'],
         $emp['agency_name'] ?: $emp['employment_type'],
-        $emp['status']
+        $emp['status'],
+        '"' . str_replace('"', '""', $emp['education'] ?? '') . '"',
+        '"' . str_replace('"', '""', $emp['experience'] ?? '') . '"',
+        '"' . str_replace('"', '""', $emp['licenses'] ?? '') . '"'
     ];
     $csvContent .= implode(",", $line) . "\n";
 }

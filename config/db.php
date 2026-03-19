@@ -8,16 +8,19 @@ ini_set('display_startup_errors', 0);
 ini_set('log_errors', 1);
 error_reporting(E_ALL);
 
+// [FIX] Set default timezone to Philippines to ensure backup filenames and logs have the correct local time
+date_default_timezone_set('Asia/Manila');
+
 // ========================================================================
 // [SECURITY] GLOBAL HTTP HEADERS (MHI Compliance)
 // ========================================================================
 header('X-Frame-Options: SAMEORIGIN');
 header('X-Content-Type-Options: nosniff');
 header('Referrer-Policy: strict-origin-when-cross-origin');
-header("Content-Security-Policy: default-src 'self'; img-src 'self' data:; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline';");
+header("Content-Security-Policy: default-src 'self'; img-src 'self' data: https://api.qrserver.com; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline';");
 
 // Load settings directly from PHP file instead of .env to avoid permission errors
-$_ENV = require 'config.php';
+$_ENV = require __DIR__ . '/config.php';
 
 // ========================================================================
 // [SECURITY] GLOBAL INPUT SANITIZATION
@@ -126,4 +129,38 @@ function checkSessionTimeout($pdo, $serverTimeout = null)
         exit;
     }
     $_SESSION['last_activity'] = time();
+
+    // [SECURITY] Ensure account recovery is configured for all authenticated users
+    if (!empty($_SESSION['user_id'])) {
+        enforceSecurityQuestionSetup($pdo);
+    }
+}
+
+/**
+ * Enforce that authenticated users have a security question configured.
+ * If not, redirect them to profile_settings.php to complete setup.
+ */
+function enforceSecurityQuestionSetup($pdo, $ignoreWhitelist = false)
+{
+    if (session_status() !== PHP_SESSION_ACTIVE) return;
+    if (empty($_SESSION['user_id'])) return;
+
+    $currentPage = basename($_SERVER['PHP_SELF'] ?? '');
+    $whitelist = ['profile_settings.php', 'logout.php', 'login.php'];
+    if (!$ignoreWhitelist && in_array($currentPage, $whitelist, true)) {
+        return;
+    }
+
+    try {
+        $stmt = $pdo->prepare("SELECT security_question FROM users WHERE id = ?");
+        $stmt->execute([$_SESSION['user_id']]);
+        $question = $stmt->fetchColumn();
+        if (empty($question)) {
+            header("Location: profile_settings.php?msg=" . urlencode("⚠️ Action Required: Please set up your Security Question for Account Recovery."));
+            exit;
+        }
+    } catch (Exception $e) {
+        // If the column or table doesn't exist, we don't want to break the app.
+        error_log("Security question check failed: " . $e->getMessage());
+    }
 }

@@ -18,10 +18,27 @@ class Security
             $stmt->execute([$ip]);
             $row = $stmt->fetch();
         } catch (PDOException $e) {
-            // Table missing? Allow access so Admin can login and run db_status.php to fix it.
-            return true;
+            // [SECURITY FIX] Auto-create table if missing, otherwise fail closed
+            $errorCode = $e->getCode();
+            // SQLSTATE 42S02 = Table doesn't exist (MySQL/MariaDB)
+            // SQLSTATE 42P01 = Undefined table (PostgreSQL)
+            if ($errorCode === '42S02' || $errorCode === '42P01' || stripos($e->getMessage(), 'doesn\'t exist') !== false) {
+                try {
+                    $this->pdo->exec("CREATE TABLE IF NOT EXISTS rate_limits (
+                        ip_address VARCHAR(45) PRIMARY KEY, 
+                        request_count INT DEFAULT 1, 
+                        last_request DATETIME
+                    )");
+                    $row = false;
+                } catch (PDOException $createEx) {
+                    error_log("Rate limit table creation failed: " . $createEx->getMessage());
+                    return false; // Fail closed if we can't create the table
+                }
+            } else {
+                error_log("Rate limit check failed: " . $e->getMessage());
+                return false; // Fail closed on unexpected database errors
+            }
         }
-
         $currentTime = time();
 
         if ($row) {

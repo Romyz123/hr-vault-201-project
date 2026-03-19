@@ -35,6 +35,13 @@ foreach ($employees as $emp) {
         }
     }
 
+    // [NEW] Check for missing or default Profile Picture
+    $avatar = $emp['avatar_path'] ?? '';
+    $avatarFile = basename($avatar);
+    if (empty($avatarFile) || $avatarFile === 'default.png' || !file_exists(__DIR__ . '/uploads/avatars/' . $avatarFile)) {
+        $missing[] = 'Profile Picture';
+    }
+
     if (!empty($missing)) {
         $emp['missing_fields'] = $missing;
         $incompleteProfiles[] = $emp;

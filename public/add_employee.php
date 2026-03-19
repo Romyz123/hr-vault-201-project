@@ -97,6 +97,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $last_name        = ucwords(strtolower(post('last_name')));
 
     $gender           = post('gender');
+    // Validate gender against allowed values
+    if ($gender === '') {
+        $errors[] = "Gender is required.";
+    } elseif (!in_array($gender, $allowedGenders, true)) {
+        $errors[] = "Invalid gender selected.";
+    }
     $birth_date       = post('birth_date');
     $contact_number   = post('contact_number');
     $email            = post('email');
@@ -411,6 +417,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             border-radius: 16px;
             box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.35);
         }
+
+        #cameraVideo,
+        #cameraPreviewImage {
+            transform: scaleX(-1);
+        }
     </style>
 </head>
 
@@ -711,11 +722,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close" onclick="stopCamera()"></button>
                 </div>
                 <div class="modal-body text-center position-relative overflow-hidden p-0 bg-dark">
-                    <video id="cameraVideo" width="100%" autoplay playsinline style="background: #000; min-height: 350px; object-fit: cover;"></video>
-                    <img id="cameraPreviewImage" style="display:none; width: 100%; min-height: 350px; object-fit: cover;">
-                    <div class="camera-overlay" id="cameraOverlay">
-                        <div class="camera-guide-square"></div>
-                    </div>
+                    <video id="cameraVideo" width="100%" autoplay playsinline style="background: #000; min-height: 350px; max-height: 450px; object-fit: contain;"></video>
+                    <img id="cameraPreviewImage" style="display:none; width: 100%; min-height: 350px; max-height: 450px; object-fit: contain; background: #000;">
                     <canvas id="cameraCanvas" style="display:none;"></canvas>
                 </div>
                 <div class="modal-footer justify-content-between">
@@ -725,7 +733,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     </div>
                     <div id="previewControls" style="display:none;">
                         <button type="button" class="btn btn-warning fw-bold" onclick="retakePhoto()"><i class="bi bi-arrow-counterclockwise"></i> Retake</button>
-                        <button type="button" class="btn btn-primary fw-bold" onclick="confirmPhoto()"><i class="bi bi-check-lg"></i> Confirm</button>
+                        <button type="button" class="btn btn-primary fw-bold" id="confirmPhotoBtn" onclick="confirmPhoto()"><i class="bi bi-check-lg"></i> Confirm</button>
                     </div>
                 </div>
             </div>
@@ -1027,7 +1035,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 });
             } else {
                 // [FIX] Clear draft on valid submission so next visit is clean
-                localStorage.removeItem('hr_add_emp_draft');
+                localStorage.removeItem(draftKey);
 
                 // [NEW] Prevent Double Submission (Fixes "Security Token Mismatch" on double-click)
                 const btn = this.querySelector('button[type="submit"]');
@@ -1121,26 +1129,60 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         async function startCamera() {
             const video = document.getElementById('cameraVideo');
+            stopCamera(); // Ensure previous stream is killed
             retakePhoto(); // Reset UI and stop any existing stream
+
+            const isSecureContext = window.isSecureContext || location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+            if (!isSecureContext) {
+                console.error('Camera access blocked: insecure context.');
+                Swal.fire({
+                    icon: 'error',
+                    title: 'HTTPS Required',
+                    html: 'Camera access requires a secure context. Please use <b>HTTPS</b> or access the site via <b>localhost</b>.',
+                    confirmButtonColor: '#dc3545'
+                });
+                const modalEl = document.getElementById('cameraModal');
+                if (modalEl) {
+                    const modal = bootstrap.Modal.getInstance(modalEl);
+                    if (modal) modal.hide();
+                }
+                return;
+            }
 
             if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
                 console.error('Camera API not available in this browser.');
-                Swal.fire('Error', 'Camera is not supported by your browser.', 'error');
-                bootstrap.Modal.getInstance(document.getElementById('cameraModal')).hide();
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Camera Unavailable',
+                    html: 'Your browser does not appear to support camera access, or permissions were denied. Please check your settings.',
+                    confirmButtonColor: '#dc3545'
+                });
+                const modalEl = document.getElementById('cameraModal');
+                if (modalEl) {
+                    const modal = bootstrap.Modal.getInstance(modalEl);
+                    if (modal) modal.hide();
+                }
                 return;
             }
 
             try {
                 videoStream = await navigator.mediaDevices.getUserMedia({
                     video: {
-                        facingMode: 'user'
+                        facingMode: {
+                            ideal: 'user'
+                        }
                     }
                 });
                 video.srcObject = videoStream;
+                video.play().catch(e => console.error("Play error:", e));
             } catch (err) {
                 console.error('Camera error:', err);
                 Swal.fire('Error', 'Unable to access camera. Please check permissions.', 'error');
-                bootstrap.Modal.getInstance(document.getElementById('cameraModal')).hide();
+                const modalEl = document.getElementById('cameraModal');
+                if (modalEl) {
+                    const modal = bootstrap.Modal.getInstance(modalEl);
+                    if (modal) modal.hide();
+                }
             }
         }
 
@@ -1157,21 +1199,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             const cameraControls = document.getElementById('cameraControls');
             const previewControls = document.getElementById('previewControls');
             const avatarInput = document.getElementById('avatarInput');
+            const confirmBtn = document.getElementById('confirmPhotoBtn');
 
-            stopCamera();
             capturedBlob = null;
 
-            if (video) video.style.display = '';
+            if (confirmBtn) {
+                confirmBtn.disabled = false;
+                confirmBtn.innerHTML = confirmBtn.dataset.originalHtml || '<i class="bi bi-check-lg"></i> Confirm';
+            }
+
+            if (video) {
+                video.style.display = 'block';
+                if (video.paused && typeof videoStream !== 'undefined' && videoStream) {
+                    video.play().catch(e => console.error("Play error:", e));
+                }
+            }
             if (previewImg) previewImg.style.display = 'none';
 
-            if (cameraControls) cameraControls.style.display = '';
+            if (cameraControls) cameraControls.style.display = 'block';
             if (previewControls) previewControls.style.display = 'none';
 
             if (avatarInput) avatarInput.value = '';
         }
 
         function confirmPhoto() {
-            if (!capturedBlob) return;
+            if (!capturedBlob) {
+                Swal.fire({
+                    icon: 'info',
+                    title: 'Still processing',
+                    text: 'Your photo is still being prepared. Please wait a moment and try again.',
+                    confirmButtonColor: '#0d6efd'
+                });
+                return;
+            }
 
             const file = new File([capturedBlob], "profile_capture_" + Date.now() + ".jpg", {
                 type: "image/jpeg"
@@ -1202,37 +1262,90 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             const previewImg = document.getElementById('cameraPreviewImage');
             const cameraControls = document.getElementById('cameraControls');
             const previewControls = document.getElementById('previewControls');
+            const confirmBtn = document.getElementById('confirmPhotoBtn');
 
             if (!videoStream) return;
 
-            // [NEW] Crop mathematically to a 1:1 square based on the center of the video
-            const size = Math.min(video.videoWidth, video.videoHeight);
-            const startX = (video.videoWidth - size) / 2;
-            const startY = (video.videoHeight - size) / 2;
+            // Disable confirm while the blob is being prepared
+            if (confirmBtn) {
+                confirmBtn.disabled = true;
+                confirmBtn.dataset.originalHtml = confirmBtn.innerHTML;
+                confirmBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Processing...';
+            }
+            capturedBlob = null;
 
-            canvas.width = size;
-            canvas.height = size;
+            // --- VISUAL SHUTTER FLASH ---
+            const modalBody = video.closest('.modal-body');
+            if (modalBody) {
+                const flash = document.createElement('div');
+                flash.style.position = 'absolute';
+                flash.style.inset = '0';
+                flash.style.backgroundColor = '#ffffff';
+                flash.style.zIndex = '9999';
+                flash.style.transition = 'opacity 0.25s ease-out';
+                modalBody.appendChild(flash);
+                setTimeout(() => {
+                    flash.style.opacity = '0';
+                }, 10);
+                setTimeout(() => {
+                    flash.remove();
+                }, 300);
+            }
+
+            // [FIX] Remove crop and downscale to max 800px width/height while keeping aspect ratio
+            const MAX_DIM = 800;
+            let outWidth = video.videoWidth;
+            let outHeight = video.videoHeight;
+
+            // [FIX] Fallback if video metadata isn't loaded yet to prevent 0x0 blank images
+            if (outWidth === 0 || outHeight === 0) {
+                outWidth = video.clientWidth || 640;
+                outHeight = video.clientHeight || 480;
+            }
+
+            if (outWidth > MAX_DIM || outHeight > MAX_DIM) {
+                if (outWidth > outHeight) {
+                    outHeight = Math.floor(outHeight * (MAX_DIM / outWidth));
+                    outWidth = MAX_DIM;
+                } else {
+                    outWidth = Math.floor(outWidth * (MAX_DIM / outHeight));
+                    outHeight = MAX_DIM;
+                }
+            }
+
+            canvas.width = outWidth;
+            canvas.height = outHeight;
             const ctx = canvas.getContext('2d');
 
-            ctx.drawImage(video, startX, startY, size, size, 0, 0, size, size);
+            ctx.drawImage(video, 0, 0, outWidth, outHeight);
 
-            const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
-            fetch(dataUrl).then(res => res.blob()).then(blob => {
-                capturedBlob = blob;
+            // [FIX] Use Data URL for 100% reliable instant preview on all mobile browsers
+            const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+            if (previewImg) {
+                previewImg.src = dataUrl;
+                previewImg.style.display = 'block';
+            }
+            if (video) video.style.display = 'none';
+            if (cameraControls) cameraControls.style.display = 'none';
+            if (previewControls) previewControls.style.display = 'block';
 
-                const reader = new FileReader();
-                reader.onload = function(e) {
-                    if (previewImg) {
-                        previewImg.src = e.target.result;
-                        previewImg.style.display = '';
+            canvas.toBlob(blob => {
+                if (!blob) {
+                    console.error('Failed to capture photo blob.');
+                    if (confirmBtn) {
+                        confirmBtn.disabled = true;
+                        confirmBtn.innerHTML = confirmBtn.dataset.originalHtml || '<i class="bi bi-check-lg"></i> Confirm';
                     }
-                };
-                reader.readAsDataURL(blob);
-
-                if (video) video.style.display = 'none';
-                if (cameraControls) cameraControls.style.display = 'none';
-                if (previewControls) previewControls.style.display = '';
-            });
+                    Swal.fire('Error', 'Unable to capture image. Please try again.', 'error');
+                    retakePhoto();
+                    return;
+                }
+                capturedBlob = blob;
+                if (confirmBtn) {
+                    confirmBtn.disabled = false;
+                    confirmBtn.innerHTML = confirmBtn.dataset.originalHtml || '<i class="bi bi-check-lg"></i> Confirm';
+                }
+            }, 'image/jpeg', 0.85);
         }
     </script>
 </body>

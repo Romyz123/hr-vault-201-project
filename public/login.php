@@ -57,10 +57,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
                 $alertMsg = "❌ <strong>Account Locked</strong><br>Maximum failed attempts reached. Please contact Administrator.";
                 $logger = new Logger($pdo);
                 $logger->log($user['id'], 'LOGIN_LOCKED', "Attempt on locked account");
-                goto skip_login_check;
+                $skipLogin = true;
             }
 
-            if ($user && password_verify($password, $user['password'])) {
+            if (empty($skipLogin) && $user && password_verify($password, $user['password'])) {
 
                 // [SECURITY] Reset failed attempts on success
                 try {
@@ -94,52 +94,48 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
                 } else {
                     // [NEW] 2FA Check (Enforced for ADMINs per MHI Sec 5.2)
                     $isLocalRequest = in_array($_SERVER['REMOTE_ADDR'], ['127.0.0.1', '::1']);
-                    if (($user['role'] === 'ADMIN' && !$isLocalRequest) || !empty($user['is_2fa_enabled'])) {                        // Check for Trusted Device Cookie
+                    $requires2FA = false;
+
+                    // [SECURITY] Force 2FA Setup for ALL users if they haven't configured it yet
+                    if (empty($user['totp_secret'])) {
+                        $requires2FA = true;
+                    } elseif (($user['role'] === 'ADMIN' && !$isLocalRequest) || !empty($user['is_2fa_enabled'])) {
+                        $requires2FA = true;
                         if (isset($_COOKIE['hr_trust_device'])) {
                             $tokenHash = hash('sha256', $_COOKIE['hr_trust_device']);
                             // Verify against DB
-                            if ($user['trusted_device_token'] === $tokenHash && new DateTime($user['trusted_device_expires']) > new DateTime()) {
-                                // Trust valid - Skip OTP
-                                goto login_success;
+                            if (hash_equals($user['trusted_device_token'], $tokenHash) && new DateTime($user['trusted_device_expires']) > new DateTime()) {                                // Trust valid - Skip OTP
+                                $requires2FA = false;
                             }
                         }
-
-                        // No trust or expired - Send OTP
-                        $otp = random_int(100000, 999999); // Use cryptographically secure random
-                        $pdo->prepare("UPDATE users SET otp_code = ?, otp_expires = DATE_ADD(NOW(), INTERVAL 15 MINUTE) WHERE id = ?")->execute([$otp, $user['id']]);
-
-                        // Send Email - Check return value
-                        $emailSent = mail($user['email'], "Login OTP", "Your code is: $otp");
-                        if (!$emailSent) {
-                            error_log("OTP_EMAIL_FAILED: Could not send OTP email for user_id=" . $user['id']);
-                            $alertType = 'error';
-                            $alertMsg = "❌ Failed to send OTP email. Please contact support.";
-                            goto otp_done; // skip success path
-                        } else {
-                            $_SESSION['partial_user_id'] = $user['id'];
-                            header("Location: verify_otp.php");
-                            exit;
-                        }
                     }
 
-                    otp_done:
-                    if (empty($alertMsg)) {
-                        login_success:
-                        // [SECURITY] Regenerate session ID to prevent fixation attacks
-                        session_regenerate_id(true);
-
-                        $_SESSION['user_id'] = $user['id'];
-                        $_SESSION['username'] = $user['username'];
-                        $_SESSION['role'] = $user['role'];
-
-                        // [SECURITY] Regenerate CSRF Token immediately after login
-                        $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+                    if ($requires2FA) {
+                        // Redirect to Authenticator Verification
+                        $_SESSION['partial_user_id'] = $user['id'];
+                        header("Location: verify_otp.php");
+                        exit;
                     }
+                    // [SECURITY] Regenerate session ID to prevent fixation attacks
+                    session_regenerate_id(true);
+
+                    $_SESSION['user_id'] = $user['id'];
+                    $_SESSION['username'] = $user['username'];
+                    $_SESSION['role'] = $user['role'];
+
+                    // [SECURITY] Regenerate CSRF Token immediately after login
+                    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 
                     // [LOGGING] Record the login event - Sanitize username in logs
                     $logger = new Logger($pdo);
                     $logUsername = preg_replace('/[^a-zA-Z0-9_\-\.]/', '', $user['username']); // Safety filter
                     $logger->log($user['id'], 'LOGIN', "User '$logUsername' logged in (IP: " . $_SERVER['REMOTE_ADDR'] . ")");
+
+                    // [SECURITY] Force Security Question Setup
+                    if (empty($user['security_question'])) {
+                        header("Location: profile_settings.php?msg=" . urlencode("⚠️ Action Required: Please set up your Security Question for Account Recovery."));
+                        exit;
+                    }
 
                     header("Location: index.php");
                     exit;
@@ -175,7 +171,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
                 $alertType = 'error';
                 $alertMsg = "❌ Invalid Username or Password. No record found in the system.";
             }
-            skip_login_check:
         }
     }
 }

@@ -33,17 +33,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     }
 
     // Validate and sanitize POST values
-    $req_id  = (int)$_POST['req_id'];
-    $action  = $_POST['action'];
+    $req_id  = isset($_POST['req_id']) ? (int)$_POST['req_id'] : 0;
+    $rawAction = $_POST['action'];
     $tab     = $_POST['tab_name'] ?? '';
     $adminId = $_SESSION['user_id'];
 
     // Validate action against allowed values
-    $allowedActions = ['approve', 'reject'];
-    if (!in_array($action, $allowedActions)) {
+    $allowedActions = ['approve', 'reject', 'bulk_approve', 'bulk_reject'];
+    if (!in_array($rawAction, $allowedActions)) {
         http_response_code(400);
         die('Invalid action');
     }
+
+    $isBulk = strpos($rawAction, 'bulk_') === 0;
+    $coreAction = str_replace('bulk_', '', $rawAction);
 
     // Validate tab against allowed values
     $allowedTabs = ['hires', 'edits', 'docs', 'doc-edits', 'tickets'];
@@ -51,21 +54,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         $tab = 'hires'; // Safe default
     }
 
+    $reqIds = [];
+    if ($isBulk) {
+        $reqIds = isset($_POST['req_ids']) && is_array($_POST['req_ids']) ? $_POST['req_ids'] : [];
+    } else {
+        $reqIds = isset($_POST['req_id']) ? [(int)$_POST['req_id']] : [];
+    }
+    if (empty($reqIds)) {
+        header("Location: admin_approval.php?msg=" . rawurlencode("⚠️ No requests selected.") . "&tab=" . rawurlencode($tab));
+        exit;
+    }
+
     // Capture rejection reason if sent (trim but don't escape yet - escape at render time)
     $reject_reason = trim($_POST['reject_reason'] ?? '');
     if (mb_strlen($reject_reason, 'UTF-8') > 255) {
         die('Rejection reason too long (Max 255 chars)');
     }
-    // FETCH DETAILS
-    $stmt = $pdo->prepare("SELECT * FROM requests WHERE id = ?");
-    $stmt->execute([$req_id]);
-    $req = $stmt->fetch();
 
-    if ($req) {
+    $logger = new Logger($pdo);
+    $successCount = 0;
+    $failCount = 0;
+    $failMsgs = [];
+
+    foreach ($reqIds as $current_req_id) {
+        $current_req_id = (int)$current_req_id;
+        $stmt = $pdo->prepare("SELECT * FROM requests WHERE id = ? AND status = 'PENDING'");
+        $stmt->execute([$current_req_id]);
+        $req = $stmt->fetch();
+
+        if (!$req) continue; // Skip if already processed or deleted
+
         $data = json_decode($req['json_payload'], true);
-        $logger = new Logger($pdo);
 
-        if ($action === 'approve') {
+        if ($coreAction === 'approve') {
             try {
                 $pdo->beginTransaction(); // [DATA INTEGRITY] Start Transaction
 
@@ -75,10 +96,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                     $dupCheck = $pdo->prepare("SELECT status FROM employees WHERE emp_id = ?");
                     $dupCheck->execute([$data['emp_id']]);
                     if ($dupCheck->rowCount() > 0) {
-                        $pdo->rollBack();
-                        $msg = "⚠️ CANNOT APPROVE: The ID '" . $data['emp_id'] . "' is already in use. Please REJECT this request.";
-                        header("Location: admin_approval.php?msg=" . rawurlencode($msg) . "&tab=" . rawurlencode($tab));
-                        exit;
+                        throw new Exception("The ID '" . $data['emp_id'] . "' is already in use.");
                     }
 
                     // SAFETY: Remove the note so it doesn't break the SQL INSERT
@@ -239,54 +257,81 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 }
 
                 // [MHI 5.2] ARCHIVE REQUEST (Retention) - Do not delete
-                $pdo->prepare("UPDATE requests SET status = 'APPROVED', admin_comment = ? WHERE id = ?")->execute(["Approved by " . $_SESSION['username'], $req_id]);
+                $pdo->prepare("UPDATE requests SET status = 'APPROVED', admin_comment = ? WHERE id = ?")->execute(["Approved by " . $_SESSION['username'], $current_req_id]);
                 $pdo->commit(); // [DATA INTEGRITY] Commit All Changes
-                $msg = "Request Approved & Archived";
+                $successCount++;
             } catch (Exception $e) {
                 if ($pdo->inTransaction()) $pdo->rollBack();
-                $msg = "Error: " . $e->getMessage();
+                $failCount++;
+                $failMsgs[] = "Req #" . $current_req_id . ": " . $e->getMessage();
             }
-        } elseif ($action === 'reject') {
-            // [NEW] REJECTION LOGIC WITH NOTE
-            $msgTitle = "Request Rejected";
-            $msgBody  = "Your request (" . $req['request_type'] . ") was rejected.";
+        } elseif ($coreAction === 'reject') {
+            try {
+                $pdo->beginTransaction(); // [DATA INTEGRITY] Start Transaction
 
-            // Append the reason if the admin typed one
-            if (!empty($reject_reason)) {
-                $msgBody .= "\n\nReason: " . $reject_reason; // Already HTML-escaped above
+                // [NEW] REJECTION LOGIC WITH NOTE
+                $msgTitle = "Request Rejected";
+                $msgBody  = "Your request (" . $req['request_type'] . ") was rejected.";
+
+                // Escape the reject reason to avoid XSS when rendered
+                $escapedReason = htmlspecialchars($reject_reason, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+                if (!empty($reject_reason)) {
+                    $msgBody .= "\n\nReason: " . $escapedReason;
+                }
+
+                // [LOGICAL FIX] Cleanup physical files to prevent orphans on rejection
+                if ($req['request_type'] === 'UPLOAD_DOC') {
+                    $vaultPath = $config['VAULT_PATH'] ?? dirname(__DIR__) . DIRECTORY_SEPARATOR . 'vault' . DIRECTORY_SEPARATOR;
+                    $filePath = $vaultPath . basename($data['file_path'] ?? '');
+                    if (!empty($data['file_path']) && file_exists($filePath)) {
+                        @unlink($filePath);
+                    }
+                } elseif ($req['request_type'] === 'ADD_EMPLOYEE') {
+                    if (!empty($data['avatar_path']) && $data['avatar_path'] !== 'default.png') {
+                        $avatarPath = dirname(__DIR__) . '/uploads/avatars/' . basename($data['avatar_path']);
+                        if (file_exists($avatarPath)) @unlink($avatarPath);
+                    }
+                } elseif ($req['request_type'] === 'EDIT_PROFILE') {
+                    $oldIdStmt = $pdo->prepare("SELECT avatar_path FROM employees WHERE id = ?");
+                    $oldIdStmt->execute([$req['target_id']]);
+                    $oldEmp = $oldIdStmt->fetch();
+                    // Only delete if they actually uploaded a NEW avatar
+                    if (!empty($data['avatar_path']) && $data['avatar_path'] !== 'default.png' && (!$oldEmp || $oldEmp['avatar_path'] !== $data['avatar_path'])) {
+                        $avatarPath = dirname(__DIR__) . '/uploads/avatars/' . basename($data['avatar_path']);
+                        if (file_exists($avatarPath)) @unlink($avatarPath);
+                    }
+                }
+
+                // Insert Notification
+                $pdo->prepare("INSERT INTO notifications (user_id, title, message, type) VALUES (?, ?, ?, 'danger')")
+                    ->execute([$req['user_id'], $msgTitle, $msgBody]);
+
+                // [MHI 5.2] ARCHIVE REQUEST (Retention) - Do not delete
+                $pdo->prepare("UPDATE requests SET status = 'REJECTED', admin_comment = ? WHERE id = ?")->execute([$escapedReason, $current_req_id]);
+
+                $pdo->commit();
+                $logger->log($adminId, 'REJECTED_REQUEST', "Rejected request: " . $req['request_type']);
+                $successCount++;
+            } catch (Exception $e) {
+                if ($pdo->inTransaction()) $pdo->rollBack();
+                $failCount++;
+                $failMsgs[] = "Req #" . $current_req_id . ": " . $e->getMessage();
             }
+        }
+    }
 
-            // [LOGICAL FIX] Cleanup physical files to prevent orphans on rejection
-            if ($req['request_type'] === 'UPLOAD_DOC') {
-                $vaultPath = $config['VAULT_PATH'] ?? dirname(__DIR__) . DIRECTORY_SEPARATOR . 'vault' . DIRECTORY_SEPARATOR;
-                $filePath = $vaultPath . basename($data['file_path'] ?? '');
-                if (!empty($data['file_path']) && file_exists($filePath)) {
-                    @unlink($filePath);
-                }
-            } elseif ($req['request_type'] === 'ADD_EMPLOYEE') {
-                if (!empty($data['avatar_path']) && $data['avatar_path'] !== 'default.png') {
-                    $avatarPath = dirname(__DIR__) . '/uploads/avatars/' . basename($data['avatar_path']);
-                    if (file_exists($avatarPath)) @unlink($avatarPath);
-                }
-            } elseif ($req['request_type'] === 'EDIT_PROFILE') {
-                $oldIdStmt = $pdo->prepare("SELECT avatar_path FROM employees WHERE id = ?");
-                $oldIdStmt->execute([$req['target_id']]);
-                $oldEmp = $oldIdStmt->fetch();
-                // Only delete if they actually uploaded a NEW avatar
-                if (!empty($data['avatar_path']) && $data['avatar_path'] !== 'default.png' && (!$oldEmp || $oldEmp['avatar_path'] !== $data['avatar_path'])) {
-                    $avatarPath = dirname(__DIR__) . '/uploads/avatars/' . basename($data['avatar_path']);
-                    if (file_exists($avatarPath)) @unlink($avatarPath);
-                }
-            }
-
-            // Insert Notification
-            $pdo->prepare("INSERT INTO notifications (user_id, title, message, type) VALUES (?, ?, ?, 'danger')")
-                ->execute([$req['user_id'], $msgTitle, $msgBody]);
-
-            // [MHI 5.2] ARCHIVE REQUEST (Retention) - Do not delete
-            $pdo->prepare("UPDATE requests SET status = 'REJECTED', admin_comment = ? WHERE id = ?")->execute([$reject_reason, $req_id]);
-            $logger->log($adminId, 'REJECTED_REQUEST', "Rejected request: " . $req['request_type']);
-            $msg = "Request Rejected & User Notified";
+    // Construct Final Status Message
+    if ($isBulk || count($reqIds) > 1) {
+        $msgClass = $failCount > 0 ? "⚠️" : "✅";
+        $msg = "$msgClass Processed $successCount successfully.";
+        if ($failCount > 0) {
+            $msg .= " Failed $failCount. " . implode(" | ", $failMsgs);
+        }
+    } else {
+        if ($failCount > 0) {
+            $msg = "❌ Error: " . $failMsgs[0];
+        } else {
+            $msg = "✅ Request " . ucfirst($coreAction) . "d Successfully.";
         }
     }
 
@@ -311,6 +356,7 @@ $tickets  = $pdo->query("SELECT r.*, u.username FROM requests r LEFT JOIN users 
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <link href="assets/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="assets/icons/bootstrap-icons.css">
+    <script src="assets/sweetalert2.all.min.js"></script>
 </head>
 
 <body class="bg-body-tertiary">
@@ -407,6 +453,13 @@ $tickets  = $pdo->query("SELECT r.*, u.username FROM requests r LEFT JOIN users 
         </div>
     </div>
 
+    <!-- Hidden form used for single-row approve/reject actions -->
+    <form id="singleActionForm" method="POST" style="display:none;">
+        <input type="hidden" id="single_req_id" name="req_id" value="">
+        <input type="hidden" id="single_tab_name" name="tab_name" value="">
+        <input type="hidden" id="single_action" name="action" value="">
+        <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
+    </form>
 
     <?php
     // HELPER FUNCTION TO RENDER TABLES
@@ -427,7 +480,15 @@ $tickets  = $pdo->query("SELECT r.*, u.username FROM requests r LEFT JOIN users 
             'ticket' => 'tickets'
         };
 
-        echo '<table class="table table-hover mb-0"><thead class="table-light"><tr><th>Date</th><th>User</th><th>Summary</th><th class="text-end">Actions</th></tr></thead><tbody>';
+        echo '<form method="POST" id="bulkForm_' . $type . '">';
+        echo '<input type="hidden" name="csrf_token" value="' . htmlspecialchars($_SESSION['csrf_token']) . '">';
+        echo '<input type="hidden" name="tab_name" value="' . $tabName . '">';
+        echo '<input type="hidden" name="action" id="bulkAction_' . $type . '" value="">';
+        echo '<div class="mb-2 d-flex justify-content-between align-items-center">';
+        echo '<div><button type="button" class="btn btn-sm btn-success me-2 fw-bold" onclick="submitBulk(\'' . $type . '\', \'bulk_approve\')"><i class="bi bi-check-all"></i> Approve Selected</button>';
+        echo '<button type="button" class="btn btn-sm btn-danger fw-bold" onclick="submitBulk(\'' . $type . '\', \'bulk_reject\')"><i class="bi bi-x-square"></i> Reject Selected</button></div>';
+        echo '</div>';
+        echo '<table class="table table-hover mb-0 align-middle"><thead class="table-light"><tr><th style="width: 40px;"><input type="checkbox" class="form-check-input" onclick="toggleAll(this, \'' . $type . '\')"></th><th>Date</th><th>User</th><th>Summary</th><th class="text-end">Actions</th></tr></thead><tbody>';
 
         foreach ($requests as $r) {
             $data = json_decode($r['json_payload'], true);
@@ -454,24 +515,18 @@ $tickets  = $pdo->query("SELECT r.*, u.username FROM requests r LEFT JOIN users 
             }
 
             echo "<tr>
+            <td><input type='checkbox' name='req_ids[]' value='{$r['id']}' class='form-check-input bulk-check-{$type}'></td>
             <td>" . date('M d, H:i', strtotime($r['created_at'])) . "</td>
             <td><span class='badge bg-secondary'>{$r['username']}</span></td>
             <td>$summary</td>
             <td class='text-end'>
-                <button class='btn btn-sm btn-info text-white me-2' onclick='openPreview($jsonData, \"$type\", {$r['id']})' title='View Details'><i class='bi bi-eye'></i> View</button>
-                
-                <form method='POST' class='d-inline'>
-                    <input type='hidden' name='req_id' value='{$r['id']}'>
-                    <input type='hidden' name='tab_name' value='$tabName'>
-                    <input type='hidden' name='csrf_token' value='" . htmlspecialchars($_SESSION['csrf_token']) . "'>
-                    <button name='action' value='approve' class='btn btn-sm btn-success' title='Approve'><i class='bi bi-check-lg'></i></button>
-                </form>
-                
+                <button type='button' class='btn btn-sm btn-info text-white me-2' onclick='openPreview($jsonData, \"$type\", {$r['id']})' title='View Details'><i class='bi bi-eye'></i> View</button>
+                <button type='button' class='btn btn-sm btn-success' title='Approve' onclick='submitSingle({$r['id']}, \"$tabName\", \"approve\")'><i class='bi bi-check-lg'></i></button>
                 <button type='button' class='btn btn-sm btn-danger' onclick='openRejectModal({$r['id']}, \"$tabName\")' title='Reject with Note'><i class='bi bi-x-lg'></i></button>
             </td>
         </tr>";
         }
-        echo '</tbody></table>';
+        echo '</tbody></table></form>';
     }
     ?>
 
@@ -496,11 +551,68 @@ $tickets  = $pdo->query("SELECT r.*, u.username FROM requests r LEFT JOIN users 
             }
         });
 
-        // THIS WAS MISSING BEFORE - IT OPENS THE REJECT MODAL
+        // --- SINGLE ACTIONS ---
+        function submitSingle(reqId, tabName, action) {
+            document.getElementById('single_req_id').value = reqId;
+            document.getElementById('single_tab_name').value = tabName;
+            document.getElementById('single_action').value = action;
+            document.getElementById('singleActionForm').submit();
+        }
+
         function openRejectModal(reqId, tabName) {
             document.getElementById('reject_req_id').value = reqId;
             document.getElementById('reject_tab_name').value = tabName;
-            new bootstrap.Modal(document.getElementById('rejectModal')).show();
+            bootstrap.Modal.getOrCreateInstance(document.getElementById('rejectModal')).show();
+        }
+
+        // --- BULK ACTIONS ---
+        function toggleAll(source, type) {
+            const checkboxes = document.querySelectorAll('.bulk-check-' + type);
+            checkboxes.forEach(cb => cb.checked = source.checked);
+        }
+
+        function submitBulk(type, action) {
+            const form = document.getElementById('bulkForm_' + type);
+            const checkboxes = form.querySelectorAll('.bulk-check-' + type + ':checked');
+            if (checkboxes.length === 0) {
+                Swal.fire('No Selection', 'Please select at least one request by checking the boxes on the left.', 'warning');
+                return;
+            }
+
+            if (action === 'bulk_reject') {
+                Swal.fire({
+                    title: 'Bulk Reject',
+                    input: 'text',
+                    inputLabel: 'Reason for Rejection (Optional)',
+                    showCancelButton: true,
+                    confirmButtonText: 'Reject All',
+                    confirmButtonColor: '#dc3545'
+                }).then((result) => {
+                    if (result.isConfirmed) {
+                        document.getElementById('bulkAction_' + type).value = action;
+                        const reasonInput = document.createElement('input');
+                        reasonInput.type = 'hidden';
+                        reasonInput.name = 'reject_reason';
+                        reasonInput.value = result.value || '';
+                        form.appendChild(reasonInput);
+                        form.submit();
+                    }
+                });
+            } else {
+                Swal.fire({
+                    title: 'Bulk Approve',
+                    text: `Are you sure you want to approve ${checkboxes.length} request(s)?`,
+                    icon: 'question',
+                    showCancelButton: true,
+                    confirmButtonText: 'Yes, Approve All',
+                    confirmButtonColor: '#198754'
+                }).then((result) => {
+                    if (result.isConfirmed) {
+                        document.getElementById('bulkAction_' + type).value = action;
+                        form.submit();
+                    }
+                });
+            }
         }
 
         function openPreview(data, type, reqId = null) {
@@ -591,7 +703,7 @@ $tickets  = $pdo->query("SELECT r.*, u.username FROM requests r LEFT JOIN users 
             }
 
             modalBody.innerHTML = content;
-            new bootstrap.Modal(document.getElementById('previewModal')).show();
+            bootstrap.Modal.getOrCreateInstance(document.getElementById('previewModal')).show();
         }
     </script>
 </body>

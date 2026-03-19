@@ -2,6 +2,7 @@
 require '../config/db.php';
 require '../src/Security.php';
 require '../src/Logger.php';
+require '../src/GoogleAuthenticator.php';
 session_start();
 
 // Redirect if no partial login session
@@ -16,6 +17,31 @@ $logger = new Logger($pdo);
 $security = new Security($pdo); // [NEW] Init Security
 $csrf_token = $security->generateCSRF(); // [SECURITY] Generate Token
 
+$userId = $_SESSION['partial_user_id'];
+$stmt = $pdo->prepare("SELECT * FROM users WHERE id = ?");
+$stmt->execute([$userId]);
+$user = $stmt->fetch();
+
+if (!$user) {
+    header("Location: login.php");
+    exit;
+}
+
+$isFirstTimeSetup = false;
+$qrCodeUrl = '';
+
+// Generate a new secret if they don't have one yet (do not persist until verified)
+$secret = $user['totp_secret'] ?? '';
+if (empty($secret)) {
+    $isFirstTimeSetup = true;
+    $secret = GoogleAuthenticator::generateSecret();
+    $_SESSION['pending_totp_secret'] = $secret;
+}
+
+if ($isFirstTimeSetup) {
+    $qrCodeUrl = GoogleAuthenticator::getQRCodeDataUri($user['username'], $secret);
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // [SECURITY] Rate Limit IP (15 req/min) to slow down automated attacks
     if (!$security->checkRateLimit($_SERVER['REMOTE_ADDR'], 15, 60)) {
@@ -24,104 +50,96 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // [SECURITY] CSRF Check
     elseif (empty($_POST['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'])) {
         $error = "❌ Security Token Mismatch. Please refresh and try again.";
-    }
-    // [NEW] Handle Resend Request
-    elseif (isset($_POST['action']) && $_POST['action'] === 'resend') {
-        $userId = $_SESSION['partial_user_id'];
-        // [FIX] Use DB time difference to avoid Timezone issues (PHP time vs MySQL NOW)
-        $stmt = $pdo->prepare("SELECT email, TIMESTAMPDIFF(SECOND, NOW(), otp_expires) as seconds_remaining FROM users WHERE id = ?");
-        $stmt->execute([$userId]);
-        $userRow = $stmt->fetch();
-        $email = $userRow['email'] ?? null;
-        $secondsRemaining = $userRow['seconds_remaining'] ?? 0;
-
-        // 900s (15m) expiry. We block resend for first 60s.
-        // So if remaining > 840, we are in the block window.
-        if ($secondsRemaining > 840) {
-            $wait = $secondsRemaining - 840;
-            $error = "⏳ Please wait $wait seconds before resending.";
-        } elseif ($email) {
-            $otp = random_int(100000, 999999);            // [FIX] Increased expiry to 15 Minutes (900 seconds)
-            $pdo->prepare("UPDATE users SET otp_code = ?, otp_expires = DATE_ADD(NOW(), INTERVAL 15 MINUTE) WHERE id = ?")->execute([$otp, $userId]);
-
-            // Send Email
-            mail($email, "Login OTP", "Your new code is: $otp");
-            $success = "✅ New code sent to " . htmlspecialchars($email);
-            $logger->log($userId, 'OTP_RESEND', "User requested new OTP");
-        } else {
-            $error = "❌ Error: Email not found.";
-        }
     } elseif (isset($_POST['otp_code'])) {
-        // [SECURITY] Max Attempts Check (Brute Force Protection)
-        if (!isset($_SESSION['otp_attempts'])) $_SESSION['otp_attempts'] = 0;
+        // [SECURITY] Max Attempts Check (Database-Backed Brute Force Protection)
+        if ($user && ($user['failed_attempts'] ?? 0) >= 10) {
+            $logger->log($userId, 'ACCOUNT_LOCKOUT', "Account locked after 10 failed 2FA attempts");
 
-        if ($_SESSION['otp_attempts'] >= 5) {
-            $logger->log($_SESSION['partial_user_id'], 'OTP_FAIL_LIMIT', "Exceeded max OTP attempts");
-            unset($_SESSION['partial_user_id']); // Invalidate session
-            unset($_SESSION['otp_attempts']);
-            header("Location: login.php?error=" . urlencode("❌ Too many failed attempts. Please login again."));
+            // Lock account completely
+            $pdo->prepare("UPDATE users SET locked_until = DATE_ADD(NOW(), INTERVAL 10 YEAR) WHERE id = ?")->execute([$userId]);
+
+            unset($_SESSION['partial_user_id']);
+            header("Location: login.php?error=" . urlencode("❌ Account Locked due to too many failed attempts. Contact Administrator."));
             exit;
         }
 
-        $code = trim($_POST['otp_code'] ?? '');
-        // must be exactly 6 digits
-        if (strlen($code) !== 6 || !ctype_digit($code)) {
-            $error = "❌ Invalid OTP Code.";
-        } else {
-            $userId = $_SESSION['partial_user_id'];
+        $code = strtoupper(trim($_POST['otp_code'] ?? ''));
+        $isValid = false;
+        $isBackupCode = false;
 
-            // Verify OTP
-            $stmt = $pdo->prepare("SELECT * FROM users WHERE id = ? AND otp_code = ? AND otp_expires > NOW()");
-            $stmt->execute([$userId, $code]);
-            $user = $stmt->fetch();
-
-            if ($user) {
-                // SUCCESS: Log them in fully
-                $_SESSION['user_id'] = $user['id'];
-                $_SESSION['username'] = $user['username'];
-                $_SESSION['role'] = $user['role'];
-                unset($_SESSION['otp_attempts']); // [SECURITY] Reset counter on success
-
-                // Clear OTP
-                $sql = "UPDATE users SET otp_code = NULL, otp_expires = NULL";
-
-                // [NEW] Handle "Trust Device" (Remember Me)
-                if (isset($_POST['trust_device'])) {
-                    $token = bin2hex(random_bytes(32));
-                    $hash = hash('sha256', $token);
-
-                    // [MHI 5.1.3] Privileged users (ADMIN) limited to 18 hours. Others 30 hours.
-                    $duration = ($user['role'] === 'ADMIN') ? (18 * 60 * 60) : (30 * 60 * 60);
-                    $expires = date('Y-m-d H:i:s', time() + $duration);
-
-                    $sql .= ", trusted_device_token = '$hash', trusted_device_expires = '$expires'";
-                    setcookie('hr_trust_device', $token, time() + $duration, "/", "", false, true);
+        // 1. Check if it is a 6-digit Authenticator Code
+        if (strlen($code) === 6 && ctype_digit($code)) {
+            $totpSecret = $_SESSION['pending_totp_secret'] ?? $user['totp_secret'];
+            if ($totpSecret && GoogleAuthenticator::verifyCode($totpSecret, $code)) {
+                $isValid = true;
+                // Persist secret only after successful verification
+                if (isset($_SESSION['pending_totp_secret'])) {
+                    $pdo->prepare("UPDATE users SET totp_secret = ? WHERE id = ?")->execute([$_SESSION['pending_totp_secret'], $userId]);
+                    unset($_SESSION['pending_totp_secret']);
                 }
-
-                $pdo->prepare("$sql WHERE id = ?")->execute([$userId]);
-                unset($_SESSION['partial_user_id']);
-
-                $logger->log($user['id'], 'LOGIN_2FA', "2FA Verified Successfully");
-                header("Location: index.php");
-                exit;
-            } else {
-                $_SESSION['otp_attempts']++;
-                $remaining = 5 - $_SESSION['otp_attempts'];
-                $error = "❌ Invalid or Expired OTP Code. ($remaining attempts remaining)";
-                $logger->log($userId, 'LOGIN_FAIL_2FA', "Failed 2FA attempt");
             }
         }
+        // 2. Check if it is an 8-character Backup Code
+        elseif (strlen($code) === 8 && ctype_alnum($code)) {
+            $recoveryCodes = json_decode($user['recovery_codes'] ?? '[]', true);
+            if (is_array($recoveryCodes)) {
+                foreach ($recoveryCodes as $index => $hash) {
+                    if (password_verify($code, $hash)) {
+                        $isValid = true;
+                        $isBackupCode = true;
+                        // Remove the used code so it cannot be used again
+                        unset($recoveryCodes[$index]);
+                        $recoveryCodes = array_values($recoveryCodes);
+                        $pdo->prepare("UPDATE users SET recovery_codes = ? WHERE id = ?")->execute([json_encode($recoveryCodes), $userId]);
+                        break;
+                    }
+                }
+            }
+        }
+
+        if (!$isValid) {
+            // Increment DB failed attempts
+            $attempts = ($user['failed_attempts'] ?? 0) + 1;
+            $pdo->prepare("UPDATE users SET failed_attempts = ? WHERE id = ?")->execute([$attempts, $userId]);
+            $user['failed_attempts'] = $attempts; // Update local state
+
+            $remaining = 10 - $attempts;
+            $error = "❌ Invalid OTP or Backup Code. ($remaining attempts remaining before lockout)";
+            $logger->log($userId, 'LOGIN_FAIL_2FA', "Failed 2FA attempt");
+        } else {
+            // SUCCESS: Log them in fully
+            $_SESSION['user_id'] = $user['id'];
+            $_SESSION['username'] = $user['username'];
+            $_SESSION['role'] = $user['role'];
+            unset($_SESSION['otp_attempts']); // [SECURITY] Reset counter on success
+
+            // [NEW] Handle "Trust Device" (Remember Me)
+            if (isset($_POST['trust_device'])) {
+                $token = bin2hex(random_bytes(32));
+                $hash = hash('sha256', $token);
+
+                // [MHI 5.1.3] Privileged users (ADMIN) limited to 18 hours. Others 30 hours.
+                $duration = ($user['role'] === 'ADMIN') ? (18 * 60 * 60) : (30 * 60 * 60);
+                $expires = date('Y-m-d H:i:s', time() + $duration);
+                $pdo->prepare("UPDATE users SET trusted_device_token = ?, trusted_device_expires = ? WHERE id = ?")
+                    ->execute([$hash, $expires, $userId]);
+                setcookie('hr_trust_device', $token, time() + $duration, "/", "", true, true);
+            }
+
+            // Reset failed attempts upon successful 2FA
+            $pdo->prepare("UPDATE users SET failed_attempts = 0, locked_until = NULL WHERE id = ?")->execute([$userId]);
+
+            unset($_SESSION['partial_user_id']);
+
+            $logMsg = $isBackupCode ? "2FA Verified Successfully using Backup Code" : "2FA Verified Successfully";
+            $logger->log($user['id'], 'LOGIN_2FA', $logMsg);
+
+            enforceSecurityQuestionSetup($pdo, true);
+
+            header("Location: index.php");
+            exit;
+        }
     }
-}
-
-// [NEW] Calculate Throttle Time for JS Timer (DB Based)
-$stmt = $pdo->prepare("SELECT TIMESTAMPDIFF(SECOND, NOW(), otp_expires) as seconds_remaining FROM users WHERE id = ?");
-$stmt->execute([$_SESSION['partial_user_id']]);
-$secondsRemaining = $stmt->fetchColumn();
-
-$timeLeft = 0;
-if ($secondsRemaining > 840) {
-    $timeLeft = $secondsRemaining - 840;
 }
 ?>
 <!DOCTYPE html>
@@ -152,8 +170,16 @@ if ($secondsRemaining > 840) {
 <body>
     <div class="card p-4">
         <div class="text-center mb-4">
-            <h4 class="fw-bold text-primary">Two-Factor Authentication</h4>
-            <p class="text-muted small">An OTP code has been sent to your email.</p>
+            <h4 class="fw-bold text-primary"><i class="bi bi-phone"></i> Authenticator App</h4>
+            <?php if ($isFirstTimeSetup): ?>
+                <p class="text-muted small"><strong>First Time Setup:</strong> Scan this QR code using Google Authenticator, Authy, or Microsoft Authenticator.</p>
+                <div class="mb-3">
+                    <img src="<?php echo htmlspecialchars($qrCodeUrl); ?>" alt="QR Code" class="img-fluid border p-2 rounded bg-white">
+                </div>
+                <p class="small text-danger fw-bold">Save this in your app before continuing!</p>
+            <?php else: ?>
+                <p class="text-muted small">Open your Authenticator app to get your code.</p>
+            <?php endif; ?>
         </div>
 
         <?php if ($error): ?>
@@ -166,8 +192,8 @@ if ($secondsRemaining > 840) {
         <form method="POST">
             <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token); ?>">
             <div class="mb-3">
-                <label class="form-label fw-bold">Enter OTP Code</label>
-                <input type="text" name="otp_code" class="form-control text-center fs-4 letter-spacing-2" maxlength="6" placeholder="123456" required autofocus pattern="[0-9]*" inputmode="numeric" oninput="this.value = this.value.replace(/[^0-9]/g, '')">
+                <label class="form-label fw-bold">Enter 6-Digit Code or Backup Code</label>
+                <input type="text" name="otp_code" class="form-control text-center fs-4 letter-spacing-2" maxlength="8" placeholder="123456 or A1B2C3D4" required autofocus autocomplete="off" oninput="this.value = this.value.toUpperCase().replace(/[^0-9A-Z]/g, '')">
             </div>
             <div class="mb-3 form-check">
                 <input type="checkbox" class="form-check-input" id="trustDevice" name="trust_device">
@@ -177,41 +203,10 @@ if ($secondsRemaining > 840) {
                 <button type="submit" class="btn btn-primary">Verify & Login</button>
             </div>
         </form>
-        <form method="POST" class="text-center mt-3">
-            <input type="hidden" name="action" value="resend">
-            <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token); ?>">
-            <button type="submit" id="resendBtn" class="btn btn-link text-decoration-none p-0 small">Resend Code</button>
-        </form>
         <div class="text-center mt-3">
-            <a href="login.php" class="text-decoration-none small text-muted">Back to Login</a>
+            <a href="logout.php" class="text-decoration-none small text-muted"><i class="bi bi-arrow-left"></i> Cancel Login</a>
         </div>
     </div>
-    <script>
-        // Countdown Timer for Resend
-        let timeLeft = <?php echo (int)$timeLeft; ?>;
-        const btn = document.getElementById('resendBtn');
-
-        if (btn && timeLeft > 0) {
-            btn.disabled = true;
-            btn.classList.add('text-muted'); // Visual cue
-            const originalText = btn.innerText;
-
-            const timer = setInterval(() => {
-                if (timeLeft <= 0) {
-                    clearInterval(timer);
-                    btn.disabled = false;
-                    btn.classList.remove('text-muted');
-                    btn.innerText = originalText;
-                } else {
-                    btn.innerText = `Resend available in ${timeLeft}s`;
-                    timeLeft--;
-                }
-            }, 1000);
-
-            // Initial set
-            btn.innerText = `Resend available in ${timeLeft}s`;
-        }
-    </script>
 </body>
 
 </html>
