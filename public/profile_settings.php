@@ -41,9 +41,12 @@ $currentTotpSecret = $currentUser['totp_secret'] ?? '';
 
 // Generate QR Code URL if secret exists
 $qrCodeUrl = '';
+$manualSecret = '';
 if (!empty($currentTotpSecret)) {
     require_once '../src/GoogleAuthenticator.php';
-    $qrCodeUrl = GoogleAuthenticator::getQRCodeDataUri($_SESSION['username'], $currentTotpSecret);
+    $qrData = GoogleAuthenticator::getQRCodeDataUri($_SESSION['username'], $currentTotpSecret);
+    $qrCodeUrl = $qrData['qr_url'];
+    $manualSecret = $qrData['secret'];
 }
 
 // 2. HANDLE EMAIL UPDATE
@@ -209,7 +212,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         $newSecret = GoogleAuthenticator::generateSecret();
         $pdo->prepare("UPDATE users SET totp_secret = ? WHERE id = ?")->execute([$newSecret, $_SESSION['user_id']]);
         $currentTotpSecret = $newSecret;
-        $qrCodeUrl = GoogleAuthenticator::getQRCodeDataUri($_SESSION['username'], $currentTotpSecret);
+        $qrData = GoogleAuthenticator::getQRCodeDataUri($_SESSION['username'], $currentTotpSecret);
+        $qrCodeUrl = $qrData['qr_url'];
+        $manualSecret = $qrData['secret'];
         $alertType = "success";
         $alertMsg = "✅ Authenticator App Secret generated! Please scan the new QR code.";
     }
@@ -393,6 +398,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                         <?php if (!empty($currentTotpSecret)): ?>
                             <div class="text-center mb-3">
                                 <img src="<?php echo htmlspecialchars($qrCodeUrl); ?>" alt="QR Code" class="img-fluid border p-2 rounded bg-white mb-2">
+                                <div class="mb-2">
+                                    <a href="<?php echo htmlspecialchars($qrCodeUrl); ?>" target="_blank" class="btn btn-sm btn-outline-secondary" download="QR_Backup.png"><i class="bi bi-download"></i> Save QR Code</a>
+                                </div>
+                                <div class="p-2 bg-light border rounded small mt-2 mb-3 text-center">
+                                    <strong>Manual Setup Key:</strong><br>
+                                    <span class="font-monospace fs-5 fw-bold text-primary"><?php echo htmlspecialchars($manualSecret); ?></span>
+                                </div>
                                 <p class="small text-danger fw-bold mb-0">Scan this QR Code with your Authenticator App.</p>
                             </div>
                         <?php endif; ?>
@@ -574,7 +586,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             Swal.fire({
                 icon: '<?php echo $alertType; ?>',
                 title: '<?php echo ucfirst($alertType === "error" ? "Failed" : "Success"); ?>',
-                text: '<?php echo $alertMsg; ?>',
+                text: <?php echo json_encode($alertMsg); ?>,
                 confirmButtonColor: '<?php echo $alertType === "error" ? "#dc3545" : "#198754"; ?>'
             });
         <?php endif; ?>
@@ -683,6 +695,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         setInterval(updateTimer, 1000);
         updateTimer();
     </script>
+
     <script src="dark_mode.js"></script>
 </body>
 

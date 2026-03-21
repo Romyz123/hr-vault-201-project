@@ -146,7 +146,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (strlen($name) > 100) $error = "Name is too long (Max 100 chars).";
 
         // --- AGENCIES ---
-        if (empty($error) && $action === 'add' && !empty($name)) {
+        if (empty($error) && $action === 'add_agency' && !empty($name)) {
             try {
                 $stmt = $pdo->prepare("INSERT INTO agencies (name) VALUES (?)");
                 $stmt->execute([$name]);
@@ -184,15 +184,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         elseif (empty($error) && $action === 'add_role' && !empty($name)) {
             try {
                 $pdo->prepare("INSERT INTO system_roles (name) VALUES (?)")->execute([$name]);
+                $logger->log($_SESSION['user_id'], 'ADD_ROLE', "Added system role: $name");
                 $msg = "✅ Role added.";
                 $redirectMsg = "✅ Role added.";
             } catch (Exception $e) {
                 $error = "Role exists.";
             }
         } elseif ($action === 'delete_role' && $id > 0) {
-            $pdo->prepare("DELETE FROM system_roles WHERE id = ?")->execute([$id]);
-            $msg = "✅ Role deleted.";
-            $redirectMsg = "✅ Role deleted.";
+            // Check usage before delete
+            $chk = $pdo->prepare("SELECT COUNT(*) FROM employees WHERE system_role = (SELECT name FROM system_roles WHERE id = ?)");
+            $chk->execute([$id]);
+            if ($chk->fetchColumn() > 0) {
+                $error = "❌ Cannot delete: There are employees assigned to this role.";
+            } else {
+                $pdo->prepare("DELETE FROM system_roles WHERE id = ?")->execute([$id]);
+                $logger->log($_SESSION['user_id'], 'DELETE_ROLE', "Deleted system role ID: $id");
+                $msg = "✅ Role deleted.";
+                $redirectMsg = "✅ Role deleted.";
+            }
         } elseif ($action === 'update_role_duties' && $id > 0) {
             // [NEW] Logic to update duties with Validation
             $duties = trim($_POST['duties'] ?? '');
@@ -220,6 +229,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         elseif (empty($error) && $action === 'add_dept' && !empty($name)) {
             try {
                 $pdo->prepare("INSERT INTO departments (name) VALUES (?)")->execute([$name]);
+                $logger->log($_SESSION['user_id'], 'ADD_DEPT', "Added department: $name");
                 $msg = "✅ Department added.";
                 $redirectMsg = "✅ Department added.";
             } catch (Exception $e) {
@@ -233,6 +243,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $error = "❌ Cannot delete: Employees are assigned to this department.";
             } else {
                 $pdo->prepare("DELETE FROM departments WHERE id = ?")->execute([$id]);
+                $logger->log($_SESSION['user_id'], 'DELETE_DEPT', "Deleted department ID: $id");
                 $msg = "✅ Department deleted.";
                 $redirectMsg = "✅ Department deleted.";
             }
@@ -244,6 +255,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($deptId > 0) {
                 try {
                     $pdo->prepare("INSERT INTO sections (department_id, name) VALUES (?, ?)")->execute([$deptId, $name]);
+                    $logger->log($_SESSION['user_id'], 'ADD_SECTION', "Added section '$name' to Dept ID: $deptId");
                     $msg = "✅ Section added.";
                     $redirectMsg = "✅ Section added.";
                 } catch (Exception $e) {
@@ -251,9 +263,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             }
         } elseif ($action === 'delete_section' && $id > 0) {
-            $pdo->prepare("DELETE FROM sections WHERE id = ?")->execute([$id]);
-            $msg = "✅ Section deleted.";
-            $redirectMsg = "✅ Section deleted.";
+            // Check usage before delete
+            $chk = $pdo->prepare("SELECT COUNT(*) FROM employees WHERE section = (SELECT name FROM sections WHERE id = ?)");
+            $chk->execute([$id]);
+            if ($chk->fetchColumn() > 0) {
+                $error = "❌ Cannot delete: Employees are assigned to this section.";
+            } else {
+                $pdo->prepare("DELETE FROM sections WHERE id = ?")->execute([$id]);
+                $logger->log($_SESSION['user_id'], 'DELETE_SECTION', "Deleted section ID: $id");
+                $msg = "✅ Section deleted.";
+                $redirectMsg = "✅ Section deleted.";
+            }
         }
 
         // [SECURITY] Regenerate CSRF token on success to prevent replay attacks

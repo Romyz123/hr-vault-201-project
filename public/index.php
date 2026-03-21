@@ -344,7 +344,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['cleanup_dev_files']) 
         'download_assets.php',
         'stress_test_backup.php',
         'system_diagnostics.php',
-        'qa_test.php'
+        'qa_test.php',
+        'process_approval.php',
+        'process_edit_employee.php',
+        'process_add_employee.php'
     ];
 
     $deletedCount = 0;
@@ -547,6 +550,18 @@ if (!empty($employees)) {
     }
 }
 
+// [NEW] Fetch Dynamic Categories for Filters/Export
+$dynamicCats = [];
+try {
+    $stmt = $pdo->query("SELECT DISTINCT name FROM document_requirements ORDER BY name ASC");
+    $dynamicCats = $stmt->fetchAll(PDO::FETCH_COLUMN);
+    $dynamicCats = array_filter($dynamicCats, function ($cat) {
+        return strcasecmp(trim($cat), 'Others') !== 0;
+    });
+} catch (Exception $e) {
+    $dynamicCats = ['201 Files', 'Contract', 'Government IDs', 'Medical', 'Memo / DA', 'Evaluation', 'Certificate', 'Training Record'];
+}
+
 // ---------- 10) CHART DATA (simple counts by category) ----------
 $statsSql = "
     SELECT COALESCE(NULLIF(TRIM(category), ''), 'Documents for Employee'), COUNT(*) 
@@ -565,8 +580,9 @@ $targetDocId = getQueryParamSafe('resolve_doc', 32, '');
 $targetEmpId = getQueryParamSafe('search',      150, '');
 
 // [NEW] Disk Usage Check for Warning
-$diskTotal = disk_total_space(".");
-$diskFree  = disk_free_space(".");
+$vaultPathForDisk = realpath(__DIR__ . '/../vault') ?: __DIR__;
+$diskTotal = @disk_total_space($vaultPathForDisk);
+$diskFree  = @disk_free_space($vaultPathForDisk);
 $diskPercent = ($diskTotal > 0) ? round((($diskTotal - $diskFree) / $diskTotal) * 100) : 0;
 
 // [NEW] Vault Size Quota Check for Dashboard Alert
@@ -920,7 +936,10 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
                 'ValidatorTest.php' => 'Unit test script',
                 'download_assets.php' => 'Asset downloader',
                 'stress_test_backup.php' => 'Stress test script',
-                'system_diagnostics.php' => 'System diagnostics tool'
+                'system_diagnostics.php' => 'System diagnostics tool',
+                'process_approval.php' => 'Legacy deprecated script',
+                'process_edit_employee.php' => 'Legacy deprecated script',
+                'process_add_employee.php' => 'Legacy deprecated script'
             ];
 
             $foundRisks = [];
@@ -1173,7 +1192,7 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
         </div>
 
         <!-- Directory Search / Filters -->
-        <div class="card mb-4 shadow-soft">
+        <div class="card mb-4 shadow-soft" id="directory-search-bar">
             <div class="card-body">
                 <div class="d-flex justify-content-between align-items-center mb-3">
                     <h5 class="text-muted mb-0"><i class="bi bi-funnel-fill"></i> Directory Search</h5>
@@ -1219,25 +1238,7 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
                         <select name="dept" class="form-select form-select-sm" onchange="this.form.submit()">
                             <option value="">All Departments</option>
                             <?php
-                            // Match your import/add/edit allowable departments
-                            $depts = [
-                                'SQP',
-                                'SIGCOM',
-                                'PSS',
-                                'OCS',
-                                'ADMIN',
-                                'HMS',
-                                'RAS',
-                                'TRS',
-                                'LMS',
-                                'DOS',
-                                'CTS',
-                                'BFS',
-                                'WHS',
-                                'GUNJIN',
-                                'SUBCONS-OTHERS'
-                            ];
-                            foreach ($depts as $d) {
+                            foreach (array_keys($deptMap) as $d) {
                                 $sel = ($filter_dept === $d) ? 'selected' : '';
                                 echo '<option value="' . h($d) . '" ' . $sel . '>' . h($d) . '</option>';
                             }
@@ -1250,27 +1251,6 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
                         <select name="section" class="form-select form-select-sm" onchange="this.form.submit()">
                             <option value="">All Sections</option>
                             <?php
-                            // Define Map for Filter (Simplified)
-                            $deptMap = [
-                                "SQP"     => ["GENERAL", "SAFETY", "QA", "PLANNING", "IT"],
-                                "ADMIN"   => ["GENERAL", "GAG", "TKG", "PCG", "ACG", "MED", "CLEANERS"],
-                                "OP"      => ["OFFICE OF THE PRESIDENT"],
-                                "SIGCOM"  => ["SIGNALING & COMMUNICATION"],
-                                "PSS"     => ["POWER SUPPLY SECTION"],
-                                "OCS"     => ["OVERHEAD CATENARY SYSTEM"],
-                                "MHI"      => ["MITSUBISHI HEAVY INDUSTRIES"],
-                                "HMS"     => ["HEAVY MAINTENANCE SECTION"],
-                                "RAS"     => ["ROOT CAUSE ANALYSIS "],
-                                "TRS"     => ["TECHNICAL RESEARCH SECTION"],
-                                "LMS"     => ["LIGHT MAINTENANCE SECTION"],
-                                "DOS"     => ["GENERAL", "CCRE", "SHUNTER", "DOS_OFF", "GEN_SUP"],
-                                "CTS"     => ["CIVIL TRACKS SECTION"],
-                                "BFS"     => ["GENERAL", "DEPOT_EQ", "CONVEY", "MOTOR"],
-                                "WHS"     => ["WAREHOUSE SECTION"],
-                                "GUNJIN"  => ["EMT", "SECURITY"],
-                                "SUBCONS-OTHERS" => ["OTHERS"]
-                            ];
-
                             // Only show sections if a department is selected
                             if ($filter_dept && isset($deptMap[$filter_dept])) {
                                 foreach ($deptMap[$filter_dept] as $s) {
@@ -1368,6 +1348,19 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
                     'Terminated' => 'bg-dark',
                     default      => 'bg-secondary'
                 };
+
+                // [NEW] System Role Badge Colors
+                $sysRole = $emp['system_role'] ?? 'Staff';
+                $roleBadge = match (strtoupper($sysRole)) {
+                    'MANAGER', 'HEAD' => 'bg-danger',
+                    'ENGINEER', 'ADVISOR' => 'bg-primary',
+                    'IT' => 'bg-dark',
+                    'OFFICER', 'SUPERVISOR' => 'bg-info text-dark',
+                    'MAINTENANCE', 'TECHNICIAN' => 'bg-warning text-dark',
+                    'DRIVER' => 'bg-secondary',
+                    default => 'bg-light text-dark border'
+                };
+
                 // Color-coded employer badges
                 $agName = strtoupper($emp['agency_name'] ?? '');
                 if (($emp['employment_type'] ?? '') === 'TESP Direct') {
@@ -1424,6 +1417,7 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
                                     <h5 class="card-title mb-1 fw-bold"><?php echo h($emp['first_name'] . ' ' . $emp['last_name']); ?></h5>
                                     <small class="text-muted d-block mb-1"><?php echo $deptDisplay; ?></small>
                                     <span class="badge <?php echo $statusBadge; ?> rounded-pill"><?php echo h($emp['status']); ?></span>
+                                    <span class="badge <?php echo $roleBadge; ?> rounded-pill ms-1" title="System Role"><i class="bi bi-person-badge"></i> <?php echo h($sysRole); ?></span>
                                 </div>
                                 <div class="d-flex flex-column align-items-end">
                                     <div class="mb-2"><?php echo $employerBadge; ?></div>
@@ -1683,23 +1677,9 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
                         <label class="form-label fw-bold">Department</label>
                         <select name="dept" id="exportDept" class="form-select">
                             <option value="" selected>-- Select Scope --</option>
-                            <option value="ADMIN">ADMIN</option>
-                            <option value="OP">OP (Office of President)</option>
-                            <option value="HMS">HMS</option>
-                            <option value="RAS">RAS</option>
-                            <option value="TRS">TRS</option>
-                            <option value="LMS">LMS</option>
-                            <option value="DOS">DOS</option>
-                            <option value="SQP">SQP</option>
-                            <option value="CTS">CTS</option>
-                            <option value="SIGCOM">SIGCOM</option>
-                            <option value="PSS">PSS</option>
-                            <option value="OCS">OCS</option>
-                            <option value="MHI">MHI</option>
-                            <option value="BFS">BFS</option>
-                            <option value="WHS">WHS</option>
-                            <option value="GUNJIN">GUNJIN</option>
-                            <option value="SUBCONS-OTHERS">SUBCONS-OTHERS</option>
+                            <?php foreach (array_keys($deptMap) as $d): ?>
+                                <option value="<?php echo htmlspecialchars($d); ?>"><?php echo htmlspecialchars($d); ?></option>
+                            <?php endforeach; ?>
                         </select>
                     </div>
 
@@ -1707,75 +1687,13 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
                         <label class="form-label fw-bold">Section (Filtered by Dept)</label>
                         <select name="section" id="exportSection" class="form-select" disabled>
                             <option value="">-- All Sections --</option>
-                            <optgroup label="ADMIN">
-                                <option value="GENERAL">GENERAL</option>
-                                <option value="GAG">GAG</option>
-                                <option value="TKG">TKG</option>
-                                <option value="PCG">PCG</option>
-                                <option value="ACG">ACG</option>
-                                <option value="MED">MED</option>
-                                <option value="CLEANERS">CLEANERS</option>
-                            </optgroup>
-                            <optgroup label="OP">
-                                <option value="OFFICE OF THE PRESIDENT">OFFICE OF THE PRESIDENT</option>
-                            </optgroup>
-                            <optgroup label="HMS">
-                                <option value="HEAVY MAINTENANCE SECTION">HEAVY MAINTENANCE SECTION</option>
-                            </optgroup>
-                            <optgroup label="RAS">
-                                <option value="ROOT CAUSE ANALYSIS SECTION">ROOT CAUSE ANALYSIS SECTION</option>
-                            </optgroup>
-                            <optgroup label="TRS">
-                                <option value="TECHNICAL RESEARCH SECTION">TECHNICAL RESEARCH SECTION</option>
-                            </optgroup>
-                            <optgroup label="LMS">
-                                <option value="LIGHT MAINTENANCE SECTION">LIGHT MAINTENANCE SECTION</option>
-                            </optgroup>
-                            <optgroup label="DOS">
-                                <option value="GENERAL">GENERAL</option>
-                                <option value="CCRE">CCRE</option>
-                                <option value="SHUNTER">SHUNTER</option>
-                                <option value="DOS_OFF">OFFICE SUPPORT</option>
-                                <option value="GEN_SUP">GENERAL SUPPORT</option>
-                            </optgroup>
-                            <optgroup label="SQP">
-                                <option value="GENERAL">GENERAL</option>
-                                <option value="SAFETY">SAFETY</option>
-                                <option value="QA">QA</option>
-                                <option value="PLANNING">PLANNING</option>
-                                <option value="IT">IT</option>
-                            </optgroup>
-                            <optgroup label="CTS">
-                                <option value="CIVIL TRACKS SECTION">CIVIL TRACKS SECTION</option>
-                            </optgroup>
-                            <optgroup label="SIGCOM">
-                                <option value="SIGNALING COMMUNICATION">SIGNALING COMMUNICATION</option>
-                            </optgroup>
-                            <optgroup label="PSS">
-                                <option value="POWER SUPPLY SECTION">POWER SUPPLY SECTION</option>
-                            </optgroup>
-                            <optgroup label="OCS">
-                                <option value="OVERHEAD CATENARY SECTION">OVERHEAD CATENARY SECTION</option>
-                            </optgroup>
-                            <optgroup label="MHI">
-                                <option value="MITSUBISHI HEAVY INDUSTRIES">MITSUBISHI HEAVY INDUSTRIES</option>
-                            </optgroup>
-                            <optgroup label="BFS">
-                                <option value="GENERAL">GENERAL</option>
-                                <option value="DEPOT_EQ">DEPOT EQUIPMENT</option>
-                                <option value="CONVEY">CONVEYANCE</option>
-                                <option value="MOTOR">MOTOR POOL</option>
-                            </optgroup>
-                            <optgroup label="WHS">
-                                <option value="WAREHOUSE SECTION">WAREHOUSE SECTION</option>
-                            </optgroup>
-                            <optgroup label="GUNJIN">
-                                <option value="EMT">EMT</option>
-                                <option value="SECURITY">SECURITY</option>
-                            </optgroup>
-                            <optgroup label="SUBCONS-OTHERS">
-                                <option value="OTHERS">OTHERS</option>
-                            </optgroup>
+                            <?php foreach ($deptMap as $d => $sections): ?>
+                                <optgroup label="<?php echo htmlspecialchars($d); ?>">
+                                    <?php foreach ($sections as $s): ?>
+                                        <option value="<?php echo htmlspecialchars($s); ?>"><?php echo htmlspecialchars($s); ?></option>
+                                    <?php endforeach; ?>
+                                </optgroup>
+                            <?php endforeach; ?>
                         </select>
                     </div>
 
@@ -1795,12 +1713,9 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
                             <label class="form-label fw-bold">Category</label>
                             <select name="category" class="form-select">
                                 <option value="">-- All --</option>
-                                <option value="201 Files">201 Files</option>
-                                <option value="Medical">Medical</option>
-                                <option value="Contract">Contract</option>
-                                <option value="Evaluation">Evaluation</option>
-                                <option value="Certificate">Certificate</option>
-                                <option value="Training Record">Training Record</option>
+                                <?php foreach ($dynamicCats as $cat): ?>
+                                    <option value="<?php echo htmlspecialchars($cat); ?>"><?php echo htmlspecialchars($cat); ?></option>
+                                <?php endforeach; ?>
                                 <option value="Others">Others</option>
                             </select>
                         </div>
@@ -2215,6 +2130,20 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
 
         // ---------- Auto-open target modal from notification & restore list on cancel ----------
         document.addEventListener('DOMContentLoaded', function() {
+
+            // [NEW] Prevent page from jumping to top when filtering
+            if (window.location.search && !window.location.hash && !window.location.search.includes('msg=')) {
+                const searchBar = document.getElementById('directory-search-bar');
+                if (searchBar) {
+                    setTimeout(() => {
+                        searchBar.scrollIntoView({
+                            behavior: 'smooth',
+                            block: 'start'
+                        });
+                    }, 100);
+                }
+            }
+
             const params = new URLSearchParams(window.location.search);
             const targetDoc = params.get('resolve_doc');
             const targetEmp = params.get('search');

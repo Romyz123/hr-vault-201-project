@@ -7,6 +7,7 @@
 
 require '../config/db.php';
 require '../src/Security.php';
+require 'options.php';
 session_start();
 checkSessionTimeout($pdo); // [SECURITY] Enforce Timeout
 
@@ -309,12 +310,15 @@ foreach ($rows as $r) {
 
     // Age (kept as-of today; switch to $asOf if you want snapshot ages)
     if (!empty($r['birth_date']) && $r['birth_date'] !== '0000-00-00') {
-        $age = date_diff(date_create($r['birth_date']), date_create('today'))->y;
-        if ($age <= 25) $ageBands['18-25']++;
-        elseif ($age <= 35) $ageBands['26-35']++;
-        elseif ($age <= 45) $ageBands['36-45']++;
-        elseif ($age <= 55) $ageBands['46-55']++;
-        else                  $ageBands['56+']++;
+        $bDateObj = date_create($r['birth_date']);
+        if ($bDateObj) {
+            $age = date_diff($bDateObj, date_create('today'))->y;
+            if ($age <= 25) $ageBands['18-25']++;
+            elseif ($age <= 35) $ageBands['26-35']++;
+            elseif ($age <= 45) $ageBands['36-45']++;
+            elseif ($age <= 55) $ageBands['46-55']++;
+            else                  $ageBands['56+']++;
+        }
     }
 
     // Tenure by slug (as-of selected year)
@@ -652,8 +656,11 @@ if ($debug) {
                         <select name="agency_filter" class="form-select form-select-sm" onchange="this.form.submit()">
                             <option value="">All Agencies</option>
                             <option value="TESP_DIRECT" <?php if ($agencyFilter === 'TESP_DIRECT') echo 'selected'; ?>>TESP Direct</option>
-                            <option value="JORATECH" <?php if ($agencyFilter === 'JORATECH') echo 'selected'; ?>>Joratech</option>
-                            <option value="UNLISOLUTIONS" <?php if ($agencyFilter === 'UNLISOLUTIONS') echo 'selected'; ?>>UnliSolutions</option>
+                            <?php foreach ($agencies as $a):
+                                if (stripos($a, 'TESP') !== false) continue; // Skip TESP Direct as it is handled above
+                            ?>
+                                <option value="<?php echo htmlspecialchars($a); ?>" <?php if ($agencyFilter === $a) echo 'selected'; ?>><?php echo htmlspecialchars($a); ?></option>
+                            <?php endforeach; ?>
                         </select>
                     </div>
                     <div class="col-md-2">

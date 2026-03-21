@@ -68,25 +68,13 @@ class GoogleAuthenticator
     {
         $uri = self::getOtpauthUri($name, $secret, $title);
         $encoded = rawurlencode($uri);
-
-        // Fetch QR from local proxy or remote provider. Avoid emitting external URLs to the client.
         $qrUrl = 'https://api.qrserver.com/v1/create-qr-code/?data=' . $encoded . '&size=200x200&ecc=M';
-        $image = @file_get_contents($qrUrl);
-        if ($image === false) {
-            // Try CURL as fallback
-            if (function_exists('curl_init')) {
-                $ch = curl_init($qrUrl);
-                curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-                curl_setopt($ch, CURLOPT_TIMEOUT, 5);
-                $image = curl_exec($ch);
-            }
-        }
 
-        if ($image === false || $image === null) {
-            return '';
-        }
-
-        return 'data:image/png;base64,' . base64_encode($image);
+        return [
+            'uri' => $uri,
+            'qr_url' => $qrUrl,
+            'secret' => $secret
+        ];
     }
 
     private static function base32Decode($secret)

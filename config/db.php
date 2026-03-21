@@ -17,7 +17,7 @@ date_default_timezone_set('Asia/Manila');
 header('X-Frame-Options: SAMEORIGIN');
 header('X-Content-Type-Options: nosniff');
 header('Referrer-Policy: strict-origin-when-cross-origin');
-header("Content-Security-Policy: default-src 'self'; img-src 'self' data: https://api.qrserver.com; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline';");
+header("Content-Security-Policy: default-src 'self'; img-src 'self' data: https://api.qrserver.com; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline';");
 
 // Load settings directly from PHP file instead of .env to avoid permission errors
 $_ENV = require __DIR__ . '/config.php';
@@ -37,7 +37,7 @@ function sanitize_global_input(&$array)
             sanitize_global_input($value);
         } elseif (is_string($value)) {
             $value = str_replace(chr(0), '', $value); // Strip null bytes
-            $value = htmlspecialchars(trim($value), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+            $value = trim($value); // [FIX] Store raw data in DB to prevent double-escaping
         }
     }
 }

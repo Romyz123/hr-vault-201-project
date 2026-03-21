@@ -8,6 +8,7 @@ require '../config/db.php';
 require '../src/Security.php';
 require '../src/Validator.php';
 require '../src/SearchHelper.php';
+require 'options.php';
 session_start();
 checkSessionTimeout($pdo); // [SECURITY] Enforce Timeout
 
@@ -882,16 +883,9 @@ $paginatedEmployees = array_slice($employees, $offset, $perPage);
                         <select name="type" class="form-select form-select-sm" onchange="this.form.submit()">
                             <option value="">All Agencies</option>
                             <?php
-                            $agencies = [
-                                'TESP Direct' => 'TESP Direct',
-                                'UNLISOLUTIONS' => 'UnliSolutions',
-                                'JORATECH' => 'Joratech',
-                                'GUNJIN' => 'Gunjin',
-                                'OTHERS - SUBCONS' => 'Others'
-                            ];
-                            foreach ($agencies as $val => $label) {
+                            foreach ($agencies as $val) {
                                 $sel = ($type === $val) ? 'selected' : '';
-                                echo "<option value='" . htmlspecialchars($val) . "' $sel>" . htmlspecialchars($label) . "</option>";
+                                echo "<option value='" . htmlspecialchars($val) . "' $sel>" . htmlspecialchars($val) . "</option>";
                             }
                             ?>
                         </select>

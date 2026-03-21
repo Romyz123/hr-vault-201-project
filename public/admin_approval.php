@@ -273,10 +273,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 $msgTitle = "Request Rejected";
                 $msgBody  = "Your request (" . $req['request_type'] . ") was rejected.";
 
-                // Escape the reject reason to avoid XSS when rendered
-                $escapedReason = htmlspecialchars($reject_reason, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
                 if (!empty($reject_reason)) {
-                    $msgBody .= "\n\nReason: " . $escapedReason;
+                    $msgBody .= "\n\nReason: " . $reject_reason;
                 }
 
                 // [LOGICAL FIX] Cleanup physical files to prevent orphans on rejection
@@ -306,8 +304,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 $pdo->prepare("INSERT INTO notifications (user_id, title, message, type) VALUES (?, ?, ?, 'danger')")
                     ->execute([$req['user_id'], $msgTitle, $msgBody]);
 
-                // [MHI 5.2] ARCHIVE REQUEST (Retention) - Do not delete
-                $pdo->prepare("UPDATE requests SET status = 'REJECTED', admin_comment = ? WHERE id = ?")->execute([$escapedReason, $current_req_id]);
+                // [MHI 5.2] ARCHIVE REQUEST (Retention) - Store raw reason in DB
+                $pdo->prepare("UPDATE requests SET status = 'REJECTED', admin_comment = ? WHERE id = ?")->execute([$reject_reason, $current_req_id]);
 
                 $pdo->commit();
                 $logger->log($adminId, 'REJECTED_REQUEST', "Rejected request: " . $req['request_type']);

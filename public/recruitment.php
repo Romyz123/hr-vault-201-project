@@ -153,9 +153,9 @@ try {
             $error = "Position contains invalid characters.";
         } elseif (!in_array($status, $allowedStatuses, true)) {
             $error = "Invalid status value.";
-        } elseif (strlen($reject_reason) > 255) {
+        } elseif (mb_strlen($reject_reason) > 255) {
             $error = "Rejection reason is too long (Max 255 chars).";
-        } elseif (strlen($notes) > 1000) {
+        } elseif (mb_strlen($notes) > 1000) {
             $error = "Notes are too long (Max 1000 chars).";
         } else {
             $stmt = $pdo->prepare("UPDATE candidates SET first_name = ?, last_name = ?, email = ?, phone_number = ?, position_applied = ?, status = ?, notes = ?, rejection_reason = ?, is_blacklisted = ?, last_follow_up = NOW() WHERE id = ?");

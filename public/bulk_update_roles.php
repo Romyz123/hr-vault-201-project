@@ -532,42 +532,10 @@ $historyLogs = $pdo->query("SELECT a.*, u.username FROM activity_logs a LEFT JOI
                     sect.appendChild(group);
                 }
             });
-
-            // [NEW] Add Custom Option
-            const otherOpt = document.createElement('option');
-            otherOpt.value = 'custom';
-            otherOpt.text = '-- Other (Type Custom) --';
-            otherOpt.style.color = '#dc3545';
-            sect.appendChild(otherOpt);
         }
 
         function addSection(val) {
             const picker = document.getElementById('sectionPicker');
-
-            if (val === 'custom') {
-                Swal.fire({
-                    title: 'Enter Custom Section',
-                    input: 'text',
-                    inputPlaceholder: 'e.g. Special Projects',
-                    showCancelButton: true,
-                    confirmButtonText: 'Add',
-                    inputAttributes: {
-                        maxlength: 50,
-                        pattern: '[a-zA-Z0-9\\s\\-\\.]+'
-                    },
-                    inputValidator: (value) => {
-                        if (!value) return 'Please enter a section name';
-                        if (value.length > 50) return 'Section name too long (Max 50 chars)';
-                        if (!/^[a-zA-Z0-9\s\-\.]+$/.test(value)) return 'Invalid characters allowed: Letters, Numbers, Spaces, Dots, Dashes';
-                    }
-                }).then((result) => {
-                    if (result.isConfirmed) {
-                        appendSectionValue(result.value.toUpperCase());
-                    }
-                    picker.value = "";
-                });
-                return;
-            }
 
             if (val) appendSectionValue(val);
             picker.value = "";

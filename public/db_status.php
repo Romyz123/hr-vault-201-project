@@ -55,7 +55,10 @@ $devFiles = [
     'download_assets.php',
     'stress_test_backup.php',
     'system_diagnostics.php',
-    'qa_test.php'
+    'qa_test.php',
+    'process_approval.php',
+    'process_edit_employee.php',
+    'process_add_employee.php'
 ];
 $basePath = __DIR__ . '/';
 $devFilesExist = false;
@@ -312,6 +315,26 @@ $tableSchema = [
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;"
 ];
 
+// 3. New Indexes to Create (Performance)
+$indexSchema = [
+    'employees' => [
+        'idx_emp_id' => "INDEX `idx_emp_id` (`emp_id`)",
+        'idx_status_dept' => "INDEX `idx_status_dept` (`status`, `dept`)",
+        'idx_deleted_at' => "INDEX `idx_deleted_at` (`deleted_at`)"
+    ],
+    'documents' => [
+        'idx_doc_emp' => "INDEX `idx_doc_emp` (`employee_id`)",
+        'idx_doc_file_uuid' => "INDEX `idx_doc_file_uuid` (`file_uuid`)",
+        'idx_doc_deleted' => "INDEX `idx_doc_deleted` (`deleted_at`)"
+    ],
+    'requests' => [
+        'idx_req_status' => "INDEX `idx_req_status` (`status`)"
+    ],
+    'activity_logs' => [
+        'idx_log_action_time' => "INDEX `idx_log_action_time` (`action`, `created_at`)"
+    ]
+];
+
 // ------------------------------------------------------
 // HANDLE AUTO-FIX
 // ------------------------------------------------------
@@ -369,6 +392,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_POST['auto_fix']) || isset
         }
     }
 
+    // 3. Add Missing Indexes
+    foreach ($indexSchema as $table => $indexes) {
+        foreach ($indexes as $idxName => $def) {
+            try {
+                $stmt = $pdo->query("SHOW INDEX FROM `$table` WHERE Key_name = '$idxName'");
+                if ($stmt->rowCount() == 0) {
+                    if ($isDryRun) {
+                        $dryRunLogs[] = "[ADD INDEX] ALTER TABLE `$table` ADD $def";
+                    } else {
+                        $pdo->exec("ALTER TABLE `$table` ADD $def");
+                        $updates++;
+                    }
+                }
+            } catch (Exception $e) {
+                if (strpos($e->getMessage(), "doesn't exist") === false) {
+                    $errors[] = "Failed to add index $idxName to $table: " . $e->getMessage();
+                }
+            }
+        }
+    }
+
     if ($isDryRun) {
         if (empty($dryRunLogs)) {
             $msg = "ℹ️ Simulation complete. No missing schema elements detected.";
@@ -402,6 +446,16 @@ foreach ($columnSchema as $table => $cols) {
     foreach ($cols as $col => $def) {
         try {
             $stmt = $pdo->query("SHOW COLUMNS FROM `$table` LIKE '$col'");
+            if ($stmt->rowCount() == 0) $issuesCount++;
+        } catch (Exception $e) {
+        }
+    }
+}
+
+foreach ($indexSchema as $table => $indexes) {
+    foreach ($indexes as $idxName => $def) {
+        try {
+            $stmt = $pdo->query("SHOW INDEX FROM `$table` WHERE Key_name = '$idxName'");
             if ($stmt->rowCount() == 0) $issuesCount++;
         } catch (Exception $e) {
         }
@@ -680,6 +734,37 @@ foreach ($columnSchema as $table => $cols) {
                                         <?php endif; ?>
                                     </td>
                                     <td><?php echo ($tableExists && !$colExists) ? 'Click Auto-Fix' : 'None'; ?></td>
+                                </tr>
+                        <?php endforeach;
+                        endforeach; ?>
+
+                        <!-- CHECK INDEXES -->
+                        <tr class="table-secondary">
+                            <td colspan="3" class="fw-bold"><i class="bi bi-lightning-charge-fill text-warning"></i> Indexes (Performance)</td>
+                        </tr>
+                        <?php foreach ($indexSchema as $table => $indexes):
+                            foreach ($indexes as $idxName => $def):
+                                $idxExists = false;
+                                $tableExists = true;
+                                try {
+                                    $stmt = $pdo->query("SHOW INDEX FROM `$table` WHERE Key_name = '$idxName'");
+                                    $idxExists = ($stmt->rowCount() > 0);
+                                } catch (Exception $e) {
+                                    $tableExists = false;
+                                }
+                        ?>
+                                <tr>
+                                    <td><?php echo htmlspecialchars("$table.$idxName"); ?></td>
+                                    <td>
+                                        <?php if (!$tableExists): ?>
+                                            <span class="badge bg-secondary">Table Missing</span>
+                                        <?php elseif ($idxExists): ?>
+                                            <span class="badge bg-success">Exists</span>
+                                        <?php else: ?>
+                                            <span class="badge bg-warning text-dark">Missing</span>
+                                        <?php endif; ?>
+                                    </td>
+                                    <td><?php echo ($tableExists && !$idxExists) ? 'Click Auto-Fix' : 'None'; ?></td>
                                 </tr>
                         <?php endforeach;
                         endforeach; ?>

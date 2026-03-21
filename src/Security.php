@@ -69,8 +69,8 @@ class Security
     {
         $clean = [];
         foreach ($data as $key => $value) {
-            $value = trim($value);
-            $clean[$key] = htmlspecialchars($value, ENT_QUOTES, 'UTF-8');
+            // [FIX] Rely on PDO for SQLi protection, escape on output
+            $clean[$key] = trim($value);
         }
         return $clean;
     }

@@ -43,8 +43,12 @@ if (isset($_GET['emp_id'])) {
 // [NEW] Fetch Dynamic Categories from Tracker Requirements
 $dynamicCats = [];
 try {
-    $stmt = $pdo->query("SELECT name FROM document_requirements ORDER BY name ASC");
+    $stmt = $pdo->query("SELECT DISTINCT name FROM document_requirements ORDER BY name ASC");
     $dynamicCats = $stmt->fetchAll(PDO::FETCH_COLUMN);
+    // Prevent "Others" from duplicating since it's hardcoded at the bottom of the dropdown
+    $dynamicCats = array_filter($dynamicCats, function ($cat) {
+        return strcasecmp(trim($cat), 'Others') !== 0;
+    });
 } catch (Exception $e) {
     // Fallback if table doesn't exist yet
     $dynamicCats = ['201 Files', 'Contract', 'Government IDs', 'Medical', 'Memo / DA', 'Evaluation', 'Certificate', 'Training Record'];
@@ -702,13 +706,13 @@ $isVaultFull = ($vaultLimitBytes > 0 && $currentVaultBytes >= $vaultLimitBytes);
             const overlay = document.getElementById('cameraOverlay');
             if (overlay) overlay.style.display = 'none';
             document.getElementById('cameraControls').style.display = 'none';
-            document.getElementById('previewControls').style.display = 'block';
 
             canvas.toBlob(blob => {
                 if (!blob) {
                     return;
                 }
                 capturedBlob = blob;
+                document.getElementById('previewControls').style.display = 'block';
             }, 'image/jpeg', 0.85);
         }
 

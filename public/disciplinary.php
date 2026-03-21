@@ -201,7 +201,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         die("Invalid CSRF Token");
     }
     $pdo->prepare("UPDATE disciplinary_cases SET status = 'Closed' WHERE id = ?")->execute([$_POST['case_id']]);
-    header("Location: disciplinary.php");
+    header("Location: disciplinary.php?msg=" . urlencode("Case marked as Closed."));
+    exit;
+}
+
+// 3.5 REOPEN CASE (UNDO)
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'reopen_case') {
+    if (empty($_POST['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'])) {
+        die("Invalid CSRF Token");
+    }
+    $pdo->prepare("UPDATE disciplinary_cases SET status = 'Open' WHERE id = ?")->execute([$_POST['case_id']]);
+    header("Location: disciplinary.php?msg=" . urlencode("Case successfully reopened."));
     exit;
 }
 
@@ -244,6 +254,7 @@ $search = isset($_GET['search']) ? trim($_GET['search']) : '';
 if (strlen($search) > 50) $search = substr($search, 0, 50);
 $search = preg_replace('/[^a-zA-Z0-9\s\-\.\,]/', '', $search);
 $filter_status = isset($_GET['status']) ? trim($_GET['status']) : '';
+$filter_dept = isset($_GET['dept']) ? trim($_GET['dept']) : '';
 
 $sql = "SELECT d.*, e.id AS emp_pk, e.first_name, e.last_name, e.dept FROM disciplinary_cases d JOIN employees e ON d.employee_id = e.emp_id WHERE 1=1";
 $params = [];
@@ -251,6 +262,10 @@ $params = [];
 if (!empty($filter_status)) {
     $sql .= " AND d.status = ?";
     $params[] = $filter_status;
+}
+if (!empty($filter_dept)) {
+    $sql .= " AND e.dept = ?";
+    $params[] = $filter_dept;
 }
 
 if (!empty($search)) {
@@ -278,6 +293,7 @@ if (empty($cases) && !empty($search)) {
 }
 
 $emps = $pdo->query("SELECT emp_id, last_name, first_name FROM employees ORDER BY last_name ASC")->fetchAll();
+$allDepts = $pdo->query("SELECT DISTINCT dept FROM employees WHERE dept != '' ORDER BY dept ASC")->fetchAll(PDO::FETCH_COLUMN);
 
 // Capture Success Message
 if (isset($_GET['msg'])) {
@@ -330,6 +346,12 @@ if (isset($_GET['msg'])) {
         <div class="row mb-4 align-items-center">
             <div class="col-md-8">
                 <form method="GET" class="d-flex gap-2">
+                    <select name="dept" class="form-select w-auto" onchange="this.form.submit()">
+                        <option value="">All Departments</option>
+                        <?php foreach ($allDepts as $d): ?>
+                            <option value="<?php echo htmlspecialchars($d); ?>" <?php echo ($filter_dept === $d) ? 'selected' : ''; ?>><?php echo htmlspecialchars($d); ?></option>
+                        <?php endforeach; ?>
+                    </select>
                     <select name="status" class="form-select w-auto" onchange="this.form.submit()">
                         <option value="">All Statuses</option>
                         <option value="Open" <?php echo ($filter_status === 'Open') ? 'selected' : ''; ?>>Open Only</option>
@@ -351,7 +373,7 @@ if (isset($_GET['msg'])) {
                         <?php endif; ?>
                     </div>
                     <button type="submit" class="btn btn-secondary"><i class="bi bi-search"></i></button>
-                    <?php if ($search || $filter_status): ?>
+                    <?php if ($search || $filter_status || $filter_dept): ?>
                         <a href="disciplinary.php" class="btn btn-outline-secondary" title="Reset Filters"><i class="bi bi-x-lg"></i></a>
                     <?php endif; ?>
                 </form>
@@ -419,16 +441,25 @@ if (isset($_GET['msg'])) {
                                     <?php if ($c['attachment_path']): ?>
                                         <a href="uploads/<?php echo $c['attachment_path']; ?>" target="_blank" class="btn btn-sm btn-primary">View PDF</a>
                                     <?php else: ?> - <?php endif; ?>
+
                                     <?php if ($c['status'] == 'Open'): ?>
-                                        <form method="POST" class="d-inline">
+                                        <form method="POST" class="d-inline" onsubmit="confirmAction(event, 'Are you sure you want to close this case?');">
                                             <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
                                             <input type="hidden" name="action" value="close_case">
                                             <input type="hidden" name="case_id" value="<?php echo $c['id']; ?>">
                                             <button type="submit" class="btn btn-sm btn-success">Close</button>
                                         </form>
+                                    <?php else: ?>
+                                        <form method="POST" class="d-inline" onsubmit="confirmAction(event, 'Are you sure you want to undo and reopen this case?');">
+                                            <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
+                                            <input type="hidden" name="action" value="reopen_case">
+                                            <input type="hidden" name="case_id" value="<?php echo $c['id']; ?>">
+                                            <button type="submit" class="btn btn-sm btn-outline-warning" title="Undo / Reopen Case"><i class="bi bi-arrow-counterclockwise"></i> Undo</button>
+                                        </form>
                                     <?php endif; ?>
+
                                     <?php if ($_SESSION['role'] === 'ADMIN'): ?>
-                                        <form method="POST" class="d-inline" onsubmit="return confirm('Permanently delete this case and file?');">
+                                        <form method="POST" class="d-inline" onsubmit="confirmAction(event, 'Permanently delete this case and file? This cannot be undone.');">
                                             <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
                                             <input type="hidden" name="action" value="delete_case">
                                             <input type="hidden" name="case_id" value="<?php echo $c['id']; ?>">
@@ -637,6 +668,23 @@ if (isset($_GET['msg'])) {
             }
 
             new bootstrap.Modal(document.getElementById('genDocModal')).show();
+        }
+
+        // Generic SweetAlert Confirmation for Forms
+        function confirmAction(e, msg) {
+            e.preventDefault();
+            const form = e.target;
+            Swal.fire({
+                title: 'Confirm Action',
+                text: msg,
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#d33',
+                cancelButtonColor: '#6c757d',
+                confirmButtonText: 'Yes, proceed!'
+            }).then((result) => {
+                if (result.isConfirmed) form.submit();
+            });
         }
 
         // Sync violation fields for NOD (since param name differs)

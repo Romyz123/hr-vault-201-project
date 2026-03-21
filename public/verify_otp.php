@@ -29,6 +29,7 @@ if (!$user) {
 
 $isFirstTimeSetup = false;
 $qrCodeUrl = '';
+$manualSecret = '';
 
 // Generate a new secret if they don't have one yet (do not persist until verified)
 $secret = $user['totp_secret'] ?? '';
@@ -39,7 +40,9 @@ if (empty($secret)) {
 }
 
 if ($isFirstTimeSetup) {
-    $qrCodeUrl = GoogleAuthenticator::getQRCodeDataUri($user['username'], $secret);
+    $qrData = GoogleAuthenticator::getQRCodeDataUri($user['username'], $secret);
+    $qrCodeUrl = $qrData['qr_url'];
+    $manualSecret = $qrData['secret'];
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -175,6 +178,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <p class="text-muted small"><strong>First Time Setup:</strong> Scan this QR code using Google Authenticator, Authy, or Microsoft Authenticator.</p>
                 <div class="mb-3">
                     <img src="<?php echo htmlspecialchars($qrCodeUrl); ?>" alt="QR Code" class="img-fluid border p-2 rounded bg-white">
+                    <div class="mt-2">
+                        <a href="<?php echo htmlspecialchars($qrCodeUrl); ?>" target="_blank" class="btn btn-sm btn-outline-secondary" download="QR_Backup.png"><i class="bi bi-download"></i> Save QR Code</a>
+                    </div>
+                </div>
+                <div class="mb-3 p-2 bg-light border rounded small text-center">
+                    <strong>Can't scan?</strong> Enter this key manually:<br>
+                    <span class="font-monospace fs-5 fw-bold text-primary letter-spacing-2"><?php echo htmlspecialchars($manualSecret); ?></span>
                 </div>
                 <p class="small text-danger fw-bold">Save this in your app before continuing!</p>
             <?php else: ?>
@@ -207,6 +217,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <a href="logout.php" class="text-decoration-none small text-muted"><i class="bi bi-arrow-left"></i> Cancel Login</a>
         </div>
     </div>
+
 </body>
 
 </html>

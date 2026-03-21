@@ -1244,14 +1244,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <div class="mb-3">
                         <label class="form-label fw-bold">Category</label>
                         <select name="category" id="edit_category" class="form-select" required onchange="toggleEditOther()">
-                            <option value="201 Files">201 Files</option>
-                            <option value="Contract">Contract</option>
-                            <option value="Government IDs">Government IDs</option>
-                            <option value="Medical">Medical</option>
-                            <option value="Memo / DA">Memo / DA</option>
-                            <option value="Evaluation">Evaluation</option>
-                            <option value="Certificate">Certificate</option>
-                            <option value="Training Record">Training Record</option>
+                            <?php foreach ($dynamicCats as $cat): ?>
+                                <option value="<?php echo htmlspecialchars($cat); ?>"><?php echo htmlspecialchars($cat); ?></option>
+                            <?php endforeach; ?>
+                            <option disabled>──────────</option>
                             <option value="Others">Others</option>
                         </select>
                     </div>
@@ -1659,13 +1655,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     sectionSelect.appendChild(group);
                 }
             });
-
-            // [NEW] Add Custom Option
-            const otherOpt = document.createElement('option');
-            otherOpt.value = 'custom';
-            otherOpt.text = '-- Other (Type Custom) --';
-            otherOpt.style.color = '#dc3545';
-            sectionSelect.appendChild(otherOpt);
         }
 
         function capitalize(input) {
@@ -1679,31 +1668,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // [NEW] Multi-Section Logic
         function addSection(val) {
             const picker = document.getElementById('sectionPicker');
-
-            if (val === 'custom') {
-                Swal.fire({
-                    title: 'Enter Custom Section',
-                    input: 'text',
-                    inputPlaceholder: 'e.g. Special Projects',
-                    showCancelButton: true,
-                    confirmButtonText: 'Add',
-                    inputAttributes: {
-                        maxlength: 50,
-                        pattern: '[a-zA-Z0-9\\s\\-\\.]+'
-                    },
-                    inputValidator: (value) => {
-                        if (!value) return 'Please enter a section name';
-                        if (value.length > 50) return 'Section name too long (Max 50 chars)';
-                        if (!/^[a-zA-Z0-9\s\-\.]+$/.test(value)) return 'Invalid characters allowed: Letters, Numbers, Spaces, Dots, Dashes';
-                    }
-                }).then((result) => {
-                    if (result.isConfirmed) {
-                        appendSectionValue(result.value.toUpperCase());
-                    }
-                    picker.value = "";
-                });
-                return;
-            }
 
             if (val) appendSectionValue(val);
             picker.value = "";

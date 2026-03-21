@@ -7,6 +7,7 @@
 require '../config/db.php';
 require '../src/Security.php';
 require '../src/Logger.php';
+require 'options.php'; // Fetch dynamic options for agencies
 session_start();
 
 // 1. SECURITY: Admin, Manager & HR Only
@@ -164,9 +165,9 @@ if (isset($_POST['undo_batch'])) {
     $stmt->execute([$batch_to_delete]);
     $batchTimeStr = $stmt->fetchColumn();
 
-    // If batch exists AND is older than 30 mins
-    if ($batchTimeStr && (time() - strtotime($batchTimeStr) > 1800)) {
-        $error = "❌ Undo Failed: The 30-minute time limit for this batch has expired.";
+    // If batch exists AND is older than 7 hours (25200 seconds)
+    if ($batchTimeStr && (time() - strtotime($batchTimeStr) > 25200)) {
+        $error = "❌ Undo Failed: The 7-hour time limit for this batch has expired.";
     }
     // [EXISTING LOGIC] Proceed if valid
     elseif (strpos($batch_to_delete, 'BATCH_') === 0) {
@@ -345,8 +346,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['undo_batch'])) {
 
     if ($format === "") {
         $error = "Please select an Import Format first.";
-    } elseif ($format === 'CUSTOM' && empty($target_agency)) {
-        $error = "Please assign a Target Agency for your Custom Form import.";
+    } elseif (empty($target_agency)) {
+        $error = "Please assign a Target Agency.";
     } elseif (!isset($_FILES['csv_file']) || $_FILES['csv_file']['error'] !== UPLOAD_ERR_OK) {
         $error = "File upload error. Please try again.";
     } else {
@@ -637,8 +638,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['undo_batch'])) {
                     $status = "Active";
 
                     // Target Agency Assignment
-                    $actual_agency = ($format === 'CUSTOM') ? $target_agency : $format;
-                    $empType = ($actual_agency === 'TESP') ? 'TESP Direct' : 'Agency';
+                    $actual_agency = $target_agency;
+                    $empType = (stripos($actual_agency, 'TESP') !== false) ? 'TESP Direct' : 'Agency';
 
                     if ($emp_id != '') {
                         // [NEW] Check if ID exists
@@ -859,7 +860,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['undo_batch'])) {
 }
 
 // Fetch history for the table below
-$history = $pdo->query("SELECT import_batch, agency_name, COUNT(*) as count, MAX(created_at) as time FROM employees WHERE import_batch IS NOT NULL GROUP BY import_batch ORDER BY time DESC LIMIT 5")->fetchAll(PDO::FETCH_ASSOC);
+$history = $pdo->query("SELECT import_batch, MAX(agency_name) as agency_name, COUNT(*) as count, MAX(created_at) as time FROM employees WHERE import_batch IS NOT NULL GROUP BY import_batch ORDER BY time DESC LIMIT 5")->fetchAll(PDO::FETCH_ASSOC);
 ?>
 
 <!DOCTYPE html>
@@ -1132,29 +1133,25 @@ $history = $pdo->query("SELECT import_batch, agency_name, COUNT(*) as count, MAX
                     <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
                     <div class="row g-3">
                         <div class="col-md-6">
-                            <label class="form-label fw-bold">Select Import Format</label>
+                            <label class="form-label fw-bold">Select CSV Layout (Format)</label>
                             <select name="agency_select" id="agency_select" class="form-select border-success" onchange="toggleFormat()" required>
                                 <option value="">-- Choose Format --</option>
-                                <option value="TESP">TESP Direct</option>
-                                <option value="UNLISOLUTIONS">UnliSolutions</option>
-                                <option value="JORATECH">Joratech</option>
-                                <option value="GUNJIN">Gunjin</option>
-                                <option value="OTHERS">Others</option>
-                                <option value="CUSTOM">Custom (Detect Headers)</option>
+                                <option value="STANDARD">Standard Format (TESP / Others)</option>
+                                <option value="UNLISOLUTIONS">UnliSolutions Format</option>
+                                <option value="JORATECH">Joratech Format</option>
+                                <option value="CUSTOM">Custom Form (Detect Headers)</option>
                             </select>
                         </div>
 
-                        <div class="col-md-6" id="target_agency_container" style="display:none;">
+                        <div class="col-md-6" id="target_agency_container">
                             <label class="form-label fw-bold text-primary">Assign to Agency <span class="text-danger">*</span></label>
-                            <select name="target_agency" id="target_agency" class="form-select border-primary">
+                            <select name="target_agency" id="target_agency" class="form-select border-primary" required>
                                 <option value="">-- Select Agency --</option>
-                                <option value="TESP">TESP Direct</option>
-                                <option value="UNLISOLUTIONS">UnliSolutions</option>
-                                <option value="JORATECH">Joratech</option>
-                                <option value="GUNJIN">Gunjin</option>
-                                <option value="OTHERS - SUBCONS">Others / Subcons</option>
+                                <?php foreach ($agencies as $a): ?>
+                                    <option value="<?php echo htmlspecialchars($a); ?>"><?php echo htmlspecialchars($a); ?></option>
+                                <?php endforeach; ?>
                             </select>
-                            <div class="form-text small">Since you are using a custom form, please specify which agency these employees belong to.</div>
+                            <div class="form-text small">All employees in this import will be assigned to this agency.</div>
                         </div>
 
                         <div class="col-md-6">
@@ -1199,9 +1196,12 @@ $history = $pdo->query("SELECT import_batch, agency_name, COUNT(*) as count, MAX
                                 // Calculate Time Remaining for Undo
                                 $importTime = strtotime($h['time']);
                                 $elapsed = time() - $importTime;
-                                $limit = 30 * 60; // 30 minutes in seconds
+                                $limit = 7 * 60 * 60; // 7 hours in seconds
                                 $canUndo = $elapsed < $limit;
-                                $minsLeft = ceil(($limit - $elapsed) / 60);
+                                $remMinutes = ceil(($limit - $elapsed) / 60);
+                                $remHours = floor($remMinutes / 60);
+                                $remMins = $remMinutes % 60;
+                                $timeLeftStr = $remHours > 0 ? "{$remHours}h {$remMins}m" : "{$remMins}m";
                             ?>
                                 <tr>
                                     <td><?php echo date('M d, h:i A', $importTime); ?></td>
@@ -1216,7 +1216,7 @@ $history = $pdo->query("SELECT import_batch, agency_name, COUNT(*) as count, MAX
                                                 <button type="button" class="btn btn-sm btn-outline-danger" onclick="confirmUndo(this)">Undo</button>
                                             </form>
                                             <div class="text-success small fw-bold mt-1">
-                                                <i class="bi bi-clock-history"></i> <?php echo $minsLeft; ?>m left
+                                                <i class="bi bi-clock-history"></i> <?php echo $timeLeftStr; ?> left
                                             </div>
                                         <?php else: ?>
                                             <!-- LOCKED BUTTON -->
@@ -1252,16 +1252,6 @@ $history = $pdo->query("SELECT import_batch, agency_name, COUNT(*) as count, MAX
                 document.getElementById('instr_custom').style.display = 'block';
             } else if (format !== '') {
                 document.getElementById('instr_tesp').style.display = 'block';
-            }
-
-            // [NEW] Toggle the secondary Agency selector if Custom Form is chosen
-            if (format === 'CUSTOM') {
-                targetAgencyBox.style.display = 'block';
-                targetAgencySelect.required = true;
-            } else {
-                targetAgencyBox.style.display = 'none';
-                targetAgencySelect.required = false;
-                targetAgencySelect.value = '';
             }
         }
 

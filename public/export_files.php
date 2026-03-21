@@ -11,6 +11,7 @@ require '../config/db.php';
 require '../src/Security.php';
 require '../src/FileService.php';
 require '../src/Validator.php';
+require 'options.php';
 session_start();
 
 // [DOWNLOAD HANDLER] Stream split export parts (GET) without requiring CSRF

@@ -2,6 +2,7 @@
 require '../config/db.php';
 require '../src/Security.php';
 require '../src/Logger.php';
+require 'options.php';
 session_start();
 
 // 1. SECURITY: Admin, Manager & HR Only
@@ -282,16 +283,9 @@ $allDepts = $pdo->query("SELECT DISTINCT dept FROM employees WHERE dept != '' OR
                         <select name="type" class="form-select form-select-sm" onchange="this.form.submit()">
                             <option value="">All Agencies</option>
                             <?php
-                            $agencies = [
-                                'TESP Direct' => 'TESP Direct',
-                                'UNLISOLUTIONS' => 'UnliSolutions',
-                                'JORATECH' => 'Joratech',
-                                'GUNJIN' => 'Gunjin',
-                                'OTHERS - SUBCONS' => 'Others'
-                            ];
-                            foreach ($agencies as $val => $label) {
+                            foreach ($agencies as $val) {
                                 $sel = ($filter_type === $val) ? 'selected' : '';
-                                echo "<option value='" . htmlspecialchars($val) . "' $sel>" . htmlspecialchars($label) . "</option>";
+                                echo "<option value='" . htmlspecialchars($val) . "' $sel>" . htmlspecialchars($val) . "</option>";
                             }
                             ?>
                         </select>
