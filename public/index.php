@@ -2306,15 +2306,7 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
                             notifList.innerHTML = data.html;
                         }
 
-                        // 2. Update Dashboard Numbers (The New "Anti-Crash" Feature)
-                        // These IDs are not present in the current HTML, so this part is skipped.
-                        const headEl = document.getElementById('live-headcount');
-                        const caseEl = document.getElementById('live-cases'); // Note: You need to add id="live-cases" to the disciplinary card if you want it to update too.
-
-                        if (headEl) headEl.innerText = data.headcount;
-                        if (caseEl) caseEl.innerText = data.cases;
-
-                        // 3. Update Chart (Live Animation)
+                        // 2. Update Chart (Live Animation)
                         if (window.hrChartInstance && data.chartLabels && data.chartValues) {
                             window.hrChartInstance.data.labels = data.chartLabels;
                             window.hrChartInstance.data.datasets[0].data = data.chartValues;

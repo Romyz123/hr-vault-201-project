@@ -68,6 +68,18 @@ try {
 } catch (PDOException $e) {
 }
 
+// [NEW] Fetch Dynamic Categories for the Edit Document Modal
+$dynamicCats = [];
+try {
+    $stmt = $pdo->query("SELECT DISTINCT name FROM document_requirements ORDER BY name ASC");
+    $dynamicCats = $stmt->fetchAll(PDO::FETCH_COLUMN);
+    $dynamicCats = array_filter($dynamicCats, function ($cat) {
+        return strcasecmp(trim($cat), 'Others') !== 0;
+    });
+} catch (Exception $e) {
+    $dynamicCats = ['201 Files', 'Contract', 'Government IDs', 'Medical', 'Memo / DA', 'Evaluation', 'Certificate', 'Training Record'];
+}
+
 // 3. CONFIGURATION
 
 // [NEW] Load Centralized Options

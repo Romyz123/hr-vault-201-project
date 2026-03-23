@@ -486,48 +486,49 @@ if (isset($_GET['msg'])) {
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <form method="POST" enctype="multipart/form-data">
-                    <div class="modal-body">
-                        <input type="hidden" name="action" value="add_case">
-                        <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
-                        <div class="mb-3 border p-2 rounded bg-light">
-                            <label class="fw-bold mb-1">Select Employees (Multi-Select)</label>
-                            <input type="text" id="empSearch" class="form-control form-control-sm mb-2" placeholder="Type to filter list..." onkeyup="filterEmployees()" maxlength="50">
-                            <select name="employee_ids[]" id="empSelect" class="form-select" multiple required style="height: 150px;">
-                                <?php foreach ($emps as $e): ?>
-                                    <option value="<?php echo $e['emp_id']; ?>"><?php echo htmlspecialchars($e['last_name'] . ', ' . $e['first_name']); ?></option>
-                                <?php endforeach; ?>
-                            </select>
-                            <div class="form-text small text-muted">Hold <strong>Ctrl</strong> (Windows) or <strong>Cmd</strong> (Mac) to select multiple people.</div>
+                    <form method="POST" enctype="multipart/form-data" onsubmit="showLoadingSpinner(this)">
+                        <div class="modal-body">
+                            <input type="hidden" name="action" value="add_case">
+                            <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
+                            <div class="mb-3 border p-2 rounded bg-light">
+                                <label class="fw-bold mb-1">Select Employees (Multi-Select)</label>
+                                <input type="text" id="empSearch" class="form-control form-control-sm mb-2" placeholder="Type to filter list..." onkeyup="filterEmployees()" maxlength="50">
+                                <select name="employee_ids[]" id="empSelect" class="form-select" multiple required style="height: 150px;">
+                                    <?php foreach ($emps as $e): ?>
+                                        <option value="<?php echo $e['emp_id']; ?>"><?php echo htmlspecialchars($e['last_name'] . ', ' . $e['first_name']); ?></option>
+                                    <?php endforeach; ?>
+                                </select>
+                                <div class="form-text small text-muted">Hold <strong>Ctrl</strong> (Windows) or <strong>Cmd</strong> (Mac) to select multiple people.</div>
+                            </div>
+                            <div class="mb-3">
+                                <label>Violation</label>
+                                <input type="text" name="violation_type" class="form-control" required placeholder="Tardiness or Company Policy Violation" spellcheck="true" lang="en" maxlength="100" pattern="[a-zA-Z0-9\s\-\(\)\.\,]+" title="Allowed: Letters, Numbers, () - . ," oninput="this.value = this.value.replace(/[^a-zA-Z0-9\s\-\(\)\.\,]/g, '')">
+                            </div>
+                            <div class="mb-3">
+                                <label>Date</label>
+                                <input type="date" name="incident_date" class="form-control" value="<?php echo date('Y-m-d'); ?>">
+                            </div>
+                            <div class="mb-3">
+                                <label>Action</label>
+                                <select name="action_taken" class="form-select">
+                                    <option>Pending</option>
+                                    <option>Written Warning</option>
+                                    <option>Suspension</option>
+                                </select>
+                            </div>
+                            <div class="mb-3">
+                                <label>Description</label>
+                                <textarea name="description" class="form-control" rows="3" spellcheck="true" lang="en" maxlength="5000" oninput="this.value = this.value.replace(/[<>]/g, '')"></textarea>
+                            </div>
+                            <div class="mb-3 border p-2 bg-warning bg-opacity-10">
+                                <label class="fw-bold">Attach Evidence</label>
+                                <input type="file" name="attachment" class="form-control">
+                            </div>
                         </div>
-                        <div class="mb-3">
-                            <label>Violation</label>
-                            <input type="text" name="violation_type" class="form-control" required placeholder="Tardiness or Company Policy Violation" spellcheck="true" lang="en" maxlength="100" pattern="[a-zA-Z0-9\s\-\(\)\.\,]+" title="Allowed: Letters, Numbers, () - . ," oninput="this.value = this.value.replace(/[^a-zA-Z0-9\s\-\(\)\.\,]/g, '')">
+                        <div class="modal-footer">
+                            <button type="submit" class="btn btn-danger">Submit</button>
                         </div>
-                        <div class="mb-3">
-                            <label>Date</label>
-                            <input type="date" name="incident_date" class="form-control" value="<?php echo date('Y-m-d'); ?>">
-                        </div>
-                        <div class="mb-3">
-                            <label>Action</label>
-                            <select name="action_taken" class="form-select">
-                                <option>Pending</option>
-                                <option>Written Warning</option>
-                                <option>Suspension</option>
-                            </select>
-                        </div>
-                        <div class="mb-3">
-                            <label>Description</label>
-                            <textarea name="description" class="form-control" rows="3" spellcheck="true" lang="en" maxlength="5000" oninput="this.value = this.value.replace(/[<>]/g, '')"></textarea>
-                        </div>
-                        <div class="mb-3 border p-2 bg-warning bg-opacity-10">
-                            <label class="fw-bold">Attach Evidence</label>
-                            <input type="file" name="attachment" class="form-control">
-                        </div>
-                    </div>
-                    <div class="modal-footer">
-                        <button type="submit" class="btn btn-danger">Submit</button>
-                    </div>
-                </form>
+                    </form>
             </div>
         </div>
     </div>
@@ -692,6 +693,16 @@ if (isset($_GET['msg'])) {
         document.getElementById('gen_violation').addEventListener('input', function() {
             document.getElementById('gen_violation_hidden').value = this.value;
         });
+
+        // Prevent double-clicks on File Case submission
+        function showLoadingSpinner(form) {
+            const btn = form.querySelector('button[type="submit"]');
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span> Processing...';
+            }
+            return true;
+        }
     </script>
 </body>
 
