@@ -423,10 +423,8 @@ if (PHP_OS_FAMILY === 'Windows') {
                                 </div>
                                 <div class="col-md-3 mb-3">
                                     <label class="form-label fw-bold">Max Split Size (GB)</label>
-                                    <input type="number" step="0.1" name="settings[backup_max_size_gb]" class="form-control" value="<?php echo htmlspecialchars($backupMaxSize); ?>" min="0.1" max="<?php echo $backupDiskTotalGB; ?>" oninput="if(parseFloat(this.value) > <?php echo $backupDiskTotalGB; ?>) this.value = '<?php echo $backupDiskTotalGB; ?>';">
-                                    <div class="form-text">Splits backup into multiple ZIPs if it exceeds this limit. (Drive Capacity: <strong><?php echo $backupDiskTotalGB; ?> GB</strong>)</div>
-                                </div>
-                                <div class="col-md-3 mb-3 d-flex align-items-center pt-3">
+                                    <input type="number" step="0.1" name="settings[backup_max_size_gb]" class="form-control" value="<?php echo htmlspecialchars($backupMaxSize); ?>" min="0.1" max="
+                                <div class=" col-md-3 mb-3 d-flex align-items-center pt-3">
                                     <div class="form-check form-switch">
                                         <input class="form-check-input" type="checkbox" name="settings[backup_include_vault]" value="1" id="incVault" <?php echo ($backupVault === '1') ? 'checked' : ''; ?>>
                                         <label class="form-check-label fw-bold" for="incVault">Include Vault Files</label>

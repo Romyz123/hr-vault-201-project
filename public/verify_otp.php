@@ -43,7 +43,7 @@ if ($isFirstTimeSetup) {
     $qrData = GoogleAuthenticator::getQRCodeDataUri($user['username'], $secret);
     $manualSecret = $qrData['secret'];
     // Build the raw OTP URI for offline JS QR generation
-    $otpauthUrl = "otpauth://totp/TESP_HR:" . rawurlencode($user['username']) . "?secret=" . $manualSecret . "&issuer=TESP_HR";
+    $otpauthUrl = "otpauth://totp/TESP%20HR%20Vault:" . rawurlencode($user['username']) . "?secret=" . $manualSecret . "&issuer=TESP%20HR%20Vault";
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {

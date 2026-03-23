@@ -921,9 +921,15 @@ $isBackupWritable = is_writable($actualBackupPath);
                             <div class="col-md-6 border-end">
                                 <h6 class="fw-bold text-danger">1. System Backup</h6>
                                 <p class="small text-muted">Download a full SQL dump of the database or save a copy to the server's backup drive. Includes an option to package the encrypted Vault files.</p>
-                                <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#downloadBackupModal"><i class="bi bi-database-down"></i> Download Backup</button>
-                                <button type="button" class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#serverBackupModal"><i class="bi bi-hdd-network"></i> Save to Server</button>
-                                <a href="system_recovery.php" class="btn btn-outline-dark"><i class="bi bi-tools"></i> Recovery Console</a>
+                                <div class="d-flex flex-wrap gap-2">
+                                    <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#downloadBackupModal"><i class="bi bi-database-down"></i> Download Backup</button>
+                                    <button type="button" class="btn btn-sm btn-danger" data-bs-toggle="modal" data-bs-target="#serverBackupModal"><i class="bi bi-hdd-network"></i> Save to Server</button>
+                                    <a href="system_recovery.php" class="btn btn-sm btn-outline-dark"><i class="bi bi-tools"></i> Recovery Console</a>
+                                    <form action="system_recovery.php" method="POST" class="m-0" onsubmit="return confirm('WARNING: This will delete ALL orphaned files and broken database records. Ensure you have a backup first. Proceed?');">
+                                        <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
+                                        <button type="submit" name="master_sync" class="btn btn-sm btn-primary shadow-sm"><i class="bi bi-arrow-repeat"></i> Run Master Sync</button>
+                                    </form>
+                                </div>
                                 <div class="mt-2">
                                     <button type="button" class="btn btn-sm btn-outline-info fw-bold" onclick="viewSchema()"><i class="bi bi-filetype-sql"></i> View Database Schema</button>
                                 </div>

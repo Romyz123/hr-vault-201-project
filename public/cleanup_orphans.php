@@ -89,6 +89,8 @@ try {
     $validFiles[] = 'manifest_DO_NOT_DELETE.txt';
     $validFiles[] = '.gitkeep';
     $validFiles[] = '.htaccess';
+    $validFiles[] = 'tesp-logo-1.png';
+    $validFiles[] = 'tesp logo 1.png';
 
     // 4. SCAN & CLEAN
     $filesOnDisk = scandir($vaultPath);
@@ -128,6 +130,8 @@ try {
         $validAvatars[] = 'default.png';
         $validAvatars[] = '.gitkeep';
         $validAvatars[] = '.htaccess';
+        $validAvatars[] = 'tesp-logo-1.png';
+        $validAvatars[] = 'tesp logo 1.png';
 
         foreach ($avatarsOnDisk as $file) {
             if ($file === '.' || $file === '..') continue;

@@ -17,6 +17,9 @@ try {
         $decoded = json_decode($row['setting_value'], true);
         if (json_last_error() === JSON_ERROR_NONE) {
             $sysOpts[$row['setting_key']] = $decoded;
+        } else {
+            // If it's not JSON (like plain text or numbers), store it as a standard string
+            $sysOpts[$row['setting_key']] = $row['setting_value'];
         }
     }
 } catch (Exception $e) {

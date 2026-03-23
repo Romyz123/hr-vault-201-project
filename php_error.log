@@ -30,3 +30,5 @@
 [23-Mar-2026 15:13:50 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\edit_employee.php on line 1255
 [23-Mar-2026 15:14:40 Asia/Manila] PHP Warning:  Undefined variable $dynamicCats in C:\xampp\htdocs\hr 201\public\edit_employee.php on line 1255
 [23-Mar-2026 15:14:40 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\edit_employee.php on line 1255
+[23-Mar-2026 17:29:46 Asia/Manila] PHP Warning:  Undefined variable $dynamicCats in C:\xampp\htdocs\hr 201\public\edit_employee.php on line 1264
+[23-Mar-2026 17:29:46 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\edit_employee.php on line 1264

@@ -47,7 +47,7 @@ if (!empty($currentTotpSecret)) {
     $qrData = GoogleAuthenticator::getQRCodeDataUri($_SESSION['username'], $currentTotpSecret);
     $manualSecret = $qrData['secret'];
     // Build the raw OTP URI for offline JS QR generation
-    $otpauthUrl = "otpauth://totp/TESP_HR:" . rawurlencode($_SESSION['username']) . "?secret=" . $manualSecret . "&issuer=TESP_HR";
+    $otpauthUrl = "otpauth://totp/TESP%20HR%20Vault:" . rawurlencode($_SESSION['username']) . "?secret=" . $manualSecret . "&issuer=TESP%20HR%20Vault";
 }
 
 // 2. HANDLE EMAIL UPDATE
@@ -215,7 +215,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         $currentTotpSecret = $newSecret;
         $qrData = GoogleAuthenticator::getQRCodeDataUri($_SESSION['username'], $currentTotpSecret);
         $manualSecret = $qrData['secret'];
-        $otpauthUrl = "otpauth://totp/TESP_HR:" . rawurlencode($_SESSION['username']) . "?secret=" . $manualSecret . "&issuer=TESP_HR";
+        $otpauthUrl = "otpauth://totp/TESP%20HR%20Vault:" . rawurlencode($_SESSION['username']) . "?secret=" . $manualSecret . "&issuer=TESP%20HR%20Vault";
         $alertType = "success";
         $alertMsg = "✅ Authenticator App Secret generated! Please scan the new QR code.";
     }
