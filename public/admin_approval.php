@@ -236,6 +236,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                         $updateCols[] = "category = ?";
                         $updateParams[] = $data['new_category'];
                     }
+                    if (array_key_exists('new_expiry_date', $data)) {
+                        $updateCols[] = "expiry_date = ?";
+                        $updateParams[] = $data['new_expiry_date'];
+                    }
                     if (isset($data['move_to_emp_id'])) {
                         $updateCols[] = "employee_id = ?";
                         $updateParams[] = $data['move_to_emp_id'];
@@ -352,6 +356,7 @@ $tickets  = $pdo->query("SELECT r.*, u.username FROM requests r LEFT JOIN users 
     <meta charset="UTF-8">
     <title>Approvals</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="icon" href="assets/images/tesp-logo-1.png" type="image/png">
     <link href="assets/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="assets/icons/bootstrap-icons.css">
     <script src="assets/sweetalert2.all.min.js"></script>
@@ -661,6 +666,10 @@ $tickets  = $pdo->query("SELECT r.*, u.username FROM requests r LEFT JOIN users 
                 if (data.new_category && data.new_category !== orig.category) {
                     hasChanges = true;
                     changesHtml += `<li class="list-group-item"><strong>Category:</strong><br><del class="text-danger">${escapeHtml(orig.category || '')}</del><br><ins class="text-success">${escapeHtml(data.new_category)}</ins></li>`;
+                }
+                if (data.new_expiry_date !== undefined && data.new_expiry_date !== orig.expiry_date) {
+                    hasChanges = true;
+                    changesHtml += `<li class="list-group-item"><strong>Expiration Date:</strong><br><del class="text-danger">${escapeHtml(orig.expiry_date || 'None')}</del><br><ins class="text-success">${escapeHtml(data.new_expiry_date || 'None')}</ins></li>`;
                 }
                 if (data.move_to_emp_id && data.move_to_emp_id !== orig.employee_id) {
                     hasChanges = true;

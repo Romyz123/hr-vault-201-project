@@ -397,7 +397,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             foreach ($dbFiles as $dbf) $validUploads[] = $dbf;
 
             $validUploads = array_map('basename', $validUploads);
-            $validUploads = array_merge($validUploads, ['index.php', '.htaccess', 'tesp logo 1.png', 'avatars', '.gitkeep']);
+            $validUploads = array_merge($validUploads, ['index.php', '.htaccess', 'tesp-logo-1.png', 'avatars', '.gitkeep']);
 
             foreach ($upFiles as $f) {
                 if (is_dir($uploadsPath . $f)) continue;
@@ -714,7 +714,7 @@ if (is_dir($uploadsPath)) {
     foreach ($upScan as $f) {
         if ($f === '.' || $f === '..' || is_dir($uploadsPath . $f)) continue;
         // Skip known files and system assets
-        if (in_array($f, $allKnownFiles) || $f === 'index.php' || $f === '.htaccess' || $f === 'tesp logo 1.png' || $f === '.gitkeep') continue;
+        if (in_array($f, $allKnownFiles) || $f === 'index.php' || $f === '.htaccess' || $f === 'tesp-logo-1.png' || $f === '.gitkeep') continue;
 
         $file_path = $uploadsPath . $f;
         $orphans[] = [
@@ -818,6 +818,7 @@ $bkMaxSize = $pdo->query("SELECT setting_value FROM system_settings WHERE settin
     <meta charset="UTF-8">
     <title>System Recovery Console</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="icon" href="assets/images/tesp-logo-1.png" type="image/png">
     <link href="assets/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="assets/icons/bootstrap-icons.css">
 </head>

@@ -28,7 +28,7 @@ if (!$user) {
 }
 
 $isFirstTimeSetup = false;
-$qrCodeUrl = '';
+$otpauthUrl = '';
 $manualSecret = '';
 
 // Generate a new secret if they don't have one yet (do not persist until verified)
@@ -41,8 +41,9 @@ if (empty($secret)) {
 
 if ($isFirstTimeSetup) {
     $qrData = GoogleAuthenticator::getQRCodeDataUri($user['username'], $secret);
-    $qrCodeUrl = $qrData['qr_url'];
     $manualSecret = $qrData['secret'];
+    // Build the raw OTP URI for offline JS QR generation
+    $otpauthUrl = "otpauth://totp/TESP_HR:" . rawurlencode($user['username']) . "?secret=" . $manualSecret . "&issuer=TESP_HR";
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -151,10 +152,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <head>
     <meta charset="UTF-8">
     <title>Verify 2FA</title>
+    <link rel="icon" href="assets/images/tesp-logo-1.png" type="image/png">
     <link href="assets/bootstrap.min.css" rel="stylesheet">
     <style>
         body {
+            /* --- BACKGROUND THEMES (Uncomment the one you want to use) --- */
+
+            /* OPTION 1: Original Deep Corporate Blue Gradient (Revert to this if needed) */
+            /* background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%); */
+
+            /* OPTION 2: TESP Corporate Green Gradient */
+            /* background: linear-gradient(135deg, #198754 0%, #146c43 100%); */
+
+            /* OPTION 3: Clean Light Corporate Flat Color */
             background-color: #f4f6f9;
+
+            /* OPTION 4: Background Image with Dark Overlay */
+            /* background: linear-gradient(rgba(30, 60, 114, 0.8), rgba(42, 82, 152, 0.8)), url('uploads/company_bg.jpg') center/cover no-repeat fixed; */
+
             display: flex;
             align-items: center;
             justify-content: center;
@@ -176,10 +191,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <h4 class="fw-bold text-primary"><i class="bi bi-phone"></i> Authenticator App</h4>
             <?php if ($isFirstTimeSetup): ?>
                 <p class="text-muted small"><strong>First Time Setup:</strong> Scan this QR code using Google Authenticator, Authy, or Microsoft Authenticator.</p>
-                <div class="mb-3">
-                    <img src="<?php echo htmlspecialchars($qrCodeUrl); ?>" alt="QR Code" class="img-fluid border p-2 rounded bg-white">
+                <div class="mb-3 d-flex flex-column align-items-center">
+                    <div id="qrcode" class="p-2 bg-white border rounded"></div>
                     <div class="mt-2">
-                        <a href="<?php echo htmlspecialchars($qrCodeUrl); ?>" target="_blank" class="btn btn-sm btn-outline-secondary" download="QR_Backup.png"><i class="bi bi-download"></i> Save QR Code</a>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="saveQRCode()"><i class="bi bi-download"></i> Save QR Code</button>
                     </div>
                 </div>
                 <div class="mb-3 p-2 bg-light border rounded small text-center">
@@ -218,6 +233,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         </div>
     </div>
 
+    <?php if ($isFirstTimeSetup): ?>
+        <script src="assets/qrcode.min.js"></script>
+        <script>
+            // Generate QR Code Offline
+            var qrCodeDiv = document.getElementById("qrcode");
+            if (qrCodeDiv && typeof QRCode !== 'undefined') {
+                new QRCode(qrCodeDiv, {
+                    text: "<?php echo $otpauthUrl; ?>",
+                    width: 160,
+                    height: 160,
+                    colorDark: "#000000",
+                    colorLight: "#ffffff",
+                    correctLevel: QRCode.CorrectLevel.M
+                });
+            }
+
+            function saveQRCode() {
+                var canvas = document.querySelector('#qrcode canvas');
+                if (canvas) {
+                    var link = document.createElement('a');
+                    link.download = '2FA_QRCode.png';
+                    link.href = canvas.toDataURL('image/png');
+                    link.click();
+                }
+            }
+        </script>
+    <?php endif; ?>
 </body>
 
 </html>

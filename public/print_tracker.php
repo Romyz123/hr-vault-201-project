@@ -116,6 +116,7 @@ if ($compliance !== '') {
 <head>
     <meta charset="UTF-8">
     <title>Compliance Report</title>
+    <link rel="icon" href="assets/images/tesp-logo-1.png" type="image/png">
     <style>
         body {
             font-family: Arial, sans-serif;

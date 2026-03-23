@@ -615,6 +615,7 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
     <meta charset="UTF-8">
     <title>TESP HR 201 System</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="icon" href="assets/images/tesp-logo-1.png" type="image/png">
     <!-- Single includes only -->
     <link href="assets/bootstrap.min.css" rel="stylesheet">
     <link href="assets/icons/bootstrap-icons.css" rel="stylesheet">
@@ -1042,6 +1043,7 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
                 <div class="card-header bg-info text-white fw-bold d-flex justify-content-between align-items-center">
                     <span><i class="bi bi-cpu-fill me-2"></i> System Health & Configuration</span>
                     <div>
+                        <a href="error_logs.php" class="btn btn-sm btn-light text-danger fw-bold me-2"><i class="bi bi-bug-fill"></i> View Error Logs</a>
                         <a href="db_status.php" class="btn btn-sm btn-light text-info fw-bold"><i class="bi bi-arrow-repeat"></i> Check DB Updates</a>
                     </div>
                 </div>
@@ -1526,6 +1528,9 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
                                                                         <?php endif; ?>
                                                                         <strong><?php echo h($file['original_name']); ?></strong><br>
                                                                         <small class="text-secondary"><?php echo h($file['category']); ?></small>
+                                                                        <?php if (!empty($file['is_resolved']) && !empty($file['resolution_note'])): ?>
+                                                                            <br><span class="badge bg-success mt-1" style="font-size: 0.70rem; white-space: normal; cursor: pointer;" title="Edit Resolution Note" onclick="event.stopPropagation(); openResolveModal(<?php echo (int)$file['id']; ?>, <?php echo htmlspecialchars(json_encode($file['original_name']), ENT_QUOTES, 'UTF-8'); ?>, <?php echo htmlspecialchars(json_encode($file['resolution_note']), ENT_QUOTES, 'UTF-8'); ?>)"><i class="bi bi-check-circle-fill"></i> Resolved: <?php echo h($file['resolution_note']); ?> <i class="bi bi-pencil ms-1"></i></span>
+                                                                        <?php endif; ?>
                                                                     </a>
 
                                                                     <?php if ((int)$file['is_resolved'] === 0 && !empty($file['expiry_date']) && $file['expiry_date'] <= date('Y-m-d', strtotime('+30 days'))): ?>
@@ -1643,7 +1648,7 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
                     <input type="hidden" name="doc_id" id="res_doc_id">
                     <input type="hidden" name="csrf_token" value="<?php echo h($_SESSION['csrf_token']); ?>">
                     <p>Resolving alert for: <strong id="res_cat_name"></strong></p>
-                    <textarea name="resolution_note" class="form-control" rows="3" required placeholder="Action taken..." maxlength="500"></textarea>
+                    <textarea name="resolution_note" id="res_note" class="form-control" rows="3" required placeholder="Action taken..." maxlength="500"></textarea>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
@@ -2053,14 +2058,16 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
         }
 
         // ---------- Resolve Modal ----------
-        function openResolveModal(id, fileName) {
+        function openResolveModal(id, fileName, currentNote = '') {
             const idField = document.getElementById('res_doc_id');
             const nameField = document.getElementById('res_cat_name');
+            const noteField = document.getElementById('res_note');
             const modalEl = document.getElementById('resolveModal');
             if (!idField || !nameField || !modalEl) return;
 
             idField.value = String(id);
             nameField.innerText = fileName;
+            if (noteField) noteField.value = currentNote;
             const modal = new bootstrap.Modal(modalEl);
             modal.show();
         }

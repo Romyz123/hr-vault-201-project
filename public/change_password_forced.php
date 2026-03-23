@@ -78,11 +78,29 @@ end_post:
 <head>
     <meta charset="UTF-8">
     <title>Update Password</title>
+    <link rel="icon" href="assets/images/tesp-logo-1.png" type="image/png">
     <link href="assets/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="assets/icons/bootstrap-icons.css">
+    <style>
+        body {
+            /* --- BACKGROUND THEMES (Uncomment the one you want to use) --- */
+
+            /* OPTION 1: Original Deep Corporate Blue Gradient (Revert to this if needed) */
+            /* background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%); */
+
+            /* OPTION 2: TESP Corporate Green Gradient */
+            /* background: linear-gradient(135deg, #198754 0%, #146c43 100%); */
+
+            /* OPTION 3: Clean Light Corporate Flat Color */
+            background-color: #f4f6f9;
+
+            /* OPTION 4: Background Image with Dark Overlay */
+            /* background: linear-gradient(rgba(30, 60, 114, 0.8), rgba(42, 82, 152, 0.8)), url('uploads/company_bg.jpg') center/cover no-repeat fixed; */
+        }
+    </style>
 </head>
 
-<body class="bg-light d-flex align-items-center justify-content-center vh-100">
+<body class="d-flex align-items-center justify-content-center vh-100">
     <div class="position-absolute top-0 end-0 p-3 text-muted small font-monospace"><i class="bi bi-clock"></i> <span id="sessionTimer"></span></div>
 
     <div class="card shadow p-4" style="width: 400px;">

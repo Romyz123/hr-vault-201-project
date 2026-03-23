@@ -158,6 +158,10 @@ $columnSchema = [
         'rejection_reason' => "TEXT NULL",
         'interview_date' => "DATETIME NULL",
         'is_blacklisted' => "TINYINT(1) DEFAULT 0"
+    ],
+    'maintenance_logs' => [
+        'vendor_name' => "VARCHAR(100) NULL",
+        'status' => "VARCHAR(20) NOT NULL DEFAULT 'Pending'"
     ]
 ];
 
@@ -196,6 +200,34 @@ $tableSchema = [
         `performed_by` VARCHAR(100) NOT NULL,
         `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         KEY `idx_emp` (`employee_id`)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;",
+
+    'maintenance_actions' => "CREATE TABLE IF NOT EXISTS `maintenance_actions` (
+        `id` INT AUTO_INCREMENT PRIMARY KEY,
+        `user_id` INT NULL,
+        `action` VARCHAR(100) NOT NULL,
+        `target_type` VARCHAR(50) NULL,
+        `target_id` VARCHAR(100) NULL,
+        `details` TEXT NULL,
+        `ip` VARCHAR(45) NULL,
+        `user_agent` VARCHAR(255) NULL,
+        `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        INDEX `idx_user_id` (`user_id`)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;",
+
+    'hr_performance_reviews' => "CREATE TABLE IF NOT EXISTS `hr_performance_reviews` (
+        `id` INT AUTO_INCREMENT PRIMARY KEY,
+        `employee_id` INT NOT NULL,
+        `reviewer_id` INT NOT NULL,
+        `custom_reviewer` VARCHAR(100) NULL,
+        `review_date` DATE NOT NULL,
+        `rating` INT NOT NULL DEFAULT 3,
+        `strengths` TEXT NULL,
+        `weaknesses` TEXT NULL,
+        `goals` TEXT NULL,
+        `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        KEY `idx_emp_id` (`employee_id`),
+        KEY `idx_reviewer_id` (`reviewer_id`)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;",
 
     'performance_evaluations' => "CREATE TABLE IF NOT EXISTS `performance_evaluations` (
@@ -468,6 +500,7 @@ foreach ($indexSchema as $table => $indexes) {
 <head>
     <meta charset="UTF-8">
     <title>Database Status</title>
+    <link rel="icon" href="assets/images/tesp-logo-1.png" type="image/png">
     <link href="assets/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="assets/icons/bootstrap-icons.css">
     <style>

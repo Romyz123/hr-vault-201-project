@@ -183,10 +183,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
     <meta charset="UTF-8">
     <title>Login - TES Philippines HR</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="icon" href="assets/images/tesp-logo-1.png" type="image/png">
     <link href="assets/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="assets/icons/bootstrap-icons.css">
     <script src="assets/sweetalert2.all.min.js"></script>
     <style>
+        body {
+            /* --- BACKGROUND THEMES (Uncomment the one you want to use) --- */
+
+            /* OPTION 1: Original Deep Corporate Blue Gradient (Revert to this if needed) */
+            /* background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%); */
+
+            /* OPTION 2: TESP Corporate Green Gradient */
+            /* background: linear-gradient(135deg, #198754 0%, #146c43 100%); */
+
+            /* OPTION 3: Clean Light Corporate Flat Color */
+            background-color: #f4f6f9;
+
+            /* OPTION 4: Background Image with Dark Overlay */
+            /* background: linear-gradient(rgba(30, 60, 114, 0.8), rgba(42, 82, 152, 0.8)), url('uploads/company_bg.jpg') center/cover no-repeat fixed; */
+        }
+
+        .login-card {
+            border: none;
+            border-radius: 16px;
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.4) !important;
+            overflow: hidden;
+            /* Clips the header to the border radius */
+        }
+
         /* Disable button style */
         .btn-disabled {
             cursor: not-allowed;
@@ -213,9 +238,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
     </style>
 </head>
 
-<body class="bg-body-tertiary d-flex align-items-center justify-content-center vh-100">
+<body class="d-flex align-items-center justify-content-center vh-100">
 
-    <div class="card shadow-sm" style="width: 100%; max-width: 400px;">
+    <div class="card login-card" style="width: 100%; max-width: 400px;">
         <div class="card-header bg-primary text-white text-center py-4">
             <i class="bi bi-building-lock display-1"></i>
             <h3 class="mt-2 fw-bold">HR 201 Vault</h3>

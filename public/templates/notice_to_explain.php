@@ -12,8 +12,8 @@ $allegation = nl2br(htmlspecialchars($_GET['allegation'] ?? ''));
 $rule_violated = nl2br(htmlspecialchars($_GET['rule_violated'] ?? ''));
 
 // 2. Base64 Logo (Same standard as your other contracts)
-$logo_path = __DIR__ . '/../uploads/tesp logo 1.png';
-$logo_src = 'uploads/' . rawurlencode('tesp logo 1.png'); // Fallback
+$logo_path = __DIR__ . '/../assets/images/tesp-logo-1.png';
+$logo_src = 'assets/images/tesp-logo-1.png'; // Fallback
 
 if (file_exists($logo_path)) {
     $logo_binary = file_get_contents($logo_path);

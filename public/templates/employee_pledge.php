@@ -4,8 +4,8 @@ if (!isset($emp)) {
     die("Access Denied");
 }
 
-$logo_path = __DIR__ . '/../uploads/tesp logo 1.png';
-$logo_src = 'uploads/' . rawurlencode('tesp logo 1.png');
+$logo_path = __DIR__ . '/../assets/images/tesp-logo-1.png';
+$logo_src = 'assets/images/tesp-logo-1.png';
 if (file_exists($logo_path)) {
     $logo_binary = file_get_contents($logo_path);
     $logo_src = 'data:image/png;base64,' . base64_encode($logo_binary);

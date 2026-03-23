@@ -429,6 +429,7 @@ if ($debug) {
 <head>
     <meta charset="UTF-8">
     <title>HR Analytics Report</title>
+    <link rel="icon" href="assets/images/tesp-logo-1.png" type="image/png">
     <link href="assets/bootstrap.min.css" rel="stylesheet">
     <link href="assets/icons/bootstrap-icons.css" rel="stylesheet">
     <script src="assets/chart.min.js"></script>

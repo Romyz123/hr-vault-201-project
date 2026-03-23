@@ -11,8 +11,8 @@ $decision = (!empty($_GET['decision'])) ? nl2br(htmlspecialchars($_GET['decision
 $incident_date = (!empty($_GET['incident_date'])) ? date('F d, Y', strtotime($_GET['incident_date'])) : '_________________';
 
 // 2. Base64 Logo
-$logo_path = __DIR__ . '/../uploads/tesp logo 1.png';
-$logo_src = 'uploads/' . rawurlencode('tesp logo 1.png');
+$logo_path = __DIR__ . '/../assets/images/tesp-logo-1.png';
+$logo_src = 'assets/images/tesp-logo-1.png';
 if (file_exists($logo_path)) {
     $logo_binary = file_get_contents($logo_path);
     $logo_src = 'data:image/png;base64,' . base64_encode($logo_binary);

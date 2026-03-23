@@ -42,10 +42,14 @@ if (!in_array($role, ['ADMIN', 'HR', 'MANAGER'], true) && $data['employee_id'] !
 }
 
 // Logo
-$logo_path = __DIR__ . '/uploads/tesp logo 1.png';
+$logo_path = __DIR__ . '/assets/images/tesp-logo-1.png';
+$fallback_logo = __DIR__ . '/assets/images/favicon.png';
 $logo_src = '';
 if (file_exists($logo_path)) {
     $logo_binary = file_get_contents($logo_path);
+    $logo_src = 'data:image/png;base64,' . base64_encode($logo_binary);
+} elseif (file_exists($fallback_logo)) {
+    $logo_binary = file_get_contents($fallback_logo);
     $logo_src = 'data:image/png;base64,' . base64_encode($logo_binary);
 }
 ?>
@@ -55,6 +59,7 @@ if (file_exists($logo_path)) {
 <head>
     <meta charset="UTF-8">
     <title>Performance Evaluation - <?php echo htmlspecialchars($data['last_name']); ?></title>
+    <link rel="icon" href="assets/images/tesp-logo-1.png" type="image/png">
     <style>
         @page {
             size: A4 landscape;

@@ -54,6 +54,7 @@ foreach ($employees as $emp) {
 <head>
     <meta charset="UTF-8">
     <title>Missing Fields Report</title>
+    <link rel="icon" href="assets/images/tesp-logo-1.png" type="image/png">
     <link href="assets/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="assets/icons/bootstrap-icons.css">
     <style>

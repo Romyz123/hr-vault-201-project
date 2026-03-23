@@ -38,19 +38,10 @@ if (is_link($path)) {
 }
 
 $realPath = realpath($path);
-$allowedBase = realpath(__DIR__ . '/../backups');
 
 if (!$realPath || !is_dir($realPath)) {
     echo json_encode(['status' => 'error', 'message' => "The directory does not exist or is not accessible. Please create the folder on the server first."]);
     exit;
-}
-
-if ($allowedBase) {
-    $allowedPrefix = rtrim($allowedBase, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR;
-    if (strncmp($realPath, $allowedPrefix, strlen($allowedPrefix)) !== 0) {
-        echo json_encode(['status' => 'error', 'message' => 'The directory must be inside the allowed backup directory.']);
-        exit;
-    }
 }
 
 // 2. PERFORM WRITE TEST

@@ -401,6 +401,7 @@ try {
 <head>
     <meta charset="UTF-8">
     <title>Recruitment Dashboard</title>
+    <link rel="icon" href="assets/images/tesp-logo-1.png" type="image/png">
     <link href="assets/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="assets/icons/bootstrap-icons.css">
     <script src="assets/chart.min.js"></script>
@@ -461,7 +462,7 @@ try {
                 margin-bottom: 20px;
                 border-bottom: 2px solid #666;
                 padding-bottom: 10px;
-                background-image: url('uploads/tesp logo 1.png');
+                background-image: url('assets/images/tesp-logo-1.png');
                 /* Relative to public folder */
                 background-repeat: no-repeat;
                 background-size: 50px;

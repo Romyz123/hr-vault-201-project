@@ -37,6 +37,7 @@ foreach ($data as $row) {
 <head>
     <meta charset="UTF-8">
     <title>Evaluation Report</title>
+    <link rel="icon" href="assets/tesp-logo-1.png" type="image/png">
     <link href="assets/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="assets/icons/bootstrap-icons.css">
     <script src="assets/chart.min.js"></script>

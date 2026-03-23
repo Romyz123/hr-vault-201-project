@@ -65,6 +65,7 @@ $employees = $stmt->fetchAll();
 <head>
     <meta charset="UTF-8">
     <title>Employee Master List</title>
+    <link rel="icon" href="assets/images/tesp-logo-1.png" type="image/png">
     <link href="assets/bootstrap.min.css" rel="stylesheet">
     <style>
         /* 1. Force A4 Landscape */

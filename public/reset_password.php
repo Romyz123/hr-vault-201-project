@@ -130,8 +130,20 @@ if ($step === 'reset' && empty($_SESSION['reset_csrf'])) {
     <link rel="stylesheet" href="assets/icons/bootstrap-icons.css">
     <style>
         body {
-            background: linear-gradient(rgba(15, 23, 42, 0.6), rgba(15, 23, 42, 0.6)), url('https://images.unsplash.com/photo-1497215728101-856f4ea42174?auto=format&fit=crop&w=1920&q=80');
-            background-size: cover;
+            /* --- BACKGROUND THEMES (Uncomment the one you want to use) --- */
+
+            /* OPTION 1: Original Deep Corporate Blue Gradient (Revert to this if needed) */
+            /* background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%); */
+
+            /* OPTION 2: TESP Corporate Green Gradient */
+            /* background: linear-gradient(135deg, #198754 0%, #146c43 100%); */
+
+            /* OPTION 3: Clean Light Corporate Flat Color */
+            background-color: #f4f6f9;
+
+            /* OPTION 4: Background Image with Dark Overlay */
+            /* background: linear-gradient(rgba(30, 60, 114, 0.8), rgba(42, 82, 152, 0.8)), url('uploads/company_bg.jpg') center/cover no-repeat fixed; */
+
             height: 100vh;
             display: flex;
             align-items: center;

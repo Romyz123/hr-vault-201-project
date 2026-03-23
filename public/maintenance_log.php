@@ -409,6 +409,7 @@ $emps = $pdo->query("SELECT emp_id, first_name, last_name FROM employees WHERE s
     <meta charset="UTF-8">
     <title>Hardware Maintenance Log</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="icon" href="assets/images/tesp-logo-1.png" type="image/png">
     <link href="assets/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="assets/icons/bootstrap-icons.css">
 </head>

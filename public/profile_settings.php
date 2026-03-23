@@ -40,13 +40,14 @@ $hasCodes = !empty($currentUser['recovery_codes']) && $currentUser['recovery_cod
 $currentTotpSecret = $currentUser['totp_secret'] ?? '';
 
 // Generate QR Code URL if secret exists
-$qrCodeUrl = '';
+$otpauthUrl = '';
 $manualSecret = '';
 if (!empty($currentTotpSecret)) {
     require_once '../src/GoogleAuthenticator.php';
     $qrData = GoogleAuthenticator::getQRCodeDataUri($_SESSION['username'], $currentTotpSecret);
-    $qrCodeUrl = $qrData['qr_url'];
     $manualSecret = $qrData['secret'];
+    // Build the raw OTP URI for offline JS QR generation
+    $otpauthUrl = "otpauth://totp/TESP_HR:" . rawurlencode($_SESSION['username']) . "?secret=" . $manualSecret . "&issuer=TESP_HR";
 }
 
 // 2. HANDLE EMAIL UPDATE
@@ -213,8 +214,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         $pdo->prepare("UPDATE users SET totp_secret = ? WHERE id = ?")->execute([$newSecret, $_SESSION['user_id']]);
         $currentTotpSecret = $newSecret;
         $qrData = GoogleAuthenticator::getQRCodeDataUri($_SESSION['username'], $currentTotpSecret);
-        $qrCodeUrl = $qrData['qr_url'];
         $manualSecret = $qrData['secret'];
+        $otpauthUrl = "otpauth://totp/TESP_HR:" . rawurlencode($_SESSION['username']) . "?secret=" . $manualSecret . "&issuer=TESP_HR";
         $alertType = "success";
         $alertMsg = "✅ Authenticator App Secret generated! Please scan the new QR code.";
     }
@@ -251,6 +252,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Profile Settings</title>
+    <link rel="icon" href="assets/images/tesp-logo-1.png" type="image/png">
     <link href="assets/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="assets/icons/bootstrap-icons.css">
     <script src="assets/sweetalert2.all.min.js"></script>
@@ -396,10 +398,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                         <p class="small text-muted">Use an app like Google Authenticator or Authy to generate secure codes for login and account recovery.</p>
 
                         <?php if (!empty($currentTotpSecret)): ?>
-                            <div class="text-center mb-3">
-                                <img src="<?php echo htmlspecialchars($qrCodeUrl); ?>" alt="QR Code" class="img-fluid border p-2 rounded bg-white mb-2">
+                            <div class="text-center mb-3 d-flex flex-column align-items-center">
+                                <div id="qrcode" class="p-2 bg-white border rounded mb-2"></div>
                                 <div class="mb-2">
-                                    <a href="<?php echo htmlspecialchars($qrCodeUrl); ?>" target="_blank" class="btn btn-sm btn-outline-secondary" download="QR_Backup.png"><i class="bi bi-download"></i> Save QR Code</a>
+                                    <button type="button" class="btn btn-sm btn-outline-secondary" onclick="saveQRCode()"><i class="bi bi-download"></i> Save QR Code</button>
                                 </div>
                                 <div class="p-2 bg-light border rounded small mt-2 mb-3 text-center">
                                     <strong>Manual Setup Key:</strong><br>
@@ -695,6 +697,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         setInterval(updateTimer, 1000);
         updateTimer();
     </script>
+
+    <?php if (!empty($currentTotpSecret)): ?>
+        <script src="assets/qrcode.min.js"></script>
+        <script>
+            var qrCodeDiv = document.getElementById("qrcode");
+            if (qrCodeDiv && typeof QRCode !== 'undefined') {
+                new QRCode(qrCodeDiv, {
+                    text: "<?php echo $otpauthUrl; ?>",
+                    width: 160,
+                    height: 160,
+                    colorDark: "#000000",
+                    colorLight: "#ffffff",
+                    correctLevel: QRCode.CorrectLevel.M
+                });
+            }
+
+            function saveQRCode() {
+                var canvas = document.querySelector('#qrcode canvas');
+                if (canvas) {
+                    var link = document.createElement('a');
+                    link.download = '2FA_QRCode.png';
+                    link.href = canvas.toDataURL('image/png');
+                    link.click();
+                }
+            }
+        </script>
+    <?php endif; ?>
 
     <script src="dark_mode.js"></script>
 </body>

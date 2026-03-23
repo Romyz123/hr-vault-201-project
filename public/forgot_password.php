@@ -220,11 +220,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <head>
     <meta charset="UTF-8">
     <title>Forgot Password</title>
+    <link rel="icon" href="assets/images/tesp-logo-1.png" type="image/png">
     <link href="assets/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="assets/icons/bootstrap-icons.css">
     <style>
         body {
-            background: #f4f6f9;
+            /* Active background theme */
+            background-color: #f4f6f9;
+
+            /* Optional static background image (file should be in assets/images and set by admin):
+               background: linear-gradient(rgba(30, 60, 114, 0.8), rgba(42, 82, 152, 0.8)), url('assets/images/company_bg.jpg') center/cover no-repeat fixed; */
+
             display: flex;
             align-items: center;
             justify-content: center;

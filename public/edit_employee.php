@@ -249,6 +249,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $newName = trim($_POST['file_name']);
             $newCat = trim($_POST['category']);
             $moveToEmpId = trim($_POST['move_to_emp_id'] ?? '');
+            $newExpiry = NULL;
+            if (!empty($_POST['expiry_date'])) {
+                $parsedExpiry = DateTime::createFromFormat('Y-m-d', $_POST['expiry_date']);
+                if ($parsedExpiry && $parsedExpiry->format('Y-m-d') === $_POST['expiry_date']) {
+                    $newExpiry = $_POST['expiry_date'];
+                } else {
+                    header("Location: edit_employee.php?id=$id&tab=docs&error=" . urlencode("❌ Invalid expiry date format."));
+                    exit;
+                }
+            }
             $isValid = true;
             $errorMsg = '';
 
@@ -311,6 +321,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $payload = [
                         'new_name' => $newName,
                         'new_category' => $newCat,
+                        'new_expiry_date' => $newExpiry,
                         'move_to_emp_id' => $moveToEmpId,
                         'original_details' => $origDoc
                     ];
@@ -322,8 +333,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
 
                 // 2. DIRECT UPDATE (Admins/Managers/HR are trusted)
-                $updateSql = "UPDATE documents SET original_name = ?, category = ?, updated_at = NOW(), updated_by = ?";
-                $updateParams = [$newName, $newCat, $_SESSION['user_id']];
+                $updateSql = "UPDATE documents SET original_name = ?, category = ?, expiry_date = ?, updated_at = NOW(), updated_by = ?";
+                $updateParams = [$newName, $newCat, $newExpiry, $_SESSION['user_id']];
 
                 if (!empty($moveToEmpId)) {
                     // [FIX] Validate target employee exists
@@ -709,6 +720,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <meta charset="UTF-8">
     <title>Edit Employee</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="icon" href="assets/images/tesp-logo-1.png" type="image/png">
     <link href="assets/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="assets/icons/bootstrap-icons.css">
     <script src="assets/chart.min.js"></script>
@@ -1089,13 +1101,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                                         <span class="badge bg-info text-dark ms-1">NEW</span>
                                                     <?php endif; ?>
                                                 <?php endif; ?>
+                                                <?php if (!empty($d['is_resolved']) && !empty($d['resolution_note'])): ?>
+                                                    <div class="alert alert-success p-1 mt-1 mb-0 border-success" style="font-size: 0.75rem; display:inline-block;">
+                                                        <strong><i class="bi bi-check-circle-fill"></i> Resolved:</strong> <?php echo h($d['resolution_note']); ?>
+                                                    </div>
+                                                <?php endif; ?>
                                             </small>
                                         </div>
                                         <a href="view_doc.php?id=<?php echo $d['file_uuid']; ?>" target="_blank" class="btn btn-sm btn-outline-primary position-relative z-2">View</a>
 
                                         <?php if (in_array($_SESSION['role'], ['ADMIN', 'MANAGER', 'HR', 'STAFF'], true)): ?>
                                             <button type="button" class="btn btn-sm btn-outline-warning position-relative z-2 ms-1"
-                                                onclick='openEditDocModal(<?php echo (int)$d['id']; ?>, <?php echo json_encode($d['original_name'], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP); ?>, <?php echo json_encode($d['category'], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP); ?>)'
+                                                onclick='openEditDocModal(<?php echo (int)$d['id']; ?>, <?php echo json_encode($d['original_name'], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP); ?>, <?php echo json_encode($d['category'], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP); ?>, <?php echo json_encode($d['expiry_date']); ?>)'
                                                 title="Edit Details">
                                                 <i class="bi bi-pencil"></i>
                                             </button>
@@ -1250,6 +1267,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             <option disabled>──────────</option>
                             <option value="Others">Others</option>
                         </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Expiration Date (Optional)</label>
+                        <input type="date" name="expiry_date" id="edit_expiry_date" class="form-control">
+                        <div class="form-text">Leave blank if the document does not expire.</div>
                     </div>
                     <div class="mb-3" id="edit_other_cat_div" style="display:none;">
                         <label class="form-label fw-bold text-primary">Specify Document Type</label>
@@ -2076,9 +2098,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
 
-        function openEditDocModal(id, name, category) {
+        function openEditDocModal(id, name, category, expiryDate) {
             document.getElementById('edit_doc_id').value = id;
             document.getElementById('edit_file_name').value = name;
+            document.getElementById('edit_expiry_date').value = expiryDate || '';
 
             const select = document.getElementById('edit_category');
             const otherInput = document.getElementById('edit_other_category');
@@ -2471,16 +2494,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             dataTransfer.items.add(file);
             const input = document.getElementById('avatarInput');
             input.files = dataTransfer.files;
-            previewAvatar(input); // Trigger live preview update
-            bootstrap.Modal.getInstance(document.getElementById('cameraModal')).hide();
+            previewAvatar(input);
+
+            const modal = bootstrap.Modal.getInstance(document.getElementById('cameraModal'));
+            if (modal) modal.hide();
             stopCamera();
+
             Swal.fire({
                 toast: true,
                 position: 'top-end',
                 showConfirmButton: false,
                 timer: 4000,
                 icon: 'success',
-                title: 'Photo attached! Click "Save Changes" below to upload.'
+                title: 'Photo attached! Click "Save Changes" to upload.'
             });
         }
     </script>

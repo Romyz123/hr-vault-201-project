@@ -168,7 +168,7 @@ if ($format === 'word') {
                     <tr>
                         <!-- Logo logic is inside templates now for some, but kept here for fallback -->
                         <td style="width: 100px; text-align: right; vertical-align: middle;">
-                            <img src="uploads/<?php echo rawurlencode('tesp logo 1.png'); ?>"
+                            <img src="assets/images/tesp-logo-1.png"
                                 alt="TESP Logo"
                                 style="width: 80px; height: 80px; border-radius: 50%; object-fit: cover;"
                                 onerror="this.onerror=null; this.src='https://via.placeholder.com/80?text=LOGO';">

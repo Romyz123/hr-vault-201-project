@@ -19,8 +19,8 @@ $system_role = $emp['system_role'] ?? 'Staff'; // [NEW] Get System Role
 $dept_code = strtoupper($emp['dept']); // [NEW] Get Dept for MHI check
 
 // [FIX] Encode Logo to Base64 for Word Export
-$logo_path = __DIR__ . '/../uploads/tesp logo 1.png';
-$logo_src = 'uploads/' . rawurlencode('tesp logo 1.png'); // Fallback
+$logo_path = __DIR__ . '/../assets/images/tesp-logo-1.png';
+$logo_src = 'assets/images/tesp-logo-1.png'; // Fallback
 
 if (file_exists($logo_path)) {
     $logo_binary = file_get_contents($logo_path);

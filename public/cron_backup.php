@@ -72,6 +72,8 @@ $generatedZips[] = $zipFile;
 
 if (CLI_MODE) echo "Starting backup to: $zipFile\n";
 
+// [INFO] Maintenance cleanup from cron_backup has been moved to public/cleanup_resolved_expiry.php
+
 // 4. INITIALIZE ZIP & SQL
 $tables = [];
 $query = $pdo->query('SHOW TABLES');

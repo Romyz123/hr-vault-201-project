@@ -257,7 +257,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($_SESSION['role'], ['ADMIN
             $listHtml .= "</ul>";
 
             // [LOGO LOGIC]
-            $logoPath = __DIR__ . '/uploads/tesp logo 1.png';
+            $logoPath = __DIR__ . '/assets/images/tesp-logo-1.png';
             $logoHtml = file_exists($logoPath) ? '<img src="data:image/png;base64,' . base64_encode(file_get_contents($logoPath)) . '" style="width:100px; display:block; margin-bottom:15px;">' : '<h2>TES PHILIPPINES</h2>';
 
             $to = $emp['email'];
@@ -740,6 +740,7 @@ $paginatedEmployees = array_slice($employees, $offset, $perPage);
     <meta charset="UTF-8">
     <title>Document Tracker - TES HR</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="icon" href="assets/images/tesp-logo-1.png" type="image/png">
     <link href="assets/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="assets/icons/bootstrap-icons.css">
     <style>

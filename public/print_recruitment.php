@@ -49,6 +49,7 @@ $candidates = $stmt->fetchAll();
 <head>
     <meta charset="UTF-8">
     <title>Recruitment Report</title>
+    <link rel="icon" href="assets/images/tesp-logo-1.png" type="image/png">
     <style>
         body {
             font-family: Arial, sans-serif;

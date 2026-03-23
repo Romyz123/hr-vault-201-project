@@ -333,6 +333,7 @@ if (count($reviewsArray) === 0 && !empty($search)) {
 <head>
     <meta charset="UTF-8">
     <title>Performance Reviews</title>
+    <link rel="icon" href="assets/images/tesp-logo-1.png" type="image/png">
     <link href="assets/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="assets/icons/bootstrap-icons.css">
     <style>
@@ -445,7 +446,7 @@ if (count($reviewsArray) === 0 && !empty($search)) {
                 margin-bottom: 20px;
                 border-bottom: 2px solid #666;
                 padding-bottom: 10px;
-                background-image: url('uploads/tesp logo 1.png');
+                background-image: url('assets/images/tesp-logo-1.png');
                 background-repeat: no-repeat;
                 background-size: 50px;
                 background-position: top center;
