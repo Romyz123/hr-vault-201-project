@@ -10,6 +10,11 @@ require '../src/Logger.php';
 session_start();
 checkSessionTimeout($pdo); // [SECURITY] Enforce Timeout
 
+// [NEW] Force Browser Cache Clear for this page so users always see new buttons
+header("Cache-Control: no-store, no-cache, must-revalidate, max-age=0");
+header("Cache-Control: post-check=0, pre-check=0", false);
+header("Pragma: no-cache");
+
 // 1. SECURITY: Only ADMIN can access
 if (!isset($_SESSION['user_id']) || ($_SESSION['role'] ?? '') !== 'ADMIN') {
     $_SESSION['error'] = "Access Denied: Admin privileges required.";
