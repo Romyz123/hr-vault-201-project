@@ -9,8 +9,9 @@ require '../src/Security.php';
 require '../src/Logger.php';
 session_start();
 
-// 1. SECURITY: Admin/HR/Staff
-if (!isset($_SESSION['role']) || !in_array($_SESSION['role'], ['ADMIN', 'HR', 'STAFF'])) {
+// 1. SECURITY: Admin/Manager/HR/Staff
+$userRole = isset($_SESSION['role']) ? strtoupper(trim($_SESSION['role'])) : '';
+if (!in_array($userRole, ['ADMIN', 'MANAGER', 'HR', 'STAFF'])) {
     die("ACCESS DENIED");
 }
 
@@ -26,6 +27,17 @@ $stmt->execute([$id]);
 $emp = $stmt->fetch(PDO::FETCH_ASSOC);
 
 if (!$emp) die("Employee not found.");
+
+// 2.5 FETCH SETTINGS
+$settings = [];
+try {
+    $stmt = $pdo->query("SELECT setting_key, setting_value FROM system_settings");
+    while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+        $settings[$row['setting_key']] = $row['setting_value'];
+    }
+} catch (Exception $e) {
+}
+$docFontSize = $settings['document_font_size'] ?? '11';
 
 // 3. PREPARE VARIABLES (Auto-Fill Logic)
 $full_name = strtoupper($emp['first_name'] . ' ' . (empty($emp['middle_name']) ? '' : $emp['middle_name'][0] . '.') . ' ' . $emp['last_name']);
@@ -61,6 +73,31 @@ $current_month = date('F'); // January
 $current_year = date('Y');
 $current_full_date = date('F j, Y');
 
+$logo_paths = [
+    __DIR__ . '/assets/images/tesp-logo-1.png',
+    __DIR__ . '/uploads/tesp-logo.png',
+    __DIR__ . '/uploads/tesp logo 1.png',
+    __DIR__ . '/../uploads/tesp-logo.png',
+    __DIR__ . '/../uploads/tesp logo 1.png'
+];
+$global_logo_src = '';
+$mime = 'image/png';
+foreach ($logo_paths as $p) {
+    if (file_exists($p)) {
+        if (class_exists('finfo')) {
+            $finfo = new finfo(FILEINFO_MIME_TYPE);
+            $mime = $finfo->file($p) ?: 'image/png';
+        } elseif (function_exists('mime_content_type')) {
+            $mime = mime_content_type($p) ?: 'image/png';
+        } else {
+            $ext = strtolower(pathinfo($p, PATHINFO_EXTENSION));
+            $mime = $ext === 'png' ? 'image/png' : ($ext === 'jpg' || $ext === 'jpeg' ? 'image/jpeg' : 'image/png');
+        }
+        $global_logo_src = 'data:' . $mime . ';base64,' . base64_encode(file_get_contents($p));
+        break;
+    }
+}
+
 // [LOGGING] Record document generation
 $logger = new Logger($pdo);
 $logger->log($_SESSION['user_id'], 'GENERATE_DOC', "Generated $type for {$emp['first_name']} {$emp['last_name']} ({$emp['emp_id']})");
@@ -81,6 +118,9 @@ if ($format === 'word') {
     <head>
         <meta charset="UTF-8">
         <title>Document: <?php echo htmlspecialchars($type); ?></title>
+        <?php if (!empty($global_logo_src)): ?>
+            <link rel="icon" href="<?php echo $global_logo_src; ?>" type="<?php echo htmlspecialchars($mime); ?>">
+        <?php endif; ?>
         <style>
             body {
                 font-family: "Times New Roman", Times, serif;
@@ -142,7 +182,7 @@ if ($format === 'word') {
                 }
 
                 .no-print {
-                    display: none;
+                    display: none !important;
                 }
 
                 @page {
@@ -150,6 +190,14 @@ if ($format === 'word') {
                 }
 
                 /* Minimal margins for printer */
+            }
+
+            /* Dynamic Font Size Override */
+            .page p,
+            .page li,
+            .page .justify,
+            .page td {
+                font-size: <?php echo htmlspecialchars($docFontSize); ?>pt !important;
             }
         </style>
     </head>
@@ -168,7 +216,7 @@ if ($format === 'word') {
                     <tr>
                         <!-- Logo logic is inside templates now for some, but kept here for fallback -->
                         <td style="width: 100px; text-align: right; vertical-align: middle;">
-                            <img src="assets/images/tesp-logo-1.png"
+                            <img src="<?php echo $global_logo_src ?: 'https://via.placeholder.com/80?text=LOGO'; ?>"
                                 alt="TESP Logo"
                                 style="width: 80px; height: 80px; border-radius: 50%; object-fit: cover;"
                                 onerror="this.onerror=null; this.src='https://via.placeholder.com/80?text=LOGO';">

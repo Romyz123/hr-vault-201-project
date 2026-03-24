@@ -114,21 +114,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                     $vals = implode(", ", array_fill(0, count($filteredData), "?"));
                     $pdo->prepare("INSERT INTO employees ($cols) VALUES ($vals)")->execute(array_values($filteredData));
 
-                    // [NEW] Send Welcome Email (On Approval)
-                    if (!empty($data['email'])) {
-                        $subject = "Welcome to TES Philippines!";
-                        $body    = "<h3>Hi " . htmlspecialchars($data['first_name']) . ",</h3>";
-                        $body   .= "<p>Welcome to the team! We are excited to have you on board as our new <strong>" . htmlspecialchars($data['job_title']) . "</strong>.</p>";
-                        $body   .= "<p><strong>Employee ID:</strong> " . htmlspecialchars($data['emp_id']) . "</p>";
-                        $body   .= "<p>Please coordinate with your department head for your initial schedule.</p>";
-                        $body   .= "<br><p>Best Regards,<br>Human Resources</p>";
-
-                        $headers  = "MIME-Version: 1.0" . "\r\n";
-                        $headers .= "Content-type:text/html;charset=UTF-8" . "\r\n";
-                        $headers .= "From: HR System <no-reply@hrsystem.com>" . "\r\n";
-
-                        @mail($data['email'], $subject, $body, $headers);
-                    }
+                    // [MHI POLICY] Automated Welcome Email disabled.
 
                     // NOTIFY SUCCESS
                     $pdo->prepare("INSERT INTO notifications (user_id, title, message, type) VALUES (?, 'Request Approved', ?, 'success')")
@@ -356,7 +342,7 @@ $tickets  = $pdo->query("SELECT r.*, u.username FROM requests r LEFT JOIN users 
     <meta charset="UTF-8">
     <title>Approvals</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <link rel="icon" href="assets/images/tesp-logo-1.png" type="image/png">
+    <link rel="icon" href="../uploads/tesp-logo.png" type="image/png">
     <link href="assets/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="assets/icons/bootstrap-icons.css">
     <script src="assets/sweetalert2.all.min.js"></script>

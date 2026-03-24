@@ -17,15 +17,6 @@ $address  = strtoupper(htmlspecialchars($emp['present_address']));
 $position = strtoupper(htmlspecialchars($emp['job_title']));
 $system_role = $emp['system_role'] ?? 'Staff'; // [NEW] Get System Role
 $dept_code = strtoupper($emp['dept']); // [NEW] Get Dept for MHI check
-
-// [FIX] Encode Logo to Base64 for Word Export
-$logo_path = __DIR__ . '/../assets/images/tesp-logo-1.png';
-$logo_src = 'assets/images/tesp-logo-1.png'; // Fallback
-
-if (file_exists($logo_path)) {
-    $logo_binary = file_get_contents($logo_path);
-    $logo_src = 'data:image/png;base64,' . base64_encode($logo_binary);
-}
 ?>
 
 <!DOCTYPE html>
@@ -189,7 +180,7 @@ if (file_exists($logo_path)) {
                         <table class="header-content-table">
                             <tr>
                                 <td style="width: 15%; text-align: center;">
-                                    <img src="<?php echo $logo_src; ?>" style="width: 80px;">
+                                    <img src="<?php echo htmlspecialchars($global_logo_src ?? ''); ?>" style="width: 80px;" alt="TESP Logo">
                                 </td>
                                 <td style="text-align: center;">
                                     <div class="co-name">TES PHILIPPINES, INC.</div>

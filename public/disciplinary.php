@@ -308,7 +308,7 @@ if (isset($_GET['msg'])) {
 <head>
     <meta charset="UTF-8">
     <title>Disciplinary Management</title>
-    <link rel="icon" href="assets/images/tesp-logo-1.png" type="image/png">
+    <link rel="icon" href="../uploads/tesp-logo.png" type="image/png">
     <link href="assets/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="assets/icons/bootstrap-icons.css">
     <script src="assets/sweetalert2.all.min.js"></script>
@@ -609,7 +609,15 @@ if (isset($_GET['msg'])) {
             const options = select.getElementsByTagName('option');
             for (let i = 0; i < options.length; i++) {
                 const txt = options[i].text.toLowerCase();
-                options[i].style.display = txt.includes(filter) ? "" : "none";
+                if (txt.includes(filter)) {
+                    options[i].style.display = "";
+                    options[i].hidden = false;
+                    options[i].disabled = false;
+                } else {
+                    options[i].style.display = "none";
+                    options[i].hidden = true;
+                    options[i].disabled = true;
+                }
             }
         }
 

@@ -109,6 +109,22 @@ if ($compliance !== '') {
     }
     $employees = $filtered;
 }
+
+$logo_paths = [
+    __DIR__ . '/assets/images/tesp-logo-1.png',
+    __DIR__ . '/uploads/tesp-logo.png',
+    __DIR__ . '/uploads/tesp logo 1.png',
+    __DIR__ . '/../uploads/tesp-logo.png',
+    __DIR__ . '/../uploads/tesp logo 1.png'
+];
+$logo_src = '';
+foreach ($logo_paths as $p) {
+    if (file_exists($p)) {
+        $mime = pathinfo($p, PATHINFO_EXTENSION) === 'png' ? 'image/png' : 'image/jpeg';
+        $logo_src = 'data:' . $mime . ';base64,' . base64_encode(file_get_contents($p));
+        break;
+    }
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -166,7 +182,7 @@ if ($compliance !== '') {
 
         @media print {
             .no-print {
-                display: none;
+                display: none !important;
             }
         }
     </style>
@@ -179,7 +195,9 @@ if ($compliance !== '') {
     </div>
 
     <div class="header">
-        <h2>Document Compliance Report</h2>
+        <?php if (!empty($logo_src)): ?>
+            <img src="<?php echo htmlspecialchars($logo_src); ?>" alt="Company Logo" style="height: 60px; display: block; margin: 0 auto 10px auto;">
+        <?php endif; ?> <h2>Document Compliance Report</h2>
         <p>
             Date: <?php echo date('F d, Y'); ?><br>
             Filter: <?php echo $compliance ? ucfirst(str_replace('_', ' ', $compliance)) : 'All'; ?> |

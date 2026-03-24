@@ -42,24 +42,33 @@ if (!in_array($role, ['ADMIN', 'HR', 'MANAGER'], true) && $data['employee_id'] !
 }
 
 // Logo
-$logo_path = __DIR__ . '/assets/images/tesp-logo-1.png';
-$fallback_logo = __DIR__ . '/assets/images/favicon.png';
+$logo_paths = [
+    __DIR__ . '/assets/images/tesp-logo-1.png',
+    __DIR__ . '/uploads/tesp-logo.png',
+    __DIR__ . '/uploads/tesp logo 1.png',
+    __DIR__ . '/../uploads/tesp-logo.png',
+    __DIR__ . '/../uploads/tesp logo 1.png'
+];
 $logo_src = '';
-if (file_exists($logo_path)) {
-    $logo_binary = file_get_contents($logo_path);
-    $logo_src = 'data:image/png;base64,' . base64_encode($logo_binary);
-} elseif (file_exists($fallback_logo)) {
-    $logo_binary = file_get_contents($fallback_logo);
-    $logo_src = 'data:image/png;base64,' . base64_encode($logo_binary);
-}
-?>
+$logo_mime = 'image/png';
+foreach ($logo_paths as $p) {
+    if (file_exists($p)) {
+        $ext = strtolower(pathinfo($p, PATHINFO_EXTENSION));
+        $mime_types = ['png' => 'image/png', 'jpg' => 'image/jpeg', 'jpeg' => 'image/jpeg', 'gif' => 'image/gif', 'webp' => 'image/webp'];
+        $logo_mime = $mime_types[$ext] ?? 'image/png';
+        $logo_src = 'data:' . $logo_mime . ';base64,' . base64_encode(file_get_contents($p));
+        break;
+    }
+} ?>
 <!DOCTYPE html>
 <html lang="en">
 
 <head>
     <meta charset="UTF-8">
     <title>Performance Evaluation - <?php echo htmlspecialchars($data['last_name']); ?></title>
-    <link rel="icon" href="assets/images/tesp-logo-1.png" type="image/png">
+    <?php if (!empty($logo_src)): ?>
+        <link rel="icon" href="<?php echo $logo_src; ?>" type="<?php echo htmlspecialchars($logo_mime); ?>">
+    <?php endif; ?>
     <style>
         @page {
             size: A4 landscape;
@@ -187,7 +196,7 @@ if (file_exists($logo_path)) {
 
         @media print {
             .no-print {
-                display: none;
+                display: none !important;
             }
 
             body {
@@ -222,7 +231,9 @@ if (file_exists($logo_path)) {
 
     <div class="page">
         <div class="header">
-            <?php if ($logo_src): ?><img src="<?php echo $logo_src; ?>" class="logo"><?php endif; ?>
+            <?php if (!empty($logo_src)): ?>
+                <img src="<?php echo $logo_src; ?>" class="logo" alt="TESP Logo">
+            <?php endif; ?>
             <div class="subtitle">TES PHILIPPINES, INC.</div>
             <div class="title">Performance Evaluation Report</div>
         </div>

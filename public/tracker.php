@@ -146,46 +146,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($_SESSION['role'], ['ADMIN
                     exit;
                 }
 
-                $to = $emp['email'];
-                $subject = "Action Required: Missing Documents - HR 201 File";
-
-                // Build the list of missing items
-                $listHtml = "";
-                if (!empty($reqs)) {
-                    $listHtml = "<ul>";
-                    foreach ($reqs as $r) {
-                        $listHtml .= "<li>" . htmlspecialchars($r) . "</li>";
-                    }
-                    $listHtml .= "</ul>";
-                } else {
-                    $listHtml = "<p>Please check with HR for specific pending items.</p>";
-                }
-
-                $body = "
-                <html>
-                <body style='font-family: Arial, sans-serif; color: #333;'>
-                    <p>Dear <strong>" . htmlspecialchars($emp['first_name']) . "</strong>,</p>
-                    <p>This is a gentle reminder from the HR Department regarding your 201 File requirements.</p>
-                    <p>Our records indicate that the following documents are still pending:</p>
-                    $listHtml
-                    <p>Please submit them as soon as possible to ensure compliance.</p>
-                    <br>
-                    <p>Thank you,<br><strong>Human Resources</strong></p>
-                </body>
-                </html>";
-
-                $headers  = "MIME-Version: 1.0" . "\r\n";
-                $headers .= "Content-type:text/html;charset=UTF-8" . "\r\n";
-                $headers .= "From: HR System <no-reply@hrsystem.com>" . "\r\n";
-
-                if (mail($to, $subject, $body, $headers)) {
-                    // Update last_reminded timestamp
-                    $pdo->prepare("UPDATE employees SET last_reminded = NOW() WHERE emp_id = ?")->execute([$empId]);
-                    header("Location: tracker.php?msg=" . urlencode("✅ Reminder sent to " . $emp['first_name']));
-                    exit;
-                }
+                // [MHI POLICY] Emails disabled. Just update the timestamp for tracking manual reminders.
+                $pdo->prepare("UPDATE employees SET last_reminded = NOW() WHERE emp_id = ?")->execute([$empId]);
+                header("Location: tracker.php?msg=" . urlencode("✅ Marked as reminded manually for " . $emp['first_name']));
+                exit;
             }
-            header("Location: tracker.php?error=" . urlencode("❌ Failed to send email (No email found or server error)."));
+            header("Location: tracker.php?error=" . urlencode("❌ Cannot mark reminder (No email on record for this employee)."));
             exit;
         } elseif ($_POST['action'] === 'ajax_send_reminder') {
             // [NEW] AJAX Handler for Bulk Progress Bar
@@ -362,26 +328,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($_SESSION['role'], ['ADMIN
                         if (!$found) $missing[] = $cat;
                     }
 
-                    // Send Email if items are missing
                     if (!empty($missing)) {
-                        $listHtml = "<ul>";
-                        foreach ($missing as $m) $listHtml .= "<li>" . htmlspecialchars($m) . "</li>";
-                        $listHtml .= "</ul>";
-
-                        $to = $emp['email'];
-                        $subject = "Action Required: Missing Documents - HR 201 File";
-                        $body = "<html><body style='font-family: Arial, sans-serif;'>
-                                <p>Dear " . htmlspecialchars($emp['first_name']) . ",</p>
-                                <p>This is a gentle reminder regarding your 201 File requirements. Our records indicate the following are still pending:</p>
-                                $listHtml
-                                <p>Please submit them as soon as possible.</p>
-                                <br><p>Thank you,<br><strong>Human Resources</strong></p></body></html>";
-                        $headers = "MIME-Version: 1.0\r\nContent-type:text/html;charset=UTF-8\r\nFrom: HR System <no-reply@hrsystem.com>\r\n";
-
-                        if (mail($to, $subject, $body, $headers)) {
-                            $pdo->prepare("UPDATE employees SET last_reminded = NOW() WHERE emp_id = ?")->execute([$eid]);
-                            $sent++;
-                        }
+                        // [MHI POLICY] Email disabled. Just update timestamp.
+                        $pdo->prepare("UPDATE employees SET last_reminded = NOW() WHERE emp_id = ?")->execute([$eid]);
+                        $sent++;
                     }
                 }
             }
@@ -740,7 +690,7 @@ $paginatedEmployees = array_slice($employees, $offset, $perPage);
     <meta charset="UTF-8">
     <title>Document Tracker - TES HR</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <link rel="icon" href="assets/images/tesp-logo-1.png" type="image/png">
+    <link rel="icon" href="../uploads/tesp-logo.png" type="image/png">
     <link href="assets/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="assets/icons/bootstrap-icons.css">
     <style>
@@ -920,7 +870,10 @@ $paginatedEmployees = array_slice($employees, $offset, $perPage);
                         <button type="submit" formaction="print_tracker.php" formtarget="_blank" class="btn btn-dark btn-sm"><i class="bi bi-printer"></i> Print List</button>
                     </div>
                     <div class="col-12 col-md-auto">
-                        <button type="button" class="btn btn-outline-primary btn-sm" onclick="submitBulkReminders()"><i class="bi bi-envelope-fill"></i> Send Bulk Reminders</button>
+                        <button type="button" class="btn btn-outline-secondary btn-sm" onclick="document.getElementById('selectAll').click();"><i class="bi bi-check-all"></i> Select All</button>
+                    </div>
+                    <div class="col-12 col-md-auto">
+                        <button type="button" class="btn btn-outline-primary btn-sm" onclick="submitBulkReminders()"><i class="bi bi-clipboard-check"></i> Log Bulk Reminders</button>
                     </div>
                     <div class="col-12 col-md-auto">
                         <button type="button" class="btn btn-outline-warning btn-sm" data-bs-toggle="modal" data-bs-target="#misclassifiedModal"><i class="bi bi-exclamation-triangle"></i> Misclassified Report</button>
@@ -1217,10 +1170,19 @@ $paginatedEmployees = array_slice($employees, $offset, $perPage);
                     <input type="hidden" name="emp_id" id="remindEmpId">
                     <p>Select the missing documents to remind <strong><span id="remindEmpName"></span></strong> about:</p>
                     <div id="missingListContainer" class="list-group"></div>
+
+                    <div class="mt-4">
+                        <label class="fw-bold text-primary small">Message Template to Copy:</label>
+                        <div class="input-group">
+                            <textarea id="copyMessageText" class="form-control" rows="5" readonly></textarea>
+                            <button type="button" class="btn btn-outline-primary" onclick="copyReminderText()"><i class="bi bi-clipboard"></i> Copy</button>
+                        </div>
+                        <div class="form-text text-warning small mt-1"><i class="bi bi-info-circle-fill"></i> Email system disabled (MHI Policy). Copy this text and send it manually via Teams, Viber, or SMS.</div>
+                    </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-primary">Send Email</button>
+                    <button type="submit" class="btn btn-success">Mark as Reminded</button>
                 </div>
             </form>
         </div>
@@ -1478,7 +1440,25 @@ $paginatedEmployees = array_slice($employees, $offset, $perPage);
                 });
             }
 
+            const copyText = `Hi ${name},\n\nThis is a gentle reminder from HR regarding your 201 File. Please submit the following missing documents as soon as possible:\n\n- ` + missingItems.join('\n- ') + `\n\nThank you!`;
+            document.getElementById('copyMessageText').value = copyText;
+
             new bootstrap.Modal(document.getElementById('reminderModal')).show();
+        }
+
+        function copyReminderText() {
+            const copyText = document.getElementById('copyMessageText');
+            copyText.select();
+            copyText.setSelectionRange(0, 99999);
+            navigator.clipboard.writeText(copyText.value);
+            Swal.fire({
+                toast: true,
+                position: 'top-end',
+                icon: 'success',
+                title: 'Message copied to clipboard!',
+                showConfirmButton: false,
+                timer: 2000
+            });
         }
 
         // [NEW] Show Error Alerts (e.g. Duplicates)
@@ -1556,11 +1536,11 @@ $paginatedEmployees = array_slice($employees, $offset, $perPage);
             }
 
             const result = await Swal.fire({
-                title: 'Send Bulk Reminders?',
-                text: `This will email ${checkboxes.length} employees. (Limit: 1 email per 24h)`,
+                title: 'Log Bulk Reminders?',
+                text: `This will mark ${checkboxes.length} employees as reminded today. (Actual messages must be sent manually via Teams/Viber).`,
                 icon: 'question',
                 showCancelButton: true,
-                confirmButtonText: 'Yes, Send Emails'
+                confirmButtonText: 'Yes, Log Reminders'
             });
 
             if (!result.isConfirmed) return;

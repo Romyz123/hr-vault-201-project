@@ -227,14 +227,13 @@ try {
                 error_log("Failed to create notification: " . $e->getMessage());
             }
 
-            if (sendSMS($phone, $message)) {
-                $pdo->prepare("UPDATE candidates SET status = 'Interviewed', interview_date = ?, last_follow_up = NOW() WHERE id = ?")->execute([$intDate, $id]);
-                $_SESSION['msg'] = "✅ Interview scheduled & SMS sent to " . $cand['phone_number'];
-            } else {
-                $_SESSION['error'] = "❌ Failed to send SMS.";
-            }
+            // [MHI POLICY] Automated SMS disabled. Log the action manually.
+            $pdo->prepare("UPDATE candidates SET status = 'Interviewed', interview_date = ?, last_follow_up = NOW() WHERE id = ?")->execute([$intDate, $id]);
+            $_SESSION['msg'] = "✅ Interview scheduled. (Please send the message manually)";
         } else {
-            $_SESSION['error'] = "❌ Candidate has no phone number recorded.";
+            // Allow scheduling even if no phone number
+            $pdo->prepare("UPDATE candidates SET status = 'Interviewed', interview_date = ?, last_follow_up = NOW() WHERE id = ?")->execute([$intDate, $id]);
+            $_SESSION['msg'] = "✅ Interview scheduled. (No phone number recorded)";
         }
         header("Location: " . $redirectUrl . "#cand-" . $id);
         exit;
@@ -253,12 +252,9 @@ try {
         if ($cand && !empty($cand['phone_number'])) {
             $phone = $cand['phone_number'];
 
-            if (sendSMS($phone, $message)) {
-                $pdo->prepare("UPDATE candidates SET last_follow_up = NOW() WHERE id = ?")->execute([$id]);
-                $_SESSION['msg'] = "✅ Follow-up SMS sent to " . $cand['phone_number'];
-            } else {
-                $_SESSION['error'] = "❌ Failed to send SMS.";
-            }
+            // [MHI POLICY] Automated SMS disabled.
+            $pdo->prepare("UPDATE candidates SET last_follow_up = NOW() WHERE id = ?")->execute([$id]);
+            $_SESSION['msg'] = "✅ Follow-up logged. (Please send the message manually)";
         } else {
             $_SESSION['error'] = "❌ Candidate has no phone number recorded.";
         }
@@ -354,8 +350,23 @@ try {
     $stmt = $pdo->prepare($sql);
     $stmt->execute($params);
     $candidates = $stmt->fetchAll();
+
+    $logo_paths = [
+        __DIR__ . '/assets/images/tesp-logo-1.png',
+        __DIR__ . '/uploads/tesp-logo.png',
+        __DIR__ . '/uploads/tesp logo 1.png',
+        __DIR__ . '/../uploads/tesp-logo.png',
+        __DIR__ . '/../uploads/tesp logo 1.png'
+    ];
+    $logo_src = '';
+    foreach ($logo_paths as $p) {
+        if (file_exists($p)) {
+            $mime = pathinfo($p, PATHINFO_EXTENSION) === 'png' ? 'image/png' : 'image/jpeg';
+            $logo_src = 'data:' . $mime . ';base64,' . base64_encode(file_get_contents($p));
+            break;
+        }
+    }
 } catch (PDOException $e) {
-    // [FIX] Handle missing table error gracefully
     if ($e->getCode() == '42S02' || strpos($e->getMessage(), "doesn't exist") !== false) {
         $isAdmin = ($_SESSION['role'] ?? '') === 'ADMIN';
 ?>
@@ -370,19 +381,17 @@ try {
         </head>
 
         <body class="bg-light d-flex align-items-center justify-content-center vh-100">
-            <div class="card shadow-sm border-danger" style="max-width: 500px;">
-                <div class="card-body text-center p-5">
+            <div class="card shadow-sm text-center" style="max-width: 500px;">
+                <div class="card-body p-5">
                     <div class="text-danger mb-3"><i class="bi bi-exclamation-octagon display-1"></i></div>
                     <h2 class="text-danger fw-bold">Database Setup Required</h2>
                     <p class="lead fs-6 mt-3">The <strong>Recruitment</strong> module cannot be loaded because the database table <code>candidates</code> is missing.</p>
-
                     <?php if ($isAdmin): ?>
                         <p class="text-muted small">As an Admin, you can fix this automatically.</p>
                         <a href="db_status.php" class="btn btn-primary fw-bold w-100"><i class="bi bi-magic"></i> Run Auto-Fix</a>
                     <?php else: ?>
                         <div class="alert alert-warning small">Please contact your System Administrator to run the database update.</div>
                     <?php endif; ?>
-
                     <a href="index.php" class="btn btn-outline-secondary w-100 mt-2">Back to Dashboard</a>
                 </div>
             </div>
@@ -392,7 +401,7 @@ try {
 <?php
         exit;
     }
-    throw $e; // Re-throw if it's not a missing table error
+    throw $e;
 }
 ?>
 <!DOCTYPE html>
@@ -401,7 +410,7 @@ try {
 <head>
     <meta charset="UTF-8">
     <title>Recruitment Dashboard</title>
-    <link rel="icon" href="assets/images/tesp-logo-1.png" type="image/png">
+    <link rel="icon" href="<?php echo $logo_src; ?>" type="image/png">
     <link href="assets/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="assets/icons/bootstrap-icons.css">
     <script src="assets/chart.min.js"></script>
@@ -450,23 +459,23 @@ try {
                 vertical-align: middle;
             }
 
-            /* PDF Report Title */
-            body::before {
-                content: "Recruitment Pipeline Report";
-                display: block;
+            .print-only-header {
+                display: block !important;
                 text-align: center;
-                font-size: 14pt;
-                font-weight: bold;
-                padding-top: 60px;
-                /* Space for logo */
                 margin-bottom: 20px;
                 border-bottom: 2px solid #666;
                 padding-bottom: 10px;
-                background-image: url('assets/images/tesp-logo-1.png');
-                /* Relative to public folder */
-                background-repeat: no-repeat;
-                background-size: 50px;
-                background-position: top center;
+            }
+
+            .print-only-header img {
+                height: 60px;
+                margin-bottom: 10px;
+            }
+
+            .print-only-header h2 {
+                font-size: 14pt;
+                font-weight: bold;
+                margin: 0;
             }
 
             /* Hide Action Column in Print */
@@ -485,10 +494,20 @@ try {
                 print-color-adjust: exact !important;
             }
         }
+
+        .print-only-header {
+            display: none;
+        }
     </style>
 </head>
 
 <body class="bg-light">
+    <div class="print-only-header">
+        <?php if ($logo_src): ?>
+            <img src="<?php echo $logo_src; ?>" alt="TESP Logo">
+        <?php endif; ?>
+        <h2>Recruitment Pipeline Report</h2>
+    </div>
 
     <nav class="navbar navbar-dark bg-dark mb-4">
         <div class="container">
@@ -785,13 +804,6 @@ try {
         </div>
     </div>
 
-
-    <form id="blacklistForm" method="POST" style="display:none;">
-        <input type="hidden" name="blacklist_candidate" value="1">
-        <input type="hidden" name="csrf_token" value="<?php echo $csrf_token; ?>">
-        <input type="hidden" name="candidate_id" id="del_id">
-    </form>
-
     <!-- EDIT MODAL -->
     <div class="modal fade" id="editModal" tabindex="-1" data-bs-backdrop="static">
         <div class="modal-dialog modal-lg">
@@ -875,13 +887,16 @@ try {
                         <input type="datetime-local" name="interview_date" id="sched_date" class="form-control" required>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label text-success fw-bold"><i class="bi bi-chat-left-text"></i> SMS Message</label>
-                        <textarea name="message" id="sched_msg" class="form-control" rows="5" required></textarea>
+                        <label class="form-label text-success fw-bold"><i class="bi bi-chat-left-text"></i> Message Template</label>
+                        <div class="input-group">
+                            <textarea name="message" id="sched_msg" class="form-control" rows="5" required></textarea>
+                            <button type="button" class="btn btn-outline-success" onclick="copyRecruitText('sched_msg')"><i class="bi bi-clipboard"></i> Copy</button>
+                        </div>
                     </div>
-                    <div class="alert alert-success small"><i class="bi bi-check-circle-fill"></i> This will be sent directly to the candidate's phone via SMS.</div>
+                    <div class="alert alert-warning small"><i class="bi bi-info-circle-fill"></i> Automated SMS is disabled. Copy the text and send it manually.</div>
                 </div>
                 <div class="modal-footer">
-                    <button type="submit" class="btn btn-primary">Send Invite</button>
+                    <button type="submit" class="btn btn-primary">Mark as Scheduled</button>
                 </div>
             </form>
         </div>
@@ -901,12 +916,16 @@ try {
                     <input type="hidden" name="candidate_id" id="follow_id">
 
                     <div class="mb-3">
-                        <label class="form-label text-success fw-bold"><i class="bi bi-chat-left-text"></i> SMS Message</label>
-                        <textarea name="message" id="follow_msg" class="form-control" rows="4" required></textarea>
+                        <label class="form-label text-success fw-bold"><i class="bi bi-chat-left-text"></i> Message Template</label>
+                        <div class="input-group">
+                            <textarea name="message" id="follow_msg" class="form-control" rows="4" required></textarea>
+                            <button type="button" class="btn btn-outline-success" onclick="copyRecruitText('follow_msg')"><i class="bi bi-clipboard"></i> Copy</button>
+                        </div>
                     </div>
+                    <div class="alert alert-warning small mb-0"><i class="bi bi-info-circle-fill"></i> Automated SMS is disabled. Copy the text and send it manually.</div>
                 </div>
                 <div class="modal-footer">
-                    <button type="submit" class="btn btn-info fw-bold">Send SMS</button>
+                    <button type="submit" class="btn btn-info fw-bold">Log Follow Up</button>
                 </div>
             </form>
         </div>
@@ -1003,7 +1022,8 @@ try {
         }
 
         function openSchedModal(data) {
-            if (!data.phone_number) return alert("This candidate does not have a phone number recorded.");
+            // Allow scheduling even without a phone number; SMS availability may vary.
+            // Note: Backend allows setting interview_date regardless of phone.
             document.getElementById('sched_id').value = data.id;
 
             const titleEl = document.getElementById('schedModalTitle');
@@ -1012,14 +1032,14 @@ try {
             const dateInput = document.getElementById('sched_date');
             if (dateInput) dateInput.value = data.interview_date ? data.interview_date.replace(' ', 'T') : '';
 
-            document.getElementById('sched_msg').value = `Hi ${data.first_name}, we would like to ${data.interview_date ? 'reschedule' : 'schedule'} your interview at TES Philippines. Please reply to confirm availability. - HR Team`;
+            document.getElementById('sched_msg').value = `Dear ${data.first_name},\n\nWe are pleased to invite you for an interview regarding your application at TES Philippines, Inc.\n\nPlease reply to this message to confirm your availability.\n\nBest Regards,\nHR Department`;
             bootstrap.Modal.getOrCreateInstance(document.getElementById('scheduleModal')).show();
         }
 
         function openFollowModal(data) {
             if (!data.phone_number) return alert("No phone number recorded.");
             document.getElementById('follow_id').value = data.id;
-            document.getElementById('follow_msg').value = `Hi ${data.first_name}, following up on your application status with TES Philippines. - HR Team`;
+            document.getElementById('follow_msg').value = `Dear ${data.first_name},\n\nGreetings from TES Philippines, Inc.\n\nWe are following up regarding your recent job application. Please contact our HR Department at your earliest convenience for updates.\n\nBest Regards,\nHR Department`;
             bootstrap.Modal.getOrCreateInstance(document.getElementById('followUpModal')).show();
         }
 
@@ -1058,7 +1078,43 @@ try {
             }
             bootstrap.Modal.getOrCreateInstance(document.getElementById('BlacklistModal')).show();
         }
+
+        function copyRecruitText(elementId) {
+            const copyText = document.getElementById(elementId);
+            if (!copyText) return;
+            copyText.select();
+            copyText.setSelectionRange(0, 99999);
+
+            navigator.clipboard.writeText(copyText.value.trim())
+                .then(() => {
+                    if (window.Swal && typeof Swal.fire === 'function') {
+                        Swal.fire({
+                            toast: true,
+                            position: 'top-end',
+                            icon: 'success',
+                            title: 'Message copied to clipboard!',
+                            showConfirmButton: false,
+                            timer: 2000
+                        });
+                    } else {
+                        alert('Message copied to clipboard!');
+                    }
+                })
+                .catch((error) => {
+                    console.error('Clipboard copy failed:', error);
+                    if (window.Swal && typeof Swal.fire === 'function') {
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'Copy failed',
+                            text: 'Unable to copy message to clipboard. Please copy manually.'
+                        });
+                    } else {
+                        alert('Unable to copy message to clipboard. Please copy manually.');
+                    }
+                });
+        }
     </script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script src="dark_mode.js"></script>
 </body>
 

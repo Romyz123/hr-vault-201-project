@@ -52,6 +52,24 @@ if (($_SESSION['role'] ?? '') === 'ADMIN') {
     $failedLogins = $failStmt->fetchColumn();
 }
 
+// G. Age Demographics (Active)
+$ageBands = ['18-25' => 0, '26-35' => 0, '36-45' => 0, '46-55' => 0, '56+' => 0];
+$ageStmt = $pdo->query("SELECT birth_date FROM employees WHERE status = 'Active' AND birth_date IS NOT NULL AND birth_date != '0000-00-00'");
+$todayObj = new DateTime('today');
+while ($row = $ageStmt->fetch(PDO::FETCH_ASSOC)) {
+    $bDateObj = date_create($row['birth_date']);
+    if ($bDateObj) {
+        $age = date_diff($bDateObj, $todayObj)->y;
+        if ($age <= 25) $ageBands['18-25']++;
+        elseif ($age <= 35) $ageBands['26-35']++;
+        elseif ($age <= 45) $ageBands['36-45']++;
+        elseif ($age <= 55) $ageBands['46-55']++;
+        else $ageBands['56+']++;
+    }
+}
+$ageLabels = json_encode(array_keys($ageBands));
+$ageCounts = json_encode(array_values($ageBands));
+
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -59,7 +77,7 @@ if (($_SESSION['role'] ?? '') === 'ADMIN') {
 <head>
     <meta charset="UTF-8">
     <title>Manager Dashboard</title>
-    <link rel="icon" href="assets/images/tesp-logo-1.png" type="image/png">
+    <link rel="icon" href="assets/images/tesp-logo.png" type="image/png">
     <link href="assets/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="assets/icons/bootstrap-icons.css">
 </head>
@@ -97,116 +115,128 @@ if (($_SESSION['role'] ?? '') === 'ADMIN') {
                 </div>
             </div>
         </div>
-    </div>
 
-    <!-- ACTION CARDS -->
-    <div class="row g-4 mb-4">
-        <!-- Approvals -->
-        <div class="col-md-4">
-            <div class="card h-100 shadow-sm border-start border-4 border-warning">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-center mb-3">
-                        <h6 class="text-muted text-uppercase mb-0">Pending Requests</h6>
-                        <div class="icon-shape bg-warning text-white rounded-circle p-2">
-                            <i class="bi bi-inbox-fill"></i>
-                        </div>
-                    </div>
-                    <h2 class="fw-bold mb-3"><?php echo $pendingCount; ?></h2>
-                    <a href="admin_approval.php" class="btn btn-sm btn-outline-warning w-100">Review Requests</a>
-                </div>
-            </div>
-        </div>
-
-        <!-- Expirations -->
-        <div class="col-md-4">
-            <div class="card h-100 shadow-sm border-start border-4 border-danger">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-center mb-3">
-                        <h6 class="text-muted text-uppercase mb-0">Expiring Docs</h6>
-                        <div class="icon-shape bg-danger text-white rounded-circle p-2">
-                            <i class="bi bi-exclamation-triangle-fill"></i>
-                        </div>
-                    </div>
-                    <h2 class="fw-bold mb-3"><?php echo $expiringCount; ?></h2>
-                    <a href="expiry_report.php" class="btn btn-sm btn-outline-danger w-100">View Forecast</a>
-                </div>
-            </div>
-        </div>
-
-        <!-- Headcount -->
-        <div class="col-md-4">
-            <div class="card h-100 shadow-sm border-start border-4 border-success">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-center mb-3">
-                        <h6 class="text-muted text-uppercase mb-0">Active Workforce</h6>
-                        <div class="icon-shape bg-success text-white rounded-circle p-2">
-                            <i class="bi bi-people-fill"></i>
-                        </div>
-                    </div>
-                    <h2 class="fw-bold mb-0"><?php echo $activeCount; ?></h2>
-                    <small class="text-muted"><?php echo $probationCount; ?> Probationary</small>
-                    <a href="analytics.php" class="btn btn-sm btn-outline-success w-100 mt-3">View Analytics</a>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- SYSTEM HEALTH WIDGET (ADMIN ONLY) -->
-    <?php if (($_SESSION['role'] ?? '') === 'ADMIN'): ?>
-        <div class="row mb-4">
-            <div class="col-12">
-                <div class="card shadow-sm border-start border-4 border-danger">
-                    <div class="card-body d-flex justify-content-between align-items-center">
-                        <div>
-                            <h6 class="text-muted text-uppercase mb-1">System Health Alert</h6>
-                            <div class="d-flex align-items-center">
-                                <h2 class="fw-bold text-danger mb-0 me-2"><?php echo $failedLogins; ?></h2>
-                                <span class="text-muted">Failed Login Attempts (Last 24h)</span>
+        <!-- ACTION CARDS -->
+        <div class="row g-4 mb-4">
+            <!-- Approvals -->
+            <div class="col-md-4">
+                <div class="card h-100 shadow-sm border-start border-4 border-warning">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h6 class="text-muted text-uppercase mb-0">Pending Requests</h6>
+                            <div class="icon-shape bg-warning text-white rounded-circle p-2">
+                                <i class="bi bi-inbox-fill"></i>
                             </div>
                         </div>
-                        <a href="security_audit.php" class="btn btn-sm btn-outline-danger"><i class="bi bi-shield-check"></i> View Security Audit</a>
+                        <h2 class="fw-bold mb-3"><?php echo $pendingCount; ?></h2>
+                        <a href="admin_approval.php" class="btn btn-sm btn-outline-warning w-100">Review Requests</a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Expirations -->
+            <div class="col-md-4">
+                <div class="card h-100 shadow-sm border-start border-4 border-danger">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h6 class="text-muted text-uppercase mb-0">Expiring Docs</h6>
+                            <div class="icon-shape bg-danger text-white rounded-circle p-2">
+                                <i class="bi bi-exclamation-triangle-fill"></i>
+                            </div>
+                        </div>
+                        <h2 class="fw-bold mb-3"><?php echo $expiringCount; ?></h2>
+                        <a href="expiry_report.php" class="btn btn-sm btn-outline-danger w-100">View Forecast</a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Headcount -->
+            <div class="col-md-4">
+                <div class="card h-100 shadow-sm border-start border-4 border-success">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h6 class="text-muted text-uppercase mb-0">Active Workforce</h6>
+                            <div class="icon-shape bg-success text-white rounded-circle p-2">
+                                <i class="bi bi-people-fill"></i>
+                            </div>
+                        </div>
+                        <h2 class="fw-bold mb-0"><?php echo $activeCount; ?></h2>
+                        <small class="text-muted"><?php echo $probationCount; ?> Probationary</small>
+                        <a href="analytics.php" class="btn btn-sm btn-outline-success w-100 mt-3">View Analytics</a>
                     </div>
                 </div>
             </div>
         </div>
-    <?php endif; ?>
 
-    <!-- RECENT UPLOADS WIDGET -->
-    <div class="row mb-4">
-        <div class="col-12">
-            <div class="card shadow-sm h-100">
-                <div class="card-header fw-bold">
-                    <i class="bi bi-cloud-arrow-up"></i> Recent Uploads
+        <!-- SYSTEM HEALTH WIDGET (ADMIN ONLY) -->
+        <?php if (($_SESSION['role'] ?? '') === 'ADMIN'): ?>
+            <div class="row mb-4">
+                <div class="col-12">
+                    <div class="card shadow-sm border-start border-4 border-danger">
+                        <div class="card-body d-flex justify-content-between align-items-center">
+                            <div>
+                                <h6 class="text-muted text-uppercase mb-1">System Health Alert</h6>
+                                <div class="d-flex align-items-center">
+                                    <h2 class="fw-bold text-danger mb-0 me-2"><?php echo $failedLogins; ?></h2>
+                                    <span class="text-muted">Failed Login Attempts (Last 24h)</span>
+                                </div>
+                            </div>
+                            <a href="security_audit.php" class="btn btn-sm btn-outline-danger"><i class="bi bi-shield-check"></i> View Security Audit</a>
+                        </div>
+                    </div>
                 </div>
-                <div class="card-body p-0">
-                    <table class="table table-hover mb-0 align-middle">
-                        <thead class="table-light">
-                            <tr>
-                                <th>File</th>
-                                <th>Employee</th>
-                                <th>Date</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php if (empty($recentUploads)): ?>
+            </div>
+        <?php endif; ?>
+
+        <!-- RECENT UPLOADS & DEMOGRAPHICS WIDGETS -->
+        <div class="row mb-4">
+            <div class="col-lg-8 mb-4 mb-lg-0">
+                <div class="card shadow-sm h-100">
+                    <div class="card-header fw-bold">
+                        <i class="bi bi-cloud-arrow-up"></i> Recent Uploads
+                    </div>
+                    <div class="card-body p-0">
+                        <table class="table table-hover mb-0 align-middle">
+                            <thead class="table-light">
                                 <tr>
-                                    <td colspan="3" class="text-center p-3 text-muted">No recent uploads.</td>
+                                    <th>File</th>
+                                    <th>Employee</th>
+                                    <th>Date</th>
                                 </tr>
-                            <?php else: ?>
-                                <?php foreach ($recentUploads as $up): ?>
+                            </thead>
+                            <tbody>
+                                <?php if (empty($recentUploads)): ?>
                                     <tr>
-                                        <td>
-                                            <a href="view_doc.php?id=<?php echo htmlspecialchars($up['file_uuid'], ENT_QUOTES, 'UTF-8'); ?>" target="_blank" class="text-decoration-none fw-bold text-dark">
-                                                <i class="bi bi-file-earmark-text text-secondary"></i> <?php echo htmlspecialchars($up['original_name']); ?>
-                                            </a> <br><small class="text-muted"><?php echo htmlspecialchars($up['category']); ?></small>
-                                        </td>
-                                        <td><?php echo htmlspecialchars($up['first_name'] . ' ' . $up['last_name']); ?></td>
-                                        <td class="small text-muted"><?php echo date('M d', strtotime($up['uploaded_at'])); ?></td>
+                                        <td colspan="3" class="text-center p-3 text-muted">No recent uploads.</td>
                                     </tr>
-                                <?php endforeach; ?>
-                            <?php endif; ?>
-                        </tbody>
-                    </table>
+                                <?php else: ?>
+                                    <?php foreach ($recentUploads as $up): ?>
+                                        <tr>
+                                            <td>
+                                                <a href="view_doc.php?id=<?php echo htmlspecialchars($up['file_uuid'], ENT_QUOTES, 'UTF-8'); ?>" target="_blank" class="text-decoration-none fw-bold text-dark">
+                                                    <i class="bi bi-file-earmark-text text-secondary"></i> <?php echo htmlspecialchars($up['original_name']); ?>
+                                                </a> <br><small class="text-muted"><?php echo htmlspecialchars($up['category']); ?></small>
+                                            </td>
+                                            <td><?php echo htmlspecialchars($up['first_name'] . ' ' . $up['last_name']); ?></td>
+                                            <td class="small text-muted"><?php echo date('M d', strtotime($up['uploaded_at'])); ?></td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                <?php endif; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- AGE DEMOGRAPHICS WIDGET -->
+            <div class="col-lg-4">
+                <div class="card shadow-sm h-100">
+                    <div class="card-header fw-bold text-dark">
+                        <i class="bi bi-pie-chart-fill text-warning"></i> Age Demographics
+                    </div>
+                    <div class="card-body position-relative d-flex align-items-center justify-content-center" style="min-height: 250px;">
+                        <canvas id="ageChart"></canvas>
+                    </div>
                 </div>
             </div>
         </div>
@@ -222,14 +252,66 @@ if (($_SESSION['role'] ?? '') === 'ADMIN') {
                         <a href="tracker.php" class="btn btn-outline-info"><i class="bi bi-kanban me-2"></i> Compliance Tracker</a>
                         <a href="bulk_update_roles.php" class="btn btn-outline-warning"><i class="bi bi-people-fill me-2"></i> Bulk Update Roles</a>
                         <a href="bulk_contract.php" class="btn btn-outline-primary"><i class="bi bi-printer-fill me-2"></i> Bulk Contract Print</a>
-
                     </div>
                 </div>
             </div>
         </div>
-        <script src="assets/bootstrap.bundle.min.js"></script>
-        <script src="assets/bootstrap.bundle.min.js"></script>
-        <script src="dark_mode.js"></script>
+    </div>
+    <script src="assets/chart.min.js"></script>
+    <script src="assets/bootstrap.bundle.min.js"></script>
+    <script src="dark_mode.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const ctxAge = document.getElementById('ageChart');
+            if (ctxAge) {
+                window.ageChartInstance = new Chart(ctxAge, {
+                    type: 'doughnut',
+                    data: {
+                        labels: <?php echo $ageLabels; ?>,
+                        datasets: [{
+                            data: <?php echo $ageCounts; ?>,
+                            backgroundColor: ['#0d6efd', '#198754', '#ffc107', '#fd7e14', '#dc3545'],
+                            borderWidth: 2,
+                            hoverOffset: 4
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                position: 'bottom',
+                                labels: {
+                                    padding: 15
+                                }
+                            }
+                        },
+                        cutout: '65%'
+                    }
+                });
+
+                // Dark Mode Adapter
+                function updateChartTheme() {
+                    const isDark = document.documentElement.getAttribute('data-bs-theme') === 'dark';
+                    const textColor = isDark ? '#adb5bd' : '#6c757d';
+                    const borderColor = isDark ? '#212529' : '#fff';
+
+                    if (window.ageChartInstance) {
+                        if (window.ageChartInstance.options.plugins.legend) {
+                            window.ageChartInstance.options.plugins.legend.labels.color = textColor;
+                        }
+                        window.ageChartInstance.data.datasets[0].borderColor = borderColor;
+                        window.ageChartInstance.update();
+                    }
+                }
+                new MutationObserver(updateChartTheme).observe(document.documentElement, {
+                    attributes: true,
+                    attributeFilter: ['data-bs-theme']
+                });
+                updateChartTheme(); // Initial check
+            }
+        });
+    </script>
 </body>
 
 </html>

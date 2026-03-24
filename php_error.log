@@ -33,3 +33,6 @@
 [23-Mar-2026 17:29:46 Asia/Manila] PHP Warning:  Undefined variable $dynamicCats in C:\xampp\htdocs\hr 201\public\edit_employee.php on line 1264
 [23-Mar-2026 17:29:46 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\edit_employee.php on line 1264
 [23-Mar-2026 20:14:53 Asia/Manila] Failed to copy vault file: C:\xampp\htdocs\hr 201\vault\.htaccess to U:\01_TESP\09_MAINTENANCE DOCS\041_GAG\201 FILES\sample\vault_mirror\
+[24-Mar-2026 09:05:53 Asia/Manila] PHP Warning:  Undefined array key "goals" in C:\xampp\htdocs\hr 201\public\performance_review.php on line 176
+[24-Mar-2026 09:07:34 Asia/Manila] [SMS SIMULATION] To: 8282 | Length: 168
+[24-Mar-2026 10:15:42 Asia/Manila] [SMS SIMULATION] To: 9821 | Length: 163

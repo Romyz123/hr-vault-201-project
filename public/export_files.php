@@ -235,6 +235,25 @@ function getBase64Image($path)
     return ''; // Return empty if missing
 }
 
+// Gather Company Logo for Offline ZIP Profiles
+$logo_paths = [
+    __DIR__ . '/assets/images/tesp-logo-1.png',
+    __DIR__ . '/uploads/tesp-logo.png',
+    __DIR__ . '/uploads/tesp logo 1.png',
+    __DIR__ . '/../uploads/tesp-logo.png',
+    __DIR__ . '/../uploads/tesp logo 1.png'
+];
+$logoData = '';
+foreach ($logo_paths as $p) {
+    if (file_exists($p)) {
+        $logoData = getBase64Image($p);
+        break;
+    }
+}
+if (!$logoData) {
+    $logoData = 'data:image/svg+xml;base64,' . base64_encode('<svg xmlns="http://www.w3.org/2000/svg" width="100" height="40"><text y="30" font-size="14" fill="#333">TES</text></svg>');
+}
+
 $filesAdded = 0;
 
 $fileService = new FileService($vaultPath);
@@ -303,21 +322,23 @@ foreach ($employees as $emp) {
             <strong>How to Print:</strong> Use your browser\'s Print function (Ctrl+P or Cmd+P) and select "Save as PDF" to create a PDF file.
         </div>
         <div class="page">
+        <div class="company-header">
+            <img src="' . $logoData . '" class="company-logo">
+            <div class="company-title">TES PHILIPPINES, INC.</div>
+            <div class="company-sub">Human Resources Department</div>
+            <h2 class="doc-title">201 Employee File</h2>
+        </div>
+
             <div class="header">
                 <img src="' . $avatarData . '" class="avatar">
                 <div class="header-info">
-                    <h1>' . h($emp['last_name']) . ', ' . h($emp['first_name']) . '</h1>
+                <h2>' . h($emp['last_name']) . ', ' . h($emp['first_name']) . '</h2>
                     <h3>' . h($emp['job_title']) . '</h3>
                     <div class="tags">
                         <span>' . h($emp['emp_id']) . '</span>
                         <span>' . h($emp['dept']) . '</span>
                         <span>' . h($emp['status']) . '</span>
                     </div>
-                </div>
-                <div class="company-info">
-                    <strong>TES PHILIPPINES</strong><br>
-                    Human Resources Department<br>
-                    201 Employee File
                 </div>
             </div>
 

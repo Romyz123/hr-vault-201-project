@@ -42,6 +42,35 @@ $sql .= " ORDER BY application_date DESC";
 $stmt = $pdo->prepare($sql);
 $stmt->execute($params);
 $candidates = $stmt->fetchAll();
+
+$logo_paths = [
+    __DIR__ . '/assets/images/tesp-logo-1.png',
+    __DIR__ . '/uploads/tesp-logo.png',
+    __DIR__ . '/uploads/tesp logo 1.png',
+    __DIR__ . '/../uploads/tesp-logo.png',
+    __DIR__ . '/../uploads/tesp logo 1.png'
+];
+$logo_src = '';
+$logo_mime = 'image/png';
+foreach ($logo_paths as $p) {
+    if (file_exists($p)) {
+        $ext = strtolower(pathinfo($p, PATHINFO_EXTENSION));
+        if (class_exists('finfo')) {
+            $finfo = new finfo(FILEINFO_MIME_TYPE);
+            $logo_mime = $finfo->file($p) ?: 'image/png';
+        } elseif (function_exists('mime_content_type')) {
+            $logo_mime = mime_content_type($p) ?: 'image/png';
+        } else {
+            $logo_mime = ($ext === 'png' ? 'image/png' : ($ext === 'jpg' || $ext === 'jpeg' ? 'image/jpeg' : ($ext === 'gif' ? 'image/gif' : ($ext === 'webp' ? 'image/webp' : 'image/png'))));
+        }
+        $logo_src = 'data:' . $logo_mime . ';base64,' . base64_encode(file_get_contents($p));
+        break;
+    }
+}
+if (empty($logo_src)) {
+    $logo_src = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mO8WQ8AAn0BbYpM8nsAAAAASUVORK5CYII=';
+    $logo_mime = 'image/png';
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -49,7 +78,9 @@ $candidates = $stmt->fetchAll();
 <head>
     <meta charset="UTF-8">
     <title>Recruitment Report</title>
-    <link rel="icon" href="assets/images/tesp-logo-1.png" type="image/png">
+    <?php if (!empty($logo_src)): ?>
+        <link rel="icon" href="<?php echo $logo_src; ?>" type="<?php echo htmlspecialchars($logo_mime); ?>">
+    <?php endif; ?>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -95,13 +126,18 @@ $candidates = $stmt->fetchAll();
 
         @media print {
             .no-print {
-                display: none;
+                display: none !important;
             }
         }
     </style>
 </head>
 
 <body>
+
+    <div class="header">
+        <img src="<?php echo $logo_src; ?>" style="height: 60px; display: block; margin: 0 auto 10px auto;">
+        <h2>Recruitment Pipeline Report</h2>
+    </div>
 
     <div class="no-print" style="margin-bottom: 20px; text-align: center;">
         <p>

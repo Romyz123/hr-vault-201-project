@@ -10,15 +10,6 @@ $incident_date = (!empty($_GET['incident_date'])) ? date('F d, Y h:i A', strtoti
 $incident_place = (!empty($_GET['incident_place'])) ? htmlspecialchars($_GET['incident_place']) : '___________________________';
 $allegation = nl2br(htmlspecialchars($_GET['allegation'] ?? ''));
 $rule_violated = nl2br(htmlspecialchars($_GET['rule_violated'] ?? ''));
-
-// 2. Base64 Logo (Same standard as your other contracts)
-$logo_path = __DIR__ . '/../assets/images/tesp-logo-1.png';
-$logo_src = 'assets/images/tesp-logo-1.png'; // Fallback
-
-if (file_exists($logo_path)) {
-    $logo_binary = file_get_contents($logo_path);
-    $logo_src = 'data:image/png;base64,' . base64_encode($logo_binary);
-}
 ?>
 
 <!DOCTYPE html>
@@ -113,7 +104,9 @@ if (file_exists($logo_path)) {
             <table class="header-content-table">
                 <tr>
                     <td style="padding-right: 15px; vertical-align: middle;">
-                        <img src="<?php echo $logo_src; ?>" class="logo" style="width: 80px; display: block;">
+                        <?php if (!empty($global_logo_src)): ?>
+                            <img src="<?php echo htmlspecialchars($global_logo_src, ENT_QUOTES, 'UTF-8'); ?>" class="logo" style="width: 80px; display: block;">
+                        <?php endif; ?>
                     </td>
                     <td style="vertical-align: middle; text-align: center;">
                         <strong style="font-size: 14pt;">TES PHILIPPINES INC.</strong><br>

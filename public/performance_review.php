@@ -326,6 +326,22 @@ if (count($reviewsArray) === 0 && !empty($search)) {
         $didYouMeanLink = "performance_review.php?search=" . urlencode($closest);
     }
 }
+
+$logo_paths = [
+    __DIR__ . '/assets/images/tesp-logo-1.png',
+    __DIR__ . '/uploads/tesp-logo.png',
+    __DIR__ . '/uploads/tesp logo 1.png',
+    __DIR__ . '/../uploads/tesp-logo.png',
+    __DIR__ . '/../uploads/tesp logo 1.png'
+];
+$logo_src = '';
+foreach ($logo_paths as $p) {
+    if (file_exists($p)) {
+        $mime = pathinfo($p, PATHINFO_EXTENSION) === 'png' ? 'image/png' : 'image/jpeg';
+        $logo_src = 'data:' . $mime . ';base64,' . base64_encode(file_get_contents($p));
+        break;
+    }
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -333,7 +349,9 @@ if (count($reviewsArray) === 0 && !empty($search)) {
 <head>
     <meta charset="UTF-8">
     <title>Performance Reviews</title>
-    <link rel="icon" href="assets/images/tesp-logo-1.png" type="image/png">
+    <?php if ($logo_src): ?>
+        <link rel="icon" href="<?php echo $logo_src; ?>" type="image/png">
+    <?php endif; ?>
     <link href="assets/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="assets/icons/bootstrap-icons.css">
     <style>
@@ -434,22 +452,23 @@ if (count($reviewsArray) === 0 && !empty($search)) {
 
             /* Reviewer */
 
-            /* Add a formal title only visible on paper */
-            body::before {
-                content: "HR Performance Reviews Report";
-                display: block;
+            .print-only-header {
+                display: block !important;
                 text-align: center;
-                font-size: 14pt;
-                font-weight: bold;
-                padding-top: 60px;
-                /* Space for logo */
                 margin-bottom: 20px;
                 border-bottom: 2px solid #666;
                 padding-bottom: 10px;
-                background-image: url('assets/images/tesp-logo-1.png');
-                background-repeat: no-repeat;
-                background-size: 50px;
-                background-position: top center;
+            }
+
+            .print-only-header img {
+                height: 60px;
+                margin-bottom: 10px;
+            }
+
+            .print-only-header h2 {
+                font-size: 14pt;
+                font-weight: bold;
+                margin: 0;
             }
 
             /* Prevent rows from splitting in half across pages */
@@ -463,14 +482,27 @@ if (count($reviewsArray) === 0 && !empty($search)) {
                 print-color-adjust: exact !important;
             }
         }
+
+        .print-only-header {
+            display: none;
+        }
     </style>
 </head>
 
 <body class="bg-light">
+    <div class="print-only-header">
+        <?php if ($logo_src): ?>
+            <img src="<?php echo $logo_src; ?>" alt="TESP Logo">
+        <?php endif; ?>
+        <h2>HR Performance Reviews Report</h2>
+    </div>
     <nav class="navbar navbar-dark bg-dark mb-4">
         <div class="container">
-            <a class="navbar-brand" href="index.php">Back to Dashboard</a>
-            <span class="navbar-text text-white"><i class="bi bi-clipboard2-data-fill"></i> Performance Management</span>
+            <div class="d-flex align-items-center gap-2 w-100">
+                <a class="navbar-brand" href="index.php">Back to Dashboard</a>
+                <span class="navbar-text text-white me-auto"><i class="bi bi-clipboard2-data-fill"></i> Performance Management</span>
+                <button id="darkModeToggle" class="btn btn-sm btn-outline-light border-0" title="Toggle Dark Mode"><i class="bi bi-moon-stars-fill"></i></button>
+            </div>
         </div>
     </nav>
 
@@ -635,6 +667,10 @@ if (count($reviewsArray) === 0 && !empty($search)) {
                         <label class="form-label">Areas for Improvement</label>
                         <textarea name="weaknesses" class="form-control" rows="3" placeholder="e.g., Can improve on time management for larger projects..." maxlength="5000"></textarea>
                     </div>
+                    <div class="mb-3">
+                        <label class="form-label">Goals / Action Plan</label>
+                        <textarea name="goals" class="form-control" rows="3" placeholder="e.g., Increase project ownership, complete training goals..." maxlength="5000"></textarea>
+                    </div>
 
 
                 </div>
@@ -689,6 +725,11 @@ if (count($reviewsArray) === 0 && !empty($search)) {
                         <textarea name="weaknesses" id="edit_weaknesses" class="form-control" rows="3" maxlength="5000"></textarea>
                     </div>
 
+                    <div class="mb-3">
+                        <label class="form-label">Goals / Action Plan</label>
+                        <textarea name="goals" id="edit_goals" class="form-control" rows="3" maxlength="5000"></textarea>
+                    </div>
+
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
@@ -712,6 +753,7 @@ if (count($reviewsArray) === 0 && !empty($search)) {
             new bootstrap.Modal(document.getElementById('editReviewModal')).show();
         }
     </script>
+    <script src="dark_mode.js"></script>
 </body>
 
 </html>

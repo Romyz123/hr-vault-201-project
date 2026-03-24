@@ -615,7 +615,7 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
     <meta charset="UTF-8">
     <title>TESP HR 201 System</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <link rel="icon" href="assets/images/tesp-logo-1.png" type="image/png">
+    <link rel="icon" href="../uploads/tesp-logo.png" type="image/png">
     <!-- Single includes only -->
     <link href="assets/bootstrap.min.css" rel="stylesheet">
     <link href="assets/icons/bootstrap-icons.css" rel="stylesheet">
@@ -1161,6 +1161,9 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
                             </a>
                             <a href="bulk_contract.php" class="btn btn-outline-primary btn-sm">
                                 <i class="bi bi-printer-fill"></i> Bulk Contract Print
+                            </a>
+                            <a href="bulk_archive.php" class="btn btn-outline-danger btn-sm">
+                                <i class="bi bi-archive-fill"></i> Bulk Archive Inactive
                             </a>
                             <a href="manage_options.php" class="btn btn-outline-dark btn-sm">
                                 <i class="bi bi-list-check"></i> Manage Options

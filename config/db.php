@@ -59,7 +59,7 @@ if (!$isLocal && !$isHttps) {
 // [MHI 5.3] Secure Session Parameters (HttpOnly, Secure, SameSite)
 ini_set('session.cookie_httponly', 1);
 ini_set('session.cookie_secure', $isHttps ? 1 : 0);
-ini_set('session.cookie_samesite', 'Strict');
+ini_set('session.cookie_samesite', 'Lax'); // [FIX] Allows session cookies to persist when opening documents in new tabs
 try {
     $options = [
         PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,

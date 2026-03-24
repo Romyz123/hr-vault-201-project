@@ -12,15 +12,6 @@ $position = strtoupper($emp['job_title']);
 
 // Current Date
 $year_now = date('Y');
-
-// [FIX] Encode Logo to Base64 for Word Export
-$logo_path = __DIR__ . '/../assets/images/tesp-logo-1.png';
-$logo_src = 'assets/images/tesp-logo-1.png'; // Fallback
-
-if (file_exists($logo_path)) {
-    $logo_binary = file_get_contents($logo_path);
-    $logo_src = 'data:image/png;base64,' . base64_encode($logo_binary);
-}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -165,7 +156,7 @@ if (file_exists($logo_path)) {
                         <table class="header-content-table">
                             <tr>
                                 <td style="padding-right: 15px;">
-                                    <img src="<?php echo $logo_src; ?>" style="width: 80px; height: auto; display: block; margin: 0 auto;" alt="TESP">
+                                    <img src="<?php echo htmlspecialchars($global_logo_src, ENT_QUOTES, 'UTF-8'); ?>" style="width: 80px; height: auto; display: block; margin: 0 auto;" alt="TESP">
                                 </td>
 
                                 <td style="text-align: center;">

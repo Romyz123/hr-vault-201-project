@@ -152,7 +152,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <head>
     <meta charset="UTF-8">
     <title>Verify 2FA</title>
-    <link rel="icon" href="assets/images/tesp-logo-1.png" type="image/png">
+    <link rel="icon" href="../uploads/tesp-logo.png" type="image/png">
     <link href="assets/bootstrap.min.css" rel="stylesheet">
     <style>
         body {
@@ -192,7 +192,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <?php if ($isFirstTimeSetup): ?>
                 <p class="text-muted small"><strong>First Time Setup:</strong> Scan this QR code using Google Authenticator, Authy, or Microsoft Authenticator.</p>
                 <div class="mb-3 d-flex flex-column align-items-center">
-                    <div id="qrcode" class="p-2 bg-white border rounded"></div>
+                    <div id="qrcode" class="p-2 bg-white border rounded"><img src="https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=<?php echo urlencode($otpauthUrl); ?>" alt="QR Code"></div>
                     <div class="mt-2">
                         <button type="button" class="btn btn-sm btn-outline-secondary" onclick="saveQRCode()"><i class="bi bi-download"></i> Save QR Code</button>
                     </div>
@@ -234,11 +234,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </div>
 
     <?php if ($isFirstTimeSetup): ?>
-        <script src="assets/qrcode.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
         <script>
             // Generate QR Code Offline
             var qrCodeDiv = document.getElementById("qrcode");
             if (qrCodeDiv && typeof QRCode !== 'undefined') {
+                qrCodeDiv.innerHTML = ""; // Clear fallback image
                 new QRCode(qrCodeDiv, {
                     text: "<?php echo $otpauthUrl; ?>",
                     width: 160,

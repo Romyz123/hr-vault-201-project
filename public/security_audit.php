@@ -34,6 +34,7 @@ $failCount = $pdo->query("SELECT COUNT(*) FROM activity_logs WHERE action = 'LOG
 <head>
     <meta charset="UTF-8">
     <title>Security Audit Log</title>
+    <link rel="icon" href="assets/images/tesp-logo.png" type="image/png">
     <link href="assets/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="assets/icons/bootstrap-icons.css">
 </head>
@@ -43,7 +44,12 @@ $failCount = $pdo->query("SELECT COUNT(*) FROM activity_logs WHERE action = 'LOG
     <nav class="navbar navbar-dark bg-danger mb-4">
         <div class="container">
             <a class="navbar-brand" href="index.php">Back to Dashboard</a>
-            <span class="navbar-text text-white fw-bold"><i class="bi bi-shield-exclamation"></i> Security Audit</span>
+            <div class="d-flex align-items-center gap-2">
+                <span class="navbar-text text-white fw-bold me-2"><i class="bi bi-shield-exclamation"></i> Security Audit</span>
+                <button id="darkModeToggle" class="btn btn-sm btn-outline-light border-0" title="Toggle Dark Mode">
+                    <i class="bi bi-moon-stars-fill"></i>
+                </button>
+            </div>
         </div>
     </nav>
 
@@ -115,7 +121,8 @@ $failCount = $pdo->query("SELECT COUNT(*) FROM activity_logs WHERE action = 'LOG
         </div>
 
     </div>
-
+    <script src="assets/bootstrap.bundle.min.js"></script>
+    <script src="dark_mode.js"></script>
 </body>
 
 </html>

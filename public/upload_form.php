@@ -107,7 +107,7 @@ $isVaultFull = ($vaultLimitBytes > 0 && $currentVaultBytes >= $vaultLimitBytes);
     <meta charset="UTF-8">
     <title>Upload Document</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <link rel="icon" href="assets/images/tesp-logo-1.png" type="image/png">
+    <link rel="icon" href="../uploads/tesp-logo.png" type="image/png">
     <link href="assets/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="assets/icons/bootstrap-icons.css">
     <script src="assets/sweetalert2.all.min.js"></script>
@@ -122,8 +122,15 @@ $isVaultFull = ($vaultLimitBytes > 0 && $currentVaultBytes >= $vaultLimitBytes);
             background-color: #fff;
         }
 
-        .drop-zone:hover,
         .drop-zone.dragover {
+            border-color: #198754;
+            /* Success Green */
+            background-color: #d1e7dd;
+            /* Light Green */
+            transform: scale(1.02);
+        }
+
+        .drop-zone:hover {
             border-color: #0d6efd;
             background-color: #f8f9fa;
         }
@@ -791,7 +798,7 @@ $isVaultFull = ($vaultLimitBytes > 0 && $currentVaultBytes >= $vaultLimitBytes);
         document.addEventListener('click', resetTimer);
         document.addEventListener('scroll', resetTimer);
     </script>
-    <script src="assets/dark_mode.js"></script>
+    <script src="dark_mode.js"></script>
 </body>
 
 </html>

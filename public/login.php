@@ -80,6 +80,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
                     exit;
                 }
 
+                $normalizedRole = strtoupper(trim($user['role']));
                 // [CHECK] Maintenance Mode
                 $isMaint = false;
                 try {
@@ -88,7 +89,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
                 } catch (Exception $e) {
                     // Table missing? Assume system is active so Admin can login and fix it.
                 }
-                if ($isMaint && $user['role'] !== 'ADMIN') {
+                if ($isMaint && $normalizedRole !== 'ADMIN') {
                     $alertType = 'warning';
                     $alertMsg = "🛠️ <strong>System Under Maintenance</strong><br>Only Administrators can log in at this time. Please try again later.";
                 } else {
@@ -99,7 +100,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
                     // [SECURITY] Force 2FA Setup for ALL users if they haven't configured it yet
                     if (empty($user['totp_secret'])) {
                         $requires2FA = true;
-                    } elseif (($user['role'] === 'ADMIN' && !$isLocalRequest) || !empty($user['is_2fa_enabled'])) {
+                    } elseif (($normalizedRole === 'ADMIN' && !$isLocalRequest) || !empty($user['is_2fa_enabled'])) {
                         $requires2FA = true;
                         if (isset($_COOKIE['hr_trust_device'])) {
                             $tokenHash = hash('sha256', $_COOKIE['hr_trust_device']);
@@ -121,7 +122,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
 
                     $_SESSION['user_id'] = $user['id'];
                     $_SESSION['username'] = $user['username'];
-                    $_SESSION['role'] = $user['role'];
+                    $_SESSION['role'] = $normalizedRole; // [FIX] Normalize to uppercase to prevent Access Denied errors
 
                     // [SECURITY] Regenerate CSRF Token immediately after login
                     $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
@@ -183,7 +184,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
     <meta charset="UTF-8">
     <title>Login - TES Philippines HR</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <link rel="icon" href="assets/images/tesp-logo-1.png" type="image/png">
+    <link rel="icon" href="../uploads/tesp-logo.png" type="image/png">
     <link href="assets/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="assets/icons/bootstrap-icons.css">
     <script src="assets/sweetalert2.all.min.js"></script>

@@ -57,6 +57,35 @@ $sql .= " ORDER BY last_name ASC";
 $stmt = $pdo->prepare($sql);
 $stmt->execute($params);
 $employees = $stmt->fetchAll();
+
+$logo_paths = [
+    __DIR__ . '/assets/images/tesp-logo-1.png',
+    __DIR__ . '/uploads/tesp-logo.png',
+    __DIR__ . '/uploads/tesp logo 1.png',
+    __DIR__ . '/../uploads/tesp-logo.png',
+    __DIR__ . '/../uploads/tesp logo 1.png'
+];
+$logo_src = '';
+$logo_mime = 'image/png';
+foreach ($logo_paths as $p) {
+    if (file_exists($p)) {
+        if (class_exists('finfo')) {
+            $finfo = new finfo(FILEINFO_MIME_TYPE);
+            $logo_mime = $finfo->file($p) ?: 'image/png';
+        } elseif (function_exists('mime_content_type')) {
+            $logo_mime = mime_content_type($p) ?: 'image/png';
+        } else {
+            $ext = strtolower(pathinfo($p, PATHINFO_EXTENSION));
+            $logo_mime = ($ext === 'png' ? 'image/png' : ($ext === 'jpg' || $ext === 'jpeg' ? 'image/jpeg' : ($ext === 'gif' ? 'image/gif' : 'image/png')));
+        }
+        $logo_src = 'data:' . $logo_mime . ';base64,' . base64_encode(file_get_contents($p));
+        break;
+    }
+}
+if (empty($logo_src)) {
+    $logo_src = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mO8WQ8AAn0BbYpM8nsAAAAASUVORK5CYII=';
+    $logo_mime = 'image/png';
+}
 ?>
 
 <!DOCTYPE html>
@@ -65,7 +94,9 @@ $employees = $stmt->fetchAll();
 <head>
     <meta charset="UTF-8">
     <title>Employee Master List</title>
-    <link rel="icon" href="assets/images/tesp-logo-1.png" type="image/png">
+    <?php if (!empty($logo_src)): ?>
+        <link rel="icon" href="<?php echo $logo_src; ?>" type="<?php echo htmlspecialchars($logo_mime); ?>">
+    <?php endif; ?>
     <link href="assets/bootstrap.min.css" rel="stylesheet">
     <style>
         /* 1. Force A4 Landscape */
@@ -131,9 +162,14 @@ $employees = $stmt->fetchAll();
 
     <div class="page">
         <div class="d-flex justify-content-between align-items-end mb-4 border-bottom pb-2">
-            <div>
-                <h2 class="fw-bold mb-0">TES PHILIPPINES</h2>
-                <h5 class="text-muted">Master Employee List</h5>
+            <div class="d-flex align-items-center gap-3">
+                <?php if (!empty($logo_src)): ?>
+                    <img src="<?php echo htmlspecialchars($logo_src); ?>" alt="TES Philippines Logo" style="height: 60px; object-fit: contain;">
+                <?php endif; ?>
+                <div>
+                    <h2 class="fw-bold mb-0">TES PHILIPPINES</h2>
+                    <h5 class="text-muted mb-0">Master Employee List</h5>
+                </div>
             </div>
             <div class="text-end">
                 <small class="text-muted">Generated on: <?php echo date('M d, Y'); ?></small><br>

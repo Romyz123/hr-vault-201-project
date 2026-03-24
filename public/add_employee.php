@@ -277,53 +277,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 // Use Service to Create
                 $newId = $empService->create($empData, $_SESSION['user_id']);
 
-                // [NEW] Send Welcome Email
-                $emailStatus = " (Email Skipped)";
-                if (!empty($email)) {
-                    $subject = "Welcome to TES Philippines! - Onboarding Information";
-
-                    // [CUSTOMIZED TEMPLATE]
-                    $body = "
-                    <html>
-                    <head>
-                        <style>
-                            body { font-family: Arial, sans-serif; color: #333; line-height: 1.6; }
-                            .container { max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #ddd; border-radius: 8px; background-color: #f9f9f9; }
-                            .header { background-color: #198754; color: white; padding: 15px; text-align: center; border-radius: 8px 8px 0 0; }
-                            .content { padding: 20px; background-color: white; }
-                            .footer { font-size: 12px; color: #777; text-align: center; margin-top: 20px; border-top: 1px solid #eee; padding-top: 10px; }
-                            .highlight { color: #198754; font-weight: bold; }
-                        </style>
-                    </head>
-                    <body>
-                        <div class='container'>
-                            <div class='header'>
-                                <h2 style='margin:0;'>Welcome Aboard!</h2>
-                            </div>
-                            <div class='content'>
-                                <p>Dear <strong>" . h($first_name) . "</strong>,</p>
-                                <p>We are thrilled to welcome you to <strong>TES Philippines, Inc.</strong>! We are excited to have you join our team as our new <span class='highlight'>" . h($job_title) . "</span>.</p>
-                                <p><strong>Employee ID:</strong> " . h($emp_id) . "</p>
-                                <p>Please report to the <strong>" . h($dept) . " Department</strong> and coordinate with your department head regarding your initial schedule and orientation.</p>
-                                <p>Best Regards,<br><strong>Human Resources Team</strong></p>
-                            </div>
-                            <div class='footer'>&copy; " . date('Y') . " TES Philippines, Inc.</div>
-                        </div>
-                    </body>
-                    </html>";
-
-                    $headers  = "MIME-Version: 1.0" . "\r\n";
-                    $headers .= "Content-type:text/html;charset=UTF-8" . "\r\n";
-                    $headers .= "From: HR System <no-reply@hrsystem.com>" . "\r\n";
-
-                    if (mail($email, $subject, $body, $headers)) {
-                        $emailStatus = " & 📧 Welcome Email Sent";
-                    } else {
-                        $err = error_get_last()['message'] ?? 'Unknown error';
-                        error_log("Mail Error: $err");
-                        $emailStatus = " but ❌ Email Failed";
-                    }
-                }
+                // [MHI POLICY] Automated Welcome Email disabled.
+                $emailStatus = "";
 
                 $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 
@@ -359,7 +314,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <meta charset="UTF-8">
     <title>Add New Employee</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <link rel="icon" href="assets/images/tesp-logo-1.png" type="image/png">
+    <link rel="icon" href="../uploads/tesp-logo.png" type="image/png">
     <link href="assets/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="assets/icons/bootstrap-icons.css">
     <style>

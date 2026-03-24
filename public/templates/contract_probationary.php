@@ -109,15 +109,6 @@ if (in_array($dept_code, ['ADMIN', 'SQP'])) {
 $day_now   = date('jS');
 $month_now = date('F');
 $year_now  = date('Y');
-
-// [FIX] Encode Logo to Base64 for Word Export
-$logo_path = __DIR__ . '/../assets/images/tesp-logo-1.png';
-$logo_src = 'assets/images/tesp-logo-1.png'; // Fallback
-
-if (file_exists($logo_path)) {
-    $logo_binary = file_get_contents($logo_path);
-    $logo_src = 'data:image/png;base64,' . base64_encode($logo_binary);
-}
 ?>
 
 <!DOCTYPE html>
@@ -299,7 +290,8 @@ if (file_exists($logo_path)) {
                         <table class="header-content-table">
                             <tr>
                                 <td style="padding-right: 15px;">
-                                    <img src="<?php echo $logo_src; ?>" style="width: 80px; height: auto; display: block; margin: 0 auto;" alt="TESP Logo">
+                                    <?php $safe_logo_src = !empty($global_logo_src) ? htmlspecialchars($global_logo_src, ENT_QUOTES, 'UTF-8') : 'assets/images/tesp-logo.png'; ?>
+                                    <img src="<?php echo $safe_logo_src; ?>" style="width: 80px; height: auto; display: block; margin: 0 auto;" alt="TESP Logo">
                                 </td>
                                 <td style="text-align: center;">
                                     <div class="co-name">TES PHILIPPINES, INC.</div>

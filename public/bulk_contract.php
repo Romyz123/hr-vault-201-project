@@ -6,7 +6,8 @@ require 'options.php';
 session_start();
 
 // 1. SECURITY: Admin, Manager & HR Only
-if (!isset($_SESSION['user_id']) || !in_array($_SESSION['role'], ['ADMIN', 'MANAGER', 'HR'])) {
+$userRole = isset($_SESSION['role']) ? strtoupper(trim($_SESSION['role'])) : '';
+if (!isset($_SESSION['user_id']) || !in_array($userRole, ['ADMIN', 'MANAGER', 'HR'])) {
     die("ACCESS DENIED");
 }
 
@@ -26,6 +27,7 @@ $defProject = $settings['default_project_name'] ?? '';
 $defPlace   = $settings['default_notice_place'] ?? '';
 $marginL    = $settings['bulk_margin_left'] ?? '30';
 $marginR    = $settings['bulk_margin_right'] ?? '20';
+$docFontSize = $settings['document_font_size'] ?? '11';
 
 // [SECURITY] Generate CSRF Token
 if (empty($_SESSION['csrf_token'])) {
@@ -45,15 +47,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate_bulk'])) {
     // [NEW] Capture & Save Settings on the Fly
     $marginL = min(500, max(0, (int)($_POST['margin_left'] ?? $marginL)));
     $marginR = min(500, max(0, (int)($_POST['margin_right'] ?? $marginR)));
+    $docFontSize = min(24, max(8, (float)($_POST['font_size'] ?? $docFontSize)));
     $proj    = $_POST['project_name'] ?? '';
     $place   = $_POST['notice_place'] ?? '';
 
     if (isset($_POST['save_defaults'])) {
         $sql = "INSERT INTO system_settings (setting_key, setting_value) VALUES 
                 ('default_project_name', ?), ('default_notice_place', ?), 
-                ('bulk_margin_left', ?), ('bulk_margin_right', ?)
+                ('bulk_margin_left', ?), ('bulk_margin_right', ?), ('document_font_size', ?)
                 ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)";
-        $pdo->prepare($sql)->execute([$proj, $place, $marginL, $marginR]);
+        $pdo->prepare($sql)->execute([$proj, $place, $marginL, $marginR, $docFontSize]);
     }
 
     // Set Global Params for Templates
@@ -81,12 +84,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate_bulk'])) {
 
     $templateFile = $templateMap[$type] ?? '';
 
+    $logo_paths = [
+        __DIR__ . '/assets/images/tesp-logo-1.png',
+        __DIR__ . '/uploads/tesp-logo.png',
+        __DIR__ . '/uploads/tesp logo 1.png',
+        __DIR__ . '/../uploads/tesp-logo.png',
+        __DIR__ . '/../uploads/tesp logo 1.png'
+    ];
+    $global_logo_src = '';
+    foreach ($logo_paths as $p) {
+        if (file_exists($p)) {
+            $mime = pathinfo($p, PATHINFO_EXTENSION) === 'png' ? 'image/png' : 'image/jpeg';
+            $global_logo_src = 'data:' . $mime . ';base64,' . base64_encode(file_get_contents($p));
+            break;
+        }
+    }
+
     if ($templateFile && file_exists($templateFile) && !empty($ids)) {
         // [NEW] Set cookie to tell the frontend to close the loading spinner
         setcookie("downloadToken", $_POST['csrf_token'] ?? '1', time() + 300, "/");
 
         // Start Output
-        echo '<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>Bulk Contracts</title>';
+        echo '<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>Bulk Contracts</title><link rel="icon" href="' . $global_logo_src . '" type="image/png">';
         echo '<style>
             @page { size: A4; margin: 0.5in; }
             @media print { 
@@ -99,11 +118,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate_bulk'])) {
                 .sig-section { margin-top: 30px !important; }
                 
                 /* [FIX] Body Text: Justified & Line Height 1.5 */
-                p, .justify, li { 
+                p, .justify, li, td { 
                     margin-bottom: 3px !important; 
                     line-height: 2.00 !important; 
                     text-align: justify !important; 
                     text-justify: inter-word !important;
+                    font-size: ' . $docFontSize . 'pt !important;
                 }
 
                 /* [FIX] Header Title: 115% Width & Centered */
@@ -373,15 +393,19 @@ $allDepts = $pdo->query("SELECT DISTINCT dept FROM employees WHERE dept != '' OR
                                     <label class="form-label small text-muted mb-1">Right Margin (px)</label>
                                     <input type="number" name="margin_right" class="form-control form-control-sm" value="<?php echo htmlspecialchars($marginR); ?>" min="3" max="500" oninput="validateMargin(this)">
                                 </div>
+                                <div class="col-md-2">
+                                    <label class="form-label small text-muted mb-1">Font Size (pt)</label>
+                                    <input type="number" step="0.5" name="font_size" class="form-control form-control-sm" value="<?php echo htmlspecialchars($docFontSize); ?>" min="8" max="24">
+                                </div>
                                 <div class="col-md-3">
                                     <div class="form-check mt-3">
                                         <input class="form-check-input" type="checkbox" name="save_defaults" id="saveDef">
                                         <label class="form-check-label small text-muted" for="saveDef">Save as Default Settings</label>
                                     </div>
                                 </div>
-                                <div class="col-md-2">
+                                <div class="col-md-3">
                                     <label class="form-label small text-muted mb-1">&nbsp;</label>
-                                    <button type="button" class="btn btn-sm btn-outline-secondary w-100" onclick="resetMargins()" title="Reset to 30px / 20px">Reset Default</button>
+                                    <button type="button" class="btn btn-sm btn-outline-secondary w-100" onclick="resetMargins()" title="Reset Margins and Font Size">Reset Default</button>
                                 </div>
                             </div>
                         </div>
@@ -493,6 +517,7 @@ $allDepts = $pdo->query("SELECT DISTINCT dept FROM employees WHERE dept != '' OR
         function resetMargins() {
             document.querySelector('input[name="margin_left"]').value = '30';
             document.querySelector('input[name="margin_right"]').value = '20';
+            document.querySelector('input[name="font_size"]').value = '11';
         }
 
         function calcEndDate() {

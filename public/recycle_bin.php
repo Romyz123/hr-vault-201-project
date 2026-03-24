@@ -29,16 +29,25 @@ $deletedDocs = $stmt->fetchAll(PDO::FETCH_ASSOC);
 <head>
     <meta charset="UTF-8">
     <title>Recycle Bin</title>
-    <link rel="icon" href="assets/images/tesp-logo-1.png" type="image/png">
+    <link rel="icon" href="../uploads/tesp-logo.png" type="image/png">
     <link href="assets/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="assets/icons/bootstrap-icons.css">
     <script src="assets/sweetalert2.all.min.js"></script>
 </head>
 
-<body class="bg-light p-4">
+<body class="bg-body-tertiary">
+
+    <nav class="navbar navbar-dark bg-dark mb-4">
+        <div class="container">
+            <a class="navbar-brand" href="index.php">Back to Dashboard</a>
+            <button id="darkModeToggle" class="btn btn-sm btn-outline-light border-0 ms-auto" title="Toggle Dark Mode">
+                <i class="bi bi-moon-stars-fill"></i>
+            </button>
+        </div>
+    </nav>
 
     <div class="container">
-        <div class="d-flex justify-content-between align-items-center mb-4">
+        <div class="d-flex justify-content-between align-items-center mb-3">
             <h3 class="text-danger"><i class="bi bi-trash3-fill"></i> Recycle Bin</h3>
             <div>
                 <?php if (!empty($deletedDocs)): ?>
@@ -53,7 +62,6 @@ $deletedDocs = $stmt->fetchAll(PDO::FETCH_ASSOC);
                         <button type="submit" class="btn btn-danger me-2"><i class="bi bi-fire"></i> Empty Bin</button>
                     </form>
                 <?php endif; ?>
-                <a href="index.php" class="btn btn-secondary">Back to Dashboard</a>
             </div>
         </div>
 
@@ -153,7 +161,8 @@ $deletedDocs = $stmt->fetchAll(PDO::FETCH_ASSOC);
             });
         }
     </script>
-
+    <script src="assets/bootstrap.bundle.min.js"></script>
+    <script src="dark_mode.js"></script>
 </body>
 
 </html>

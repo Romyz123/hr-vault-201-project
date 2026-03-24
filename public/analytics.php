@@ -275,6 +275,9 @@ $tenureBandsCounts = array_fill_keys($bandOrder, 0);
 $tenureMatrix      = []; // dept => [b0..b4]
 $columnTotals      = array_fill_keys($bandOrder, 0);
 
+// [OPTIMIZATION] Calculate 'today' once outside the heavy loop
+$todayObj = date_create('today');
+
 /**
  * Determine tenure band by months as of $asOf.
  * For past-year snapshots, rows with hire_date after $asOf are excluded (return null).
@@ -312,7 +315,7 @@ foreach ($rows as $r) {
     if (!empty($r['birth_date']) && $r['birth_date'] !== '0000-00-00') {
         $bDateObj = date_create($r['birth_date']);
         if ($bDateObj) {
-            $age = date_diff($bDateObj, date_create('today'))->y;
+            $age = date_diff($bDateObj, $todayObj)->y;
             if ($age <= 25) $ageBands['18-25']++;
             elseif ($age <= 35) $ageBands['26-35']++;
             elseif ($age <= 45) $ageBands['36-45']++;
@@ -429,7 +432,7 @@ if ($debug) {
 <head>
     <meta charset="UTF-8">
     <title>HR Analytics Report</title>
-    <link rel="icon" href="assets/images/tesp-logo-1.png" type="image/png">
+    <link rel="icon" href="../uploads/tesp-logo.png" type="image/png">
     <link href="assets/bootstrap.min.css" rel="stylesheet">
     <link href="assets/icons/bootstrap-icons.css" rel="stylesheet">
     <script src="assets/chart.min.js"></script>

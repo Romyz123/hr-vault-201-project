@@ -76,17 +76,33 @@ fwrite($output, "\xEF\xBB\xBF");
 // A. Write Column Headers (MATCHING OLD ORDER)
 fputcsv($output, [
     'Employee ID',
-    'First Name',      // Restored Order
-    'Last Name',       // Restored Order
+    'First Name',
+    'Middle Name',
+    'Last Name',
+    'Gender',
+    'Birth Date',
     'Department',
     'Section',
     'Job Title',
+    'System Role',
     'Status',
     'Employment Type',
-    'Agency Name',     // [NEW] Added so you can see the Agency
+    'Agency Name',
     'Date Hired',
     'Email',
-    'Contact Number'
+    'Contact Number',
+    'Present Address',
+    'Permanent Address',
+    'SSS Number',
+    'TIN Number',
+    'PhilHealth',
+    'Pag-IBIG',
+    'Emergency Contact Name',
+    'Emergency Contact Number',
+    'Emergency Address',
+    'Education',
+    'Experience',
+    'Licenses'
 ]);
 
 // B. Write Rows
@@ -100,17 +116,33 @@ foreach ($employees as $row) {
 
     fputcsv($output, [
         $row['emp_id'],
-        $row['first_name'], // Restored Order
-        $row['last_name'],  // Restored Order
+        $row['first_name'],
+        $row['middle_name'],
+        $row['last_name'],
+        $row['gender'],
+        $row['birth_date'],
         $row['dept'],
-        $displaySection,    // [FIX] Use smart section
+        $displaySection,
         $row['job_title'],
+        $row['system_role'],
         $row['status'],
         $row['employment_type'],
-        $row['agency_name'], // [NEW]
+        $row['agency_name'],
         $row['hire_date'],
         $row['email'],
-        $row['contact_number']
+        $row['contact_number'],
+        $row['present_address'],
+        $row['permanent_address'],
+        $row['sss_no'],
+        $row['tin_no'],
+        $row['philhealth_no'],
+        $row['pagibig_no'],
+        $row['emergency_name'],
+        $row['emergency_contact'],
+        $row['emergency_address'],
+        $row['education'],
+        $row['experience'],
+        $row['licenses']
     ]);
 }
 

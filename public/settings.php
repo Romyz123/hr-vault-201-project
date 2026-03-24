@@ -130,6 +130,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
                 }
 
+                // Validate font size
+                if ($key === 'document_font_size') {
+                    $value = preg_replace('/[^0-9\.]/', '', (string)$value);
+                    if ($value === '' || (float)$value < 8 || (float)$value > 24) {
+                        $value = '11';
+                    }
+                }
+
                 // Validate Vault Size Limit (GB)
                 if ($key === 'vault_size_limit_gb') {
                     $value = (float)$value;
@@ -201,6 +209,7 @@ $staffDirect = ($settings['staff_direct_approval'] ?? '0') === '1';
 $defProject  = $settings['default_project_name'] ?? '';
 $marginL     = $settings['bulk_margin_left'] ?? '30';
 $marginR     = $settings['bulk_margin_right'] ?? '20';
+$docFontSize = $settings['document_font_size'] ?? '11';
 
 $backupDay = $settings['backup_day'] ?? 'Fri';
 $backupTime = $settings['backup_time'] ?? '00:00';
@@ -222,6 +231,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['settings'])) {
     $defProject = $p['default_project_name'] ?? $defProject;
     $marginL = $p['bulk_margin_left'] ?? $marginL;
     $marginR = $p['bulk_margin_right'] ?? $marginR;
+    $docFontSize = $p['document_font_size'] ?? $docFontSize;
     $backupDay = $p['backup_day'] ?? $backupDay;
     $backupTime = $p['backup_time'] ?? $backupTime;
     $backupPath = $p['backup_path'] ?? $backupPath;
@@ -371,8 +381,9 @@ if (PHP_OS_FAMILY === 'Windows') {
                                 <div class="form-text">Auto-fills the Project Name in contracts.</div>
                             </div>
                             <div class="row g-2">
-                                <div class="col-6"><label class="form-label fw-bold">Bulk Print Margin (Left)</label><input type="number" name="settings[bulk_margin_left]" class="form-control" value="<?php echo htmlspecialchars($marginL); ?>" min="0" max="500" oninput="validateMargin(this)"></div>
-                                <div class="col-6"><label class="form-label fw-bold">Bulk Print Margin (Right)</label><input type="number" name="settings[bulk_margin_right]" class="form-control" value="<?php echo htmlspecialchars($marginR); ?>" min="0" max="500" oninput="validateMargin(this)"></div>
+                                <div class="col-4"><label class="form-label fw-bold">Bulk Print Margin (Left)</label><input type="number" name="settings[bulk_margin_left]" class="form-control" value="<?php echo htmlspecialchars($marginL); ?>" min="0" max="500" oninput="validateMargin(this)"></div>
+                                <div class="col-4"><label class="form-label fw-bold">Bulk Print Margin (Right)</label><input type="number" name="settings[bulk_margin_right]" class="form-control" value="<?php echo htmlspecialchars($marginR); ?>" min="0" max="500" oninput="validateMargin(this)"></div>
+                                <div class="col-4"><label class="form-label fw-bold">Document Font Size (pt)</label><input type="number" step="0.5" name="settings[document_font_size]" class="form-control" value="<?php echo htmlspecialchars($docFontSize); ?>" min="8" max="24"></div>
                             </div>
                             <div class="form-text mb-3">Adjusts the side spacing for bulk printed contracts (in pixels).</div>
                         </div>

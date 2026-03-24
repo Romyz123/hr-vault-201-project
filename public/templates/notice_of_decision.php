@@ -9,14 +9,6 @@ $date_created = (!empty($_GET['notice_date'])) ? date('F d, Y', strtotime($_GET[
 $violation = (!empty($_GET['violation'])) ? nl2br(htmlspecialchars($_GET['violation'])) : '__________________________________________________________________';
 $decision = (!empty($_GET['decision'])) ? nl2br(htmlspecialchars($_GET['decision'])) : '<br><br><br>'; // Empty space for handwriting
 $incident_date = (!empty($_GET['incident_date'])) ? date('F d, Y', strtotime($_GET['incident_date'])) : '_________________';
-
-// 2. Base64 Logo
-$logo_path = __DIR__ . '/../assets/images/tesp-logo-1.png';
-$logo_src = 'assets/images/tesp-logo-1.png';
-if (file_exists($logo_path)) {
-    $logo_binary = file_get_contents($logo_path);
-    $logo_src = 'data:image/png;base64,' . base64_encode($logo_binary);
-}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -110,7 +102,7 @@ if (file_exists($logo_path)) {
             <table class="header-content-table">
                 <tr>
                     <td style="padding-right: 15px; vertical-align: middle;">
-                        <img src="<?php echo $logo_src; ?>" class="logo" style="width: 80px; display: block;">
+                        <img src="<?php echo isset($global_logo_src) ? htmlspecialchars($global_logo_src) : ''; ?>" class="logo" style="width: 80px; display: block;">
                     </td>
                     <td style="vertical-align: middle; text-align: center;">
                         <strong style="font-size: 14pt;">TES PHILIPPINES INC.</strong><br>
