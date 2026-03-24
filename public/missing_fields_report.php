@@ -58,12 +58,16 @@ $logo_paths = [
 $logo_src = '';
 foreach ($logo_paths as $p) {
     if (file_exists($p)) {
-        $mime = pathinfo($p, PATHINFO_EXTENSION) === 'png' ? 'image/png' : 'image/jpeg';
+        $ext = strtolower(pathinfo($p, PATHINFO_EXTENSION));
+        $mimeTypes = ['png' => 'image/png', 'jpg' => 'image/jpeg', 'jpeg' => 'image/jpeg', 'gif' => 'image/gif', 'webp' => 'image/webp'];
+        $mime = $mimeTypes[$ext] ?? 'image/png';
         $logo_src = 'data:' . $mime . ';base64,' . base64_encode(file_get_contents($p));
         break;
     }
-}
-// Fallback to a 1x1 transparent PNG if no logo found
+} // Fallback to a 1x1 transparent PNG if no logo found
+if (empty($logo_src)) {
+    $logo_src = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=';
+} // Fallback to a 1x1 transparent PNG if no logo found
 if (empty($logo_src)) {
     $logo_src = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=';
 } ?>
@@ -188,6 +192,24 @@ if (empty($logo_src)) {
             </div>
         </div>
     </div>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const toggle = document.getElementById('darkModeToggle');
+            if (!toggle) return;
+
+            toggle.addEventListener('click', function() {
+                document.body.classList.toggle('bg-dark');
+                document.body.classList.toggle('text-white');
+                document.body.classList.toggle('bg-light');
+                const nav = document.querySelector('nav.navbar');
+                if (nav) {
+                    nav.classList.toggle('navbar-dark');
+                    nav.classList.toggle('navbar-light');
+                    nav.classList.toggle('bg-dark');
+                }
+            });
+        });
+    </script>
 </body>
 
 </html>

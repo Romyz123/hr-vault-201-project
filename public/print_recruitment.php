@@ -54,6 +54,10 @@ $logo_src = '';
 $logo_mime = 'image/png';
 foreach ($logo_paths as $p) {
     if (file_exists($p)) {
+        $content = file_get_contents($p);
+        if ($content === false) {
+            continue;
+        }
         $ext = strtolower(pathinfo($p, PATHINFO_EXTENSION));
         if (class_exists('finfo')) {
             $finfo = new finfo(FILEINFO_MIME_TYPE);
@@ -63,7 +67,7 @@ foreach ($logo_paths as $p) {
         } else {
             $logo_mime = ($ext === 'png' ? 'image/png' : ($ext === 'jpg' || $ext === 'jpeg' ? 'image/jpeg' : ($ext === 'gif' ? 'image/gif' : ($ext === 'webp' ? 'image/webp' : 'image/png'))));
         }
-        $logo_src = 'data:' . $logo_mime . ';base64,' . base64_encode(file_get_contents($p));
+        $logo_src = 'data:' . $logo_mime . ';base64,' . base64_encode($content);
         break;
     }
 }

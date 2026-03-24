@@ -399,7 +399,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
                         <?php if (!empty($currentTotpSecret)): ?>
                             <div class="text-center mb-3 d-flex flex-column align-items-center">
-                                <div id="qrcode" class="p-2 bg-white border rounded mb-2"><img src="https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=<?php echo urlencode($otpauthUrl); ?>" alt="QR Code"></div>
+                                <div id="qrcode" class="p-2 bg-white border rounded mb-2"></div>
                                 <div class="mb-2">
                                     <button type="button" class="btn btn-sm btn-outline-secondary" onclick="saveQRCode()"><i class="bi bi-download"></i> Save QR Code</button>
                                 </div>
@@ -699,7 +699,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     </script>
 
     <?php if (!empty($currentTotpSecret)): ?>
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+        <script src="assets/qrcode.min.js"></script>
         <script>
             var qrCodeDiv = document.getElementById("qrcode");
             if (qrCodeDiv && typeof QRCode !== 'undefined') {

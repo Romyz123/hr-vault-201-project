@@ -69,6 +69,10 @@ $logo_src = '';
 $logo_mime = 'image/png';
 foreach ($logo_paths as $p) {
     if (file_exists($p)) {
+        $size = filesize($p);
+        if ($size === false || $size > 512 * 1024) { // Skip files > 512KB
+            continue;
+        }
         if (class_exists('finfo')) {
             $finfo = new finfo(FILEINFO_MIME_TYPE);
             $logo_mime = $finfo->file($p) ?: 'image/png';
@@ -78,8 +82,15 @@ foreach ($logo_paths as $p) {
             $ext = strtolower(pathinfo($p, PATHINFO_EXTENSION));
             $logo_mime = ($ext === 'png' ? 'image/png' : ($ext === 'jpg' || $ext === 'jpeg' ? 'image/jpeg' : ($ext === 'gif' ? 'image/gif' : 'image/png')));
         }
-        $logo_src = 'data:' . $logo_mime . ';base64,' . base64_encode(file_get_contents($p));
-        break;
+        // Validate MIME is an image type
+        if (strpos($logo_mime, 'image/') !== 0) {
+            continue;
+        }
+        $content = file_get_contents($p);
+        if ($content !== false) {
+            $logo_src = 'data:' . $logo_mime . ';base64,' . base64_encode($content);
+            break;
+        }
     }
 }
 if (empty($logo_src)) {
@@ -95,7 +106,7 @@ if (empty($logo_src)) {
     <meta charset="UTF-8">
     <title>Employee Master List</title>
     <?php if (!empty($logo_src)): ?>
-        <link rel="icon" href="<?php echo $logo_src; ?>" type="<?php echo htmlspecialchars($logo_mime); ?>">
+        <link rel="icon" href="<?php echo htmlspecialchars($logo_src); ?>" type="<?php echo htmlspecialchars($logo_mime); ?>">
     <?php endif; ?>
     <link href="assets/bootstrap.min.css" rel="stylesheet">
     <style>

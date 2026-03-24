@@ -192,7 +192,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <?php if ($isFirstTimeSetup): ?>
                 <p class="text-muted small"><strong>First Time Setup:</strong> Scan this QR code using Google Authenticator, Authy, or Microsoft Authenticator.</p>
                 <div class="mb-3 d-flex flex-column align-items-center">
-                    <div id="qrcode" class="p-2 bg-white border rounded"><img src="https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=<?php echo urlencode($otpauthUrl); ?>" alt="QR Code"></div>
+                    <div id="qrcode" class="p-2 bg-white border rounded"></div>
                     <div class="mt-2">
                         <button type="button" class="btn btn-sm btn-outline-secondary" onclick="saveQRCode()"><i class="bi bi-download"></i> Save QR Code</button>
                     </div>

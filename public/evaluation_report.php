@@ -39,12 +39,26 @@ $logo_paths = [
     __DIR__ . '/../uploads/tesp logo 1.png'
 ];
 $logo_src = '';
+$logo_mime = 'image/png';
 foreach ($logo_paths as $p) {
     if (file_exists($p)) {
-        $mime = pathinfo($p, PATHINFO_EXTENSION) === 'png' ? 'image/png' : 'image/jpeg';
-        $logo_src = 'data:' . $mime . ';base64,' . base64_encode(file_get_contents($p));
+        if (function_exists('finfo_open')) {
+            $finfo = finfo_open(FILEINFO_MIME_TYPE);
+            $logo_mime = finfo_file($finfo, $p) ?: 'image/png';
+            finfo_close($finfo);
+        } elseif (function_exists('mime_content_type')) {
+            $logo_mime = mime_content_type($p) ?: 'image/png';
+        } else {
+            $ext = strtolower(pathinfo($p, PATHINFO_EXTENSION));
+            $logo_mime = ($ext === 'png' ? 'image/png' : ($ext === 'jpg' || $ext === 'jpeg' ? 'image/jpeg' : ($ext === 'gif' ? 'image/gif' : 'image/png')));
+        }
+        $logo_src = 'data:' . $logo_mime . ';base64,' . base64_encode(file_get_contents($p));
         break;
     }
+}
+if (empty($logo_src)) {
+    $logo_src = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mO8WQ8AAn0BbYpM8nsAAAAASUVORK5CYII=';
+    $logo_mime = 'image/png';
 } ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -52,7 +66,7 @@ foreach ($logo_paths as $p) {
 <head>
     <meta charset="UTF-8">
     <title>Evaluation Report</title>
-    <link rel="icon" href="<?php echo $logo_src; ?>" type="image/png">
+    <link rel="icon" href="<?php echo $logo_src; ?>" type="<?php echo htmlspecialchars($logo_mime); ?>">
     <link href="assets/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="assets/icons/bootstrap-icons.css">
     <script src="assets/chart.min.js"></script>

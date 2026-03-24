@@ -92,10 +92,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate_bulk'])) {
         __DIR__ . '/../uploads/tesp logo 1.png'
     ];
     $global_logo_src = '';
+    $global_logo_mime = 'image/png';
     foreach ($logo_paths as $p) {
         if (file_exists($p)) {
-            $mime = pathinfo($p, PATHINFO_EXTENSION) === 'png' ? 'image/png' : 'image/jpeg';
-            $global_logo_src = 'data:' . $mime . ';base64,' . base64_encode(file_get_contents($p));
+            if (function_exists('finfo_open')) {
+                $finfo = finfo_open(FILEINFO_MIME_TYPE);
+                $global_logo_mime = finfo_file($finfo, $p) ?: 'image/png';
+                finfo_close($finfo);
+            } elseif (function_exists('mime_content_type')) {
+                $global_logo_mime = mime_content_type($p) ?: 'image/png';
+            } else {
+                $ext = strtolower(pathinfo($p, PATHINFO_EXTENSION));
+                $global_logo_mime = ($ext === 'png' ? 'image/png' : ($ext === 'jpg' || $ext === 'jpeg' ? 'image/jpeg' : 'image/png'));
+            }
+            $global_logo_src = 'data:' . $global_logo_mime . ';base64,' . base64_encode(file_get_contents($p));
             break;
         }
     }
@@ -105,7 +115,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate_bulk'])) {
         setcookie("downloadToken", $_POST['csrf_token'] ?? '1', time() + 300, "/");
 
         // Start Output
-        echo '<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>Bulk Contracts</title><link rel="icon" href="' . $global_logo_src . '" type="image/png">';
+        $faviconTag = $global_logo_src ? '<link rel="icon" href="' . $global_logo_src . '">' : '';
+        echo '<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>Bulk Contracts</title>' . $faviconTag;
         echo '<style>
             @page { size: A4; margin: 0.5in; }
             @media print { 

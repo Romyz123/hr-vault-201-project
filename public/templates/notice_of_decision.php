@@ -102,7 +102,9 @@ $incident_date = (!empty($_GET['incident_date'])) ? date('F d, Y', strtotime($_G
             <table class="header-content-table">
                 <tr>
                     <td style="padding-right: 15px; vertical-align: middle;">
-                        <img src="<?php echo isset($global_logo_src) ? htmlspecialchars($global_logo_src) : ''; ?>" class="logo" style="width: 80px; display: block;">
+                        <?php if (isset($global_logo_src) && $global_logo_src !== ''): ?>
+                            <img src="<?php echo htmlspecialchars($global_logo_src); ?>" alt="Company Logo" class="logo" style="width: 80px; display: block;">
+                        <?php endif; ?>
                     </td>
                     <td style="vertical-align: middle; text-align: center;">
                         <strong style="font-size: 14pt;">TES PHILIPPINES INC.</strong><br>

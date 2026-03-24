@@ -140,7 +140,7 @@ $inactiveEmployees = $stmt->fetchAll(PDO::FETCH_ASSOC);
                             <?php else: ?>
                                 <?php foreach ($inactiveEmployees as $e): ?>
                                     <tr>
-                                        <td class="text-center"><input type="checkbox" name="employee_ids[]" value="<?php echo $e['id']; ?>" class="form-check-input emp-check"></td>
+                                        <td class="text-center"><input type="checkbox" name="employee_ids[]" value="<?php echo htmlspecialchars($e['id']); ?>" class="form-check-input emp-check"></td>
                                         <td>
                                             <div class="fw-bold text-dark"><?php echo htmlspecialchars($e['last_name'] . ', ' . $e['first_name']); ?></div>
                                             <small class="text-muted"><?php echo htmlspecialchars($e['emp_id']); ?></small>

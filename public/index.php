@@ -615,8 +615,7 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
     <meta charset="UTF-8">
     <title>TESP HR 201 System</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <link rel="icon" href="../uploads/tesp-logo.png" type="image/png">
-    <!-- Single includes only -->
+    <link rel="icon" href="assets/images/tesp-logo.png" type="image/png"> <!-- Single includes only -->
     <link href="assets/bootstrap.min.css" rel="stylesheet">
     <link href="assets/icons/bootstrap-icons.css" rel="stylesheet">
     <script src="assets/chart.min.js" defer></script>

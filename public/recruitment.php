@@ -1114,8 +1114,8 @@ try {
                 });
         }
     </script>
-    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-    <script src="dark_mode.js"></script>
+    <script src="assets/sweetalert2.all.min.js"></script>
+    <script src="assets/dark_mode.js"></script>
 </body>
 
 </html>

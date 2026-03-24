@@ -798,7 +798,7 @@ $isVaultFull = ($vaultLimitBytes > 0 && $currentVaultBytes >= $vaultLimitBytes);
         document.addEventListener('click', resetTimer);
         document.addEventListener('scroll', resetTimer);
     </script>
-    <script src="dark_mode.js"></script>
+    <script src="assets/dark_mode.js"></script>
 </body>
 
 </html>

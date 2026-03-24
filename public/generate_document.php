@@ -36,8 +36,20 @@ try {
         $settings[$row['setting_key']] = $row['setting_value'];
     }
 } catch (Exception $e) {
+    error_log("Failed to load system_settings: " . $e->getMessage());
 }
 $docFontSize = $settings['document_font_size'] ?? '11';
+
+// Validate font size to prevent CSS injection
+if (!preg_match('/^\d+(?:\.\d+)?$/', trim($docFontSize))) {
+    $docFontSize = '11';
+}
+$docFontSize = floatval($docFontSize);
+if ($docFontSize < 8) {
+    $docFontSize = 8;
+} elseif ($docFontSize > 24) {
+    $docFontSize = 24;
+}
 
 // 3. PREPARE VARIABLES (Auto-Fill Logic)
 $full_name = strtoupper($emp['first_name'] . ' ' . (empty($emp['middle_name']) ? '' : $emp['middle_name'][0] . '.') . ' ' . $emp['last_name']);
