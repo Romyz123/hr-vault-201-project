@@ -1164,16 +1164,16 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
                             <a href="bulk_archive.php" class="btn btn-outline-danger btn-sm">
                                 <i class="bi bi-archive-fill"></i> Bulk Archive Inactive
                             </a>
-                            <a href="manage_options.php" class="btn btn-outline-dark btn-sm">
+                            <a href="manage_options.php" class="btn btn-outline-secondary btn-sm">
                                 <i class="bi bi-list-check"></i> Manage Options
                             </a>
-                            <button type="button" class="btn btn-dark" data-bs-toggle="modal" data-bs-target="#exportModal">
-                                <i class="bi bi-file-earmark-zip-fill text-warning"></i> Export Files (ZIP)
+                            <button type="button" class="btn btn-warning fw-bold text-dark btn-sm" data-bs-toggle="modal" data-bs-target="#exportModal">
+                                <i class="bi bi-file-earmark-zip-fill"></i> Export Files (ZIP)
                             </button>
                         <?php endif; ?>
 
                         <?php if (in_array($userRole, ['ADMIN', 'MANAGER', 'HR'], true)): ?>
-                            <a href="expiry_report.php" class="btn btn-outline-dark w-100 mt-2">
+                            <a href="expiry_report.php" class="btn btn-outline-info w-100 mt-2">
                                 <i class="bi bi-binoculars-fill"></i> Expiry Forecast
                             </a>
                             <a href="missing_fields_report.php" class="btn btn-outline-warning w-100 mt-2">
@@ -2074,19 +2074,6 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
             modal.show();
         }
 
-        // [NEW] Toggle Password Visibility
-        function togglePass(id) {
-            const input = document.getElementById(id);
-            const icon = input.nextElementSibling.querySelector('i');
-            if (input.type === 'password') {
-                input.type = 'text';
-                icon.classList.replace('bi-eye', 'bi-eye-slash');
-            } else {
-                input.type = 'password';
-                icon.classList.replace('bi-eye-slash', 'bi-eye');
-            }
-        }
-
         // [NEW] Show Export Loader
         function showExportLoader(form) {
             Swal.fire({
@@ -2250,26 +2237,6 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
             }
             <?php unset($_SESSION['error']); ?>
         <?php endif; ?>
-
-        // Check for URL msg param (e.g. from redirects)
-        const urlParams = new URLSearchParams(window.location.search);
-        if (urlParams.has('msg')) {
-            Swal.fire({
-                icon: 'success',
-                title: 'Success',
-                text: urlParams.get('msg'),
-                timer: 2500,
-                showConfirmButton: false
-            });
-            // [FIX] Ensure Add Employee draft is cleared upon successful request submission
-            localStorage.removeItem('hr_add_emp_draft');
-            // Clean URL
-            if (window.history.replaceState) {
-                const url = new URL(window.location.href);
-                url.searchParams.delete('msg');
-                window.history.replaceState(null, null, url.toString());
-            }
-        }
     </script>
 
 

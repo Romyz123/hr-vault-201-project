@@ -489,7 +489,7 @@ foreach ($logo_paths as $p) {
     </style>
 </head>
 
-<body class="bg-light">
+<body class="bg-body-tertiary">
     <div class="print-only-header">
         <?php if ($logo_src): ?>
             <img src="<?php echo $logo_src; ?>" alt="TESP Logo">

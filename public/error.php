@@ -37,7 +37,6 @@ switch ($code) {
     <link rel="stylesheet" href="assets/icons/bootstrap-icons.css">
     <style>
         body {
-            background-color: #f8f9fa;
             height: 100vh;
             display: flex;
             align-items: center;
@@ -61,7 +60,7 @@ switch ($code) {
     </style>
 </head>
 
-<body>
+<body class="bg-body-tertiary">
     <div class="card error-card p-5">
         <div class="icon-box"><i class="bi <?php echo $icon; ?>"></i></div>
         <h1 class="fw-bold text-dark mb-3"><?php echo $title; ?></h1>
@@ -71,6 +70,7 @@ switch ($code) {
             <a href="javascript:history.back()" class="btn btn-outline-secondary px-4 ms-2">Go Back</a>
         </div>
     </div>
+    <script src="dark_mode.js"></script>
 </body>
 
 </html>

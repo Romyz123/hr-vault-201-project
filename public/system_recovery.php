@@ -826,7 +826,7 @@ $bkMaxSize = $pdo->query("SELECT setting_value FROM system_settings WHERE settin
     <link rel="stylesheet" href="assets/icons/bootstrap-icons.css">
 </head>
 
-<body class="bg-light">
+<body class="bg-body-tertiary">
 
     <nav class="navbar navbar-dark bg-danger mb-4">
         <div class="container">

@@ -39,7 +39,7 @@ $failCount = $pdo->query("SELECT COUNT(*) FROM activity_logs WHERE action = 'LOG
     <link rel="stylesheet" href="assets/icons/bootstrap-icons.css">
 </head>
 
-<body class="bg-light">
+<body class="bg-body-tertiary">
 
     <nav class="navbar navbar-dark bg-danger mb-4">
         <div class="container">
@@ -122,7 +122,7 @@ $failCount = $pdo->query("SELECT COUNT(*) FROM activity_logs WHERE action = 'LOG
 
     </div>
     <script src="assets/bootstrap.bundle.min.js"></script>
-    <script src="assets/dark_mode.js"></script>
+    <script src="dark_mode.js"></script>
 </body>
 
 </html>

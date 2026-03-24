@@ -501,7 +501,7 @@ try {
     </style>
 </head>
 
-<body class="bg-light">
+<body class="bg-body-tertiary">
     <div class="print-only-header">
         <?php if ($logo_src): ?>
             <img src="<?php echo $logo_src; ?>" alt="TESP Logo">
@@ -1115,7 +1115,7 @@ try {
         }
     </script>
     <script src="assets/sweetalert2.all.min.js"></script>
-    <script src="assets/dark_mode.js"></script>
+    <script src="dark_mode.js"></script>
 </body>
 
 </html>

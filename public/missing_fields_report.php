@@ -122,7 +122,7 @@ if (empty($logo_src)) {
     </style>
 </head>
 
-<body class="bg-light">
+<body class="bg-body-tertiary">
     <div class="print-only-header">
         <img src="<?php echo $logo_src; ?>" alt="TESP Logo">
         <h2>Incomplete Profiles Report</h2>
@@ -192,24 +192,8 @@ if (empty($logo_src)) {
             </div>
         </div>
     </div>
-    <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            const toggle = document.getElementById('darkModeToggle');
-            if (!toggle) return;
-
-            toggle.addEventListener('click', function() {
-                document.body.classList.toggle('bg-dark');
-                document.body.classList.toggle('text-white');
-                document.body.classList.toggle('bg-light');
-                const nav = document.querySelector('nav.navbar');
-                if (nav) {
-                    nav.classList.toggle('navbar-dark');
-                    nav.classList.toggle('navbar-light');
-                    nav.classList.toggle('bg-dark');
-                }
-            });
-        });
-    </script>
+    <script src="assets/bootstrap.bundle.min.js"></script>
+    <script src="dark_mode.js"></script>
 </body>
 
 </html>

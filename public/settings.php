@@ -130,6 +130,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
                 }
 
+                // [NEW] Handle approval widgets
+                if ($key === 'approval_widgets') {
+                    // Value will be an array from the form, so we json_encode it.
+                    // If it's not set (all unchecked), it will be an empty array.
+                    $value = json_encode($value ?? []);
+                }
+
                 // Validate font size
                 if ($key === 'document_font_size') {
                     $value = preg_replace('/[^0-9\.]/', '', (string)$value);
@@ -209,6 +216,7 @@ $staffDirect = ($settings['staff_direct_approval'] ?? '0') === '1';
 $defProject  = $settings['default_project_name'] ?? '';
 $marginL     = $settings['bulk_margin_left'] ?? '30';
 $marginR     = $settings['bulk_margin_right'] ?? '20';
+$approvalWidgets = json_decode($settings['approval_widgets'] ?? '[]', true);
 $docFontSize = $settings['document_font_size'] ?? '11';
 
 $backupDay = $settings['backup_day'] ?? 'Fri';
@@ -231,6 +239,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['settings'])) {
     $defProject = $p['default_project_name'] ?? $defProject;
     $marginL = $p['bulk_margin_left'] ?? $marginL;
     $marginR = $p['bulk_margin_right'] ?? $marginR;
+    $approvalWidgets = $p['approval_widgets'] ?? []; // This will be an array from the form
     $docFontSize = $p['document_font_size'] ?? $docFontSize;
     $backupDay = $p['backup_day'] ?? $backupDay;
     $backupTime = $p['backup_time'] ?? $backupTime;
@@ -271,7 +280,7 @@ if (PHP_OS_FAMILY === 'Windows') {
     <link rel="stylesheet" href="assets/icons/bootstrap-icons.css">
 </head>
 
-<body class="bg-light">
+<body class="bg-body-tertiary">
     <nav class="navbar navbar-dark bg-dark mb-4">
         <div class="container">
             <a class="navbar-brand" href="index.php">Back to Dashboard</a>
@@ -366,6 +375,33 @@ if (PHP_OS_FAMILY === 'Windows') {
                                 <label class="form-check-label fw-bold text-danger" for="maintMode">Enable Maintenance Mode</label>
                                 <div class="form-text text-muted">If <strong>ON</strong>: Only ADMINS can log in. All other users will be blocked.</div>
                             </div>
+                        </div>
+                    </div>
+
+                    <!-- [NEW] Approval Center Widgets -->
+                    <div class="card shadow-sm mb-4">
+                        <div class="card-header bg-info text-white">
+                            <h5 class="mb-0"><i class="bi bi-clipboard-check"></i> Approval Center Widgets</h5>
+                        </div>
+                        <div class="card-body">
+                            <p class="small text-muted">Select which request types to display on the Admin Approval Center dashboard.</p>
+                            <?php
+                            $allWidgets = [
+                                'hires' => 'New Hires',
+                                'edits' => 'Profile Edits',
+                                'docs' => 'Document Uploads',
+                                'doc-edits' => 'Document Edits',
+                                'tickets' => 'Ticket Resolutions'
+                            ];
+                            // If setting is empty, default to all checked
+                            $enabledWidgets = !empty($approvalWidgets) ? $approvalWidgets : array_keys($allWidgets);
+                            foreach ($allWidgets as $key => $label):
+                            ?>
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" name="settings[approval_widgets][]" value="<?php echo $key; ?>" id="widget_<?php echo $key; ?>" <?php echo in_array($key, $enabledWidgets) ? 'checked' : ''; ?>>
+                                    <label class="form-check-label" for="widget_<?php echo $key; ?>"><?php echo $label; ?></label>
+                                </div>
+                            <?php endforeach; ?>
                         </div>
                     </div>
 
@@ -498,30 +534,8 @@ if (PHP_OS_FAMILY === 'Windows') {
     </div>
     <script src="assets/bootstrap.bundle.min.js"></script>
     <script src="assets/sweetalert2.all.min.js"></script>
+    <script src="main.js"></script>
     <script>
-        // [NEW] SweetAlert for Success/Error Messages
-        document.addEventListener("DOMContentLoaded", function() {
-            const urlParams = new URLSearchParams(window.location.search);
-            if (urlParams.has('msg')) {
-                Swal.fire({
-                    icon: 'success',
-                    title: 'Success',
-                    text: urlParams.get('msg'),
-                    timer: 2000,
-                    showConfirmButton: false
-                });
-                window.history.replaceState(null, null, window.location.pathname);
-            }
-            if (urlParams.has('error')) {
-                Swal.fire({
-                    icon: 'error',
-                    title: 'Error',
-                    text: urlParams.get('error')
-                });
-                window.history.replaceState(null, null, window.location.pathname);
-            }
-        });
-
         function testZipPassword(btn) {
             const input = document.getElementById('backupPassInput');
             const pass = input.value;
@@ -617,18 +631,6 @@ if (PHP_OS_FAMILY === 'Windows') {
                     btn.disabled = false;
                     btn.innerHTML = originalHtml;
                 });
-        }
-
-        function togglePass(id) {
-            const input = document.getElementById(id);
-            const icon = input.nextElementSibling.querySelector('i');
-            if (input.type === 'password') {
-                input.type = 'text';
-                icon.classList.replace('bi-eye', 'bi-eye-slash');
-            } else {
-                input.type = 'password';
-                icon.classList.replace('bi-eye-slash', 'bi-eye');
-            }
         }
 
         function updateStrength(val, barId) {

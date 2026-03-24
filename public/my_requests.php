@@ -90,29 +90,6 @@ $requests = $stmt->fetchAll(PDO::FETCH_ASSOC);
             background-color: #dc3545;
             color: #fff;
         }
-
-        /* Dark mode support */
-        body.dark-mode {
-            background: #0e1116;
-            color: #e9ecef;
-        }
-
-        body.dark-mode .card {
-            background: #1b1f26;
-            border-color: #2c313c;
-        }
-
-        body.dark-mode .navbar {
-            background: #0b0d12 !important;
-        }
-
-        body.dark-mode .table {
-            color: #e9ecef;
-        }
-
-        body.dark-mode .table thead {
-            background: rgba(255, 255, 255, 0.05);
-        }
     </style>
 </head>
 

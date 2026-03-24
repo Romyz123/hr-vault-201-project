@@ -318,10 +318,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <link href="assets/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="assets/icons/bootstrap-icons.css">
     <style>
-        body {
-            background: #f4f6f9;
-        }
-
         .card-header {
             font-weight: bold;
             letter-spacing: 0.5px;

@@ -42,10 +42,9 @@ $logo_src = '';
 $logo_mime = 'image/png';
 foreach ($logo_paths as $p) {
     if (file_exists($p)) {
-        if (function_exists('finfo_open')) {
-            $finfo = finfo_open(FILEINFO_MIME_TYPE);
-            $logo_mime = finfo_file($finfo, $p) ?: 'image/png';
-            finfo_close($finfo);
+        if (class_exists('finfo')) {
+            $finfo = new finfo(FILEINFO_MIME_TYPE);
+            $logo_mime = $finfo->file($p) ?: 'image/png';
         } elseif (function_exists('mime_content_type')) {
             $logo_mime = mime_content_type($p) ?: 'image/png';
         } else {
@@ -162,7 +161,7 @@ if (empty($logo_src)) {
     </style>
 </head>
 
-<body class="bg-light" data-year="<?php echo $yearFilter; ?>">
+<body class="bg-body-tertiary" data-year="<?php echo $yearFilter; ?>">
     <div class="print-only-header">
         <img src="<?php echo $logo_src ?: 'assets/images/tesp-logo-1.png'; ?>" alt="TESP Logo">
         <h2>Department Evaluation Report (<?php echo $yearFilter; ?>)</h2>

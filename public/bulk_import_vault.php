@@ -137,7 +137,7 @@ if ($sourceDir && is_dir($sourceDir)) {
     <link rel="stylesheet" href="assets/icons/bootstrap-icons.css">
 </head>
 
-<body class="bg-light">
+<body class="bg-body-tertiary">
     <div class="container mt-5" style="max-width: 700px;">
         <div class="card shadow">
             <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">

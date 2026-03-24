@@ -23,6 +23,14 @@ if (!in_array($_SESSION['role'], ['ADMIN', 'MANAGER', 'HR'])) {
     exit;
 }
 
+// [NEW] Fetch widget visibility settings
+$approvalWidgetsSetting = $pdo->query("SELECT setting_value FROM system_settings WHERE setting_key = 'approval_widgets'")->fetchColumn();
+// If setting is not configured or is an empty JSON array '[]', default to showing all.
+$enabledWidgets = ($approvalWidgetsSetting && json_decode($approvalWidgetsSetting, true)) ? json_decode($approvalWidgetsSetting, true) : ['hires', 'edits', 'docs', 'doc-edits', 'tickets'];
+
+
+
+
 // === HANDLE APPROVAL / REJECTION ===
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 
@@ -328,11 +336,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 }
 
 /// FETCH REQUESTS (Filter by PENDING)
-$newHires = $pdo->query("SELECT r.*, u.username FROM requests r LEFT JOIN users u ON r.user_id = u.id WHERE request_type='ADD_EMPLOYEE' AND status='PENDING'")->fetchAll();
-$edits    = $pdo->query("SELECT r.*, u.username FROM requests r LEFT JOIN users u ON r.user_id = u.id WHERE request_type='EDIT_PROFILE' AND status='PENDING'")->fetchAll();
-$docs     = $pdo->query("SELECT r.*, u.username FROM requests r LEFT JOIN users u ON r.user_id = u.id WHERE request_type='UPLOAD_DOC' AND status='PENDING'")->fetchAll();
-$doc_edits = $pdo->query("SELECT r.*, u.username FROM requests r LEFT JOIN users u ON r.user_id = u.id WHERE request_type='EDIT_DOC' AND status='PENDING'")->fetchAll();
-$tickets  = $pdo->query("SELECT r.*, u.username FROM requests r LEFT JOIN users u ON r.user_id = u.id WHERE request_type='RESOLVE_ALERT' AND status='PENDING'")->fetchAll();
+$newHires = in_array('hires', $enabledWidgets) ? $pdo->query("SELECT r.*, u.username FROM requests r LEFT JOIN users u ON r.user_id = u.id WHERE request_type='ADD_EMPLOYEE' AND status='PENDING'")->fetchAll() : [];
+$edits    = in_array('edits', $enabledWidgets) ? $pdo->query("SELECT r.*, u.username FROM requests r LEFT JOIN users u ON r.user_id = u.id WHERE request_type='EDIT_PROFILE' AND status='PENDING'")->fetchAll() : [];
+$docs     = in_array('docs', $enabledWidgets) ? $pdo->query("SELECT r.*, u.username FROM requests r LEFT JOIN users u ON r.user_id = u.id WHERE request_type='UPLOAD_DOC' AND status='PENDING'")->fetchAll() : [];
+$doc_edits = in_array('doc-edits', $enabledWidgets) ? $pdo->query("SELECT r.*, u.username FROM requests r LEFT JOIN users u ON r.user_id = u.id WHERE request_type='EDIT_DOC' AND status='PENDING'")->fetchAll() : [];
+$tickets  = in_array('tickets', $enabledWidgets) ? $pdo->query("SELECT r.*, u.username FROM requests r LEFT JOIN users u ON r.user_id = u.id WHERE request_type='RESOLVE_ALERT' AND status='PENDING'")->fetchAll() : [];
 ?>
 
 <!DOCTYPE html>
@@ -383,21 +391,48 @@ $tickets  = $pdo->query("SELECT r.*, u.username FROM requests r LEFT JOIN users 
         <div class="card shadow-sm">
             <div class="card-header bg-white">
                 <ul class="nav nav-tabs card-header-tabs" id="approvalTabs" role="tablist">
-                    <li class="nav-item"><button class="nav-link active" id="tab-btn-hires" data-bs-toggle="tab" data-bs-target="#tab-hires">New Hires (<?php echo count($newHires); ?>)</button></li>
-                    <li class="nav-item"><button class="nav-link" id="tab-btn-edits" data-bs-toggle="tab" data-bs-target="#tab-edits">Edits (<?php echo count($edits); ?>)</button></li>
-                    <li class="nav-item"><button class="nav-link" id="tab-btn-docs" data-bs-toggle="tab" data-bs-target="#tab-docs">Documents (<?php echo count($docs); ?>)</button></li>
-                    <li class="nav-item"><button class="nav-link" id="tab-btn-doc-edits" data-bs-toggle="tab" data-bs-target="#tab-doc-edits">Doc Edits (<?php echo count($doc_edits); ?>)</button></li>
-                    <li class="nav-item"><button class="nav-link text-primary fw-bold" id="tab-btn-tickets" data-bs-toggle="tab" data-bs-target="#tab-tickets">Resolutions (<?php echo count($tickets); ?>)</button></li>
+                    <?php
+                    $widgetConfig = [
+                        'hires' => ['label' => 'New Hires', 'count' => count($newHires)],
+                        'edits' => ['label' => 'Profile Edits', 'count' => count($edits)],
+                        'docs' => ['label' => 'Documents', 'count' => count($docs)],
+                        'doc-edits' => ['label' => 'Doc Edits', 'count' => count($doc_edits)],
+                        'tickets' => ['label' => 'Resolutions', 'count' => count($tickets), 'class' => 'text-primary fw-bold'],
+                    ];
+                    $isFirst = true;
+                    foreach ($widgetConfig as $key => $widget) {
+                        if (in_array($key, $enabledWidgets)) {
+                            $activeClass = $isFirst ? 'active' : '';
+                            $isFirst = false;
+                            $customClass = $widget['class'] ?? '';
+                            echo "<li class='nav-item'><button class='nav-link $activeClass $customClass' id='tab-btn-$key' data-bs-toggle='tab' data-bs-target='#tab-$key'>{$widget['label']} ({$widget['count']})</button></li>";
+                        }
+                    }
+                    ?>
                 </ul>
             </div>
 
             <div class="card-body p-0 table-responsive">
                 <div class="tab-content">
-                    <div class="tab-pane fade show active" id="tab-hires"><?php renderTable($newHires, 'hire'); ?></div>
-                    <div class="tab-pane fade" id="tab-edits"><?php renderTable($edits, 'edit'); ?></div>
-                    <div class="tab-pane fade" id="tab-docs"><?php renderTable($docs, 'doc'); ?></div>
-                    <div class="tab-pane fade" id="tab-doc-edits"><?php renderTable($doc_edits, 'doc_edit'); ?></div>
-                    <div class="tab-pane fade" id="tab-tickets"><?php renderTable($tickets, 'ticket'); ?></div>
+                    <?php
+                    $isFirst = true;
+                    foreach ($widgetConfig as $key => $widget) {
+                        if (in_array($key, $enabledWidgets)) {
+                            $activeClass = $isFirst ? 'show active' : '';
+                            $isFirst = false;
+                            $dataType = match ($key) {
+                                'hires' => 'hire',
+                                'edits' => 'edit',
+                                'docs' => 'doc',
+                                'doc-edits' => 'doc_edit',
+                                'tickets' => 'ticket',
+                            };
+                            echo "<div class='tab-pane fade $activeClass' id='tab-$key'>";
+                            renderTable(${$key}, $dataType);
+                            echo "</div>";
+                        }
+                    }
+                    ?>
                 </div>
             </div>
         </div>

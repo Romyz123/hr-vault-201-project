@@ -208,7 +208,7 @@ if ($step === 'reset' && empty($_SESSION['reset_csrf'])) {
     </style>
 </head>
 
-<body>
+<body class="bg-body-tertiary">
 
     <div class="card" style="width: 420px;">
         <div class="card-header text-center bg-transparent border-0 pt-4">

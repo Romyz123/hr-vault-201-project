@@ -95,10 +95,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate_bulk'])) {
     $global_logo_mime = 'image/png';
     foreach ($logo_paths as $p) {
         if (file_exists($p)) {
-            if (function_exists('finfo_open')) {
-                $finfo = finfo_open(FILEINFO_MIME_TYPE);
-                $global_logo_mime = finfo_file($finfo, $p) ?: 'image/png';
-                finfo_close($finfo);
+            if (class_exists('finfo')) {
+                $finfo = new finfo(FILEINFO_MIME_TYPE);
+                $global_logo_mime = $finfo->file($p) ?: 'image/png';
             } elseif (function_exists('mime_content_type')) {
                 $global_logo_mime = mime_content_type($p) ?: 'image/png';
             } else {
@@ -281,7 +280,7 @@ $allDepts = $pdo->query("SELECT DISTINCT dept FROM employees WHERE dept != '' OR
     <script src="assets/sweetalert2.all.min.js"></script>
 </head>
 
-<body class="bg-light">
+<body class="bg-body-tertiary">
 
     <nav class="navbar navbar-dark bg-dark mb-4">
         <div class="container">

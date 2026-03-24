@@ -1428,29 +1428,7 @@ $isBackupWritable = is_writable($actualBackupPath);
                         icon: '<?php echo $alertType; ?>',
                         html: <?php echo json_encode($alertMsg); ?>
                     });
-                    // [FIX] Clear URL parameters to prevent message from reappearing on refresh
-                    if (window.history.replaceState && window.location.search) {
-                        const url = new URL(window.location.href);
-                        url.searchParams.delete('msg');
-                        url.searchParams.delete('error');
-                        window.history.replaceState(null, null, url.toString());
-                    }
                 <?php endif; ?>
-
-                function confirmForm(e, msg) {
-                    e.preventDefault();
-                    const form = e.target;
-                    Swal.fire({
-                        title: 'Are you sure?',
-                        text: msg,
-                        icon: 'warning',
-                        showCancelButton: true,
-                        confirmButtonColor: '#d33',
-                        confirmButtonText: 'Yes, proceed!'
-                    }).then((result) => {
-                        if (result.isConfirmed) form.submit();
-                    });
-                }
 
                 function confirmRestore(e) {
                     e.preventDefault();
@@ -1619,18 +1597,6 @@ $isBackupWritable = is_writable($actualBackupPath);
                     }
                 });
 
-                function togglePass(id) {
-                    const input = document.getElementById(id);
-                    const icon = input.nextElementSibling.querySelector('i');
-                    if (input.type === 'password') {
-                        input.type = 'text';
-                        icon.classList.replace('bi-eye', 'bi-eye-slash');
-                    } else {
-                        input.type = 'password';
-                        icon.classList.replace('bi-eye-slash', 'bi-eye');
-                    }
-                }
-
                 function updateStrength(val, barId) {
                     const bar = document.getElementById(barId);
                     if (!bar) return;
@@ -1792,6 +1758,7 @@ $isBackupWritable = is_writable($actualBackupPath);
                     }
                 });
             </script>
+            <script src="main.js"></script>
 </body>
 
 </html>

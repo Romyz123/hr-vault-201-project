@@ -319,7 +319,7 @@ if (isset($_GET['tab'])) $activeTab = $_GET['tab'];
     <script src="assets/sweetalert2.all.min.js"></script>
 </head>
 
-<body class="bg-light">
+<body class="bg-body-tertiary">
     <nav class="navbar navbar-dark bg-dark mb-4">
         <div class="container">
             <a class="navbar-brand" href="index.php">Back to Dashboard</a>

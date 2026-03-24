@@ -132,37 +132,10 @@ $deletedDocs = $stmt->fetchAll(PDO::FETCH_ASSOC);
     </div>
 
     <script>
-        <?php if (isset($_GET['msg'])): ?>
-            Swal.fire({
-                icon: 'success',
-                title: 'Success',
-                text: '<?php echo htmlspecialchars($_GET['msg']); ?>',
-                timer: 2000,
-                showConfirmButton: false
-            });
-            // [FIX] Clear URL parameters to prevent message from reappearing on refresh
-            if (window.history.replaceState) {
-                window.history.replaceState(null, null, window.location.pathname);
-            }
-        <?php endif; ?>
-
-        function confirmForm(e, msg) {
-            e.preventDefault();
-            const form = e.target;
-            Swal.fire({
-                title: 'Are you sure?',
-                text: msg,
-                icon: 'warning',
-                showCancelButton: true,
-                confirmButtonColor: '#d33',
-                confirmButtonText: 'Yes, delete forever!'
-            }).then((result) => {
-                if (result.isConfirmed) form.submit();
-            });
-        }
     </script>
     <script src="assets/bootstrap.bundle.min.js"></script>
     <script src="dark_mode.js"></script>
+    <script src="main.js"></script>
 </body>
 
 </html>

@@ -185,7 +185,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </style>
 </head>
 
-<body>
+<body class="bg-body-tertiary">
     <div class="card p-4">
         <div class="text-center mb-4">
             <h4 class="fw-bold text-primary"><i class="bi bi-phone"></i> Authenticator App</h4>
