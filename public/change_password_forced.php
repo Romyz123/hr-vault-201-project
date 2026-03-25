@@ -43,15 +43,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } elseif (strlen($pass) < 15 || !preg_match('/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_])/', $pass)) {
         $error = "❌ Password must be 15+ chars, with Uppercase, Lowercase, Number & Symbol.";
     } else {
-        // Fetch username to check against password
-        $uStmt = $pdo->prepare("SELECT username FROM users WHERE id = ?");
+        // Fetch user data to check against password
+        $uStmt = $pdo->prepare("SELECT username, password FROM users WHERE id = ?");
         $uStmt->execute([$_SESSION['temp_user_id']]);
-        $uName = $uStmt->fetchColumn();
+        $uData = $uStmt->fetch();
 
-        if ($uName && stripos($pass, $uName) !== false) {
+        if (!$uData) {
+            unset($_SESSION['temp_user_id']);
+            header("Location: login.php?msg=" . urlencode("❌ Session expired. Please login again."));
+            exit;
+        }
+
+        if (password_verify($pass, $uData['password'])) {
+            $error = "❌ Security Policy: You cannot reuse your current password.";
+        } elseif (stripos($pass, $uData['username']) !== false) {
             $error = "❌ Password cannot contain your Username.";
-        } else {
-            // [MHI Security] Check History
+        } else {            // [MHI Security] Check History
             if (!$security->checkPasswordHistory($_SESSION['temp_user_id'], $pass)) {
                 $error = "❌ Security Policy: You cannot reuse any of your last 3 passwords.";
             } else {

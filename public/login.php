@@ -69,17 +69,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
                     // Ignore if column missing (allows Admin to login and fix DB)
                 }
 
-                // [NEW] 1. Check Password Expiry (45 Days)
-                $lastChange = new DateTime($user['password_changed_at'] ?? $user['created_at']); // Fallback to created_at
-                $today = new DateTime();
-                $daysDiff = $today->diff($lastChange)->days;
-
-                if ($daysDiff > 45) {
-                    $_SESSION['temp_user_id'] = $user['id']; // Temporary session
-                    header("Location: change_password_forced.php?reason=expired");
-                    exit;
-                }
-
                 $normalizedRole = strtoupper(trim($user['role']));
                 // [CHECK] Maintenance Mode
                 $isMaint = false;

@@ -252,40 +252,93 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $alertType = 'error';
             $alertMsg = "❌ Account Owner name too long (Max 100 chars).";
         } else {
-            // Update Info
-            $sql = "UPDATE users SET username = ?, email = ?, role = ?, is_2fa_enabled = ?, is_shared = ?, account_owner = ? WHERE id = ?";
-            $params = [$username, $email, $role, $is_2fa, $is_shared, $owner, $id];
+            // [LOGICAL FIX] Prevent the last Admin from downgrading themselves, and do this in a transaction for atomicity
+            $isAdminDowngrade = false;
+            $transactionActive = false;
 
-            // If password changed, validate and hash it
-            if (!empty($new_pass)) {
-                $confirm = $_POST['confirm_password'] ?? '';
-                if ($new_pass !== $confirm) {
-                    $alertType = 'error';
-                    $alertMsg = "❌ Update Failed: Passwords do not match.";
-                } elseif (strlen($new_pass) < 15 || !preg_match('/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_])/', $new_pass)) {
-                    $alertType = 'error';
-                    $alertMsg = "❌ Update Failed: Password must be 15+ chars with Uppercase, Lowercase, Number, and Symbol.";
-                } elseif (stripos($new_pass, $username) !== false) {
-                    $alertType = 'error';
-                    $alertMsg = "❌ Update Failed: Password cannot contain the Username.";
-                } else {
-                    $sql = "UPDATE users SET username = ?, email = ?, role = ?, is_2fa_enabled = ?, is_shared = ?, account_owner = ?, password = ? WHERE id = ?";
-                    $params = [$username, $email, $role, $is_2fa, $is_shared, $owner, password_hash($new_pass, PASSWORD_BCRYPT), $id];
-                    $admin_reset_password_flag = true;
-                }
-            }
+            try {
+                $pdo->beginTransaction();
+                $transactionActive = true;
 
-            // [FIX] Only execute update if there were no validation errors (e.g. weak password)
-            if ($alertType !== 'error') {
-                $stmt = $pdo->prepare($sql);
-                if ($stmt->execute($params)) {
-                    $logger->log($_SESSION['user_id'], 'USER_EDIT', "Updated User ID: $id");
-                    if (isset($admin_reset_password_flag)) {
-                        $logger->log($_SESSION['user_id'], 'ADMIN_PASSWORD_RESET', "Forced password reset for user: $username (ID: $id)");
+                if ($role !== 'ADMIN') {
+                    $chkAdmin = $pdo->prepare("SELECT role FROM users WHERE id = ? FOR UPDATE");
+                    $chkAdmin->execute([$id]);
+                    if ($chkAdmin->fetchColumn() === 'ADMIN') {
+                        $adminCount = $pdo->query("SELECT COUNT(*) FROM users WHERE role = 'ADMIN' FOR UPDATE")->fetchColumn();
+                        if ($adminCount <= 1) {
+                            $isAdminDowngrade = true;
+                            $alertType = 'error';
+                            $alertMsg = "❌ Cannot downgrade the last Administrator. Please assign another Admin first.";
+                        }
                     }
-                    $alertType = 'success';
-                    $alertMsg = "✅ User details updated!";
                 }
+
+                if (!$isAdminDowngrade) {
+                    // Update Info
+                    $sql = "UPDATE users SET username = ?, email = ?, role = ?, is_2fa_enabled = ?, is_shared = ?, account_owner = ? WHERE id = ?";
+                    $params = [$username, $email, $role, $is_2fa, $is_shared, $owner, $id];
+
+                    // If password changed, validate and hash it
+                    if (!empty($new_pass)) {
+                        $confirm = $_POST['confirm_password'] ?? '';
+                        if ($new_pass !== $confirm) {
+                            $alertType = 'error';
+                            $alertMsg = "❌ Update Failed: Passwords do not match.";
+                        } elseif (strlen($new_pass) < 15 || !preg_match('/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_])/', $new_pass)) {
+                            $alertType = 'error';
+                            $alertMsg = "❌ Update Failed: Password must be 15+ chars with Uppercase, Lowercase, Number, and Symbol.";
+                        } elseif (stripos($new_pass, $username) !== false) {
+                            $alertType = 'error';
+                            $alertMsg = "❌ Update Failed: Password cannot contain the Username.";
+                        } else {
+                            $sql = "UPDATE users SET username = ?, email = ?, role = ?, is_2fa_enabled = ?, is_shared = ?, account_owner = ?, password = ? WHERE id = ?";
+                            $params = [$username, $email, $role, $is_2fa, $is_shared, $owner, password_hash($new_pass, PASSWORD_BCRYPT), $id];
+                            $admin_reset_password_flag = true;
+                        }
+                    }
+
+                    // [FIX] Only execute update if there were no validation errors (e.g. weak password)
+                    if ($alertType !== 'error') {
+                        $stmt = $pdo->prepare($sql);
+                        if ($stmt->execute($params)) {
+                            $logger->log($_SESSION['user_id'], 'USER_EDIT', "Updated User ID: $id");
+                            if (isset($admin_reset_password_flag)) {
+                                $logger->log($_SESSION['user_id'], 'ADMIN_PASSWORD_RESET', "Forced password reset for user: $username (ID: $id)");
+                            }
+                            $alertType = 'success';
+                            $alertMsg = "✅ User details updated!";
+                            if ($transactionActive && $pdo->inTransaction()) {
+                                $pdo->commit();
+                                $transactionActive = false;
+                            }
+                        } else {
+                            $alertType = 'error';
+                            $alertMsg = "❌ Failed to update user.";
+                            if ($transactionActive && $pdo->inTransaction()) {
+                                $pdo->rollBack();
+                                $transactionActive = false;
+                            }
+                        }
+                    } else {
+                        if ($transactionActive && $pdo->inTransaction()) {
+                            $pdo->rollBack();
+                            $transactionActive = false;
+                        }
+                    }
+                } else {
+                    if ($transactionActive && $pdo->inTransaction()) {
+                        $pdo->rollBack();
+                        $transactionActive = false;
+                    }
+                }
+            } catch (Exception $e) {
+                if ($transactionActive && $pdo->inTransaction()) {
+                    $pdo->rollBack();
+                    $transactionActive = false;
+                }
+                $alertType = 'error';
+                $alertMsg = "❌ Update Failed due to a concurrency exception. Please try again.";
+                $logger->log($_SESSION['user_id'], 'USER_EDIT_ERROR', "Transaction error when updating user ID $id: " . $e->getMessage());
             }
         }
     }

@@ -115,6 +115,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                     } elseif (!empty($_SESSION['username']) && stripos($new_pass, $_SESSION['username']) !== false) {
                         $alertType = "error";
                         $alertMsg = "Password cannot contain your Username.";
+                    } elseif ($new_pass === $current_pass) {
+                        $alertType = "error";
+                        $alertMsg = "Security Policy: You cannot reuse your current password.";
                     } else {
                         // [MHI Security] Check Frequency (Max 1 change per 24h)
                         if (!$security->checkPasswordFrequency($_SESSION['user_id'])) {

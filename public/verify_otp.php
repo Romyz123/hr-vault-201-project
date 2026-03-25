@@ -114,6 +114,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $error = "❌ Invalid OTP or Backup Code. ($remaining attempts remaining before lockout)";
             $logger->log($userId, 'LOGIN_FAIL_2FA', "Failed 2FA attempt");
         } else {
+            // [SECURITY] Enforce 45-Day Password Expiry here as well
+            try {
+                $lastChange = new DateTime($user['password_changed_at'] ?? $user['created_at'] ?? 'now');
+            } catch (Exception $e) {
+                $logger->log($userId, '2FA_DATE_ERROR', 'Invalid password_changed_at/created_at: ' . ($user['password_changed_at'] ?? $user['created_at'] ?? 'empty'));
+                unset($_SESSION['partial_user_id']);
+                $_SESSION['temp_user_id'] = $user['id']; // Temp session
+                header("Location: change_password_forced.php?reason=expired");
+                exit;
+            }
+
+            $today = new DateTime();
+            if ($today->diff($lastChange)->days > 45) {
+                unset($_SESSION['partial_user_id']);
+                $_SESSION['temp_user_id'] = $user['id']; // Temp session
+                header("Location: change_password_forced.php?reason=expired");
+                exit;
+            }
+
             // SUCCESS: Log them in fully
             $_SESSION['user_id'] = $user['id'];
             $_SESSION['username'] = $user['username'];

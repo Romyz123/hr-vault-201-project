@@ -190,6 +190,56 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate_bulk'])) {
             $emp = $stmt->fetch(PDO::FETCH_ASSOC);
 
             if ($emp) {
+                // [FIX] Prepare dynamic variables required by the contract templates
+                $firstName  = $emp['first_name'] ?? '';
+                $middleName = $emp['middle_name'] ?? '';
+                $lastName   = $emp['last_name'] ?? '';
+                $full_name = strtoupper(trim($firstName . ' ' . ($middleName !== '' ? ($middleName[0] . '.') : '') . ' ' . $lastName));
+                $address   = strtoupper($emp['present_address'] ?? '');
+                $position  = strtoupper($emp['job_title'] ?? '');
+                $section   = strtoupper($emp['section'] ?? '');
+
+                $start_input = !empty($_GET['start_date']) ? $_GET['start_date'] : ($emp['hire_date'] ?? '');
+                $end_input   = $_GET['end_date'] ?? '';
+
+                $start_date_str = '';
+                $end_date_str = '';
+                $contract_period = '';
+
+                try {
+                    $start_date_obj = new DateTime($start_input ?: 'now');
+                    $start_date_str = $start_date_obj->format('F j, Y');
+                } catch (Exception $e) {
+                    $logger->log($_SESSION['user_id'], 'BULK_CONTRACT_DATE_ERROR', "Invalid start date '$start_input' for employee ID $id: " . $e->getMessage());
+                    $start_date_obj = new DateTime('now');
+                    $start_date_str = $start_date_obj->format('F j, Y');
+                }
+
+                if (!empty($end_input)) {
+                    try {
+                        $end_date_obj = new DateTime($end_input);
+                        $end_date_str = $end_date_obj->format('F j, Y');
+                    } catch (Exception $e) {
+                        $logger->log($_SESSION['user_id'], 'BULK_CONTRACT_DATE_ERROR', "Invalid end date '$end_input' for employee ID $id: " . $e->getMessage());
+                        $end_date_obj = clone $start_date_obj;
+                        $end_date_obj->modify('+6 months');
+                        $end_date_str = $end_date_obj->format('F j, Y');
+                    }
+                } else {
+                    $end_date_obj = clone $start_date_obj;
+                    $end_date_obj->modify('+6 months');
+                    $end_date_str = $end_date_obj->format('F j, Y');
+                }
+
+                if ($start_date_str !== '' && $end_date_str !== '') {
+                    $contract_period = "$start_date_str up to $end_date_str";
+                }
+
+                $current_day  = date('jS');
+                $current_month = date('F');
+                $current_year = date('Y');
+                $current_full_date = date('F j, Y');
+
                 // Capture Template Output
                 ob_start();
                 include $templateFile;

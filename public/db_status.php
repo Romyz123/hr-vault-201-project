@@ -54,6 +54,8 @@ $devFiles = [
     'ValidatorTest.php',
     'download_assets.php',
     'stress_test_backup.php',
+    'stress_test_vault.php',
+    'migrate_favicon.php',
     'system_diagnostics.php',
     'qa_test.php',
     'process_approval.php',
