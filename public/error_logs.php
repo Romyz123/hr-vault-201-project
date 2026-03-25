@@ -47,16 +47,21 @@ if ($logFile && file_exists($logFile)) {
 <head>
     <meta charset="UTF-8">
     <title>PHP Error Logs</title>
-    <link rel="icon" href="assets/images/tesp-logo-1.png" type="image/png">
+    <link rel="icon" href="uploads/tesp-logo.png" type="image/png">
     <link href="assets/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="assets/icons/bootstrap-icons.css">
 </head>
 
-<body class="bg-light">
+<body class="bg-body-tertiary">
     <nav class="navbar navbar-dark bg-dark mb-4">
         <div class="container-fluid px-4">
             <a class="navbar-brand" href="index.php">Back to Dashboard</a>
-            <span class="navbar-text text-white fw-bold"><i class="bi bi-bug-fill text-danger"></i> PHP Error Logs</span>
+            <div class="d-flex align-items-center gap-2">
+                <button id="darkModeToggle" class="btn btn-sm btn-outline-light border-0" title="Toggle Dark Mode">
+                    <i class="bi bi-moon-stars-fill"></i>
+                </button>
+                <span class="navbar-text text-white fw-bold"><i class="bi bi-bug-fill text-danger"></i> PHP Error Logs</span>
+            </div>
         </div>
     </nav>
     <div class="container-fluid px-4">

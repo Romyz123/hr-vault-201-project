@@ -101,18 +101,20 @@ $rule_violated = nl2br(htmlspecialchars($_GET['rule_violated'] ?? ''));
     <div class="container">
 
         <div class="header-wrapper">
-            <table class="header-content-table">
+            <table style="width: 100%; margin-bottom: 10px;">
                 <tr>
-                    <td style="padding-right: 15px; vertical-align: middle;">
+                    <td style="width: 130px; text-align: right; vertical-align: middle; padding-right: 15px;">
                         <?php if (!empty($global_logo_src)): ?>
-                            <img src="<?php echo htmlspecialchars($global_logo_src, ENT_QUOTES, 'UTF-8'); ?>" class="logo" style="width: 80px; display: block;">
+                            <img src="<?php echo htmlspecialchars($global_logo_src, ENT_QUOTES, 'UTF-8'); ?>" class="logo" style="width: 80px; height: 80px; border-radius: 50%; object-fit: cover;">
                         <?php endif; ?>
                     </td>
                     <td style="vertical-align: middle; text-align: center;">
-                        <strong style="font-size: 14pt;">TES PHILIPPINES INC.</strong><br>
-                        <span style="font-size: 11pt;"> General Affairs Group (GAG) Human Resources </span><br>
-                        <small>Disciplinary Action Notice</small>
+                        <div style="font-weight: bold; font-size: 15pt !important; line-height: 1.2; white-space: nowrap;">TES PHILIPPINES, INC.</div>
+                        <div style="font-weight: bold; font-size: 11pt !important; line-height: 1.2; white-space: nowrap;">METRO RAIL TRANSIT LINE 3 REHABILITATION PROJECT</div>
+                        <div style="font-size: 11pt !important; line-height: 1.2;">Meriton One Building, 1668 Quezon Avenue, Quezon City</div>
+                        <div style="font-size: 11pt !important; line-height: 1.2;">Telephone Number: 8929-5347 local 4404</div>
                     </td>
+                    <td style="width: 70px;"></td> <!-- Spacer for shifting text right -->
                 </tr>
             </table>
         </div>

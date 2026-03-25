@@ -500,7 +500,7 @@ foreach ($indexSchema as $table => $indexes) {
 <head>
     <meta charset="UTF-8">
     <title>Database Status</title>
-    <link rel="icon" href="assets/images/tesp-logo.png" type="image/png">
+    <link rel="icon" href="uploads/tesp-logo.png" type="image/png">
     <link href="assets/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="assets/icons/bootstrap-icons.css">
     <style>

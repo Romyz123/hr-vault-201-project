@@ -25,8 +25,13 @@ if (!in_array($_SESSION['role'], ['ADMIN', 'MANAGER', 'HR'])) {
 
 // [NEW] Fetch widget visibility settings
 $approvalWidgetsSetting = $pdo->query("SELECT setting_value FROM system_settings WHERE setting_key = 'approval_widgets'")->fetchColumn();
-// If setting is not configured or is an empty JSON array '[]', default to showing all.
-$enabledWidgets = ($approvalWidgetsSetting && json_decode($approvalWidgetsSetting, true)) ? json_decode($approvalWidgetsSetting, true) : ['hires', 'edits', 'docs', 'doc-edits', 'tickets'];
+$enabledWidgets = ['hires', 'edits', 'docs', 'doc-edits', 'tickets']; // Default fallback
+if ($approvalWidgetsSetting !== false && $approvalWidgetsSetting !== '') {
+    $decoded = json_decode($approvalWidgetsSetting, true);
+    if (is_array($decoded)) { // [FIX] Removed !empty() so admins can explicitly hide ALL widgets
+        $enabledWidgets = $decoded;
+    }
+}
 
 
 
@@ -350,7 +355,7 @@ $tickets  = in_array('tickets', $enabledWidgets) ? $pdo->query("SELECT r.*, u.us
     <meta charset="UTF-8">
     <title>Approvals</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <link rel="icon" href="../uploads/tesp-logo.png" type="image/png">
+    <link rel="icon" href="uploads/tesp-logo.png" type="image/png">
     <link href="assets/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="assets/icons/bootstrap-icons.css">
     <script src="assets/sweetalert2.all.min.js"></script>
@@ -372,7 +377,6 @@ $tickets  = in_array('tickets', $enabledWidgets) ? $pdo->query("SELECT r.*, u.us
 
     <div class="container">
         <?php if (isset($_GET['msg'])): ?>
-            <div class='alert alert-warning'><?php echo htmlspecialchars($_GET['msg']); ?></div>
             <?php
             // Auto-detect error messages to style them red
             $msgClass = (stripos($_GET['msg'], 'Error') !== false || stripos($_GET['msg'], 'CANNOT') !== false) ? 'alert-danger' : 'alert-success';
@@ -381,7 +385,7 @@ $tickets  = in_array('tickets', $enabledWidgets) ? $pdo->query("SELECT r.*, u.us
             <script>
                 // Clear message on load
                 if (window.history.replaceState) {
-                    const url = new URL(window.location);
+                    const url = new URL(window.location.href);
                     url.searchParams.delete('msg');
                     window.history.replaceState(null, '', url);
                 }
@@ -389,23 +393,24 @@ $tickets  = in_array('tickets', $enabledWidgets) ? $pdo->query("SELECT r.*, u.us
         <?php endif; ?>
 
         <div class="card shadow-sm">
-            <div class="card-header bg-white">
+            <div class="card-header">
                 <ul class="nav nav-tabs card-header-tabs" id="approvalTabs" role="tablist">
                     <?php
                     $widgetConfig = [
-                        'hires' => ['label' => 'New Hires', 'count' => count($newHires)],
-                        'edits' => ['label' => 'Profile Edits', 'count' => count($edits)],
-                        'docs' => ['label' => 'Documents', 'count' => count($docs)],
-                        'doc-edits' => ['label' => 'Doc Edits', 'count' => count($doc_edits)],
-                        'tickets' => ['label' => 'Resolutions', 'count' => count($tickets), 'class' => 'text-primary fw-bold'],
+                        'hires' => ['label' => 'New Hires', 'count' => count($newHires), 'data' => $newHires],
+                        'edits' => ['label' => 'Profile Edits', 'count' => count($edits), 'data' => $edits],
+                        'docs' => ['label' => 'Documents', 'count' => count($docs), 'data' => $docs],
+                        'doc-edits' => ['label' => 'Doc Edits', 'count' => count($doc_edits), 'data' => $doc_edits],
+                        'tickets' => ['label' => 'Resolutions', 'count' => count($tickets), 'data' => $tickets],
                     ];
                     $isFirst = true;
                     foreach ($widgetConfig as $key => $widget) {
                         if (in_array($key, $enabledWidgets)) {
                             $activeClass = $isFirst ? 'active' : '';
+                            $ariaSelected = $isFirst ? 'true' : 'false';
                             $isFirst = false;
-                            $customClass = $widget['class'] ?? '';
-                            echo "<li class='nav-item'><button class='nav-link $activeClass $customClass' id='tab-btn-$key' data-bs-toggle='tab' data-bs-target='#tab-$key'>{$widget['label']} ({$widget['count']})</button></li>";
+                            echo "<li class='nav-item' role='presentation'>";
+                            echo "<button class='nav-link $activeClass fw-bold' id='tab-btn-$key' data-bs-toggle='tab' data-bs-target='#tab-$key' type='button' role='tab' aria-controls='tab-$key' aria-selected='$ariaSelected'>{$widget['label']} <span class='badge bg-secondary rounded-pill ms-1'>{$widget['count']}</span></button></li>";
                         }
                     }
                     ?>
@@ -427,8 +432,8 @@ $tickets  = in_array('tickets', $enabledWidgets) ? $pdo->query("SELECT r.*, u.us
                                 'doc-edits' => 'doc_edit',
                                 'tickets' => 'ticket',
                             };
-                            echo "<div class='tab-pane fade $activeClass' id='tab-$key'>";
-                            renderTable(${$key}, $dataType);
+                            echo "<div class='tab-pane fade $activeClass' id='tab-$key' role='tabpanel' aria-labelledby='tab-btn-$key'>";
+                            renderTable($widget['data'], $dataType);
                             echo "</div>";
                         }
                     }
@@ -508,11 +513,12 @@ $tickets  = in_array('tickets', $enabledWidgets) ? $pdo->query("SELECT r.*, u.us
         echo '<input type="hidden" name="csrf_token" value="' . htmlspecialchars($_SESSION['csrf_token']) . '">';
         echo '<input type="hidden" name="tab_name" value="' . $tabName . '">';
         echo '<input type="hidden" name="action" id="bulkAction_' . $type . '" value="">';
-        echo '<div class="mb-2 d-flex justify-content-between align-items-center">';
-        echo '<div><button type="button" class="btn btn-sm btn-success me-2 fw-bold" onclick="submitBulk(\'' . $type . '\', \'bulk_approve\')"><i class="bi bi-check-all"></i> Approve Selected</button>';
-        echo '<button type="button" class="btn btn-sm btn-danger fw-bold" onclick="submitBulk(\'' . $type . '\', \'bulk_reject\')"><i class="bi bi-x-square"></i> Reject Selected</button></div>';
+        echo '<div class="p-3 border-bottom d-flex justify-content-between align-items-center bg-body-tertiary">';
+        echo '<div><button type="button" class="btn btn-sm btn-success me-2 fw-bold shadow-sm" onclick="submitBulk(\'' . $type . '\', \'bulk_approve\')"><i class="bi bi-check-all"></i> Approve Selected</button>';
+        echo '<button type="button" class="btn btn-sm btn-danger fw-bold shadow-sm" onclick="submitBulk(\'' . $type . '\', \'bulk_reject\')"><i class="bi bi-x-square"></i> Reject Selected</button></div>';
         echo '</div>';
-        echo '<table class="table table-hover mb-0 align-middle"><thead class="table-light"><tr><th style="width: 40px;"><input type="checkbox" class="form-check-input" onclick="toggleAll(this, \'' . $type . '\')"></th><th>Date</th><th>User</th><th>Summary</th><th class="text-end">Actions</th></tr></thead><tbody>';
+        echo '<table class="table table-hover mb-0 align-middle">';
+        echo '<thead><tr><th style="width: 40px;" class="text-center"><input type="checkbox" class="form-check-input" onclick="toggleAll(this, \'' . $type . '\')"></th><th>Date</th><th>User</th><th>Summary</th><th class="text-end">Actions</th></tr></thead><tbody class="table-group-divider">';
 
         foreach ($requests as $r) {
             $data = json_decode($r['json_payload'], true);
@@ -653,10 +659,10 @@ $tickets  = in_array('tickets', $enabledWidgets) ? $pdo->query("SELECT r.*, u.us
             // 1. TICKET (RESOLUTION)
             if (type === 'ticket') {
                 content += `<div class="alert alert-warning border-start border-5 border-warning shadow-sm">
-                        <h5 class="text-dark"><i class="bi bi-clipboard-check"></i> Resolution Report</h5>
+                        <h5 class="text-body"><i class="bi bi-clipboard-check"></i> Resolution Report</h5>
                         <hr>
                         <p class="mb-1 text-primary fw-bold small text-uppercase">Action Taken${data.doc_name ? ' for ' + escapeHtml(data.doc_name) : ''}:</p>
-                        <p class="fs-5 fw-bold text-dark">"${escapeHtml(data.note)}"</p>
+                        <p class="fs-5 fw-bold text-body">"${escapeHtml(data.note)}"</p>
                     </div>`;
             }
             // 2. DOCUMENT
@@ -671,7 +677,7 @@ $tickets  = in_array('tickets', $enabledWidgets) ? $pdo->query("SELECT r.*, u.us
                 if (fileExt === 'pdf') {
                     content += `<object data="${filePath}" type="application/pdf" width="100%" height="500px"><p>Unable to display PDF. <a href="${filePath}" target="_blank">Download File</a></p></object>`;
                 } else {
-                    content += `<img src="${filePath}" style="max-width:100%; max-height:400px; display:block; margin:0 auto;" onerror="this.src='../assets/error_image.png';">`;
+                    content += `<img src="${filePath}" style="max-width:100%; max-height:400px; display:block; margin:0 auto;" onerror="this.onerror=null; this.outerHTML='<div class=\\'alert alert-secondary text-center my-3\\'><i class=\\'bi bi-image fs-1 text-muted\\'></i><br>Image preview unavailable.</div>';">`;
                 }
             }
             // 4. DOCUMENT EDIT
@@ -709,8 +715,8 @@ $tickets  = in_array('tickets', $enabledWidgets) ? $pdo->query("SELECT r.*, u.us
                 if (data.request_note && data.request_note.trim() !== "") {
                     // Note Exists
                     content += `<div class="alert alert-warning border-start border-5 border-warning shadow-sm mb-3">
-                            <h6 class="text-dark fw-bold"><i class="bi bi-chat-left-text-fill me-2"></i> Note from Staff:</h6>
-                            <p class="mb-0 text-dark fs-6">"${escapeHtml(data.request_note)}"</p>
+                            <h6 class="text-body fw-bold"><i class="bi bi-chat-left-text-fill me-2"></i> Note from Staff:</h6>
+                            <p class="mb-0 text-body fs-6">"${escapeHtml(data.request_note)}"</p>
                         </div>`;
                 } else {
                     // Note Missing 
@@ -724,7 +730,7 @@ $tickets  = in_array('tickets', $enabledWidgets) ? $pdo->query("SELECT r.*, u.us
                 for (const [key, value] of Object.entries(data)) {
                     if (value && key !== 'avatar_path' && key !== 'request_note') {
                         let label = key.replace(/_/g, ' ').toUpperCase();
-                        content += `<tr><th class="bg-light w-25">${escapeHtml(label)}</th><td>${escapeHtml(value.toString())}</td></tr>`;
+                        content += `<tr><th class="table-active w-25">${escapeHtml(label)}</th><td>${escapeHtml(value.toString())}</td></tr>`;
                     }
                 }
                 content += '</table>';

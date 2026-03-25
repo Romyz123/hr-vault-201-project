@@ -125,7 +125,7 @@ if ($format === 'word') {
     // We wrap the template in a clean HTML container for printing
 ?>
     <!DOCTYPE html>
-    <html lang="en">
+    <html lang="en" data-bs-theme="light">
 
     <head>
         <meta charset="UTF-8">
@@ -151,12 +151,17 @@ if ($format === 'word') {
                 margin: 20px auto;
                 box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
                 position: relative;
+                box-sizing: border-box;
+                /* Forces padding to stay inside the 8in width */
             }
 
             .no-print {
                 position: fixed;
                 top: 20px;
                 right: 20px;
+                display: flex;
+                flex-direction: column;
+                gap: 10px;
             }
 
             .text-center {
@@ -216,30 +221,29 @@ if ($format === 'word') {
 
     <body>
 
-        <div class="no-print" style="display: flex; flex-direction: column; gap: 10px; width: 250px; margin: 20px auto;">
-            <button onclick="window.print()" style="padding: 10px 20px; background: #0d6efd; color: white; border: none; cursor: pointer; font-weight: bold; border-radius: 5px;">🖨️ Print / Save as PDF</button>
-            <a href="<?php echo $_SERVER['REQUEST_URI'] . '&format=word'; ?>" style="padding: 10px 20px; background: #2a5298; color: white; border: none; cursor: pointer; font-weight: bold; border-radius: 5px; text-decoration: none; text-align: center;">📄 Download as Word</a>
-            <button onclick="window.close()" style="padding: 10px 20px; background: #6c757d; color: white; border: none; cursor: pointer; font-weight: bold; border-radius: 5px;">Close</button>
+        <div class="no-print">
+            <button onclick="window.print()" style="padding: 10px 20px; background: #0d6efd; color: white; border: none; cursor: pointer; font-weight: bold; border-radius: 5px; width: 100%;">🖨️ Print / Save as PDF</button>
+            <a href="<?php echo $_SERVER['REQUEST_URI'] . '&format=word'; ?>" style="padding: 10px 20px; background: #2a5298; color: white; border: none; cursor: pointer; font-weight: bold; border-radius: 5px; text-decoration: none; text-align: center; width: 100%; box-sizing: border-box;">📄 Download as Word</a>
+            <button onclick="window.close()" style="padding: 10px 20px; background: #6c757d; color: white; border: none; cursor: pointer; font-weight: bold; border-radius: 5px; width: 100%;">Close</button>
         </div>
 
         <div class="page">
             <?php if ($type !== 'probationary' && $type !== 'probationary_lms' && $type !== 'confidentiality' && $type !== 'project' && $type !== 'consultant' && $type !== 'notice_to_explain' && $type !== 'notice_of_decision' && $type !== 'employee_pledge' && $type !== 'whistleblowing' && $type !== 'regular' && $type !== 'data_consent'): ?>
                 <table style="width: 100%; margin-bottom: 10px;">
                     <tr>
-                        <!-- Logo logic is inside templates now for some, but kept here for fallback -->
-                        <td style="width: 100px; text-align: right; vertical-align: middle;">
+                        <td style="width: 130px; text-align: right; vertical-align: middle; padding-right: 15px;">
                             <img src="<?php echo $global_logo_src ?: 'https://via.placeholder.com/80?text=LOGO'; ?>"
                                 alt="TESP Logo"
                                 style="width: 80px; height: 80px; border-radius: 50%; object-fit: cover;"
                                 onerror="this.onerror=null; this.src='https://via.placeholder.com/80?text=LOGO';">
                         </td>
                         <td style="text-align: center; vertical-align: middle;">
-                            <div style="font-weight: bold; font-size: 14pt; line-height: 1.2;">TES PHILIPPINES, INC.</div>
-                            <div style="font-weight: bold; font-size: 10pt; line-height: 1.2;">METRO RAIL TRANSIT LINE 3 REHABILITATION PROJECT</div>
-                            <div style="font-size: 10pt; line-height: 1.2;">Meriton One Building, 1668 Quezon Avenue, Quezon City</div>
-                            <div style="font-size: 10pt; line-height: 1.2;">Telephone Number: 8929-5347 local 4404</div>
+                            <div style="font-weight: bold; font-size: 15pt !important; line-height: 1.2; white-space: nowrap;">TES PHILIPPINES, INC.</div>
+                            <div style="font-weight: bold; font-size: 11pt !important; line-height: 1.2; white-space: nowrap;">METRO RAIL TRANSIT LINE 3 REHABILITATION PROJECT</div>
+                            <div style="font-size: 11pt !important; line-height: 1.2;">Meriton One Building, 1668 Quezon Avenue, Quezon City</div>
+                            <div style="font-size: 11pt !important; line-height: 1.2;">Telephone Number: 8929-5347 local 4404</div>
                         </td>
-                        <td style="width: 100px;"></td> <!-- Spacer for centering -->
+                        <td style="width: 70px;"></td> <!-- Spacer for shifting text right -->
                     </tr>
                 </table>
             <?php endif; ?>

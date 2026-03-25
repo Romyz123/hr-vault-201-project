@@ -42,3 +42,207 @@ Stack trace:
 #0 C:\xampp\htdocs\hr 201\public\admin_approval.php(431): renderTable(NULL, 'hire')
 #1 {main}
   thrown in C:\xampp\htdocs\hr 201\public\admin_approval.php on line 493
+[25-Mar-2026 13:42:50 Asia/Manila] PHP Warning:  Undefined variable $hires in C:\xampp\htdocs\hr 201\public\admin_approval.php on line 431
+[25-Mar-2026 13:42:50 Asia/Manila] PHP Fatal error:  Uncaught TypeError: count(): Argument #1 ($value) must be of type Countable|array, null given in C:\xampp\htdocs\hr 201\public\admin_approval.php:493
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\admin_approval.php(431): renderTable(NULL, 'hire')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\admin_approval.php on line 493
+[25-Mar-2026 13:42:57 Asia/Manila] PHP Warning:  Undefined variable $hires in C:\xampp\htdocs\hr 201\public\admin_approval.php on line 431
+[25-Mar-2026 13:42:57 Asia/Manila] PHP Fatal error:  Uncaught TypeError: count(): Argument #1 ($value) must be of type Countable|array, null given in C:\xampp\htdocs\hr 201\public\admin_approval.php:493
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\admin_approval.php(431): renderTable(NULL, 'hire')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\admin_approval.php on line 493
+[25-Mar-2026 13:43:06 Asia/Manila] PHP Warning:  Undefined variable $hires in C:\xampp\htdocs\hr 201\public\admin_approval.php on line 431
+[25-Mar-2026 13:43:06 Asia/Manila] PHP Fatal error:  Uncaught TypeError: count(): Argument #1 ($value) must be of type Countable|array, null given in C:\xampp\htdocs\hr 201\public\admin_approval.php:493
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\admin_approval.php(431): renderTable(NULL, 'hire')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\admin_approval.php on line 493
+[25-Mar-2026 13:43:35 Asia/Manila] PHP Warning:  Undefined variable $hires in C:\xampp\htdocs\hr 201\public\admin_approval.php on line 431
+[25-Mar-2026 13:43:35 Asia/Manila] PHP Fatal error:  Uncaught TypeError: count(): Argument #1 ($value) must be of type Countable|array, null given in C:\xampp\htdocs\hr 201\public\admin_approval.php:493
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\admin_approval.php(431): renderTable(NULL, 'hire')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\admin_approval.php on line 493
+[25-Mar-2026 13:47:26 Asia/Manila] PHP Warning:  Undefined variable $hires in C:\xampp\htdocs\hr 201\public\admin_approval.php on line 431
+[25-Mar-2026 13:47:26 Asia/Manila] PHP Fatal error:  Uncaught TypeError: count(): Argument #1 ($value) must be of type Countable|array, null given in C:\xampp\htdocs\hr 201\public\admin_approval.php:493
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\admin_approval.php(431): renderTable(NULL, 'hire')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\admin_approval.php on line 493
+[25-Mar-2026 13:47:38 Asia/Manila] PHP Warning:  Undefined variable $hires in C:\xampp\htdocs\hr 201\public\admin_approval.php on line 431
+[25-Mar-2026 13:47:38 Asia/Manila] PHP Fatal error:  Uncaught TypeError: count(): Argument #1 ($value) must be of type Countable|array, null given in C:\xampp\htdocs\hr 201\public\admin_approval.php:493
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\admin_approval.php(431): renderTable(NULL, 'hire')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\admin_approval.php on line 493
+[25-Mar-2026 13:47:43 Asia/Manila] PHP Warning:  Undefined variable $hires in C:\xampp\htdocs\hr 201\public\admin_approval.php on line 431
+[25-Mar-2026 13:47:43 Asia/Manila] PHP Fatal error:  Uncaught TypeError: count(): Argument #1 ($value) must be of type Countable|array, null given in C:\xampp\htdocs\hr 201\public\admin_approval.php:493
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\admin_approval.php(431): renderTable(NULL, 'hire')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\admin_approval.php on line 493
+[25-Mar-2026 13:48:18 Asia/Manila] PHP Warning:  Undefined variable $hires in C:\xampp\htdocs\hr 201\public\admin_approval.php on line 431
+[25-Mar-2026 13:48:18 Asia/Manila] PHP Fatal error:  Uncaught TypeError: count(): Argument #1 ($value) must be of type Countable|array, null given in C:\xampp\htdocs\hr 201\public\admin_approval.php:493
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\admin_approval.php(431): renderTable(NULL, 'hire')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\admin_approval.php on line 493
+[25-Mar-2026 13:48:19 Asia/Manila] PHP Warning:  Undefined variable $hires in C:\xampp\htdocs\hr 201\public\admin_approval.php on line 431
+[25-Mar-2026 13:48:19 Asia/Manila] PHP Fatal error:  Uncaught TypeError: count(): Argument #1 ($value) must be of type Countable|array, null given in C:\xampp\htdocs\hr 201\public\admin_approval.php:493
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\admin_approval.php(431): renderTable(NULL, 'hire')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\admin_approval.php on line 493
+[25-Mar-2026 13:48:19 Asia/Manila] PHP Warning:  Undefined variable $hires in C:\xampp\htdocs\hr 201\public\admin_approval.php on line 431
+[25-Mar-2026 13:48:19 Asia/Manila] PHP Fatal error:  Uncaught TypeError: count(): Argument #1 ($value) must be of type Countable|array, null given in C:\xampp\htdocs\hr 201\public\admin_approval.php:493
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\admin_approval.php(431): renderTable(NULL, 'hire')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\admin_approval.php on line 493
+[25-Mar-2026 15:02:58 Asia/Manila] PHP Warning:  Undefined variable $hires in C:\xampp\htdocs\hr 201\public\admin_approval.php on line 431
+[25-Mar-2026 15:02:58 Asia/Manila] PHP Fatal error:  Uncaught TypeError: count(): Argument #1 ($value) must be of type Countable|array, null given in C:\xampp\htdocs\hr 201\public\admin_approval.php:493
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\admin_approval.php(431): renderTable(NULL, 'hire')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\admin_approval.php on line 493
+[25-Mar-2026 15:02:59 Asia/Manila] PHP Warning:  Undefined variable $hires in C:\xampp\htdocs\hr 201\public\admin_approval.php on line 431
+[25-Mar-2026 15:02:59 Asia/Manila] PHP Fatal error:  Uncaught TypeError: count(): Argument #1 ($value) must be of type Countable|array, null given in C:\xampp\htdocs\hr 201\public\admin_approval.php:493
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\admin_approval.php(431): renderTable(NULL, 'hire')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\admin_approval.php on line 493
+[25-Mar-2026 15:02:59 Asia/Manila] PHP Warning:  Undefined variable $hires in C:\xampp\htdocs\hr 201\public\admin_approval.php on line 431
+[25-Mar-2026 15:02:59 Asia/Manila] PHP Fatal error:  Uncaught TypeError: count(): Argument #1 ($value) must be of type Countable|array, null given in C:\xampp\htdocs\hr 201\public\admin_approval.php:493
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\admin_approval.php(431): renderTable(NULL, 'hire')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\admin_approval.php on line 493
+[25-Mar-2026 15:11:10 Asia/Manila] PHP Warning:  Undefined variable $hires in C:\xampp\htdocs\hr 201\public\admin_approval.php on line 431
+[25-Mar-2026 15:11:10 Asia/Manila] PHP Fatal error:  Uncaught TypeError: count(): Argument #1 ($value) must be of type Countable|array, null given in C:\xampp\htdocs\hr 201\public\admin_approval.php:493
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\admin_approval.php(431): renderTable(NULL, 'hire')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\admin_approval.php on line 493
+[25-Mar-2026 15:11:46 Asia/Manila] PHP Warning:  Undefined variable $hires in C:\xampp\htdocs\hr 201\public\admin_approval.php on line 431
+[25-Mar-2026 15:11:46 Asia/Manila] PHP Fatal error:  Uncaught TypeError: count(): Argument #1 ($value) must be of type Countable|array, null given in C:\xampp\htdocs\hr 201\public\admin_approval.php:493
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\admin_approval.php(431): renderTable(NULL, 'hire')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\admin_approval.php on line 493
+[25-Mar-2026 15:32:12 Asia/Manila] PHP Warning:  Undefined variable $hires in C:\xampp\htdocs\hr 201\public\admin_approval.php on line 431
+[25-Mar-2026 15:32:12 Asia/Manila] PHP Fatal error:  Uncaught TypeError: count(): Argument #1 ($value) must be of type Countable|array, null given in C:\xampp\htdocs\hr 201\public\admin_approval.php:493
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\admin_approval.php(431): renderTable(NULL, 'hire')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\admin_approval.php on line 493
+[25-Mar-2026 17:19:43 Asia/Manila] PHP Warning:  Undefined variable $hires in C:\xampp\htdocs\hr 201\public\admin_approval.php on line 431
+[25-Mar-2026 17:19:43 Asia/Manila] PHP Fatal error:  Uncaught TypeError: count(): Argument #1 ($value) must be of type Countable|array, null given in C:\xampp\htdocs\hr 201\public\admin_approval.php:493
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\admin_approval.php(431): renderTable(NULL, 'hire')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\admin_approval.php on line 493
+[25-Mar-2026 17:21:50 Asia/Manila] PHP Warning:  Undefined variable $hires in C:\xampp\htdocs\hr 201\public\admin_approval.php on line 431
+[25-Mar-2026 17:21:50 Asia/Manila] PHP Fatal error:  Uncaught TypeError: count(): Argument #1 ($value) must be of type Countable|array, null given in C:\xampp\htdocs\hr 201\public\admin_approval.php:493
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\admin_approval.php(431): renderTable(NULL, 'hire')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\admin_approval.php on line 493
+[25-Mar-2026 17:23:57 Asia/Manila] PHP Warning:  Undefined variable $hires in C:\xampp\htdocs\hr 201\public\admin_approval.php on line 431
+[25-Mar-2026 17:23:57 Asia/Manila] PHP Fatal error:  Uncaught TypeError: count(): Argument #1 ($value) must be of type Countable|array, null given in C:\xampp\htdocs\hr 201\public\admin_approval.php:493
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\admin_approval.php(431): renderTable(NULL, 'hire')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\admin_approval.php on line 493
+[25-Mar-2026 17:24:00 Asia/Manila] PHP Warning:  Undefined variable $hires in C:\xampp\htdocs\hr 201\public\admin_approval.php on line 431
+[25-Mar-2026 17:24:00 Asia/Manila] PHP Fatal error:  Uncaught TypeError: count(): Argument #1 ($value) must be of type Countable|array, null given in C:\xampp\htdocs\hr 201\public\admin_approval.php:493
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\admin_approval.php(431): renderTable(NULL, 'hire')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\admin_approval.php on line 493
+[25-Mar-2026 17:24:16 Asia/Manila] PHP Warning:  Undefined variable $hires in C:\xampp\htdocs\hr 201\public\admin_approval.php on line 431
+[25-Mar-2026 17:24:16 Asia/Manila] PHP Fatal error:  Uncaught TypeError: count(): Argument #1 ($value) must be of type Countable|array, null given in C:\xampp\htdocs\hr 201\public\admin_approval.php:493
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\admin_approval.php(431): renderTable(NULL, 'hire')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\admin_approval.php on line 493
+[25-Mar-2026 17:28:41 Asia/Manila] PHP Warning:  Undefined variable $hires in C:\xampp\htdocs\hr 201\public\admin_approval.php on line 430
+[25-Mar-2026 17:28:41 Asia/Manila] PHP Fatal error:  Uncaught TypeError: count(): Argument #1 ($value) must be of type Countable|array, null given in C:\xampp\htdocs\hr 201\public\admin_approval.php:492
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\admin_approval.php(430): renderTable(NULL, 'hire')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\admin_approval.php on line 492
+[25-Mar-2026 17:28:46 Asia/Manila] PHP Warning:  Undefined variable $hires in C:\xampp\htdocs\hr 201\public\admin_approval.php on line 430
+[25-Mar-2026 17:28:46 Asia/Manila] PHP Fatal error:  Uncaught TypeError: count(): Argument #1 ($value) must be of type Countable|array, null given in C:\xampp\htdocs\hr 201\public\admin_approval.php:492
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\admin_approval.php(430): renderTable(NULL, 'hire')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\admin_approval.php on line 492
+[25-Mar-2026 17:29:00 Asia/Manila] PHP Warning:  Undefined variable $hires in C:\xampp\htdocs\hr 201\public\admin_approval.php on line 430
+[25-Mar-2026 17:29:00 Asia/Manila] PHP Fatal error:  Uncaught TypeError: count(): Argument #1 ($value) must be of type Countable|array, null given in C:\xampp\htdocs\hr 201\public\admin_approval.php:492
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\admin_approval.php(430): renderTable(NULL, 'hire')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\admin_approval.php on line 492
+[25-Mar-2026 17:33:40 Asia/Manila] PHP Warning:  Undefined variable $hires in C:\xampp\htdocs\hr 201\public\admin_approval.php on line 430
+[25-Mar-2026 17:33:40 Asia/Manila] PHP Fatal error:  Uncaught TypeError: count(): Argument #1 ($value) must be of type Countable|array, null given in C:\xampp\htdocs\hr 201\public\admin_approval.php:492
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\admin_approval.php(430): renderTable(NULL, 'hire')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\admin_approval.php on line 492
+[25-Mar-2026 17:33:44 Asia/Manila] PHP Warning:  Undefined variable $hires in C:\xampp\htdocs\hr 201\public\admin_approval.php on line 430
+[25-Mar-2026 17:33:44 Asia/Manila] PHP Fatal error:  Uncaught TypeError: count(): Argument #1 ($value) must be of type Countable|array, null given in C:\xampp\htdocs\hr 201\public\admin_approval.php:492
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\admin_approval.php(430): renderTable(NULL, 'hire')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\admin_approval.php on line 492
+[25-Mar-2026 17:33:44 Asia/Manila] PHP Warning:  Undefined variable $hires in C:\xampp\htdocs\hr 201\public\admin_approval.php on line 430
+[25-Mar-2026 17:33:44 Asia/Manila] PHP Fatal error:  Uncaught TypeError: count(): Argument #1 ($value) must be of type Countable|array, null given in C:\xampp\htdocs\hr 201\public\admin_approval.php:492
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\admin_approval.php(430): renderTable(NULL, 'hire')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\admin_approval.php on line 492
+[25-Mar-2026 17:33:45 Asia/Manila] PHP Warning:  Undefined variable $hires in C:\xampp\htdocs\hr 201\public\admin_approval.php on line 430
+[25-Mar-2026 17:33:45 Asia/Manila] PHP Fatal error:  Uncaught TypeError: count(): Argument #1 ($value) must be of type Countable|array, null given in C:\xampp\htdocs\hr 201\public\admin_approval.php:492
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\admin_approval.php(430): renderTable(NULL, 'hire')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\admin_approval.php on line 492
+[25-Mar-2026 17:33:45 Asia/Manila] PHP Warning:  Undefined variable $hires in C:\xampp\htdocs\hr 201\public\admin_approval.php on line 430
+[25-Mar-2026 17:33:45 Asia/Manila] PHP Fatal error:  Uncaught TypeError: count(): Argument #1 ($value) must be of type Countable|array, null given in C:\xampp\htdocs\hr 201\public\admin_approval.php:492
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\admin_approval.php(430): renderTable(NULL, 'hire')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\admin_approval.php on line 492
+[25-Mar-2026 17:41:37 Asia/Manila] PHP Warning:  Undefined variable $hires in C:\xampp\htdocs\hr 201\public\admin_approval.php on line 436
+[25-Mar-2026 17:41:37 Asia/Manila] PHP Fatal error:  Uncaught TypeError: count(): Argument #1 ($value) must be of type Countable|array, null given in C:\xampp\htdocs\hr 201\public\admin_approval.php:498
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\admin_approval.php(436): renderTable(NULL, 'hire')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\admin_approval.php on line 498
+[25-Mar-2026 17:45:55 Asia/Manila] PHP Warning:  Undefined variable $hires in C:\xampp\htdocs\hr 201\public\admin_approval.php on line 436
+[25-Mar-2026 17:45:55 Asia/Manila] PHP Fatal error:  Uncaught TypeError: count(): Argument #1 ($value) must be of type Countable|array, null given in C:\xampp\htdocs\hr 201\public\admin_approval.php:498
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\admin_approval.php(436): renderTable(NULL, 'hire')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\admin_approval.php on line 498
+[25-Mar-2026 17:45:57 Asia/Manila] PHP Warning:  Undefined variable $hires in C:\xampp\htdocs\hr 201\public\admin_approval.php on line 436
+[25-Mar-2026 17:45:57 Asia/Manila] PHP Fatal error:  Uncaught TypeError: count(): Argument #1 ($value) must be of type Countable|array, null given in C:\xampp\htdocs\hr 201\public\admin_approval.php:498
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\admin_approval.php(436): renderTable(NULL, 'hire')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\admin_approval.php on line 498
+[25-Mar-2026 17:52:51 Asia/Manila] PHP Warning:  Undefined variable $hires in C:\xampp\htdocs\hr 201\public\admin_approval.php on line 436
+[25-Mar-2026 17:52:51 Asia/Manila] PHP Fatal error:  Uncaught TypeError: count(): Argument #1 ($value) must be of type Countable|array, null given in C:\xampp\htdocs\hr 201\public\admin_approval.php:498
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\admin_approval.php(436): renderTable(NULL, 'hire')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\admin_approval.php on line 498
+[25-Mar-2026 17:52:54 Asia/Manila] PHP Warning:  Undefined variable $hires in C:\xampp\htdocs\hr 201\public\admin_approval.php on line 436
+[25-Mar-2026 17:52:54 Asia/Manila] PHP Fatal error:  Uncaught TypeError: count(): Argument #1 ($value) must be of type Countable|array, null given in C:\xampp\htdocs\hr 201\public\admin_approval.php:498
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\admin_approval.php(436): renderTable(NULL, 'hire')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\admin_approval.php on line 498

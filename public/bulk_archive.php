@@ -81,7 +81,7 @@ $inactiveEmployees = $stmt->fetchAll(PDO::FETCH_ASSOC);
 <head>
     <meta charset="UTF-8">
     <title>Bulk Archive Employees</title>
-    <link rel="icon" href="../uploads/tesp-logo.png" type="image/png">
+    <link rel="icon" href="uploads/tesp-logo.png" type="image/png">
     <link href="assets/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="assets/icons/bootstrap-icons.css">
     <script src="assets/sweetalert2.all.min.js"></script>

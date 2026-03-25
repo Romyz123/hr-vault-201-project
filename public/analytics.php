@@ -26,6 +26,7 @@ $genderFilter  = isset($_GET['gender']) ? trim($_GET['gender']) : '';
 $agencyFilter  = isset($_GET['agency_filter']) ? trim($_GET['agency_filter']) : '';
 $yearFilter    = isset($_GET['year']) ? (int)$_GET['year'] : (int)date('Y');
 $probMonths    = isset($_GET['prob_months']) ? (int)$_GET['prob_months'] : 6; // Default 6 months
+$bdayMonth     = isset($_GET['bday_month']) ? (int)$_GET['bday_month'] : (int)date('m');
 $dateFrom      = $_GET['date_from'] ?? '';
 $dateTo        = $_GET['date_to'] ?? '';
 
@@ -375,6 +376,56 @@ foreach ($bandOrder as $b) {
     $grandTotal += (int)$columnTotals[$b];
 }
 
+// [NEW] BIRTHDAYS QUERY
+$bdayQuery = "SELECT emp_id, first_name, last_name, dept, job_title, birth_date
+              FROM employees
+              $activeSQL AND birth_date IS NOT NULL AND birth_date != '0000-00-00' AND MONTH(birth_date) = ?
+              ORDER BY DAY(birth_date) ASC, last_name ASC";
+$bdayStmt = $pdo->prepare($bdayQuery);
+$bdayParams = array_merge($params, [$bdayMonth]);
+$bdayStmt->execute($bdayParams);
+$birthdayCelebrants = $bdayStmt->fetchAll(PDO::FETCH_ASSOC);
+$monthName = date('F', mktime(0, 0, 0, $bdayMonth, 10));
+
+// [NEW] BIRTHDAY DISTRIBUTION (Annual Forecast by Month)
+$bdayDistData = array_fill(1, 12, 0);
+$bdayDistStmt = $pdo->prepare("SELECT MONTH(birth_date) as m, COUNT(*) as count FROM employees $activeSQL AND birth_date IS NOT NULL AND birth_date != '0000-00-00' GROUP BY MONTH(birth_date)");
+$bdayDistStmt->execute($params);
+while ($row = $bdayDistStmt->fetch(PDO::FETCH_ASSOC)) {
+    if ($row['m']) $bdayDistData[(int)$row['m']] = (int)$row['count'];
+}
+$bdayDistLabels = json_encode(['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']);
+$bdayDistCounts = json_encode(array_values($bdayDistData));
+
+// [NEW] Handle Birthday Export
+if (isset($_GET['export_birthdays'])) {
+    $m = (int)$_GET['export_birthdays'];
+    $monthNameExport = date('F', mktime(0, 0, 0, $m, 10));
+    header('Content-Type: text/csv; charset=utf-8');
+    header('Content-Disposition: attachment; filename="Birthdays_' . $monthNameExport . '_' . date('Y') . '.csv"');
+    $output = fopen('php://output', 'w');
+    fwrite($output, "\xEF\xBB\xBF");
+    fputcsv($output, ['Birth Date', 'Employee ID', 'Last Name', 'First Name', 'Department', 'Job Title']);
+
+    $bdayQueryExp = "SELECT emp_id, last_name, first_name, dept, job_title, birth_date FROM employees $activeSQL AND birth_date IS NOT NULL AND birth_date != '0000-00-00' AND MONTH(birth_date) = ? ORDER BY DAY(birth_date) ASC, last_name ASC";
+    $expParams = array_merge($params, [$m]);
+    $stmt = $pdo->prepare($bdayQueryExp);
+    $stmt->execute($expParams);
+
+    while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+        fputcsv($output, [
+            date('M d', strtotime($row['birth_date'])),
+            $row['emp_id'],
+            $row['last_name'],
+            $row['first_name'],
+            $row['dept'],
+            $row['job_title']
+        ]);
+    }
+    fclose($output);
+    exit;
+}
+
 // Handle Matrix Export
 if (isset($_GET['export_matrix'])) {
     header('Content-Type: text/csv; charset=utf-8');
@@ -432,7 +483,7 @@ if ($debug) {
 <head>
     <meta charset="UTF-8">
     <title>HR Analytics Report</title>
-    <link rel="icon" href="../uploads/tesp-logo.png" type="image/png">
+    <link rel="icon" href="uploads/tesp-logo.png" type="image/png">
     <link href="assets/bootstrap.min.css" rel="stylesheet">
     <link href="assets/icons/bootstrap-icons.css" rel="stylesheet">
     <script src="assets/chart.min.js"></script>
@@ -675,6 +726,18 @@ if ($debug) {
                     </div>
 
                     <div class="col-md-2">
+                        <select name="bday_month" class="form-select form-select-sm" onchange="this.form.submit()" title="Filter Birthdays">
+                            <?php
+                            for ($m = 1; $m <= 12; $m++) {
+                                $mName = date('F', mktime(0, 0, 0, $m, 10));
+                                $sel = ($bdayMonth == $m) ? 'selected' : '';
+                                echo "<option value='$m' $sel>🎂 $mName Birthdays</option>";
+                            }
+                            ?>
+                        </select>
+                    </div>
+
+                    <div class="col-md-2">
                         <select name="dept_filter" class="form-select form-select-sm" onchange="this.form.submit()">
                             <option value="">All Depts</option>
                             <?php
@@ -897,6 +960,64 @@ if ($debug) {
             </div>
         </div>
 
+        <!-- BIRTHDAYS & FORECAST WIDGET -->
+        <div class="row mb-4">
+            <div class="col-lg-7 mb-4 mb-lg-0">
+                <div class="card shadow-sm border-info h-100" id="birthdayCard">
+                    <div class="card-header bg-info text-dark d-flex justify-content-between align-items-center">
+                        <span><i class="bi bi-gift-fill"></i> Employee Birthdays - <?php echo htmlspecialchars($monthName); ?></span>
+                        <div>
+                            <a href="?<?php echo http_build_query(array_merge($_GET, ['export_birthdays' => $bdayMonth])); ?>" class="btn btn-sm btn-light text-dark fw-bold no-print">
+                                <i class="bi bi-file-earmark-spreadsheet-fill text-success"></i> Export Excel
+                            </a>
+                        </div>
+                    </div>
+                    <div class="card-body p-0 table-responsive" style="max-height: 350px; overflow-y: auto;">
+                        <table class="table table-hover table-striped mb-0 align-middle">
+                            <thead class="table-light sticky-top">
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Employee Name</th>
+                                    <th>ID</th>
+                                    <th>Department</th>
+                                    <th>Job Title</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php if (empty($birthdayCelebrants)): ?>
+                                    <tr>
+                                        <td colspan="5" class="text-center text-muted p-4">No birthdays found for this month based on current filters.</td>
+                                    </tr>
+                                <?php else: ?>
+                                    <?php foreach ($birthdayCelebrants as $b): ?>
+                                        <tr>
+                                            <td class="fw-bold text-danger"><?php echo date('M d', strtotime($b['birth_date'])); ?></td>
+                                            <td class="fw-bold"><?php echo htmlspecialchars($b['last_name'] . ', ' . $b['first_name']); ?></td>
+                                            <td><a href="index.php?search=<?php echo urlencode($b['emp_id']); ?>" target="_blank" class="text-decoration-none text-dark"><?php echo htmlspecialchars($b['emp_id']); ?></a></td>
+                                            <td><span class="badge bg-secondary"><?php echo htmlspecialchars($b['dept']); ?></span></td>
+                                            <td class="small text-muted"><?php echo htmlspecialchars($b['job_title']); ?></td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                <?php endif; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-5">
+                <div class="card shadow-sm border-info h-100">
+                    <div class="card-header bg-info text-dark d-flex justify-content-between align-items-center">
+                        <span class="fw-bold"><i class="bi bi-bar-chart-fill"></i> Birthdays per Month (Annual)</span>
+                        <button class="btn btn-sm btn-link text-dark p-0" onclick="openFullScreen('bdayChart', 'Birthdays per Month (Annual)')"><i class="bi bi-arrows-fullscreen"></i></button>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="bdayMonthChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <div class="row mb-5">
             <div class="col-12">
                 <div class="card shadow-sm" id="matrixCard">
@@ -1015,8 +1136,8 @@ if ($debug) {
                 <div class="modal-content">
                     <div class="modal-header bg-light">
                         <h5 class="modal-title fw-bold text-primary" id="fsModalTitle">Chart View</h5>
-                        <div class="ms-auto d-flex align-items-center gap-2">
-                            <button type="button" class="btn btn-outline-primary btn-sm" onclick="downloadChartImage()">
+                        <div class="ms-auto d-flex align-items-center gap-3">
+                            <button type="button" class="btn btn-outline-primary btn-sm fw-bold" onclick="downloadChartImage()">
                                 <i class="bi bi-download"></i> Download Image
                             </button>
                             <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
@@ -1125,6 +1246,12 @@ if ($debug) {
             'perfChart': {
                 labels: <?php echo $perfLabels; ?>,
                 data: <?php echo $perfCounts; ?>,
+                type: 'bar',
+                bg: '#0dcaf0'
+            },
+            'bdayChart': {
+                labels: <?php echo $bdayDistLabels; ?>,
+                data: <?php echo $bdayDistCounts; ?>,
                 type: 'bar',
                 bg: '#0dcaf0'
             }
@@ -1421,6 +1548,37 @@ if ($debug) {
             options: {
                 responsive: true,
                 maintainAspectRatio: false
+            }
+        });
+
+        // Birthday Distribution (Annual)
+        charts.bdayChart = new Chart(document.getElementById('bdayMonthChart'), {
+            type: 'bar',
+            data: {
+                labels: <?php echo $bdayDistLabels; ?>,
+                datasets: [{
+                    label: 'Birthdays',
+                    data: <?php echo $bdayDistCounts; ?>,
+                    backgroundColor: '#0dcaf0',
+                    borderRadius: 4
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: false
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            stepSize: 1
+                        }
+                    }
+                }
             }
         });
 

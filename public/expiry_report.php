@@ -68,19 +68,10 @@ $docs = $stmt->fetchAll(PDO::FETCH_ASSOC);
 <head>
     <meta charset="UTF-8">
     <title>Expiry Forecast | HR System</title>
-    <link rel="icon" href="assets/images/tesp-logo-1.png" type="image/png">
+    <link rel="icon" href="uploads/tesp-logo.png" type="image/png">
     <link href="assets/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="assets/icons/bootstrap-icons.css">
     <style>
-        .expired {
-            background-color: #ffe6e6 !important;
-        }
-
-        /* Red for expired */
-        .soon {
-            background-color: #fff3cd !important;
-        }
-
         /* Yellow for coming soon */
         @media print {
             .no-print {
@@ -95,12 +86,17 @@ $docs = $stmt->fetchAll(PDO::FETCH_ASSOC);
     </style>
 </head>
 
-<body class="bg-light">
+<body class="bg-body-tertiary">
 
     <nav class="navbar navbar-dark bg-dark mb-4 no-print">
         <div class="container-fluid px-4">
             <a class="navbar-brand" href="index.php">Back to Dashboard</a>
-            <span class="navbar-text text-white"><i class="bi bi-binoculars-fill text-danger"></i> Expiry Forecast</span>
+            <div class="d-flex align-items-center gap-2">
+                <button id="darkModeToggle" class="btn btn-sm btn-outline-light border-0" title="Toggle Dark Mode">
+                    <i class="bi bi-moon-stars-fill"></i>
+                </button>
+                <span class="navbar-text text-white"><i class="bi bi-binoculars-fill text-danger"></i> Expiry Forecast</span>
+            </div>
         </div>
     </nav>
 
@@ -167,7 +163,7 @@ $docs = $stmt->fetchAll(PDO::FETCH_ASSOC);
                             <?php foreach ($docs as $doc):
                                 $timeLeft = floor((strtotime($doc['expiry_date']) - time()) / 86400);
                                 // Determine Color: Expired = Red, Warning = Yellow
-                                $rowClass = ($timeLeft < 0) ? 'expired' : 'soon';
+                                $rowClass = ($timeLeft < 0) ? 'table-danger' : 'table-warning';
                                 $statusLabel = ($timeLeft < 0) ? 'EXPIRED' : $timeLeft . ' days left';
                                 $badgeColor = ($timeLeft < 0) ? 'bg-danger' : 'bg-warning text-dark';
                             ?>
@@ -201,6 +197,8 @@ $docs = $stmt->fetchAll(PDO::FETCH_ASSOC);
         </div>
     </div>
 
+    <script src="assets/bootstrap.bundle.min.js"></script>
+    <script src="dark_mode.js"></script>
 </body>
 
 </html>

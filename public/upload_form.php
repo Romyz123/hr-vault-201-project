@@ -107,7 +107,7 @@ $isVaultFull = ($vaultLimitBytes > 0 && $currentVaultBytes >= $vaultLimitBytes);
     <meta charset="UTF-8">
     <title>Upload Document</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <link rel="icon" href="../uploads/tesp-logo.png" type="image/png">
+    <link rel="icon" href="uploads/tesp-logo.png" type="image/png">
     <link href="assets/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="assets/icons/bootstrap-icons.css">
     <script src="assets/sweetalert2.all.min.js"></script>
@@ -414,7 +414,7 @@ $isVaultFull = ($vaultLimitBytes > 0 && $currentVaultBytes >= $vaultLimitBytes);
                                     item.style.cursor = 'pointer';
                                     item.innerHTML = `
                                 <div class="d-flex align-items-center">
-                                    <img src="uploads/avatars/${emp.avatar_path || ''}" width="30" height="30" class="rounded-circle me-2" onerror="this.src='../assets/default_avatar.png'">
+                                    <img src="uploads/avatars/${emp.avatar_path || 'default.png'}" width="30" height="30" class="rounded-circle me-2" onerror="this.onerror=null; this.src='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI1MCIgZmlsbD0iI2UzZTNlMyIvPjxwYXRoIGQ9Ik01MCA1MCBhMjAgMjAgMCAxIDAgMC00MCAyMCAyMCAwIDEgMCAwIDQwIHptMCAxMCBjLTE1IDAtMzUgMTAtMzUgMzAgdjEwIGg3MCB2LTEwIGMtMC0yMC0yMC0zMC0zNS0zMCIgZmlsbD0iI2FhYSIvPjwvc3ZnPg==';">
                                     <div>
                                         <strong>${emp.first_name} ${emp.last_name}</strong>
                                         <br><small class="text-muted">${emp.emp_id}</small>

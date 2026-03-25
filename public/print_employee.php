@@ -105,7 +105,7 @@ if (empty($logo_src)) {
 } ?>
 
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-bs-theme="light">
 
 <head>
     <meta charset="UTF-8">
@@ -124,7 +124,8 @@ if (empty($logo_src)) {
 
             body,
             html {
-                background: white;
+                background: white !important;
+                color: black !important;
                 margin: 0;
                 padding: 0;
                 -webkit-print-color-adjust: exact;
@@ -311,215 +312,214 @@ if (empty($logo_src)) {
                 </div>
             </div>
         </div>
-    </div>
 
-    <div id="sec-personal" class="avoid-break">
-        <div class="section-title">Personal Information</div>
-        <div class="row g-3">
-            <div class="col-4">
-                <div class="data-label">Date of Birth</div>
-                <div class="data-value"><?php echo htmlspecialchars($emp['birth_date']); ?></div>
-            </div>
-            <div class="col-4">
-                <div class="data-label">Contact Number</div>
-                <div class="data-value"><?php echo htmlspecialchars($emp['contact_number']); ?></div>
-            </div>
-            <div class="col-4">
-                <div class="data-label">Email</div>
-                <div class="data-value"><?php echo htmlspecialchars($emp['email']); ?></div>
-            </div>
-            <div class="col-12">
-                <div class="data-label">Present Address</div>
-                <div class="data-value"><?php echo htmlspecialchars($emp['present_address']); ?></div>
-            </div>
-            <div class="col-12">
-                <div class="data-label">Permanent Address</div>
-                <div class="data-value"><?php echo htmlspecialchars($emp['permanent_address']); ?></div>
-            </div>
-        </div>
-    </div>
-
-    <div id="sec-employment" class="avoid-break mt-4">
-        <div class="section-title">Employment Details</div>
-        <div class="row g-3">
-            <div class="col-4">
-                <div class="data-label">Employee ID</div>
-                <div class="data-value"><?php echo htmlspecialchars($emp['emp_id']); ?></div>
-            </div>
-            <div class="col-4">
-                <div class="data-label">Employment Type</div>
-                <div class="data-value"><?php echo htmlspecialchars($emp['employment_type']); ?></div>
-            </div>
-            <div class="col-4">
-                <div class="data-label">Agency (If Applicable)</div>
-                <div class="data-value"><?php echo htmlspecialchars($emp['agency_name']); ?></div>
-            </div>
-            <div class="col-4">
-                <div class="data-label">Date Hired</div>
-                <div class="data-value"><?php echo htmlspecialchars($emp['hire_date']); ?></div>
-            </div>
-            <div class="col-4">
-                <div class="data-label">Department</div>
-                <div class="data-value"><?php echo htmlspecialchars($emp['dept']); ?></div>
-            </div>
-            <div class="col-4">
-                <div class="data-label">Section</div>
-                <div class="data-value"><?php echo htmlspecialchars($emp['section']); ?></div>
+        <div id="sec-personal" class="avoid-break">
+            <div class="section-title">Personal Information</div>
+            <div class="row g-3">
+                <div class="col-4">
+                    <div class="data-label">Date of Birth</div>
+                    <div class="data-value"><?php echo htmlspecialchars($emp['birth_date']); ?></div>
+                </div>
+                <div class="col-4">
+                    <div class="data-label">Contact Number</div>
+                    <div class="data-value"><?php echo htmlspecialchars($emp['contact_number']); ?></div>
+                </div>
+                <div class="col-4">
+                    <div class="data-label">Email</div>
+                    <div class="data-value"><?php echo htmlspecialchars($emp['email']); ?></div>
+                </div>
+                <div class="col-12">
+                    <div class="data-label">Present Address</div>
+                    <div class="data-value"><?php echo htmlspecialchars($emp['present_address']); ?></div>
+                </div>
+                <div class="col-12">
+                    <div class="data-label">Permanent Address</div>
+                    <div class="data-value"><?php echo htmlspecialchars($emp['permanent_address']); ?></div>
+                </div>
             </div>
         </div>
 
-        <div class="section-title">Qualifications & Educational Background</div>
-        <div class="row g-3">
-            <div class="col-12">
-                <div class="data-label">Education</div>
-                <div class="data-value"><?php echo nl2br(htmlspecialchars($emp['education'] ?? '')); ?></div>
+        <div id="sec-employment" class="avoid-break mt-4">
+            <div class="section-title">Employment Details</div>
+            <div class="row g-3">
+                <div class="col-4">
+                    <div class="data-label">Employee ID</div>
+                    <div class="data-value"><?php echo htmlspecialchars($emp['emp_id']); ?></div>
+                </div>
+                <div class="col-4">
+                    <div class="data-label">Employment Type</div>
+                    <div class="data-value"><?php echo htmlspecialchars($emp['employment_type']); ?></div>
+                </div>
+                <div class="col-4">
+                    <div class="data-label">Agency (If Applicable)</div>
+                    <div class="data-value"><?php echo htmlspecialchars($emp['agency_name']); ?></div>
+                </div>
+                <div class="col-4">
+                    <div class="data-label">Date Hired</div>
+                    <div class="data-value"><?php echo htmlspecialchars($emp['hire_date']); ?></div>
+                </div>
+                <div class="col-4">
+                    <div class="data-label">Department</div>
+                    <div class="data-value"><?php echo htmlspecialchars($emp['dept']); ?></div>
+                </div>
+                <div class="col-4">
+                    <div class="data-label">Section</div>
+                    <div class="data-value"><?php echo htmlspecialchars($emp['section']); ?></div>
+                </div>
             </div>
-            <div class="col-12">
-                <div class="data-label">Experience</div>
-                <div class="data-value"><?php echo nl2br(htmlspecialchars($emp['experience'] ?? '')); ?></div>
-            </div>
-            <div class="col-6">
-                <div class="data-label">Skills</div>
-                <div class="data-value"><?php echo nl2br(htmlspecialchars($emp['skills'] ?? '')); ?></div>
-            </div>
-            <div class="col-6">
-                <div class="data-label">Licenses</div>
-                <div class="data-value"><?php echo nl2br(htmlspecialchars($emp['licenses'] ?? '')); ?></div>
-            </div>
-        </div>
-    </div>
-    <div id="sec-govt" class="avoid-break mt-4">
-        <div class="section-title">Government Contributions</div>
-        <div class="row g-3">
-            <div class="col-3">
-                <div class="data-label">SSS Number</div>
-                <div class="data-value"><?php echo htmlspecialchars($emp['sss_no']); ?></div>
-            </div>
-            <div class="col-3">
-                <div class="data-label">TIN Number</div>
-                <div class="data-value"><?php echo htmlspecialchars($emp['tin_no']); ?></div>
-            </div>
-            <div class="col-3">
-                <div class="data-label">PhilHealth</div>
-                <div class="data-value"><?php echo htmlspecialchars($emp['philhealth_no']); ?></div>
-            </div>
-            <div class="col-3">
-                <div class="data-label">Pag-IBIG</div>
-                <div class="data-value"><?php echo htmlspecialchars($emp['pagibig_no']); ?></div>
-            </div>
-        </div>
-    </div>
-    <div id="sec-emergency" class="avoid-break mt-4">
-        <div class="section-title">In Case of Emergency</div>
-        <div class="row g-3">
-            <div class="col-6">
-                <div class="data-label">Contact Person</div>
-                <div class="data-value"><?php echo htmlspecialchars($emp['emergency_name']); ?></div>
-            </div>
-            <div class="col-6">
-                <div class="data-label">Contact Number</div>
-                <div class="data-value"><?php echo htmlspecialchars($emp['emergency_contact']); ?></div>
-            </div>
-            <div class="col-12">
-                <div class="data-label">Address</div>
-                <div class="data-value"><?php echo htmlspecialchars($emp['emergency_address']); ?></div>
+
+            <div class="section-title">Qualifications & Educational Background</div>
+            <div class="row g-3">
+                <div class="col-12">
+                    <div class="data-label">Education</div>
+                    <div class="data-value"><?php echo nl2br(htmlspecialchars($emp['education'] ?? '')); ?></div>
+                </div>
+                <div class="col-12">
+                    <div class="data-label">Experience</div>
+                    <div class="data-value"><?php echo nl2br(htmlspecialchars($emp['experience'] ?? '')); ?></div>
+                </div>
+                <div class="col-6">
+                    <div class="data-label">Skills</div>
+                    <div class="data-value"><?php echo nl2br(htmlspecialchars($emp['skills'] ?? '')); ?></div>
+                </div>
+                <div class="col-6">
+                    <div class="data-label">Licenses</div>
+                    <div class="data-value"><?php echo nl2br(htmlspecialchars($emp['licenses'] ?? '')); ?></div>
+                </div>
             </div>
         </div>
-    </div>
-    <div id="sec-docs" class="page-break avoid-break mt-4">
-        <div class="section-title">Submitted Documents</div>
-        <table class="table table-sm table-bordered mt-2" style="font-size: 0.85rem;">
-            <thead class="table-light">
-                <tr>
-                    <th>Document Name</th>
-                    <th>Category</th>
-                    <th>Date Uploaded</th>
-                </tr>
-            </thead>
-            <tbody>
-                <?php if (count($docs) > 0): foreach ($docs as $doc): ?>
-                        <tr>
-                            <td><?php echo htmlspecialchars($doc['original_name']); ?></td>
-                            <td><?php echo htmlspecialchars($doc['category']); ?></td>
-                            <td><?php echo date('M d, Y', strtotime($doc['uploaded_at'])); ?></td>
-                        </tr>
-                    <?php endforeach;
-                else: ?>
+        <div id="sec-govt" class="avoid-break mt-4">
+            <div class="section-title">Government Contributions</div>
+            <div class="row g-3">
+                <div class="col-3">
+                    <div class="data-label">SSS Number</div>
+                    <div class="data-value"><?php echo htmlspecialchars($emp['sss_no']); ?></div>
+                </div>
+                <div class="col-3">
+                    <div class="data-label">TIN Number</div>
+                    <div class="data-value"><?php echo htmlspecialchars($emp['tin_no']); ?></div>
+                </div>
+                <div class="col-3">
+                    <div class="data-label">PhilHealth</div>
+                    <div class="data-value"><?php echo htmlspecialchars($emp['philhealth_no']); ?></div>
+                </div>
+                <div class="col-3">
+                    <div class="data-label">Pag-IBIG</div>
+                    <div class="data-value"><?php echo htmlspecialchars($emp['pagibig_no']); ?></div>
+                </div>
+            </div>
+        </div>
+        <div id="sec-emergency" class="avoid-break mt-4">
+            <div class="section-title">In Case of Emergency</div>
+            <div class="row g-3">
+                <div class="col-6">
+                    <div class="data-label">Contact Person</div>
+                    <div class="data-value"><?php echo htmlspecialchars($emp['emergency_name']); ?></div>
+                </div>
+                <div class="col-6">
+                    <div class="data-label">Contact Number</div>
+                    <div class="data-value"><?php echo htmlspecialchars($emp['emergency_contact']); ?></div>
+                </div>
+                <div class="col-12">
+                    <div class="data-label">Address</div>
+                    <div class="data-value"><?php echo htmlspecialchars($emp['emergency_address']); ?></div>
+                </div>
+            </div>
+        </div>
+        <div id="sec-docs" class="page-break avoid-break mt-4">
+            <div class="section-title">Submitted Documents</div>
+            <table class="table table-sm table-bordered mt-2" style="font-size: 0.85rem;">
+                <thead class="table-light">
                     <tr>
-                        <td colspan="3" class="text-center text-muted">No documents on file.</td>
+                        <th>Document Name</th>
+                        <th>Category</th>
+                        <th>Date Uploaded</th>
                     </tr>
-                <?php endif; ?>
-            </tbody>
-        </table>
-    </div>
-
-    <div id="sec-disc" class="avoid-break mt-4">
-        <div class="section-title">Disciplinary Records</div>
-        <table class="table table-sm table-bordered mt-2" style="font-size: 0.85rem;">
-            <thead class="table-light">
-                <tr>
-                    <th>Incident Date</th>
-                    <th>Violation / Offense</th>
-                    <th>Action Taken</th>
-                    <th>Status</th>
-                </tr>
-            </thead>
-            <tbody>
-                <?php if (count($disciplinaryCases) > 0): foreach ($disciplinaryCases as $case): ?>
+                </thead>
+                <tbody>
+                    <?php if (count($docs) > 0): foreach ($docs as $doc): ?>
+                            <tr>
+                                <td><?php echo htmlspecialchars($doc['original_name']); ?></td>
+                                <td><?php echo htmlspecialchars($doc['category']); ?></td>
+                                <td><?php echo date('M d, Y', strtotime($doc['uploaded_at'])); ?></td>
+                            </tr>
+                        <?php endforeach;
+                    else: ?>
                         <tr>
-                            <td><?php echo date('M d, Y', strtotime($case['incident_date'])); ?></td>
-                            <td><?php echo htmlspecialchars($case['violation_type']); ?></td>
-                            <td><?php echo htmlspecialchars($case['action_taken']); ?></td>
-                            <td><?php echo htmlspecialchars($case['status']); ?></td>
+                            <td colspan="3" class="text-center text-muted">No documents on file.</td>
                         </tr>
-                    <?php endforeach;
-                else: ?>
-                    <tr>
-                        <td colspan="4" class="text-center text-muted">No disciplinary records on file.</td>
-                    </tr>
-                <?php endif; ?>
-            </tbody>
-        </table>
-    </div>
+                    <?php endif; ?>
+                </tbody>
+            </table>
+        </div>
 
-    <div id="sec-perf" class="avoid-break mt-4">
-        <div class="section-title">Performance Evaluations</div>
-        <table class="table table-sm table-bordered mt-2" style="font-size: 0.85rem;">
-            <thead class="table-light">
-                <tr>
-                    <th>Review Date</th>
-                    <th>Rating</th>
-                    <th>Evaluator</th>
-                </tr>
-            </thead>
-            <tbody>
-                <?php if (count($performanceReviews) > 0): foreach ($performanceReviews as $rev): ?>
-                        <tr>
-                            <td><?php echo date('M d, Y', strtotime($rev['review_date'])); ?></td>
-                            <td>
-                                <?php
-                                if ($rev['source'] === 'new') {
-                                    echo htmlspecialchars($rev['rating']) . ' / 5 Stars';
-                                } else {
-                                    echo htmlspecialchars($rev['score']) . '% (' . htmlspecialchars($rev['rating']) . ')';
-                                }
-                                ?>
-                            </td>
-                            <td><?php echo htmlspecialchars($rev['reviewer']); ?></td>
-                        </tr>
-                    <?php endforeach;
-                else: ?>
+        <div id="sec-disc" class="avoid-break mt-4">
+            <div class="section-title">Disciplinary Records</div>
+            <table class="table table-sm table-bordered mt-2" style="font-size: 0.85rem;">
+                <thead class="table-light">
                     <tr>
-                        <td colspan="3" class="text-center text-muted">No performance reviews on file.</td>
+                        <th>Incident Date</th>
+                        <th>Violation / Offense</th>
+                        <th>Action Taken</th>
+                        <th>Status</th>
                     </tr>
-                <?php endif; ?>
-            </tbody>
-        </table>
-    </div>
-    <div class="mt-5 pt-5 text-center avoid-break">
-        <div style="border-top: 1px solid #000; width: 200px; margin: 0 auto;"></div>
-        <small>HR Verified Signature</small>
-    </div>
+                </thead>
+                <tbody>
+                    <?php if (count($disciplinaryCases) > 0): foreach ($disciplinaryCases as $case): ?>
+                            <tr>
+                                <td><?php echo date('M d, Y', strtotime($case['incident_date'])); ?></td>
+                                <td><?php echo htmlspecialchars($case['violation_type']); ?></td>
+                                <td><?php echo htmlspecialchars($case['action_taken']); ?></td>
+                                <td><?php echo htmlspecialchars($case['status']); ?></td>
+                            </tr>
+                        <?php endforeach;
+                    else: ?>
+                        <tr>
+                            <td colspan="4" class="text-center text-muted">No disciplinary records on file.</td>
+                        </tr>
+                    <?php endif; ?>
+                </tbody>
+            </table>
+        </div>
+
+        <div id="sec-perf" class="avoid-break mt-4">
+            <div class="section-title">Performance Evaluations</div>
+            <table class="table table-sm table-bordered mt-2" style="font-size: 0.85rem;">
+                <thead class="table-light">
+                    <tr>
+                        <th>Review Date</th>
+                        <th>Rating</th>
+                        <th>Evaluator</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php if (count($performanceReviews) > 0): foreach ($performanceReviews as $rev): ?>
+                            <tr>
+                                <td><?php echo date('M d, Y', strtotime($rev['review_date'])); ?></td>
+                                <td>
+                                    <?php
+                                    if ($rev['source'] === 'new') {
+                                        echo htmlspecialchars($rev['rating']) . ' / 5 Stars';
+                                    } else {
+                                        echo htmlspecialchars($rev['score']) . '% (' . htmlspecialchars($rev['rating']) . ')';
+                                    }
+                                    ?>
+                                </td>
+                                <td><?php echo htmlspecialchars($rev['reviewer']); ?></td>
+                            </tr>
+                        <?php endforeach;
+                    else: ?>
+                        <tr>
+                            <td colspan="3" class="text-center text-muted">No performance reviews on file.</td>
+                        </tr>
+                    <?php endif; ?>
+                </tbody>
+            </table>
+        </div>
+        <div class="mt-5 pt-5 text-center avoid-break">
+            <div style="border-top: 1px solid #000; width: 200px; margin: 0 auto;"></div>
+            <small>HR Verified Signature</small>
+        </div>
     </div>
 
     <?php if (!$isWordExport): ?>

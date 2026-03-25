@@ -690,7 +690,7 @@ $paginatedEmployees = array_slice($employees, $offset, $perPage);
     <meta charset="UTF-8">
     <title>Document Tracker - TES HR</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <link rel="icon" href="../uploads/tesp-logo.png" type="image/png">
+    <link rel="icon" href="uploads/tesp-logo.png" type="image/png">
     <link href="assets/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="assets/icons/bootstrap-icons.css">
     <style>

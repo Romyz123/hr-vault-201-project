@@ -62,12 +62,12 @@ $logs = $stmt->fetchAll(PDO::FETCH_ASSOC);
     <meta charset="UTF-8">
     <title>Audit Trail - HR System</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <link rel="icon" href="assets/images/tesp-logo-1.png" type="image/png">
+    <link rel="icon" href="uploads/tesp-logo.png" type="image/png">
     <link href="assets/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="assets/icons/bootstrap-icons.css">
 </head>
 
-<body class="bg-light">
+<body class="bg-body-tertiary">
 
     <nav class="navbar navbar-dark bg-dark mb-4">
         <div class="container-fluid px-4">

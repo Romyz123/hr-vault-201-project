@@ -35,8 +35,11 @@ $manualSecret = '';
 $secret = $user['totp_secret'] ?? '';
 if (empty($secret)) {
     $isFirstTimeSetup = true;
-    $secret = GoogleAuthenticator::generateSecret();
-    $_SESSION['pending_totp_secret'] = $secret;
+    // Only generate a new secret if we don't already have a pending one in the session
+    if (empty($_SESSION['pending_totp_secret'])) {
+        $_SESSION['pending_totp_secret'] = GoogleAuthenticator::generateSecret();
+    }
+    $secret = $_SESSION['pending_totp_secret'];
 }
 
 if ($isFirstTimeSetup) {
@@ -152,7 +155,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <head>
     <meta charset="UTF-8">
     <title>Verify 2FA</title>
-    <link rel="icon" href="../uploads/tesp-logo.png" type="image/png">
+    <link rel="icon" href="uploads/tesp-logo.png" type="image/png">
     <link href="assets/bootstrap.min.css" rel="stylesheet">
     <style>
         body {
@@ -192,7 +195,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <?php if ($isFirstTimeSetup): ?>
                 <p class="text-muted small"><strong>First Time Setup:</strong> Scan this QR code using Google Authenticator, Authy, or Microsoft Authenticator.</p>
                 <div class="mb-3 d-flex flex-column align-items-center">
-                    <div id="qrcode" class="p-2 bg-white border rounded"></div>
+                    <div id="qrcode" class="p-2 bg-white border rounded"><img src="https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=<?php echo urlencode($otpauthUrl); ?>" alt="QR Code"></div>
                     <div class="mt-2">
                         <button type="button" class="btn btn-sm btn-outline-secondary" onclick="saveQRCode()"><i class="bi bi-download"></i> Save QR Code</button>
                     </div>
@@ -218,7 +221,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token); ?>">
             <div class="mb-3">
                 <label class="form-label fw-bold">Enter 6-Digit Code or Backup Code</label>
-                <input type="text" name="otp_code" class="form-control text-center fs-4 letter-spacing-2" maxlength="8" placeholder="123456 or A1B2C3D4" required autofocus autocomplete="off" oninput="this.value = this.value.toUpperCase().replace(/[^0-9A-Z]/g, '')">
+                <input type="text" name="otp_code" class="form-control text-center fs-4 letter-spacing-2" maxlength="8" placeholder="123456 or A1B2C3D4" required autofocus autocomplete="off" style="text-transform: uppercase;">
             </div>
             <div class="mb-3 form-check">
                 <input type="checkbox" class="form-check-input" id="trustDevice" name="trust_device">

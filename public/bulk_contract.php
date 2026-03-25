@@ -128,34 +128,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate_bulk'])) {
                 .sig-section { margin-top: 30px !important; }
                 
                 /* [FIX] Body Text: Justified & Line Height 1.5 */
-                p, .justify, li, td { 
+                p, .justify, li { 
                     margin-bottom: 3px !important; 
                     line-height: 2.00 !important; 
                     text-align: justify !important; 
                     text-justify: inter-word !important;
                     font-size: ' . $docFontSize . 'pt !important;
                 }
+                td {
+                    font-size: ' . $docFontSize . 'pt !important;
+                }
 
-                /* [FIX] Header Title: 115% Width & Centered */
+                /* [FIX] Header Restored to 100% */
                 .doc-title { 
-                    width: 120% !important; 
+                    width: 100% !important; 
                     margin-top: 10px !important; 
                     margin-bottom: 10px !important;
                     text-align: center !important; 
                 }
 
                 .header-wrapper { 
-                     width: 110% !important; 
-                    text-align: center !important; 
-                    margin-bottom: 10px !important; 
-                    padding-bottom: 5px !important; 
+                     width: 100% !important; 
                 }
-                
-                .header-content-table { margin: 0 auto !important; }
 
                 /* [FIX] Shift body content using ADJUSTABLE Settings (Removed .doc-title from here) */
                 p, ol, ul, .justify, .salutation, .witnesseth, .sig-section { 
-                    width: 100% !important;
+                    width: auto !important; /* Prevents text from bleeding off the page */
                     margin-left: ' . $marginL . 'px !important; 
                     margin-right: ' . $marginR . 'px !important; 
                 }
@@ -174,7 +172,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate_bulk'])) {
                 ' : '') . '
             }
             body { background: #555; font-family: sans-serif; }
-            .document-container { background: white; margin: 100px auto; padding: 0; max-width: 8.5in; box-shadow: 0 0 10px rgba(0,0,0,0.5); }
+            .document-container { background: white; margin: 100px auto; padding: 20px <?php echo $marginR; ?>px 20px <?php echo $marginL; ?>px; box-sizing: border-box; max-width: 8.5in; box-shadow: 0 0 10px rgba(0,0,0,0.5); }
             .toolbar { position: fixed; top: 0; left: 0; width: 100%; background: #333; color: white; padding: 10px; text-align: center; z-index: 1000; }
         </style>';
         echo '</head><body>';
@@ -274,7 +272,7 @@ $allDepts = $pdo->query("SELECT DISTINCT dept FROM employees WHERE dept != '' OR
 <head>
     <meta charset="UTF-8">
     <title>Bulk Contract Generator</title>
-    <link rel="icon" href="assets/images/tesp-logo-1.png" type="image/png">
+    <link rel="icon" href="uploads/tesp-logo.png" type="image/png">
     <link href="assets/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="assets/icons/bootstrap-icons.css">
     <script src="assets/sweetalert2.all.min.js"></script>
@@ -405,7 +403,7 @@ $allDepts = $pdo->query("SELECT DISTINCT dept FROM employees WHERE dept != '' OR
                                 </div>
                                 <div class="col-md-2">
                                     <label class="form-label small text-muted mb-1">Font Size (pt)</label>
-                                    <input type="number" step="0.5" name="font_size" class="form-control form-control-sm" value="<?php echo htmlspecialchars($docFontSize); ?>" min="8" max="24">
+                                    <input type="number" step="0.5" name="font_size" class="form-control form-control-sm" value="<?php echo htmlspecialchars($docFontSize); ?>" min="8" max="24" oninput="validateFontSize(this)">
                                 </div>
                                 <div class="col-md-3">
                                     <div class="form-check mt-3">
@@ -522,6 +520,13 @@ $allDepts = $pdo->query("SELECT DISTINCT dept FROM employees WHERE dept != '' OR
             input.value = input.value.replace(/[^0-9]/g, '');
             if (input.value.length > 3) input.value = input.value.slice(0, 3);
             if (input.value !== '' && parseInt(input.value) > 500) input.value = '500';
+        }
+
+        function validateFontSize(input) {
+            input.value = input.value.replace(/[^0-9\.]/g, '');
+            if ((input.value.match(/\./g) || []).length > 1) input.value = input.value.replace(/\.$/, '');
+            if (input.value.length > 4) input.value = input.value.slice(0, 4);
+            if (parseFloat(input.value) > 24) input.value = '24';
         }
 
         function resetMargins() {

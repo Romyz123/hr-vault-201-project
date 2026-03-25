@@ -56,9 +56,7 @@ if (!isset($emp)) {
     <?php $safe_global_logo_src = !empty($global_logo_src) ? htmlspecialchars($global_logo_src, ENT_QUOTES, 'UTF-8') : 'assets/images/tesp-logo.png'; ?>
     <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
         <tr>
-            <td style="width: 80px; vertical-align: middle;">
-                <img src="<?php echo $safe_global_logo_src; ?>" style="width: 70px; height: auto; display: block;" alt="TESP Logo">
-            </td>
+
             <td style="vertical-align: middle; text-align: center;">
                 <div class="header" style="font-size: 13pt;">
                     Mitsubishi Heavy Industries, Ltd. (“MHI”) Consent Form<br>

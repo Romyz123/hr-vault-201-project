@@ -409,12 +409,12 @@ $emps = $pdo->query("SELECT emp_id, first_name, last_name FROM employees WHERE s
     <meta charset="UTF-8">
     <title>Hardware Maintenance Log</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <link rel="icon" href="assets/images/tesp-logo-1.png" type="image/png">
+    <link rel="icon" href="uploads/tesp-logo.png" type="image/png">
     <link href="assets/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="assets/icons/bootstrap-icons.css">
 </head>
 
-<body class="bg-light">
+<body class="bg-body-tertiary">
 
     <nav class="navbar navbar-dark bg-dark mb-4">
         <div class="container">
@@ -446,11 +446,11 @@ $emps = $pdo->query("SELECT emp_id, first_name, last_name FROM employees WHERE s
                     </select>
                     <input type="text" name="search" class="form-control" placeholder="Search..." value="<?php echo htmlspecialchars($search); ?>" style="max-width: 180px;" maxlength="50">
                     <div class="input-group" style="width: auto;">
-                        <span class="input-group-text bg-white text-secondary small">From</span>
+                        <span class="input-group-text text-secondary small">From</span>
                         <input type="date" name="date_from" class="form-control" value="<?php echo htmlspecialchars($dateFrom); ?>" title="Start Date">
                     </div>
                     <div class="input-group" style="width: auto;">
-                        <span class="input-group-text bg-white text-secondary small">To</span>
+                        <span class="input-group-text text-secondary small">To</span>
                         <input type="date" name="date_to" class="form-control" value="<?php echo htmlspecialchars($dateTo); ?>" title="End Date">
                     </div>
                     <button type="submit" class="btn btn-primary"><i class="bi bi-search"></i></button>

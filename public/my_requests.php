@@ -68,14 +68,10 @@ $requests = $stmt->fetchAll(PDO::FETCH_ASSOC);
 <head>
     <meta charset="UTF-8">
     <title>My Requests</title>
-    <link rel="icon" href="assets/images/tesp-logo.png" type="image/png">
+    <link rel="icon" href="uploads/tesp-logo.png" type="image/png">
     <link href="assets/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="assets/icons/bootstrap-icons.css">
     <style>
-        body {
-            background: #f4f6f9;
-        }
-
         .status-PENDING {
             background-color: #ffc107;
             color: #000;
@@ -93,7 +89,7 @@ $requests = $stmt->fetchAll(PDO::FETCH_ASSOC);
     </style>
 </head>
 
-<body>
+<body class="bg-body-tertiary">
 
     <nav class="navbar navbar-dark bg-dark mb-4">
         <div class="container">
@@ -239,43 +235,8 @@ $requests = $stmt->fetchAll(PDO::FETCH_ASSOC);
         </nav>
     <?php endif; ?>
 
-
-
-
-
-
-</body>
-
-<script>
-    (function() {
-        const toggle = document.getElementById('darkModeToggle');
-        const STORAGE_KEY = 'my_requests_dark_mode';
-
-        const applyMode = (enabled) => {
-            document.body.classList.toggle('dark-mode', enabled);
-        };
-
-        const loadMode = () => {
-            const stored = localStorage.getItem(STORAGE_KEY);
-            return stored === '1';
-        };
-
-        const saveMode = (enabled) => {
-            localStorage.setItem(STORAGE_KEY, enabled ? '1' : '0');
-        };
-
-        // Apply preference on load
-        applyMode(loadMode());
-
-        if (toggle) {
-            toggle.addEventListener('click', () => {
-                const enabled = !document.body.classList.contains('dark-mode');
-                applyMode(enabled);
-                saveMode(enabled);
-            });
-        }
-    })();
-</script>
+    <script src="assets/bootstrap.bundle.min.js"></script>
+    <script src="dark_mode.js"></script>
 </body>
 
 </html>

@@ -6,6 +6,8 @@
 
 require '../../config/db.php';
 require '../../src/Security.php';
+require '../config/db.php';
+require '../src/Security.php';
 session_start();
 
 // 1. SECURITY: Admin/HR Only
@@ -31,18 +33,29 @@ $ghosts = $stmt->fetchAll();
 <head>
     <meta charset="UTF-8">
     <title>Fix Missing Dates</title>
-    <link rel="icon" href="../assets/images/tesp-logo-1.png" type="image/png">
-    <link href="../assets/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="../assets/icons/bootstrap-icons.css">
+    <link rel="icon" href="uploads/tesp-logo.png" type="image/png">
+    <link href="assets/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="assets/icons/bootstrap-icons.css">
 </head>
 
-<body class="bg-light">
+<body class="bg-body-tertiary">
 
-    <div class="container mt-5">
+    <nav class="navbar navbar-dark bg-dark mb-4">
+        <div class="container">
+            <a class="navbar-brand" href="index.php">Back to Dashboard</a>
+            <div class="d-flex align-items-center gap-2">
+                <button id="darkModeToggle" class="btn btn-sm btn-outline-light border-0" title="Toggle Dark Mode">
+                    <i class="bi bi-moon-stars-fill"></i>
+                </button>
+                <span class="navbar-text text-white fw-bold"><i class="bi bi-calendar-x-fill text-danger"></i> Missing Dates</span>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
         <div class="card shadow border-danger">
             <div class="card-header bg-danger text-white d-flex justify-content-between align-items-center">
                 <h5 class="mb-0"><i class="bi bi-calendar-x-fill me-2"></i> Missing Hire Dates</h5>
-                <a href="../index.php" class="btn btn-sm btn-outline-light">Back to Dashboard</a>
             </div>
             <div class="card-body">
 
@@ -76,7 +89,7 @@ $ghosts = $stmt->fetchAll();
                                         <?php echo empty($emp['hire_date']) || $emp['hire_date'] == '0000-00-00' ? 'MISSING' : $emp['hire_date']; ?>
                                     </td>
                                     <td>
-                                        <a href="../edit_employee.php?id=<?php echo $emp['id']; ?>" class="btn btn-sm btn-primary">
+                                        <a href="edit_employee.php?id=<?php echo $emp['id']; ?>" class="btn btn-sm btn-primary">
                                             <i class="bi bi-pencil-square"></i> Set Date
                                         </a>
                                     </td>
@@ -89,7 +102,7 @@ $ghosts = $stmt->fetchAll();
                         <i class="bi bi-check-circle-fill text-success" style="font-size: 3rem;"></i>
                         <h4 class="mt-3 text-success">All Clear!</h4>
                         <p class="text-muted">Every active employee has a valid hire date.</p>
-                        <a href="../analytics.php" class="btn btn-primary">Go to Analytics</a>
+                        <a href="analytics.php" class="btn btn-primary">Go to Analytics</a>
                     </div>
                 <?php endif; ?>
 
@@ -97,6 +110,8 @@ $ghosts = $stmt->fetchAll();
         </div>
     </div>
 
+    <script src="assets/bootstrap.bundle.min.js"></script>
+    <script src="dark_mode.js"></script>
 </body>
 
 </html>

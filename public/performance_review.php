@@ -349,9 +349,7 @@ foreach ($logo_paths as $p) {
 <head>
     <meta charset="UTF-8">
     <title>Performance Reviews</title>
-    <?php if ($logo_src): ?>
-        <link rel="icon" href="<?php echo $logo_src; ?>" type="image/png">
-    <?php endif; ?>
+    <link rel="icon" href="uploads/tesp-logo.png" type="image/png">
     <link href="assets/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="assets/icons/bootstrap-icons.css">
     <style>

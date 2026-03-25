@@ -132,7 +132,7 @@ foreach ($logo_paths as $p) {
 <head>
     <meta charset="UTF-8">
     <title>Compliance Report</title>
-    <link rel="icon" href="assets/images/tesp-logo-1.png" type="image/png">
+    <link rel="icon" href="uploads/tesp-logo.png" type="image/png">
     <style>
         body {
             font-family: Arial, sans-serif;

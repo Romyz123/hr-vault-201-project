@@ -410,7 +410,7 @@ try {
 <head>
     <meta charset="UTF-8">
     <title>Recruitment Dashboard</title>
-    <link rel="icon" href="<?php echo $logo_src; ?>" type="image/png">
+    <link rel="icon" href="uploads/tesp-logo.png" type="image/png">
     <link href="assets/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="assets/icons/bootstrap-icons.css">
     <script src="assets/chart.min.js"></script>
@@ -693,7 +693,6 @@ try {
                                                 <button type="button" class="btn btn-outline-primary" title="Schedule Interview" onclick='openSchedModal(<?php echo $safeData; ?>)'><i class="bi bi-calendar-event"></i></button>
                                                 <button type="button" class="btn btn-outline-info" title="Send SMS Follow Up" onclick='openFollowModal(<?php echo $safeData; ?>)'><i class="bi bi-chat-left-text-fill"></i></button>
                                                 <button type="button" class="btn btn-outline-secondary" title="Edit Profile" onclick='openEditModal(<?php echo $safeData; ?>)'><i class="bi bi-pencil-square"></i></button>
-                                                <button type="button" class="btn btn-outline-success" title="Duplicate Applicant" onclick='duplicateCandidate(<?php echo $safeData; ?>)'><i class="bi bi-copy"></i></button>
                                                 <button type="button" class="btn btn-outline-danger" title="Blacklist Candidate" onclick="openBlacklistModal(<?php echo $c['id']; ?>)"><i class="bi bi-slash-circle"></i></button>
                                                 <button type="button" class="btn btn-outline-danger" title="Delete" onclick="deleteCandidate(<?php echo $c['id']; ?>)"><i class="bi bi-trash"></i></button>
                                             </div>
@@ -1041,18 +1040,6 @@ try {
             document.getElementById('follow_id').value = data.id;
             document.getElementById('follow_msg').value = `Dear ${data.first_name},\n\nGreetings from TES Philippines, Inc.\n\nWe are following up regarding your recent job application. Please contact our HR Department at your earliest convenience for updates.\n\nBest Regards,\nHR Department`;
             bootstrap.Modal.getOrCreateInstance(document.getElementById('followUpModal')).show();
-        }
-
-        function duplicateCandidate(data) {
-            const addModal = document.getElementById('addModal');
-            addModal.querySelector('input[name="first_name"]').value = data.first_name || '';
-            addModal.querySelector('input[name="last_name"]').value = data.last_name || '';
-            addModal.querySelector('input[name="phone_number"]').value = data.phone_number || '';
-            addModal.querySelector('input[name="email"]').value = data.email || '';
-            addModal.querySelector('input[name="position_applied"]').value = data.position_applied || '';
-            addModal.querySelector('input[name="application_date"]').value = new Date().toISOString().split('T')[0];
-
-            bootstrap.Modal.getOrCreateInstance(addModal).show();
         }
 
         function toggleRejectionField() {

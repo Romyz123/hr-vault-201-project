@@ -67,9 +67,6 @@ foreach ($logo_paths as $p) {
 } // Fallback to a 1x1 transparent PNG if no logo found
 if (empty($logo_src)) {
     $logo_src = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=';
-} // Fallback to a 1x1 transparent PNG if no logo found
-if (empty($logo_src)) {
-    $logo_src = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=';
 } ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -77,7 +74,7 @@ if (empty($logo_src)) {
 <head>
     <meta charset="UTF-8">
     <title>Missing Fields Report</title>
-    <link rel="icon" href="<?php echo $logo_src; ?>" type="image/png">
+    <link rel="icon" href="uploads/tesp-logo.png" type="image/png">
     <link href="assets/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="assets/icons/bootstrap-icons.css">
     <style>

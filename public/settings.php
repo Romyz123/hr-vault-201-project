@@ -51,6 +51,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $updates[$cb] = isset($_POST['settings'][$cb]) ? '1' : '0';
         }
 
+        // [FIX] Ensure approval_widgets is saved as an empty array if all boxes are unchecked
+        if (isset($_POST['settings']) && !isset($_POST['settings']['approval_widgets'])) {
+            $_POST['settings']['approval_widgets'] = [];
+        }
+
         // Validate posted settings first
         if (isset($_POST['settings']) && is_array($_POST['settings'])) {
             foreach ($_POST['settings'] as $key => $value) {
@@ -275,7 +280,7 @@ if (PHP_OS_FAMILY === 'Windows') {
 <head>
     <meta charset="UTF-8">
     <title>System Settings</title>
-    <link rel="icon" href="assets/images/tesp-logo-1.png" type="image/png">
+    <link rel="icon" href="uploads/tesp-logo.png" type="image/png">
     <link href="assets/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="assets/icons/bootstrap-icons.css">
 </head>
@@ -419,7 +424,7 @@ if (PHP_OS_FAMILY === 'Windows') {
                             <div class="row g-2">
                                 <div class="col-4"><label class="form-label fw-bold">Bulk Print Margin (Left)</label><input type="number" name="settings[bulk_margin_left]" class="form-control" value="<?php echo htmlspecialchars($marginL); ?>" min="0" max="500" oninput="validateMargin(this)"></div>
                                 <div class="col-4"><label class="form-label fw-bold">Bulk Print Margin (Right)</label><input type="number" name="settings[bulk_margin_right]" class="form-control" value="<?php echo htmlspecialchars($marginR); ?>" min="0" max="500" oninput="validateMargin(this)"></div>
-                                <div class="col-4"><label class="form-label fw-bold">Document Font Size (pt)</label><input type="number" step="0.5" name="settings[document_font_size]" class="form-control" value="<?php echo htmlspecialchars($docFontSize); ?>" min="8" max="24"></div>
+                                <div class="col-4"><label class="form-label fw-bold">Document Font Size (pt)</label><input type="number" step="0.5" name="settings[document_font_size]" class="form-control" value="<?php echo htmlspecialchars($docFontSize); ?>" min="8" max="24" oninput="validateFontSize(this)"></div>
                             </div>
                             <div class="form-text mb-3">Adjusts the side spacing for bulk printed contracts (in pixels).</div>
                         </div>
@@ -470,8 +475,9 @@ if (PHP_OS_FAMILY === 'Windows') {
                                 </div>
                                 <div class="col-md-3 mb-3">
                                     <label class="form-label fw-bold">Max Split Size (GB)</label>
-                                    <input type="number" step="0.1" name="settings[backup_max_size_gb]" class="form-control" value="<?php echo htmlspecialchars($backupMaxSize); ?>" min="0.1" max="
-                                <div class=" col-md-3 mb-3 d-flex align-items-center pt-3">
+                                    <input type="number" step="0.1" name="settings[backup_max_size_gb]" class="form-control" value="<?php echo htmlspecialchars($backupMaxSize); ?>" min="0.1" max="<?php echo $backupDiskTotalGB; ?>">
+                                </div>
+                                <div class="col-md-3 mb-3 d-flex align-items-center pt-3">
                                     <div class="form-check form-switch">
                                         <input class="form-check-input" type="checkbox" name="settings[backup_include_vault]" value="1" id="incVault" <?php echo ($backupVault === '1') ? 'checked' : ''; ?>>
                                         <label class="form-check-label fw-bold" for="incVault">Include Vault Files</label>
@@ -682,6 +688,13 @@ if (PHP_OS_FAMILY === 'Windows') {
             input.value = input.value.replace(/[^0-9]/g, '');
             if (input.value.length > 3) input.value = input.value.slice(0, 3);
             if (input.value !== '' && parseInt(input.value) > 500) input.value = '500';
+        }
+
+        function validateFontSize(input) {
+            input.value = input.value.replace(/[^0-9\.]/g, ''); // Numbers and dots only
+            if ((input.value.match(/\./g) || []).length > 1) input.value = input.value.replace(/\.$/, ''); // Prevent double dots
+            if (input.value.length > 4) input.value = input.value.slice(0, 4); // Max 4 chars (e.g., 24.5)
+            if (parseFloat(input.value) > 24) input.value = '24'; // Hard cap at 24pt
         }
 
         // [SECURITY] Auto-Logout Timer
