@@ -349,7 +349,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['cleanup_dev_files']) 
         'qa_test.php',
         'process_approval.php',
         'process_edit_employee.php',
-        'process_add_employee.php'
+        'process_add_employee.php',
+        'generate_test_data.php'
     ];
 
     $deletedCount = 0;
@@ -943,7 +944,8 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
                 'system_diagnostics.php' => 'System diagnostics tool',
                 'process_approval.php' => 'Legacy deprecated script',
                 'process_edit_employee.php' => 'Legacy deprecated script',
-                'process_add_employee.php' => 'Legacy deprecated script'
+                'process_add_employee.php' => 'Legacy deprecated script',
+                'generate_test_data.php' => 'Test data generator (Pollutes DB)'
             ];
 
             $foundRisks = [];

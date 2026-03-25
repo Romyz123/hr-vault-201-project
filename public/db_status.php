@@ -60,7 +60,8 @@ $devFiles = [
     'qa_test.php',
     'process_approval.php',
     'process_edit_employee.php',
-    'process_add_employee.php'
+    'process_add_employee.php',
+    'generate_test_data.php'
 ];
 $basePath = __DIR__ . '/';
 $devFilesExist = false;
