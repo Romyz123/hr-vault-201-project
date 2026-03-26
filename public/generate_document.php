@@ -64,13 +64,27 @@ $custom_duties = isset($_GET['custom_duties']) ? trim($_GET['custom_duties']) : 
 $start_input = $_GET['start_date'] ?? $emp['hire_date'];
 $end_input   = $_GET['end_date'] ?? '';
 
-$start_date_obj = new DateTime($start_input);
-$start_date_str = $start_date_obj->format('F j, Y');
+// [FIX] Safe Date Parsing to prevent Fatal Error crashes on missing hire dates
+try {
+    $start_date_obj = new DateTime($start_input ?: 'now');
+    $start_date_str = $start_date_obj->format('F j, Y');
+} catch (Exception $e) {
+    $start_date_obj = new DateTime('now');
+    $start_date_str = $start_date_obj->format('F j, Y');
+}
 
 if (!empty($end_input)) {
-    $end_date_obj = new DateTime($end_input);
-    $end_date_str = $end_date_obj->format('F j, Y');
-    $contract_period = "$start_date_str up to $end_date_str"; // Default format
+    try {
+        $end_date_obj = new DateTime($end_input);
+        $end_date_str = $end_date_obj->format('F j, Y');
+        $contract_period = "$start_date_str up to $end_date_str"; // Default format
+    } catch (Exception $e) {
+        // Fallback if end date is garbage
+        $end_date_obj = clone $start_date_obj;
+        $end_date_obj->modify('+6 months');
+        $end_date_str = $end_date_obj->format('F j, Y');
+        $contract_period = "$start_date_str up to $end_date_str";
+    }
 } else {
     // Fallback if no end date provided (Default 6 months)
     $end_date_obj = clone $start_date_obj;

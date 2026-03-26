@@ -107,8 +107,13 @@ end_post:
     </style>
 </head>
 
-<body class="d-flex align-items-center justify-content-center vh-100">
-    <div class="position-absolute top-0 end-0 p-3 text-muted small font-monospace"><i class="bi bi-clock"></i> <span id="sessionTimer"></span></div>
+<body class="bg-body-tertiary d-flex align-items-center justify-content-center vh-100">
+    <div class="position-absolute top-0 end-0 p-3 d-flex align-items-center gap-2">
+        <button id="darkModeToggle" class="btn btn-sm btn-outline-secondary border-0" title="Toggle Dark Mode">
+            <i class="bi bi-moon-stars-fill"></i>
+        </button>
+        <div class="text-muted small font-monospace"><i class="bi bi-clock"></i> <span id="sessionTimer"></span></div>
+    </div>
 
     <div class="card shadow p-4" style="width: 400px;">
         <h4 class="mb-3 text-center text-danger">Password Expired</h4>
@@ -185,6 +190,8 @@ end_post:
             bar.className = 'progress-bar ' + (score > 4 ? 'bg-success' : (score > 2 ? 'bg-warning' : 'bg-danger'));
         }
     </script>
+    <script src="assets/bootstrap.bundle.min.js"></script>
+    <script src="dark_mode.js"></script>
 </body>
 
 </html>

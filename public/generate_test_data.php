@@ -155,7 +155,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['clear_data'])) {
     <nav class="navbar navbar-dark bg-danger mb-4 shadow">
         <div class="container">
             <a class="navbar-brand" href="index.php">Back to Dashboard</a>
-            <span class="navbar-text text-white fw-bold"><i class="bi bi-cone-striped"></i> Test Data Generator</span>
+            <div class="d-flex align-items-center gap-2">
+                <button id="darkModeToggle" class="btn btn-sm btn-outline-light border-0" title="Toggle Dark Mode">
+                    <i class="bi bi-moon-stars-fill"></i>
+                </button>
+                <span class="navbar-text text-white fw-bold"><i class="bi bi-cone-striped"></i> Test Data Generator</span>
+            </div>
         </div>
     </nav>
 
@@ -210,6 +215,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['clear_data'])) {
             </div>
         </div>
     </div>
+    <script src="assets/bootstrap.bundle.min.js"></script>
+    <script src="dark_mode.js"></script>
 </body>
 
 </html>

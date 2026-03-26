@@ -228,7 +228,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
     </style>
 </head>
 
-<body class="d-flex align-items-center justify-content-center vh-100">
+<body class="bg-body-tertiary d-flex align-items-center justify-content-center vh-100">
+    <div class="position-absolute top-0 end-0 p-3">
+        <button id="darkModeToggle" class="btn btn-sm btn-outline-secondary border-0" title="Toggle Dark Mode">
+            <i class="bi bi-moon-stars-fill"></i>
+        </button>
+    </div>
 
     <div class="card login-card" style="width: 100%; max-width: 400px;">
         <div class="card-header bg-primary text-white text-center py-4">
@@ -338,6 +343,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
         <?php endif; ?>
     </script>
 
+    <script src="assets/bootstrap.bundle.min.js"></script>
+    <script src="dark_mode.js"></script>
 </body>
 
 </html>

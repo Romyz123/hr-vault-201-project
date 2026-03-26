@@ -13,10 +13,10 @@ if (!isset($_SESSION['user_id'])) {
 $yearFilter = isset($_GET['year']) ? (int)$_GET['year'] : (int)date('Y');
 
 // Fetch Average Scores by Department
-$sql = "SELECT e.dept, COUNT(pe.id) as eval_count, AVG(pe.score) as avg_score 
-        FROM performance_evaluations pe 
+$sql = "SELECT e.dept, COUNT(pe.id) as eval_count, (AVG(pe.rating) / 5) * 100 as avg_score 
+        FROM hr_performance_reviews pe 
         JOIN employees e ON pe.employee_id = e.id 
-        WHERE YEAR(pe.eval_date) = ?
+        WHERE YEAR(pe.review_date) = ?
         GROUP BY e.dept 
         ORDER BY avg_score DESC";
 $stmt = $pdo->prepare($sql);

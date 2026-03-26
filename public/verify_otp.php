@@ -208,6 +208,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 </head>
 
 <body class="bg-body-tertiary">
+    <div class="position-absolute top-0 end-0 p-3">
+        <button id="darkModeToggle" class="btn btn-sm btn-outline-secondary border-0" title="Toggle Dark Mode">
+            <i class="bi bi-moon-stars-fill"></i>
+        </button>
+    </div>
     <div class="card p-4">
         <div class="text-center mb-4">
             <h4 class="fw-bold text-primary"><i class="bi bi-phone"></i> Authenticator App</h4>
@@ -283,6 +288,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         </script>
     <?php endif; ?>
+    <script src="assets/bootstrap.bundle.min.js"></script>
+    <script src="dark_mode.js"></script>
 </body>
 
 </html>

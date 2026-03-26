@@ -138,11 +138,23 @@ if ($sourceDir && is_dir($sourceDir)) {
 </head>
 
 <body class="bg-body-tertiary">
-    <div class="container mt-5" style="max-width: 700px;">
+
+    <nav class="navbar navbar-dark bg-dark mb-4">
+        <div class="container">
+            <a class="navbar-brand" href="index.php">Back to Dashboard</a>
+            <div class="d-flex align-items-center gap-2">
+                <button id="darkModeToggle" class="btn btn-sm btn-outline-light border-0" title="Toggle Dark Mode">
+                    <i class="bi bi-moon-stars-fill"></i>
+                </button>
+                <span class="navbar-text text-white fw-bold"><i class="bi bi-hdd-network-fill"></i> Bulk Vault Importer</span>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container" style="max-width: 700px;">
         <div class="card shadow">
-            <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
-                <h5 class="mb-0"><i class="bi bi-hdd-network-fill"></i> Legacy Data Migration</h5>
-                <a href="index.php" class="btn btn-sm btn-light">Exit</a>
+            <div class="card-header bg-primary text-white fw-bold">
+                <i class="bi bi-hdd-network-fill"></i> Legacy Data Migration
             </div>
             <div class="card-body">
                 <p>This tool securely encrypts and imports massive amounts of legacy PDFs from the <code>temp_import</code> directory into the active Vault.</p>
@@ -227,6 +239,8 @@ if ($sourceDir && is_dir($sourceDir)) {
             processNextBatch();
         }
     </script>
+    <script src="assets/bootstrap.bundle.min.js"></script>
+    <script src="dark_mode.js"></script>
 </body>
 
 </html>

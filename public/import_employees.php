@@ -281,7 +281,14 @@ if (isset($_POST['undo_batch'])) {
                 'emergency_address',
                 'education',
                 'experience',
+                'skills',
+                'system_role',
+                'company_name',
+                'previous_company',
                 'licenses',
+                'status',
+                'exit_date',
+                'exit_reason',
                 'updated_at'
             ];
 

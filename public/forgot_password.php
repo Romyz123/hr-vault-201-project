@@ -239,7 +239,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </style>
 </head>
 
-<body>
+<body class="bg-body-tertiary d-flex align-items-center justify-content-center vh-100">
+    <div class="position-absolute top-0 end-0 p-3">
+        <button id="darkModeToggle" class="btn btn-sm btn-outline-secondary border-0" title="Toggle Dark Mode">
+            <i class="bi bi-moon-stars-fill"></i>
+        </button>
+    </div>
     <div class="card shadow" style="width: 400px;">
         <div class="card-body p-4">
             <div class="text-center mb-4">
@@ -444,6 +449,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             p2.addEventListener('input', checkMatch);
         }
     </script>
+    <script src="assets/bootstrap.bundle.min.js"></script>
+    <script src="dark_mode.js"></script>
 </body>
 
 </html>

@@ -115,8 +115,80 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                     // SAFETY: Remove the note so it doesn't break the SQL INSERT
                     unset($data['request_note']);
 
-                    // Whitelist allowed columns for employees table
-                    $allowedColumns = ['emp_id', 'first_name', 'last_name', 'email', 'phone', 'department', 'job_title', 'manager_id', 'date_hired', 'salary', 'status', 'avatar_path'];
+                    // [FIX] Synchronized Whitelist with Database Schema to prevent data loss on approval
+                    $allowedColumns = [
+                        'emp_id',
+                        'first_name',
+                        'middle_name',
+                        'last_name',
+                        'job_title',
+                        'system_role',
+                        'dept',
+                        'section',
+                        'employment_type',
+                        'agency_name',
+                        'company_name',
+                        'previous_company',
+                        'hire_date',
+                        'gender',
+                        'birth_date',
+                        'contact_number',
+                        'email',
+                        'present_address',
+                        'permanent_address',
+                        'sss_no',
+                        'tin_no',
+                        'pagibig_no',
+                        'philhealth_no',
+                        'emergency_name',
+                        'emergency_contact',
+                        'emergency_address',
+                        'education',
+                        'experience',
+                        'skills',
+                        'licenses',
+                        'status',
+                        'exit_date',
+                        'exit_reason',
+                        'avatar_path'
+                    ];
+                    // [FIX] Synchronized Whitelist with Database Schema to prevent data loss on approval
+                    $allowedColumns = [
+                        'emp_id',
+                        'first_name',
+                        'middle_name',
+                        'last_name',
+                        'job_title',
+                        'system_role',
+                        'dept',
+                        'section',
+                        'employment_type',
+                        'agency_name',
+                        'company_name',
+                        'previous_company',
+                        'hire_date',
+                        'gender',
+                        'birth_date',
+                        'contact_number',
+                        'email',
+                        'present_address',
+                        'permanent_address',
+                        'sss_no',
+                        'tin_no',
+                        'pagibig_no',
+                        'philhealth_no',
+                        'emergency_name',
+                        'emergency_contact',
+                        'emergency_address',
+                        'education',
+                        'experience',
+                        'skills',
+                        'licenses',
+                        'status',
+                        'exit_date',
+                        'exit_reason',
+                        'avatar_path'
+                    ];
                     $filteredData = array_intersect_key($data, array_flip($allowedColumns));
 
                     if (empty($filteredData)) {

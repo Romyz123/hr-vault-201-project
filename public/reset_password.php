@@ -209,6 +209,11 @@ if ($step === 'reset' && empty($_SESSION['reset_csrf'])) {
 </head>
 
 <body class="bg-body-tertiary">
+    <div class="position-absolute top-0 end-0 p-3">
+        <button id="darkModeToggle" class="btn btn-sm btn-outline-secondary border-0" title="Toggle Dark Mode">
+            <i class="bi bi-moon-stars-fill"></i>
+        </button>
+    </div>
 
     <div class="card" style="width: 420px;">
         <div class="card-header text-center bg-transparent border-0 pt-4">
@@ -398,6 +403,8 @@ if ($step === 'reset' && empty($_SESSION['reset_csrf'])) {
         <?php endif; ?>
     </script>
 
+    <script src="assets/bootstrap.bundle.min.js"></script>
+    <script src="dark_mode.js"></script>
 </body>
 
 </html>
