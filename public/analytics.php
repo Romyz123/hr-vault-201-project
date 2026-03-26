@@ -210,6 +210,13 @@ $trendCounts     = json_encode($trendDataArr);
 $attrTrendCounts = json_encode($attrDataArr);
 $netGrowthCounts = json_encode($netGrowthArr);
 
+// [NEW] Pre-calculate colors for Net Growth on the server to prevent JS syntax errors
+$netGrowthColorsArr = [];
+foreach ($netGrowthArr as $val) {
+    $netGrowthColorsArr[] = $val >= 0 ? '#198754' : '#dc3545'; // Green for positive/zero, Red for negative
+}
+$netGrowthColors = json_encode($netGrowthColorsArr);
+
 // 7) PROBATIONARY VS REGULAR (New Logic)
 // Threshold: Dynamic months prior to the "As Of" date
 $probThresholdDate = (clone $asOf)->modify("-$probMonths months")->format('Y-m-d');
@@ -1535,9 +1542,8 @@ if ($debug) {
             'trendChart': {
                 labels: <?php echo $trendLabels; ?>,
                 data: <?php echo $netGrowthCounts; ?>,
-                hires: <?php echo $trendCounts; ?>,
-                exits: <?php echo $attrTrendCounts; ?>,
-                type: 'mixed'
+                type: 'bar',
+                bg: <?php echo $netGrowthColors; ?>
             },
             'genderChart': {
                 labels: <?php echo $genderLabels; ?>,
@@ -1652,52 +1658,17 @@ if ($debug) {
 
             const isLine = info.type === 'line';
 
-            let datasets = [];
-            if (info.type === 'mixed') {
-                datasets = [{
-                        label: 'Net Growth',
-                        type: 'bar',
-                        data: info.data,
-                        backgroundColor: info.data.map(v => v >= 0 ? 'rgba(25, 135, 84, 0.6)' : 'rgba(220, 53, 69, 0.6)'),
-                        borderRadius: 4
-                    },
-                    {
-                        label: 'Hires',
-                        type: 'line',
-                        data: info.hires,
-                        borderColor: '#0d6efd',
-                        fill: false,
-                        tension: 0.4,
-                        borderWidth: 2,
-                        pointRadius: 2,
-                        pointHoverRadius: 5
-                    },
-                    {
-                        label: 'Exits',
-                        type: 'line',
-                        data: info.exits,
-                        borderColor: '#dc3545',
-                        fill: false,
-                        borderDash: [5, 5],
-                        tension: 0.4,
-                        borderWidth: 2,
-                        pointRadius: 2,
-                        pointHoverRadius: 5
-                    }
-                ];
-            } else {
-                datasets = [{
-                    label: 'Count',
-                    data: info.data,
-                    backgroundColor: info.bg,
-                    borderColor: isLine ? info.border : '#fff',
-                    fill: isLine,
-                    tension: 0.3,
-                    borderRadius: info.type === 'bar' ? 4 : 0
-                }];
-            }
+            let datasets = [{
+                label: info.data === chartData.trendChart.data ? 'Net Growth' : 'Count',
+                data: info.data,
+                backgroundColor: info.bg,
+                borderColor: isLine ? info.border : '#fff',
+                fill: isLine,
+                tension: 0.3,
+                borderRadius: info.type === 'bar' ? 4 : 0
+            }];
 
-            const chartType = (info.type === 'mixed' || info.type === 'stacked_bar') ? 'bar' : info.type;
+            const chartType = (info.type === 'stacked_bar') ? 'bar' : info.type;
             fsChartInstance = new Chart(ctx, {
                 type: chartType,
                 data: {
@@ -1928,43 +1899,18 @@ if ($debug) {
             data: {
                 labels: <?php echo $trendLabels; ?>,
                 datasets: [{
-                        label: 'Net Growth',
-                        type: 'bar',
-                        data: <?php echo $netGrowthCounts; ?>,
-                        backgroundColor: (<?php echo $netGrowthCounts; ?>).map(v => v >= 0 ? 'rgba(25, 135, 84, 0.8)' : 'rgba(220, 53, 69, 0.8)'),
-                        borderRadius: 4
-                    },
-                    {
-                        label: 'Hires',
-                        type: 'line',
-                        data: <?php echo $trendCounts; ?>,
-                        borderColor: '#0d6efd',
-                        fill: false,
-                        tension: 0.4,
-                        borderWidth: 2,
-                        pointRadius: 2,
-                        pointHoverRadius: 5
-                    },
-                    {
-                        label: 'Exits',
-                        type: 'line',
-                        data: <?php echo $attrTrendCounts; ?>,
-                        borderColor: '#dc3545',
-                        fill: false,
-                        borderDash: [5, 5],
-                        tension: 0.4,
-                        borderWidth: 2,
-                        pointRadius: 2,
-                        pointHoverRadius: 5
-                    }
-                ]
+                    label: 'Net Growth',
+                    data: <?php echo $netGrowthCounts; ?>,
+                    backgroundColor: <?php echo $netGrowthColors; ?>,
+                    borderRadius: 4
+                }]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
                 plugins: {
                     legend: {
-                        position: 'top'
+                        display: false
                     }
                 },
                 scales: {
