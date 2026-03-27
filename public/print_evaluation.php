@@ -42,23 +42,12 @@ if (!in_array($role, ['ADMIN', 'HR', 'MANAGER'], true) && $data['employee_id'] !
 }
 
 // Logo
-$logo_paths = [
-    __DIR__ . '/assets/images/tesp-logo-1.png',
-    __DIR__ . '/uploads/tesp-logo.png',
-    __DIR__ . '/uploads/tesp logo 1.png',
-    __DIR__ . '/../uploads/tesp-logo.png',
-    __DIR__ . '/../uploads/tesp logo 1.png'
-];
+// [FIX] Standardized logo path for embedding in print/word documents
+$logo_path = __DIR__ . '/uploads/tesp-logo.png';
 $logo_src = '';
-$logo_mime = 'image/png';
-foreach ($logo_paths as $p) {
-    if (file_exists($p)) {
-        $ext = strtolower(pathinfo($p, PATHINFO_EXTENSION));
-        $mime_types = ['png' => 'image/png', 'jpg' => 'image/jpeg', 'jpeg' => 'image/jpeg', 'gif' => 'image/gif', 'webp' => 'image/webp'];
-        $logo_mime = $mime_types[$ext] ?? 'image/png';
-        $logo_src = 'data:' . $logo_mime . ';base64,' . base64_encode(file_get_contents($p));
-        break;
-    }
+if (file_exists($logo_path)) {
+    $mime = pathinfo($logo_path, PATHINFO_EXTENSION) === 'png' ? 'image/png' : 'image/jpeg';
+    $logo_src = 'data:' . $mime . ';base64,' . base64_encode(file_get_contents($logo_path));
 } ?>
 <!DOCTYPE html>
 <html lang="en" data-bs-theme="light">
@@ -66,9 +55,7 @@ foreach ($logo_paths as $p) {
 <head>
     <meta charset="UTF-8">
     <title>Performance Evaluation - <?php echo htmlspecialchars($data['last_name']); ?></title>
-    <?php if (!empty($logo_src)): ?>
-        <link rel="icon" href="<?php echo $logo_src; ?>" type="<?php echo htmlspecialchars($logo_mime); ?>">
-    <?php endif; ?>
+    <link rel="icon" href="uploads/tesp-logo.png" type="image/png">
     <style>
         @page {
             size: A4 landscape;

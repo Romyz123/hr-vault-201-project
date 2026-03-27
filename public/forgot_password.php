@@ -24,10 +24,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $error = "⛔ Too many requests. Please wait 60 seconds before trying again.";
     } elseif (!isset($_POST['csrf_token']) || !isset($_SESSION['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'])) {
         $error = "❌ Security Token Mismatch.";
-    } elseif (isset($_POST['cancel'])) {
-        unset($_SESSION['forgot_step'], $_SESSION['forgot_user_id'], $_SESSION['forgot_question'], $_SESSION['forgot_username']);
-        header("Location: forgot_password.php");
-        exit;
     } elseif (isset($_POST['try_another'])) {
         $_SESSION['forgot_step'] = 'methods';
         $step = 'methods';
@@ -291,7 +287,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <input type="text" name="security_answer" class="form-control form-control-lg" placeholder="Your Answer" required autofocus autocomplete="off" maxlength="255">
                     </div>
                     <div class="d-flex gap-2">
-                        <button type="submit" name="cancel" class="btn btn-secondary w-50" formnovalidate>Cancel</button>
+                        <a href="login.php" class="btn btn-secondary w-50">Cancel</a>
                         <button type="submit" class="btn btn-primary w-50">Verify <i class="bi bi-check-circle"></i></button>
                     </div>
                     <div class="text-center mt-3 border-top pt-2">
@@ -313,7 +309,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <button type="submit" name="method" value="backup_code" class="btn btn-outline-dark text-start px-3 py-2"><i class="bi bi-file-earmark-lock me-2"></i> Enter an Offline Recovery Code</button>
                     </div>
                     <div class="d-grid">
-                        <button type="submit" name="cancel" class="btn btn-link text-muted text-decoration-none small" formnovalidate>Cancel</button>
+                        <a href="login.php" class="btn btn-link text-muted text-decoration-none small">Cancel</a>
                     </div>
                 </form>
             <?php elseif ($step === 'backup_code'): ?>
@@ -326,7 +322,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <div class="form-text small mt-2">You generated these codes in your Profile Settings.</div>
                     </div>
                     <div class="d-flex gap-2">
-                        <button type="submit" name="cancel" class="btn btn-secondary w-50" formnovalidate>Cancel</button>
+                        <a href="login.php" class="btn btn-secondary w-50">Cancel</a>
                         <button type="submit" class="btn btn-dark w-50">Verify <i class="bi bi-check-circle"></i></button>
                     </div>
                 </form>
@@ -340,7 +336,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <div class="form-text small mt-2">Open your Authenticator app to get the 6-digit code.</div>
                     </div>
                     <div class="d-flex gap-2">
-                        <button type="submit" name="cancel" class="btn btn-secondary w-50" formnovalidate>Cancel</button>
+                        <a href="login.php" class="btn btn-secondary w-50">Cancel</a>
                         <button type="submit" class="btn btn-primary w-50">Verify <i class="bi bi-check-circle"></i></button>
                     </div>
                 </form>
@@ -370,7 +366,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         </div>
                     </div>
                     <div class="d-flex gap-2">
-                        <button type="submit" name="cancel" class="btn btn-secondary w-50" formnovalidate>Cancel</button>
+                        <a href="login.php" class="btn btn-secondary w-50">Cancel</a>
                         <button type="submit" class="btn btn-success w-50"><i class="bi bi-shield-lock-fill"></i> Reset</button>
                     </div>
                 </form>

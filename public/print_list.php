@@ -105,9 +105,7 @@ if (empty($logo_src)) {
 <head>
     <meta charset="UTF-8">
     <title>Employee Master List</title>
-    <?php if (!empty($logo_src)): ?>
-        <link rel="icon" href="<?php echo htmlspecialchars($logo_src); ?>" type="<?php echo htmlspecialchars($logo_mime); ?>">
-    <?php endif; ?>
+    <link rel="icon" href="uploads/tesp-logo.png" type="image/png">
     <link href="assets/bootstrap.min.css" rel="stylesheet">
     <style>
         /* 1. Force A4 Landscape */

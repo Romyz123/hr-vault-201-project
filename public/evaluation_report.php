@@ -31,33 +31,16 @@ foreach ($data as $row) {
     $scores[] = round($row['avg_score'], 2);
 }
 
-$logo_paths = [
-    __DIR__ . '/assets/images/tesp-logo-1.png',
-    __DIR__ . '/uploads/tesp-logo.png',
-    __DIR__ . '/uploads/tesp logo 1.png',
-    __DIR__ . '/../uploads/tesp-logo.png',
-    __DIR__ . '/../uploads/tesp logo 1.png'
-];
+// [FIX] Standardized logo path for embedding in print/word documents
+$logo_path = __DIR__ . '/uploads/tesp-logo.png';
 $logo_src = '';
-$logo_mime = 'image/png';
-foreach ($logo_paths as $p) {
-    if (file_exists($p)) {
-        if (class_exists('finfo')) {
-            $finfo = new finfo(FILEINFO_MIME_TYPE);
-            $logo_mime = $finfo->file($p) ?: 'image/png';
-        } elseif (function_exists('mime_content_type')) {
-            $logo_mime = mime_content_type($p) ?: 'image/png';
-        } else {
-            $ext = strtolower(pathinfo($p, PATHINFO_EXTENSION));
-            $logo_mime = ($ext === 'png' ? 'image/png' : ($ext === 'jpg' || $ext === 'jpeg' ? 'image/jpeg' : ($ext === 'gif' ? 'image/gif' : 'image/png')));
-        }
-        $logo_src = 'data:' . $logo_mime . ';base64,' . base64_encode(file_get_contents($p));
-        break;
-    }
+if (file_exists($logo_path)) {
+    $mime = pathinfo($logo_path, PATHINFO_EXTENSION) === 'png' ? 'image/png' : 'image/jpeg';
+    $logo_src = 'data:' . $mime . ';base64,' . base64_encode(file_get_contents($logo_path));
 }
+
 if (empty($logo_src)) {
     $logo_src = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mO8WQ8AAn0BbYpM8nsAAAAASUVORK5CYII=';
-    $logo_mime = 'image/png';
 } ?>
 <!DOCTYPE html>
 <html lang="en">

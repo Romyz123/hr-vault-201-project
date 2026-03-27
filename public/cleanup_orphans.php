@@ -37,6 +37,7 @@ if (!$isCli) {
     $dryRun = !$executeCleanup;
 
     echo '<link href="assets/bootstrap.min.css" rel="stylesheet">';
+    echo '<link rel="icon" href="uploads/tesp-logo.png" type="image/png">';
     echo '<div class="container mt-4">';
     echo '<h3>Orphaned File Cleanup</h3>';
     echo '<div class="mb-3">';

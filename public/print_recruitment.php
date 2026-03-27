@@ -43,37 +43,16 @@ $stmt = $pdo->prepare($sql);
 $stmt->execute($params);
 $candidates = $stmt->fetchAll();
 
-$logo_paths = [
-    __DIR__ . '/assets/images/tesp-logo-1.png',
-    __DIR__ . '/uploads/tesp-logo.png',
-    __DIR__ . '/uploads/tesp logo 1.png',
-    __DIR__ . '/../uploads/tesp-logo.png',
-    __DIR__ . '/../uploads/tesp logo 1.png'
-];
+// [FIX] Standardized logo path for embedding in print/word documents
+$logo_path = __DIR__ . '/uploads/tesp-logo.png';
 $logo_src = '';
-$logo_mime = 'image/png';
-foreach ($logo_paths as $p) {
-    if (file_exists($p)) {
-        $content = file_get_contents($p);
-        if ($content === false) {
-            continue;
-        }
-        $ext = strtolower(pathinfo($p, PATHINFO_EXTENSION));
-        if (class_exists('finfo')) {
-            $finfo = new finfo(FILEINFO_MIME_TYPE);
-            $logo_mime = $finfo->file($p) ?: 'image/png';
-        } elseif (function_exists('mime_content_type')) {
-            $logo_mime = mime_content_type($p) ?: 'image/png';
-        } else {
-            $logo_mime = ($ext === 'png' ? 'image/png' : ($ext === 'jpg' || $ext === 'jpeg' ? 'image/jpeg' : ($ext === 'gif' ? 'image/gif' : ($ext === 'webp' ? 'image/webp' : 'image/png'))));
-        }
-        $logo_src = 'data:' . $logo_mime . ';base64,' . base64_encode($content);
-        break;
-    }
+if (file_exists($logo_path)) {
+    $mime = pathinfo($logo_path, PATHINFO_EXTENSION) === 'png' ? 'image/png' : 'image/jpeg';
+    $logo_src = 'data:' . $mime . ';base64,' . base64_encode(file_get_contents($logo_path));
 }
+
 if (empty($logo_src)) {
     $logo_src = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mO8WQ8AAn0BbYpM8nsAAAAASUVORK5CYII=';
-    $logo_mime = 'image/png';
 }
 ?>
 <!DOCTYPE html>
@@ -82,9 +61,7 @@ if (empty($logo_src)) {
 <head>
     <meta charset="UTF-8">
     <title>Recruitment Report</title>
-    <?php if (!empty($logo_src)): ?>
-        <link rel="icon" href="<?php echo $logo_src; ?>" type="<?php echo htmlspecialchars($logo_mime); ?>">
-    <?php endif; ?>
+    <link rel="icon" href="uploads/tesp-logo.png" type="image/png">
     <style>
         body {
             font-family: Arial, sans-serif;

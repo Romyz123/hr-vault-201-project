@@ -6,6 +6,7 @@
 
 require '../config/db.php';
 require '../src/Security.php';
+require '../src/FileService.php';
 session_start();
 
 // 1. SECURITY: Admin Only (Strict Guard)
@@ -35,13 +36,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate_emp'])) {
     } else {
         $count = (int)$_POST['count'];
         if ($count > 0 && $count <= 500) {
+            // NEW: Include FileService
+            $config = require '../config/config.php';
+            $vaultPath = $config['VAULT_PATH'] ?? realpath(__DIR__ . '/../vault');
+            $fileService = new FileService($vaultPath);
+
+            // NEW: Dummy doc data
+            $docTypes = [
+                'Employment Contract.pdf' => 'Contract',
+                'SSS_ID.jpg' => 'Government IDs',
+                'TIN_ID.jpg' => 'Government IDs',
+                'Resume_CV.pdf' => '201 Files',
+                'Medical_Certificate.pdf' => 'Medical',
+                'NDA_Agreement.pdf' => 'Contract',
+                'Birth_Certificate.pdf' => '201 Files'
+            ];
+            $docKeys = array_keys($docTypes);
+
             $statuses = ['Active', 'Active', 'Active', 'Active', 'Active', 'Resigned', 'Terminated', 'AWOL']; // Weighted towards Active
-            $stmt = $pdo->prepare("INSERT INTO employees (emp_id, first_name, last_name, dept, section, job_title, employment_type, agency_name, status, gender, hire_date, birth_date) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+            $stmt = $pdo->prepare("INSERT INTO employees (emp_id, first_name, middle_name, last_name, dept, section, job_title, employment_type, agency_name, status, gender, hire_date, birth_date, contact_number, email, present_address, system_role) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+
+            // NEW: Doc statement
+            $docStmt = $pdo->prepare("INSERT INTO documents (file_uuid, employee_id, original_name, file_path, category, uploaded_by, uploaded_at) VALUES (UUID(), ?, ?, ?, ?, ?, NOW())");
 
             $pdo->beginTransaction();
             for ($i = 0; $i < $count; $i++) {
                 $fName = $firstNames[array_rand($firstNames)];
                 $lName = $lastNames[array_rand($lastNames)];
+                $mName = substr($lastNames[array_rand($lastNames)], 0, 1) . '.';
                 $empId = 'TST-' . date('y') . '-' . rand(1000, 9999) . $i;
                 $dept = $depts[array_rand($depts)];
                 $job = $jobs[array_rand($jobs)];
@@ -49,6 +71,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate_emp'])) {
                 $empType = ($agency === 'TESP DIRECT') ? 'TESP Direct' : 'Agency';
                 $status = $statuses[array_rand($statuses)];
                 $gender = (rand(0, 1) == 0) ? 'Male' : 'Female';
+                $contact = '09' . rand(100000000, 999999999);
+                $email = strtolower($fName . '.' . $lName . rand(10, 99)) . '@test.com';
+                $address = '123 Main St, Metro Manila';
+                $sysRole = 'Staff';
 
                 $hireTs = time() - rand(0, 5 * 365 * 86400); // Hired within last 5 years
                 $birthTs = time() - rand(20 * 365 * 86400, 50 * 365 * 86400); // Born 20-50 years ago
@@ -56,6 +82,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate_emp'])) {
                 $stmt->execute([
                     $empId,
                     $fName,
+                    $mName,
                     $lName,
                     $dept,
                     'General',
@@ -65,11 +92,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate_emp'])) {
                     $status,
                     $gender,
                     date('Y-m-d', $hireTs),
-                    date('Y-m-d', $birthTs)
+                    date('Y-m-d', $birthTs),
+                    $contact,
+                    $email,
+                    $address,
+                    $sysRole
                 ]);
+
+                // NEW: Generate 2 to 5 documents for this employee
+                $numDocs = rand(2, 5);
+                for ($j = 0; $j < $numDocs; $j++) {
+                    $originalName = $docKeys[array_rand($docKeys)];
+                    $category = $docTypes[$originalName];
+
+                    // Create a dummy file to be encrypted
+                    $dummyContent = "This is a test file for {$empId} named {$originalName}.";
+                    $tmpFile = tempnam(sys_get_temp_dir(), 'test_doc');
+                    file_put_contents($tmpFile, $dummyContent);
+
+                    // Save to vault
+                    $storedName = $fileService->saveFile($tmpFile, $originalName);
+
+                    // Insert DB record
+                    if ($storedName) {
+                        $docStmt->execute([$empId, $originalName, $storedName, $category, $_SESSION['user_id']]);
+                    }
+                    unlink($tmpFile);
+                }
             }
             $pdo->commit();
-            $msg = "✅ Successfully generated $count random employees!";
+            $msg = "✅ Successfully generated $count random employees with documents!";
         } else {
             $error = "Count must be between 1 and 500.";
         }
@@ -120,18 +172,46 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['clear_data'])) {
         try {
             $pdo->beginTransaction();
 
+            // NEW: Cleanup documents for test employees
+            $config = require '../config/config.php';
+            $vaultPath = $config['VAULT_PATH'] ?? realpath(__DIR__ . '/../vault');
+
+            // 1. Get all test employee IDs
+            $testEmpIds = $pdo->query("SELECT emp_id FROM employees WHERE emp_id LIKE 'TST-%'")->fetchAll(PDO::FETCH_COLUMN);
+            $docsDeleted = 0;
+
+            if (!empty($testEmpIds)) {
+                // 2. Get all file paths for these employees
+                $placeholders = implode(',', array_fill(0, count($testEmpIds), '?'));
+                $docStmt = $pdo->prepare("SELECT file_path FROM documents WHERE employee_id IN ($placeholders)");
+                $docStmt->execute($testEmpIds);
+                $filesToDelete = $docStmt->fetchAll(PDO::FETCH_COLUMN);
+
+                // 3. Delete physical files from vault
+                foreach ($filesToDelete as $file) {
+                    $fullPath = $vaultPath . DIRECTORY_SEPARATOR . basename($file); // basename for security
+                    if (file_exists($fullPath)) {
+                        @unlink($fullPath);
+                    }
+                }
+
+                // 4. Delete document records from DB
+                $delDocStmt = $pdo->prepare("DELETE FROM documents WHERE employee_id IN ($placeholders)");
+                $delDocStmt->execute($testEmpIds);
+                $docsDeleted = $delDocStmt->rowCount();
+            }
+
             // Delete Test Employees
             $stmtEmp = $pdo->prepare("DELETE FROM employees WHERE emp_id LIKE 'TST-%'");
             $stmtEmp->execute();
             $empDeleted = $stmtEmp->rowCount();
-
             // Delete Test Candidates
             $stmtCand = $pdo->prepare("DELETE FROM candidates WHERE email LIKE '%@test.com'");
             $stmtCand->execute();
             $candDeleted = $stmtCand->rowCount();
 
             $pdo->commit();
-            $msg = "🧹 Successfully cleared $empDeleted test employees and $candDeleted test candidates!";
+            $msg = "🧹 Successfully cleared $empDeleted test employees, $docsDeleted documents, and $candDeleted test candidates!";
         } catch (Exception $e) {
             $pdo->rollBack();
             $error = "Failed to clear data: " . $e->getMessage();

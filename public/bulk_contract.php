@@ -114,7 +114,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate_bulk'])) {
         setcookie("downloadToken", $_POST['csrf_token'] ?? '1', time() + 300, "/");
 
         // Start Output
-        $faviconTag = $global_logo_src ? '<link rel="icon" href="' . $global_logo_src . '">' : '';
+        $faviconTag = '<link rel="icon" href="uploads/tesp-logo.png" type="image/png">';
         echo '<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>Bulk Contracts</title>' . $faviconTag;
         echo '<style>
             @page { size: A4; margin: 0.5in; }

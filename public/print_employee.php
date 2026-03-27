@@ -83,20 +83,12 @@ if ($isWordExport) {
     }
 }
 
-$logo_paths = [
-    __DIR__ . '/assets/images/tesp-logo-1.png',
-    __DIR__ . '/uploads/tesp-logo.png',
-    __DIR__ . '/uploads/tesp logo 1.png',
-    __DIR__ . '/../uploads/tesp-logo.png',
-    __DIR__ . '/../uploads/tesp logo 1.png'
-];
+// [FIX] Standardized logo path for embedding in print/word documents
+$logo_path = __DIR__ . '/uploads/tesp-logo.png';
 $logo_src = '';
-foreach ($logo_paths as $p) {
-    if (file_exists($p)) {
-        $mime = pathinfo($p, PATHINFO_EXTENSION) === 'png' ? 'image/png' : 'image/jpeg';
-        $logo_src = 'data:' . $mime . ';base64,' . base64_encode(file_get_contents($p));
-        break;
-    }
+if (file_exists($logo_path)) {
+    $mime = pathinfo($logo_path, PATHINFO_EXTENSION) === 'png' ? 'image/png' : 'image/jpeg';
+    $logo_src = 'data:' . $mime . ';base64,' . base64_encode(file_get_contents($logo_path));
 }
 
 // Fallback to a simple placeholder if no logo found
@@ -110,7 +102,7 @@ if (empty($logo_src)) {
 <head>
     <meta charset="UTF-8">
     <title>Print Profile - <?php echo htmlspecialchars($emp['last_name']); ?></title>
-    <link rel="icon" href="<?php echo $logo_src; ?>" type="image/png">
+    <link rel="icon" href="uploads/tesp-logo.png" type="image/png">
     <link href="assets/bootstrap.min.css" rel="stylesheet">
     <style>
         /* 1. Force Browser to recognize A4 paper */

@@ -170,11 +170,14 @@ $deptTurnData = $deptTurnStmt->fetchAll(PDO::FETCH_KEY_PAIR);
 $deptTurnLabels = json_encode(array_keys($deptTurnData));
 $deptTurnCounts = json_encode(array_values($deptTurnData));
 
-// 6) HIRING TREND (Active with hire_date in selected year)
+// 6) HIRING TREND (All hires in selected year)
+// [FIX] Replace 'status = Active' with '1=1' so we correctly count employees 
+// who were hired this year but may have also resigned this year.
+$hireSQL = str_replace("status = 'Active'", "1=1", $activeSQL);
 $trendSQL = "
     SELECT DATE_FORMAT(hire_date, '%Y-%m') AS ym, COUNT(*) AS count
     FROM employees
-    $activeSQL
+    $hireSQL
     AND hire_date BETWEEN ? AND ?
     GROUP BY ym
     ORDER BY ym ASC
@@ -1542,8 +1545,9 @@ if ($debug) {
             'trendChart': {
                 labels: <?php echo $trendLabels; ?>,
                 data: <?php echo $netGrowthCounts; ?>,
-                type: 'bar',
-                bg: <?php echo $netGrowthColors; ?>
+                type: 'line',
+                bg: 'rgba(13, 202, 240, 0.2)',
+                border: '#0dcaf0'
             },
             'genderChart': {
                 labels: <?php echo $genderLabels; ?>,
@@ -1895,22 +1899,50 @@ if ($debug) {
 
         // Net Workforce Growth
         charts.trendChart = new Chart(document.getElementById('trendChart'), {
-            type: 'bar',
+            type: 'line',
             data: {
                 labels: <?php echo $trendLabels; ?>,
                 datasets: [{
-                    label: 'Net Growth',
-                    data: <?php echo $netGrowthCounts; ?>,
-                    backgroundColor: <?php echo $netGrowthColors; ?>,
-                    borderRadius: 4
-                }]
+                        label: 'New Hires',
+                        data: <?php echo $trendCounts; ?>,
+                        borderColor: '#0d6efd', // Blue
+                        backgroundColor: 'rgba(13, 110, 253, 0.2)', // Light blue fill
+                        borderWidth: 2,
+                        fill: true,
+                        tension: 0.3,
+                        pointRadius: 3,
+                        pointHoverRadius: 5
+                    },
+                    {
+                        label: 'Net Growth',
+                        data: <?php echo $netGrowthCounts; ?>,
+                        borderColor: '#198754', // Green
+                        backgroundColor: 'rgba(25, 135, 84, 0.2)', // Light green fill
+                        borderWidth: 2,
+                        fill: true,
+                        tension: 0.3,
+                        pointRadius: 3,
+                        pointHoverRadius: 5
+                    },
+                    {
+                        label: 'Exits',
+                        data: <?php echo $attrTrendCounts; ?>,
+                        borderColor: '#dc3545', // Red
+                        backgroundColor: 'rgba(220, 53, 69, 0.2)', // Light red fill
+                        borderWidth: 2,
+                        fill: true,
+                        tension: 0.3,
+                        pointRadius: 3,
+                        pointHoverRadius: 5
+                    }
+                ]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
                 plugins: {
                     legend: {
-                        display: false
+                        display: true // Show legend for multiple datasets
                     }
                 },
                 scales: {
