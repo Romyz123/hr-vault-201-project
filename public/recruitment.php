@@ -410,7 +410,7 @@ try {
 <head>
     <meta charset="UTF-8">
     <title>Recruitment Dashboard</title>
-    <link rel="icon" href="uploads/tesp-logo.png" type="image/png">
+    <link rel="icon" href="uploads/tesp-logo.png?v=3" type="image/png">
     <link href="assets/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="assets/icons/bootstrap-icons.css">
     <script src="assets/chart.min.js"></script>

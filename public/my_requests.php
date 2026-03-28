@@ -68,7 +68,7 @@ $requests = $stmt->fetchAll(PDO::FETCH_ASSOC);
 <head>
     <meta charset="UTF-8">
     <title>My Requests</title>
-    <link rel="icon" href="uploads/tesp-logo.png" type="image/png">
+    <link rel="icon" href="uploads/tesp-logo.png?v=3" type="image/png">
     <link href="assets/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="assets/icons/bootstrap-icons.css">
     <style>

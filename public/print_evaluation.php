@@ -55,7 +55,7 @@ if (file_exists($logo_path)) {
 <head>
     <meta charset="UTF-8">
     <title>Performance Evaluation - <?php echo htmlspecialchars($data['last_name']); ?></title>
-    <link rel="icon" href="uploads/tesp-logo.png" type="image/png">
+    <link rel="icon" href="uploads/tesp-logo.png?v=3" type="image/png">
     <style>
         @page {
             size: A4 landscape;

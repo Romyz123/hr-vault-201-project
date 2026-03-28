@@ -114,7 +114,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate_bulk'])) {
         setcookie("downloadToken", $_POST['csrf_token'] ?? '1', time() + 300, "/");
 
         // Start Output
-        $faviconTag = '<link rel="icon" href="uploads/tesp-logo.png" type="image/png">';
+        $faviconTag = '<link rel="icon" href="uploads/tesp-logo.png?v=3" type="image/png">';
         echo '<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>Bulk Contracts</title>' . $faviconTag;
         echo '<style>
             @page { size: A4; margin: 0.5in; }
@@ -322,7 +322,7 @@ $allDepts = $pdo->query("SELECT DISTINCT dept FROM employees WHERE dept != '' OR
 <head>
     <meta charset="UTF-8">
     <title>Bulk Contract Generator</title>
-    <link rel="icon" href="uploads/tesp-logo.png" type="image/png">
+    <link rel="icon" href="uploads/tesp-logo.png?v=3" type="image/png">
     <link href="assets/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="assets/icons/bootstrap-icons.css">
     <script src="assets/sweetalert2.all.min.js"></script>

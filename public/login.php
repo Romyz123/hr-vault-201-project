@@ -173,10 +173,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
     <meta charset="UTF-8">
     <title>Login - TES Philippines HR</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <link rel="icon" href="uploads/tesp-logo.png" type="image/png">
-    <link href="assets/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="assets/icons/bootstrap-icons.css">
-    <script src="assets/sweetalert2.all.min.js"></script>
+    <link href="assets/bootstrap.min.css?v=3" rel="stylesheet">
+    <link rel="stylesheet" href="assets/icons/bootstrap-icons.css?v=3">
+    <script src="assets/sweetalert2.all.min.js?v=3"></script>
+    <link rel="icon" href="uploads/tesp-logo.png?v=3" type="image/png">
     <style>
         body {
             /* --- BACKGROUND THEMES (Uncomment the one you want to use) --- */
@@ -343,8 +343,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
         <?php endif; ?>
     </script>
 
-    <script src="assets/bootstrap.bundle.min.js"></script>
-    <script src="dark_mode.js"></script>
+    <script src="assets/bootstrap.bundle.min.js?v=3"></script>
+    <script src="dark_mode.js?v=3"></script>
 </body>
 
 </html>

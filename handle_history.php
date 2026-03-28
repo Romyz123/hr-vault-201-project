@@ -11,13 +11,19 @@ $action = $_POST['action'] ?? '';
 // Handle Add History Event
 if ($action === 'add_history') {
     if (in_array($_SESSION['role'], ['ADMIN', 'MANAGER', 'HR'])) {
-        $title = trim($_POST['event_title']);
-        $date  = $_POST['event_date'];
-        $dept  = trim($_POST['department']);
-        $notes = trim($_POST['notes']);
-
+        $title = trim($_POST['event_title'] ?? '');
+        $date  = trim($_POST['event_date'] ?? '');
+        $dept  = trim($_POST['department'] ?? '');
+        $notes = trim($_POST['notes'] ?? '');
         if (empty($title) || empty($date)) {
             header("Location: edit_employee.php?id=$id&tab=history&error=" . urlencode("❌ Title and Date are required."));
+            exit;
+        }
+
+        $dateObj = DateTime::createFromFormat('Y-m-d', $date);
+        $dateErrors = DateTime::getLastErrors();
+        if (!$dateObj || $dateObj->format('Y-m-d') !== $date || $dateErrors['warning_count'] > 0 || $dateErrors['error_count'] > 0) {
+            header("Location: edit_employee.php?id=$id&tab=history&error=" . urlencode("❌ Invalid date format."));
             exit;
         }
 
@@ -47,7 +53,13 @@ if ($action === 'add_history') {
 if ($action === 'delete_history') {
     if (in_array($_SESSION['role'], ['ADMIN', 'MANAGER'])) {
         $histId = (int)$_POST['history_id'];
-        $pdo->prepare("DELETE FROM employment_history WHERE id = ?")->execute([$histId]);
+        $histId = (int)$_POST['history_id'];
+        $stmt = $pdo->prepare("DELETE FROM employment_history WHERE id = ? AND employee_id = ?");
+        $stmt->execute([$histId, $id]);
+        if ($stmt->rowCount() === 0) {
+            header("Location: edit_employee.php?id=$id&tab=history&error=" . urlencode("❌ History event not found or access denied."));
+            exit;
+        }
         header("Location: edit_employee.php?id=$id&tab=history&msg=" . urlencode("✅ Event deleted."));
         exit;
     }

@@ -13,12 +13,17 @@ const sectionSelect = document.getElementById("sectionPicker");
 // [NEW] Multi-Department Logic
 function addDept(val) {
   if (!val) return;
-  let current = deptInput.value;
-  if (current) {
-    if (!current.includes(val)) deptInput.value = current + ", " + val;
-  } else {
-    deptInput.value = val;
+  const current = deptInput.value;
+  const deptItems = current
+    .split(",")
+    .map((item) => item.trim())
+    .filter((item) => item !== "");
+
+  if (!deptItems.includes(val)) {
+    deptItems.push(val);
   }
+
+  deptInput.value = deptItems.join(", ");
   document.getElementById("deptPicker").value = "";
   updateSections();
 }
@@ -77,12 +82,12 @@ function appendSectionValue(text) {
   const input = document.getElementById("section");
   let current = input.value;
   if (current) {
-    if (!current.includes(text)) input.value = current + ", " + text;
+    const existing = current.split(",").map((s) => s.trim());
+    if (!existing.includes(text)) input.value = current + ", " + text;
   } else {
     input.value = text;
   }
 }
-
 function confirmDelete() {
   // [NEW] Check for existing documents
   const docCount = config.docCount || 0;
@@ -136,9 +141,11 @@ function openEditEvalModal(id, date, score, evaluator, remarks) {
 document.addEventListener("DOMContentLoaded", () => {
   const urlParams = new URLSearchParams(window.location.search);
   const activeTab = urlParams.get("tab");
-  if (activeTab) {
+  const validTab =
+    activeTab && /^[A-Za-z0-9_-]+$/.test(activeTab) ? activeTab : null;
+  if (validTab) {
     const tabTrigger = document.querySelector(
-      `#profileTabs button[data-bs-target="#${activeTab}"]`,
+      `#profileTabs button[data-bs-target="#${validTab}"]`,
     );
     if (tabTrigger) {
       const tab = new bootstrap.Tab(tabTrigger);
@@ -270,9 +277,9 @@ function toggleDateFields() {
   const btn = document.getElementById("generateBtn");
 
   if (type && type !== "") {
-    btn.disabled = false;
+    if (btn) btn.disabled = false;
   } else {
-    btn.disabled = true;
+    if (btn) btn.disabled = true;
   }
 
   // Reset all
@@ -285,8 +292,7 @@ function toggleDateFields() {
   // Disable hidden inputs to avoid conflicts
   setInputsDisabled("nteFields", true);
   setInputsDisabled("nodFields", true);
-  help.innerText = "";
-
+  if (help) help.innerText = "";
   if (type === "notice_to_explain") {
     if (nteDiv) nteDiv.style.display = "block";
     setInputsDisabled("nteFields", false);
@@ -397,15 +403,12 @@ document.addEventListener("DOMContentLoaded", () => {
     });
     localStorage.removeItem("hr_add_emp_draft");
     if (window.history.replaceState) {
-      window.history.replaceState(
-        null,
-        null,
-        window.location.pathname + "?id=" + config.empId,
-      );
+      const newUrl = config.empId
+        ? window.location.pathname + "?id=" + config.empId
+        : window.location.pathname;
+      window.history.replaceState(null, null, newUrl);
     }
-  }
-
-  if (urlParams.has("error")) {
+  } else if (urlParams.has("error")) {
     Swal.fire({
       icon: "error",
       title: "Error",
@@ -600,7 +603,10 @@ function showDownloadLoader(form) {
   });
 
   const csrf = form.querySelector('[name="csrf_token"]').value;
+  let pollCount = 0;
+  const maxPolls = 300; // 5-minute timeout at 1s intervals
   const checkCookie = setInterval(() => {
+    pollCount++;
     if (document.cookie.includes("downloadToken=" + csrf)) {
       clearInterval(checkCookie);
       Swal.close();
@@ -610,6 +616,13 @@ function showDownloadLoader(form) {
       const modalEl = document.getElementById("downloadAllModal");
       const modal = bootstrap.Modal.getInstance(modalEl);
       if (modal) modal.hide();
+    } else if (pollCount >= maxPolls) {
+      clearInterval(checkCookie);
+      Swal.fire(
+        "Timeout",
+        "Download took too long. Please try again.",
+        "error",
+      );
     }
   }, 1000);
 }
@@ -636,8 +649,24 @@ document.addEventListener("DOMContentLoaded", () => {
       clearTimeout(debounceTimer);
       debounceTimer = setTimeout(() => {
         fetch(`api/search_suggestions.php?q=${encodeURIComponent(q)}`)
-          .then((r) => r.json())
-          .then((data) => {
+          .then((r) => {
+            if (!r.ok) {
+              throw new Error(
+                `Search suggestions request failed (${r.status})`,
+              );
+            }
+            return r.text();
+          })
+          .then((text) => {
+            let data;
+            try {
+              data = JSON.parse(text);
+            } catch (err) {
+              throw new Error(
+                "Search suggestions returned invalid JSON: " + err.message,
+              );
+            }
+
             suggestionBox.innerHTML = "";
             if (Array.isArray(data) && data.length > 0) {
               suggestionBox.style.display = "block";
@@ -663,7 +692,10 @@ document.addEventListener("DOMContentLoaded", () => {
               suggestionBox.style.display = "none";
             }
           })
-          .catch((e) => console.error("Search error:", e));
+          .catch((e) => {
+            suggestionBox.style.display = "none";
+            console.error("Search error:", e);
+          });
       }, 250);
     });
 
@@ -918,29 +950,22 @@ function updateTimer() {
   const config = window.EditEmpConfig || {};
   if (!config.timeoutDuration) return;
 
-  config.timeoutDuration -= 1000;
-  if (config.timeoutDuration <= 0) window.location.href = "logout.php";
+  const INITIAL_TIMEOUT = config.timeoutDuration || 0;
 
-  const m = Math.floor(config.timeoutDuration / 60000);
-  const s = Math.floor((config.timeoutDuration % 60000) / 1000);
-  const timerDisplay = document.getElementById("sessionTimer");
-  if (timerDisplay)
-    timerDisplay.innerText = `${m}:${s.toString().padStart(2, "0")}`;
-}
+  document.addEventListener("mousemove", () => {
+    window.EditEmpConfig.timeoutDuration = INITIAL_TIMEOUT;
+  });
 
-if (window.EditEmpConfig && window.EditEmpConfig.timeoutDuration) {
-  document.addEventListener(
-    "mousemove",
-    () =>
-      (window.EditEmpConfig.timeoutDuration =
-        window.EditEmpConfig.timeoutDuration),
-  );
-  document.addEventListener(
-    "keypress",
-    () =>
-      (window.EditEmpConfig.timeoutDuration =
-        window.EditEmpConfig.timeoutDuration),
-  );
-  setInterval(updateTimer, 1000);
-  updateTimer();
+  document.addEventListener("keypress", () => {
+    window.EditEmpConfig.timeoutDuration = INITIAL_TIMEOUT;
+  });
+
+  setInterval(() => {
+    if (window.EditEmpConfig && window.EditEmpConfig.timeoutDuration) {
+      window.EditEmpConfig.timeoutDuration -= 1;
+      if (window.EditEmpConfig.timeoutDuration <= 0) {
+        window.location.reload();
+      }
+    }
+  }, 1000);
 }

@@ -5658,3 +5658,9 @@ Stack trace:
 [27-Mar-2026 11:27:28 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tes98AF.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 120
 [27-Mar-2026 11:27:28 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tes98EF.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 120
 [27-Mar-2026 11:27:28 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tes992E.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 120
+[28-Mar-2026 11:02:08 Asia/Manila] PHP Warning:  filemtime(): stat failed for uploads/tesp-logo.png in C:\xampp\htdocs\hr 201\public\index.php on line 621
+[28-Mar-2026 11:02:12 Asia/Manila] PHP Warning:  filemtime(): stat failed for uploads/tesp-logo.png in C:\xampp\htdocs\hr 201\public\index.php on line 621
+[28-Mar-2026 11:10:44 Asia/Manila] PHP Warning:  filemtime(): stat failed for uploads/tesp-logo.png in C:\xampp\htdocs\hr 201\public\index.php on line 621
+[28-Mar-2026 11:19:58 Asia/Manila] PHP Warning:  filemtime(): stat failed for uploads/tesp-logo.png in C:\xampp\htdocs\hr 201\public\index.php on line 621
+[28-Mar-2026 11:30:26 Asia/Manila] PHP Warning:  filemtime(): stat failed for uploads/tesp-logo.png in C:\xampp\htdocs\hr 201\public\index.php on line 621
+[28-Mar-2026 11:30:35 Asia/Manila] PHP Warning:  filemtime(): stat failed for uploads/tesp-logo.png in C:\xampp\htdocs\hr 201\public\index.php on line 621

@@ -665,7 +665,7 @@ if ($debug) {
 <head>
     <meta charset="UTF-8">
     <title>HR Analytics Report</title>
-    <link rel="icon" href="uploads/tesp-logo.png" type="image/png">
+    <link rel="icon" href="uploads/tesp-logo.png?v=3" type="image/png">
     <link href="assets/bootstrap.min.css" rel="stylesheet">
     <link href="assets/icons/bootstrap-icons.css" rel="stylesheet">
     <script src="assets/chart.min.js"></script>
@@ -1544,10 +1544,38 @@ if ($debug) {
             },
             'trendChart': {
                 labels: <?php echo $trendLabels; ?>,
-                data: <?php echo $netGrowthCounts; ?>,
                 type: 'line',
-                bg: 'rgba(13, 202, 240, 0.2)',
-                border: '#0dcaf0'
+                datasets: [{
+                        label: 'New Hires',
+                        data: <?php echo $trendCounts; ?>,
+                        borderColor: '#0d6efd',
+                        backgroundColor: 'rgba(13, 110, 253, 0.2)',
+                        fill: true,
+                        tension: 0.3,
+                        pointRadius: 3,
+                        pointHoverRadius: 5
+                    },
+                    {
+                        label: 'Net Growth',
+                        data: <?php echo $netGrowthCounts; ?>,
+                        borderColor: '#198754',
+                        backgroundColor: 'rgba(25, 135, 84, 0.2)',
+                        fill: true,
+                        tension: 0.3,
+                        pointRadius: 3,
+                        pointHoverRadius: 5
+                    },
+                    {
+                        label: 'Exits',
+                        data: <?php echo $attrTrendCounts; ?>,
+                        borderColor: '#dc3545',
+                        backgroundColor: 'rgba(220, 53, 69, 0.2)',
+                        fill: true,
+                        tension: 0.3,
+                        pointRadius: 3,
+                        pointHoverRadius: 5
+                    }
+                ]
             },
             'genderChart': {
                 labels: <?php echo $genderLabels; ?>,
@@ -1662,15 +1690,38 @@ if ($debug) {
 
             const isLine = info.type === 'line';
 
-            let datasets = [{
-                label: info.data === chartData.trendChart.data ? 'Net Growth' : 'Count',
-                data: info.data,
-                backgroundColor: info.bg,
-                borderColor: isLine ? info.border : '#fff',
-                fill: isLine,
-                tension: 0.3,
-                borderRadius: info.type === 'bar' ? 4 : 0
-            }];
+            let datasets = [];
+            if (info.type === 'stacked_bar' && Array.isArray(info.datasets)) {
+                datasets = info.datasets.map((ds) => ({
+                    label: ds.label || 'Count',
+                    data: ds.data || [],
+                    backgroundColor: ds.backgroundColor || '#198754',
+                    borderColor: ds.borderColor || ds.backgroundColor || '#198754',
+                    borderRadius: ds.borderRadius || 0,
+                    stack: ds.stack || 'stack1'
+                }));
+            } else if (isLine && Array.isArray(info.datasets)) {
+                datasets = info.datasets.map((ds) => ({
+                    label: ds.label || 'Count',
+                    data: ds.data || [],
+                    backgroundColor: ds.backgroundColor || 'rgba(13, 110, 253, 0.2)',
+                    borderColor: ds.borderColor || '#0d6efd',
+                    fill: ds.fill !== undefined ? ds.fill : true,
+                    tension: ds.tension !== undefined ? ds.tension : 0.3,
+                    pointRadius: ds.pointRadius !== undefined ? ds.pointRadius : 3,
+                    pointHoverRadius: ds.pointHoverRadius !== undefined ? ds.pointHoverRadius : 5
+                }));
+            } else if (info.data) {
+                datasets = [{
+                    label: 'Count',
+                    data: info.data,
+                    backgroundColor: info.bg || '#198754',
+                    borderColor: isLine ? info.border || '#0dcaf0' : '#fff',
+                    fill: isLine,
+                    tension: 0.3,
+                    borderRadius: info.type === 'bar' ? 4 : 0
+                }];
+            }
 
             const chartType = (info.type === 'stacked_bar') ? 'bar' : info.type;
             fsChartInstance = new Chart(ctx, {

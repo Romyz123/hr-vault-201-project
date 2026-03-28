@@ -72,7 +72,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate_emp'])) {
                 $status = $statuses[array_rand($statuses)];
                 $gender = (rand(0, 1) == 0) ? 'Male' : 'Female';
                 $contact = '09' . rand(100000000, 999999999);
-                $email = strtolower($fName . '.' . $lName . rand(10, 99)) . '@test.com';
+                $safeFName = preg_replace('/[^a-z0-9]/i', '', $fName);
+                $safeLName = preg_replace('/[^a-z0-9]/i', '', $lName);
+                if ($safeFName === '') $safeFName = 'user';
+                if ($safeLName === '') $safeLName = 'test';
+                $email = strtolower($safeFName . '.' . $safeLName . rand(10, 99)) . '@test.com';
                 $address = '123 Main St, Metro Manila';
                 $sysRole = 'Staff';
 
@@ -225,7 +229,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['clear_data'])) {
 <head>
     <meta charset="UTF-8">
     <title>Test Data Generator</title>
-    <link rel="icon" href="uploads/tesp-logo.png" type="image/png">
+    <link rel="icon" href="uploads/tesp-logo.png?v=3" type="image/png">
     <link href="assets/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="assets/icons/bootstrap-icons.css">
 </head>

@@ -618,11 +618,11 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
     <meta charset="UTF-8">
     <title>TESP HR 201 System</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <link rel="icon" href="uploads/tesp-logo.png" type="image/png">
-    <link href="assets/bootstrap.min.css" rel="stylesheet">
-    <link href="assets/icons/bootstrap-icons.css" rel="stylesheet">
-    <script src="assets/chart.min.js" defer></script>
-    <script src="assets/sweetalert2.all.min.js"></script>
+    <link rel="icon" href="uploads/tesp-logo.png?v=3" type="image/png">
+    <link href="assets/bootstrap.min.css?v=3" rel="stylesheet">
+    <link href="assets/icons/bootstrap-icons.css?v=3" rel="stylesheet">
+    <script src="assets/chart.min.js?v=3" defer></script>
+    <script src="assets/sweetalert2.all.min.js?v=3"></script>
     <style>
         :root {
             --bg: #f4f6f9;
@@ -1758,8 +1758,8 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
     </div>
 
     <!-- SINGLE Bootstrap bundle include -->
-    <script src="assets/bootstrap.bundle.min.js"></script>
-    <script src="dark_mode.js"></script>
+    <script src="assets/bootstrap.bundle.min.js?v=3"></script>
+    <script src="dark_mode.js?v=3"></script>
 
     <script>
         // ---------- Chart ----------
