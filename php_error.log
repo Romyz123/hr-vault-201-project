@@ -5664,3 +5664,27 @@ Stack trace:
 [28-Mar-2026 11:19:58 Asia/Manila] PHP Warning:  filemtime(): stat failed for uploads/tesp-logo.png in C:\xampp\htdocs\hr 201\public\index.php on line 621
 [28-Mar-2026 11:30:26 Asia/Manila] PHP Warning:  filemtime(): stat failed for uploads/tesp-logo.png in C:\xampp\htdocs\hr 201\public\index.php on line 621
 [28-Mar-2026 11:30:35 Asia/Manila] PHP Warning:  filemtime(): stat failed for uploads/tesp-logo.png in C:\xampp\htdocs\hr 201\public\index.php on line 621
+[28-Mar-2026 15:54:56 Asia/Manila] PHP Warning:  Undefined variable $discDeptLabels in C:\xampp\htdocs\hr 201\public\analytics.php on line 2203
+[28-Mar-2026 15:54:56 Asia/Manila] PHP Warning:  Undefined variable $discDeptCounts in C:\xampp\htdocs\hr 201\public\analytics.php on line 2206
+[28-Mar-2026 15:54:56 Asia/Manila] PHP Warning:  Undefined variable $discViolationsLabels in C:\xampp\htdocs\hr 201\public\analytics.php on line 2226
+[28-Mar-2026 15:54:56 Asia/Manila] PHP Warning:  Undefined variable $discViolationsCounts in C:\xampp\htdocs\hr 201\public\analytics.php on line 2228
+[28-Mar-2026 15:55:03 Asia/Manila] PHP Warning:  Undefined variable $discDeptLabels in C:\xampp\htdocs\hr 201\public\analytics.php on line 2203
+[28-Mar-2026 15:55:03 Asia/Manila] PHP Warning:  Undefined variable $discDeptCounts in C:\xampp\htdocs\hr 201\public\analytics.php on line 2206
+[28-Mar-2026 15:55:03 Asia/Manila] PHP Warning:  Undefined variable $discViolationsLabels in C:\xampp\htdocs\hr 201\public\analytics.php on line 2226
+[28-Mar-2026 15:55:03 Asia/Manila] PHP Warning:  Undefined variable $discViolationsCounts in C:\xampp\htdocs\hr 201\public\analytics.php on line 2228
+[28-Mar-2026 15:55:04 Asia/Manila] PHP Warning:  Undefined variable $discDeptLabels in C:\xampp\htdocs\hr 201\public\analytics.php on line 2203
+[28-Mar-2026 15:55:04 Asia/Manila] PHP Warning:  Undefined variable $discDeptCounts in C:\xampp\htdocs\hr 201\public\analytics.php on line 2206
+[28-Mar-2026 15:55:04 Asia/Manila] PHP Warning:  Undefined variable $discViolationsLabels in C:\xampp\htdocs\hr 201\public\analytics.php on line 2226
+[28-Mar-2026 15:55:04 Asia/Manila] PHP Warning:  Undefined variable $discViolationsCounts in C:\xampp\htdocs\hr 201\public\analytics.php on line 2228
+[28-Mar-2026 15:56:54 Asia/Manila] PHP Warning:  Undefined variable $discDeptLabels in C:\xampp\htdocs\hr 201\public\analytics.php on line 2203
+[28-Mar-2026 15:56:54 Asia/Manila] PHP Warning:  Undefined variable $discDeptCounts in C:\xampp\htdocs\hr 201\public\analytics.php on line 2206
+[28-Mar-2026 15:56:54 Asia/Manila] PHP Warning:  Undefined variable $discViolationsLabels in C:\xampp\htdocs\hr 201\public\analytics.php on line 2226
+[28-Mar-2026 15:56:54 Asia/Manila] PHP Warning:  Undefined variable $discViolationsCounts in C:\xampp\htdocs\hr 201\public\analytics.php on line 2228
+[28-Mar-2026 15:57:20 Asia/Manila] PHP Warning:  Undefined variable $discDeptLabels in C:\xampp\htdocs\hr 201\public\analytics.php on line 2203
+[28-Mar-2026 15:57:20 Asia/Manila] PHP Warning:  Undefined variable $discDeptCounts in C:\xampp\htdocs\hr 201\public\analytics.php on line 2206
+[28-Mar-2026 15:57:20 Asia/Manila] PHP Warning:  Undefined variable $discViolationsLabels in C:\xampp\htdocs\hr 201\public\analytics.php on line 2226
+[28-Mar-2026 15:57:20 Asia/Manila] PHP Warning:  Undefined variable $discViolationsCounts in C:\xampp\htdocs\hr 201\public\analytics.php on line 2228
+[28-Mar-2026 15:57:25 Asia/Manila] PHP Warning:  Undefined variable $discDeptLabels in C:\xampp\htdocs\hr 201\public\analytics.php on line 2203
+[28-Mar-2026 15:57:25 Asia/Manila] PHP Warning:  Undefined variable $discDeptCounts in C:\xampp\htdocs\hr 201\public\analytics.php on line 2206
+[28-Mar-2026 15:57:25 Asia/Manila] PHP Warning:  Undefined variable $discViolationsLabels in C:\xampp\htdocs\hr 201\public\analytics.php on line 2226
+[28-Mar-2026 15:57:25 Asia/Manila] PHP Warning:  Undefined variable $discViolationsCounts in C:\xampp\htdocs\hr 201\public\analytics.php on line 2228
