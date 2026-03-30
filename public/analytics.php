@@ -1652,22 +1652,65 @@ if ($debug) {
 
             document.getElementById('fsModalTitle').innerText = title;
 
-            // 1. Render Table
+            // 1. Render Table Header (Dynamic for multiple datasets)
+            const theadTr = document.querySelector('#fsDataTable thead tr');
+            theadTr.innerHTML = '<th>Category</th>';
+            if (info.datasets && !info.data) {
+                info.datasets.forEach(ds => {
+                    theadTr.innerHTML += `<th class="text-end">${ds.label || 'Value'}</th>`;
+                });
+                if (info.type === 'stacked_bar') {
+                    theadTr.innerHTML += '<th class="text-end bg-light">Total</th>';
+                }
+            } else {
+                theadTr.innerHTML += '<th class="text-end">Count</th>';
+            }
+
+            // 2. Render Table Body
             const tbody = document.querySelector('#fsDataTable tbody');
             tbody.innerHTML = '';
             let total = 0;
 
-            if (info.type === 'stacked_bar') {
+            if (info.datasets && !info.data) {
+                // Multi-dataset chart (e.g. Net Workforce Growth, Expiry Forecast)
+                let colTotals = new Array(info.datasets.length).fill(0);
+
                 info.labels.forEach((lbl, i) => {
-                    let rowTotal = 0;
-                    info.datasets.forEach(ds => {
-                        rowTotal += Number(ds.data[i] || 0);
-                    });
-                    total += rowTotal;
                     const tr = document.createElement('tr');
-                    tr.innerHTML = `<td>${lbl}</td><td class="text-end fw-bold">${rowTotal.toLocaleString()}</td>`;
+                    let trHtml = `<td>${lbl}</td>`;
+                    let rowTotal = 0;
+
+                    info.datasets.forEach((ds, dsIndex) => {
+                        const val = Number(ds.data[i] || 0);
+                        colTotals[dsIndex] += val;
+                        rowTotal += val;
+
+                        // Styling: gray out zeros in stacked charts, add red color for negative values
+                        let cellClass = info.type === 'stacked_bar' && val === 0 ? 'text-muted opacity-50' : (val < 0 ? 'text-danger fw-bold' : 'fw-bold');
+                        trHtml += `<td class="text-end ${cellClass}">${val.toLocaleString()}</td>`;
+                    });
+
+                    if (info.type === 'stacked_bar') {
+                        trHtml += `<td class="text-end fw-bold bg-light">${rowTotal.toLocaleString()}</td>`;
+                        total += rowTotal;
+                    }
+                    tr.innerHTML = trHtml;
                     tbody.appendChild(tr);
                 });
+
+                const trTotal = document.createElement('tr');
+                trTotal.className = 'table-secondary fw-bold';
+                let trTotalHtml = `<td>TOTAL</td>`;
+                colTotals.forEach(colTotal => {
+                    let cellClass = colTotal < 0 ? 'text-danger' : '';
+                    trTotalHtml += `<td class="text-end ${cellClass}">${colTotal.toLocaleString()}</td>`;
+                });
+                if (info.type === 'stacked_bar') {
+                    trTotalHtml += `<td class="text-end">${total.toLocaleString()}</td>`;
+                }
+                trTotal.innerHTML = trTotalHtml;
+                tbody.appendChild(trTotal);
+
             } else {
                 info.labels.forEach((lbl, i) => {
                     const val = Number(info.data[i]);
@@ -1676,15 +1719,15 @@ if ($debug) {
                     tr.innerHTML = `<td>${lbl}</td><td class="text-end fw-bold">${val.toLocaleString()}</td>`;
                     tbody.appendChild(tr);
                 });
+
+                // Single Total Row (for standard single data charts)
+                const trTotal = document.createElement('tr');
+                trTotal.className = 'table-secondary fw-bold';
+                trTotal.innerHTML = `<td>TOTAL</td><td class="text-end">${total.toLocaleString()}</td>`;
+                tbody.appendChild(trTotal);
             }
 
-            // Total Row
-            const trTotal = document.createElement('tr');
-            trTotal.className = 'table-secondary fw-bold';
-            trTotal.innerHTML = `<td>TOTAL</td><td class="text-end">${total.toLocaleString()}</td>`;
-            tbody.appendChild(trTotal);
-
-            // 2. Render Chart
+            // 3. Render Chart
             const ctx = document.getElementById('fsChartCanvas').getContext('2d');
             if (fsChartInstance) fsChartInstance.destroy();
 

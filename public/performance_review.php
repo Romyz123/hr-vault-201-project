@@ -219,7 +219,7 @@ $years = $pdo->query("SELECT DISTINCT YEAR(review_date) FROM hr_performance_revi
 // [SECURITY] Input Validation & Sanitization
 $search = isset($_GET['search']) ? trim($_GET['search']) : '';
 if (mb_strlen($search) > 50) $search = mb_substr($search, 0, 50); // Enforce char limit (Safe for names)
-$search = preg_replace('/[^a-zA-Z0-9\s\-\.\,]/', '', $search); // Whitelist chars
+$search = preg_replace('/[^a-zA-Z0-9\s\-\.\,\(\)]/', '', $search); // Whitelist chars (Added Parentheses support for Datalist)
 
 $filter_dept   = isset($_GET['filter_dept']) ? trim($_GET['filter_dept']) : '';
 $filter_rating = isset($_GET['filter_rating']) ? (int)$_GET['filter_rating'] : '';
@@ -525,7 +525,7 @@ foreach ($logo_paths as $p) {
 
         <div class="d-flex justify-content-between align-items-center mb-3 no-print">
             <form class="d-flex gap-2" style="width: 400px;">
-                <input type="text" name="search" class="form-control" placeholder="Search Employee..." value="<?php echo htmlspecialchars($search); ?>" maxlength="50" list="emp_suggestions" autocomplete="off">
+                <input type="text" name="search" class="form-control" placeholder="Search Employee..." value="<?php echo htmlspecialchars($search); ?>" maxlength="50" pattern="[a-zA-Z0-9\s\-\.\,\(\)]+" title="Allowed: Letters, Numbers, Spaces, - . , ( )" oninput="this.value = this.value.replace(/[^a-zA-Z0-9\s\-\.\,\(\)]/g, '')" list="emp_suggestions" autocomplete="off">
                 <datalist id="emp_suggestions">
                     <?php foreach ($employees as $emp): ?>
                         <option value="<?php echo htmlspecialchars($emp['last_name'] . ', ' . $emp['first_name'] . ' (' . $emp['emp_id'] . ')'); ?>">
@@ -629,8 +629,10 @@ foreach ($logo_paths as $p) {
                             <label class="form-label fw-bold">Employee</label>
                             <select name="employee_id" class="form-select" required>
                                 <option value="">-- Select Employee --</option>
-                                <?php foreach ($employees as $emp): ?>
-                                    <option value="<?php echo $emp['id']; ?>">
+                                <?php foreach ($employees as $emp):
+                                    $isSelected = ($search === $emp['emp_id'] || strpos($search, '(' . $emp['emp_id'] . ')') !== false) ? 'selected' : '';
+                                ?>
+                                    <option value="<?php echo $emp['id']; ?>" <?php echo $isSelected; ?>>
                                         <?php echo htmlspecialchars($emp['last_name'] . ', ' . $emp['first_name'] . ' (' . $emp['emp_id'] . ')'); ?>
                                     </option>
                                 <?php endforeach; ?>

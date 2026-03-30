@@ -252,7 +252,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 // 4. FETCH DATA
 $search = isset($_GET['search']) ? trim($_GET['search']) : '';
 if (strlen($search) > 50) $search = substr($search, 0, 50);
-$search = preg_replace('/[^a-zA-Z0-9\s\-\.\,]/', '', $search);
+$search = preg_replace('/[^a-zA-Z0-9\s\-\.\,\(\)]/', '', $search);
 $filter_status = isset($_GET['status']) ? trim($_GET['status']) : '';
 $filter_dept = isset($_GET['dept']) ? trim($_GET['dept']) : '';
 
@@ -359,7 +359,7 @@ if (isset($_GET['msg'])) {
                         <option value="Closed" <?php echo ($filter_status === 'Closed') ? 'selected' : ''; ?>>Closed Only</option>
                     </select>
                     <div class="input-group">
-                        <input type="text" name="search" class="form-control" placeholder="Search violation or name..." value="<?php echo htmlspecialchars($search); ?>" maxlength="50" pattern="[a-zA-Z0-9\s\-\.\,]+" title="Allowed: Letters, Numbers, Spaces, - . ," list="disc_suggestions" autocomplete="off">
+                        <input type="text" name="search" class="form-control" placeholder="Search violation or name..." value="<?php echo htmlspecialchars($search); ?>" maxlength="50" pattern="[a-zA-Z0-9\s\-\.\,\(\)]+" title="Allowed: Letters, Numbers, Spaces, - . , ( )" oninput="this.value = this.value.replace(/[^a-zA-Z0-9\s\-\.\,\(\)]/g, '')" list="disc_suggestions" autocomplete="off">
                         <datalist id="disc_suggestions">
                             <?php foreach ($emps as $e): ?>
                                 <option value="<?php echo htmlspecialchars($e['last_name'] . ', ' . $e['first_name'] . ' (' . $e['emp_id'] . ')'); ?>">
@@ -493,8 +493,10 @@ if (isset($_GET['msg'])) {
                             <label class="fw-bold mb-1">Select Employees (Multi-Select)</label>
                             <input type="text" id="empSearch" class="form-control form-control-sm mb-2" placeholder="Type to filter list..." onkeyup="filterEmployees()" maxlength="50">
                             <select name="employee_ids[]" id="empSelect" class="form-select" multiple required style="height: 150px;">
-                                <?php foreach ($emps as $e): ?>
-                                    <option value="<?php echo $e['emp_id']; ?>"><?php echo htmlspecialchars($e['last_name'] . ', ' . $e['first_name']); ?></option>
+                                <?php foreach ($emps as $e):
+                                    $isSelected = ($search === $e['emp_id'] || strpos($search, '(' . $e['emp_id'] . ')') !== false) ? 'selected' : '';
+                                ?>
+                                    <option value="<?php echo $e['emp_id']; ?>" <?php echo $isSelected; ?>><?php echo htmlspecialchars($e['last_name'] . ', ' . $e['first_name']); ?></option>
                                 <?php endforeach; ?>
                             </select>
                             <div class="form-text small text-muted">Hold <strong>Ctrl</strong> (Windows) or <strong>Cmd</strong> (Mac) to select multiple people.</div>
