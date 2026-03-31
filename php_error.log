@@ -5688,3 +5688,19 @@ Stack trace:
 [28-Mar-2026 15:57:25 Asia/Manila] PHP Warning:  Undefined variable $discDeptCounts in C:\xampp\htdocs\hr 201\public\analytics.php on line 2206
 [28-Mar-2026 15:57:25 Asia/Manila] PHP Warning:  Undefined variable $discViolationsLabels in C:\xampp\htdocs\hr 201\public\analytics.php on line 2226
 [28-Mar-2026 15:57:25 Asia/Manila] PHP Warning:  Undefined variable $discViolationsCounts in C:\xampp\htdocs\hr 201\public\analytics.php on line 2228
+[31-Mar-2026 08:27:37 Asia/Manila] PHP Warning:  Array to string conversion in C:\xampp\htdocs\hr 201\public\settings.php on line 68
+[31-Mar-2026 08:27:37 Asia/Manila] PHP Fatal error:  Uncaught TypeError: in_array(): Argument #2 ($haystack) must be of type array, string given in C:\xampp\htdocs\hr 201\public\settings.php:406
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\settings.php(406): in_array('hires', 'Array')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\settings.php on line 406
+[31-Mar-2026 15:54:34 Asia/Manila] PHP Fatal error:  Uncaught PDOException: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'e.user_id' in 'field list' in C:\xampp\htdocs\hr 201\public\view_doc.php:29
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\view_doc.php(29): PDO->prepare('SELECT d.file_p...')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\view_doc.php on line 29
+[31-Mar-2026 15:54:39 Asia/Manila] PHP Fatal error:  Uncaught PDOException: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'e.user_id' in 'field list' in C:\xampp\htdocs\hr 201\public\view_doc.php:29
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\view_doc.php(29): PDO->prepare('SELECT d.file_p...')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\view_doc.php on line 29

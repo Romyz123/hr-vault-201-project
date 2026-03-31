@@ -54,6 +54,26 @@ try {
     }
 }
 
+// [NEW] Fetch Employment History
+$history = [];
+try {
+    $histStmt = $pdo->prepare("SELECT * FROM employment_history WHERE employee_id = ? ORDER BY event_date DESC");
+    $histStmt->execute([$id]);
+    $history = $histStmt->fetchAll(PDO::FETCH_ASSOC);
+} catch (Exception $e) {
+    error_log("print_employee.php (employment history) error: " . $e->getMessage());
+}
+
+// [NEW] Fetch Employment History
+$history = [];
+try {
+    $histStmt = $pdo->prepare("SELECT * FROM employment_history WHERE employee_id = ? ORDER BY event_date DESC");
+    $histStmt->execute([$id]);
+    $history = $histStmt->fetchAll(PDO::FETCH_ASSOC);
+} catch (Exception $e) {
+    error_log("print_employee.php (employment history) error: " . $e->getMessage());
+}
+
 // [NEW] Handle Word Export Logic
 $isWordExport = isset($_GET['export']) && $_GET['export'] === 'word';
 if ($isWordExport) {
@@ -83,12 +103,21 @@ if ($isWordExport) {
     }
 }
 
-// [FIX] Standardized logo path for embedding in print/word documents
-$logo_path = __DIR__ . '/uploads/tesp-logo.png';
+// [FIX] Use a more robust method to find the logo, checking multiple common paths.
+$logo_paths = [
+    __DIR__ . '/uploads/tesp-logo.png',
+    __DIR__ . '/uploads/tesp logo 1.png',
+    __DIR__ . '/assets/images/tesp-logo-1.png',
+    __DIR__ . '/../uploads/tesp-logo.png',
+    __DIR__ . '/../uploads/tesp logo 1.png'
+];
 $logo_src = '';
-if (file_exists($logo_path)) {
-    $mime = pathinfo($logo_path, PATHINFO_EXTENSION) === 'png' ? 'image/png' : 'image/jpeg';
-    $logo_src = 'data:' . $mime . ';base64,' . base64_encode(file_get_contents($logo_path));
+foreach ($logo_paths as $p) {
+    if (file_exists($p)) {
+        $mime = pathinfo($p, PATHINFO_EXTENSION) === 'png' ? 'image/png' : 'image/jpeg';
+        $logo_src = 'data:' . $mime . ';base64,' . base64_encode(file_get_contents($p));
+        break;
+    }
 }
 
 // Fallback to a simple placeholder if no logo found

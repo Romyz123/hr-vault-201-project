@@ -59,6 +59,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_POST['update_roles']) || i
     $new_dept = trim($_POST['new_dept'] ?? '');
     $new_section = trim($_POST['new_section'] ?? '');
     $new_gender = trim($_POST['new_gender'] ?? '');
+    $new_agency = trim($_POST['new_agency'] ?? '');
 
     // Validate against allowlists
     $allowedRoles = $system_roles;
@@ -97,7 +98,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_POST['update_roles']) || i
         if ($valid) {
             // [NEW] DRY RUN LOGIC
             if (isset($_POST['dry_run'])) {
-                $placeholders = implode(',', array_fill(0, count($ids), '?'));
+                $placeholders = rtrim(str_repeat('?,', count($ids)), ',');
                 $sql = "SELECT id, emp_id, first_name, last_name, job_title, dept, section, gender, system_role FROM employees WHERE id IN ($placeholders)";
                 $stmt = $pdo->prepare($sql);
                 $stmt->execute($ids);
@@ -111,6 +112,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_POST['update_roles']) || i
                     $oldDept = htmlspecialchars($t['dept'], ENT_QUOTES, 'UTF-8');
                     $oldSection = htmlspecialchars($t['section'], ENT_QUOTES, 'UTF-8');
                     $oldGender = htmlspecialchars($t['gender'], ENT_QUOTES, 'UTF-8');
+                    $oldAgency = htmlspecialchars($t['agency_name'] ?? '', ENT_QUOTES, 'UTF-8');
 
                     if ($new_role && $t['system_role'] !== $new_role) {
                         $changes[] = "Role: <s>$oldRole</s> &rarr; <strong>" . htmlspecialchars($new_role, ENT_QUOTES, 'UTF-8') . "</strong>";
@@ -129,6 +131,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_POST['update_roles']) || i
                     }
                     if ($new_gender && $t['gender'] !== $new_gender) {
                         $changes[] = "Gender: <s>$oldGender</s> &rarr; <strong>" . htmlspecialchars($new_gender, ENT_QUOTES, 'UTF-8') . "</strong>";
+                    }
+                    if ($new_agency) {
+                        $newEmpType = (stripos($new_agency, 'TESP') !== false) ? 'TESP Direct' : 'Agency';
+                        if (($t['agency_name'] ?? '') !== $new_agency) {
+                            $changes[] = "Agency: <s>$oldAgency</s> &rarr; <strong>" . htmlspecialchars($new_agency, ENT_QUOTES, 'UTF-8') . "</strong>";
+                        }
+                        // Also update employment_type if it's inconsistent
+                        if (($t['employment_type'] ?? '') !== $newEmpType) $changes[] = "Type &rarr; <strong>$newEmpType</strong>";
                     }
 
                     if (!empty($changes)) {
@@ -165,6 +175,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_POST['update_roles']) || i
                     if (!empty($new_gender)) {
                         $updates[] = "gender = ?";
                         $params[] = $new_gender;
+                    }
+                    if (!empty($new_agency)) {
+                        $updates[] = "agency_name = ?";
+                        $params[] = $new_agency;
+                        $updates[] = "employment_type = ?";
+                        $params[] = (stripos($new_agency, 'TESP') !== false) ? 'TESP Direct' : 'Agency';
                     }
 
                     if (empty($updates)) {
@@ -214,7 +230,7 @@ $search = Validator::sanitizeSearch($_GET['search'] ?? '');
 
 $dept = isset($_GET['dept']) ? $_GET['dept'] : '';
 
-$sql = "SELECT id, emp_id, first_name, last_name, job_title, dept, section, system_role FROM employees WHERE status = 'Active'";
+$sql = "SELECT id, emp_id, first_name, last_name, job_title, dept, section, system_role, agency_name, employment_type FROM employees WHERE status = 'Active'";
 $params = [];
 
 if ($search) {
@@ -352,7 +368,7 @@ $historyLogs = $pdo->query("SELECT a.*, u.username FROM activity_logs a LEFT JOI
                     <i class="bi bi-pencil-square"></i> Update Selected Employees
                 </div>
                 <div class="card-body bg-white">
-                    <div class="row g-3 align-items-end">
+                    <div class="row g-3 align-items-end justify-content-center">
                         <div class="col-md-2">
                             <label class="form-label fw-bold">New System Role</label>
                             <select name="new_system_role" class="form-select">
@@ -402,7 +418,16 @@ $historyLogs = $pdo->query("SELECT a.*, u.username FROM activity_logs a LEFT JOI
                                 <option value="Female">Female</option>
                             </select>
                         </div>
-                        <div class="col-md-2 d-grid gap-2">
+                        <div class="col-md-2">
+                            <label class="form-label fw-bold">New Agency</label>
+                            <select name="new_agency" class="form-select">
+                                <option value="">-- No Change --</option>
+                                <?php foreach ($agencies as $agency): ?>
+                                    <option value="<?php echo htmlspecialchars($agency); ?>"><?php echo htmlspecialchars($agency); ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div class="col-md-2 d-grid gap-2 pt-3">
                             <button type="submit" name="dry_run" value="1" class="btn btn-info text-white fw-bold btn-sm" formnovalidate>Simulate</button>
                             <button type="submit" name="update_roles" id="applyBtn" class="btn btn-success fw-bold btn-sm">Apply</button>
                         </div>
@@ -422,6 +447,7 @@ $historyLogs = $pdo->query("SELECT a.*, u.username FROM activity_logs a LEFT JOI
                                 <th>Dept</th>
                                 <th>Section</th>
                                 <th>Current Job Title</th>
+                                <th>Current Agency</th>
                                 <th>Current Role</th>
                             </tr>
                         </thead>
@@ -439,6 +465,7 @@ $historyLogs = $pdo->query("SELECT a.*, u.username FROM activity_logs a LEFT JOI
                                         <td><?php echo htmlspecialchars($e['dept']); ?></td>
                                         <td><?php echo htmlspecialchars($e['section']); ?></td>
                                         <td><?php echo htmlspecialchars($e['job_title']); ?></td>
+                                        <td><span class="badge bg-info text-dark"><?php echo htmlspecialchars($e['agency_name'] ?: $e['employment_type']); ?></span></td>
                                         <td><span class="badge bg-secondary"><?php echo htmlspecialchars($e['system_role']); ?></span></td>
                                     </tr>
                                 <?php endforeach; ?>
@@ -569,8 +596,9 @@ $historyLogs = $pdo->query("SELECT a.*, u.username FROM activity_logs a LEFT JOI
             const dept = document.querySelector('input[name="new_dept"]').value;
             const section = document.querySelector('input[name="new_section"]').value;
             const gender = document.querySelector('select[name="new_gender"]').value;
+            const agency = document.querySelector('select[name="new_agency"]').value;
 
-            if (!role && !job && !dept && !section && !gender) {
+            if (!role && !job && !dept && !section && !gender && !agency) {
                 Swal.fire('No Changes', 'Please select at least one field to update.', 'warning');
                 return;
             }
@@ -581,6 +609,7 @@ $historyLogs = $pdo->query("SELECT a.*, u.username FROM activity_logs a LEFT JOI
             if (dept) summary += `<li><strong>Department:</strong> ${document.createElement('div').appendChild(document.createTextNode(dept)).parentNode.textContent}</li>`;
             if (section) summary += `<li><strong>Section:</strong> ${document.createElement('div').appendChild(document.createTextNode(section)).parentNode.textContent}</li>`;
             if (gender) summary += `<li><strong>Gender:</strong> ${document.createElement('div').appendChild(document.createTextNode(gender)).parentNode.textContent}</li>`;
+            if (agency) summary += `<li><strong>Agency:</strong> ${document.createElement('div').appendChild(document.createTextNode(agency)).parentNode.textContent}</li>`;
             summary += `</ul>`;
 
             Swal.fire({

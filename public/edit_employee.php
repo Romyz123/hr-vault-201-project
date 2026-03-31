@@ -1191,7 +1191,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <div class="tab-pane fade" id="history" role="tabpanel">
                         <div class="d-flex justify-content-between align-items-center mb-4">
                             <h6 class="fw-bold text-primary mb-0">📅 Employment History</h6>
-                            <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#addHistoryModal"><i class="bi bi-plus-circle"></i> Add Event</button>
+                            <div>
+                                <a href="print_history.php?id=<?php echo $id; ?>" target="_blank" class="btn btn-sm btn-outline-secondary me-2"><i class="bi bi-printer"></i> Print History</a>
+                                <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#addHistoryModal"><i class="bi bi-plus-circle"></i> Add Event</button>
+                            </div>
                         </div>
 
                         <div class="timeline">

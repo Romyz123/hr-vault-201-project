@@ -4,8 +4,6 @@
 // [GOAL] Find employees with "Ghost" Hire Dates (0000-00-00 or NULL)
 // ======================================================
 
-require '../../config/db.php';
-require '../../src/Security.php';
 require '../config/db.php';
 require '../src/Security.php';
 session_start();

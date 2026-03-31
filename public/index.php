@@ -178,8 +178,6 @@ if ($userRole === 'ADMIN') {
             }
 
             $zip->close();
-            // Cleanup Temp File
-            @unlink($tmpSqlFile);
 
             if (file_exists($zipFile)) {
                 $logger->log($_SESSION['user_id'], 'AUTO_BACKUP', "Backup created: " . basename($zipFile));
