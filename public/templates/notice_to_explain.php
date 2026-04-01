@@ -9,7 +9,7 @@ $date_created = (!empty($_GET['notice_date'])) ? date('F d, Y', strtotime($_GET[
 $incident_date = (!empty($_GET['incident_date'])) ? date('F d, Y h:i A', strtotime($_GET['incident_date'])) : '___________________________';
 $incident_place = (!empty($_GET['incident_place'])) ? htmlspecialchars($_GET['incident_place']) : '___________________________';
 $allegation = nl2br(htmlspecialchars($_GET['allegation'] ?? ''));
-$rule_violated = nl2br(htmlspecialchars($_GET['rule_violated'] ?? ''));
+$rule_violated = nl2br(htmlspecialchars($rule_violated ?? ''));
 ?>
 
 <!DOCTYPE html>
@@ -169,10 +169,16 @@ $rule_violated = nl2br(htmlspecialchars($_GET['rule_violated'] ?? ''));
                 <td><?php echo $incident_place; ?></td>
             </tr>
             <tr>
+                <td colspan="4" class="label">Violation / Offense</td>
+            </tr>
+            <tr>
+                <td colspan="4" style="font-weight: bold; color: #dc3545;"><?php echo $violation ?: 'N/A'; ?></td>
+            </tr>
+            <tr>
                 <td colspan="4" class="label">Nature of Allegation</td>
             </tr>
             <tr>
-                <td colspan="4" style="height: 200px; vertical-align: top; text-align: justify; text-justify: inter-word;">
+                <td colspan="4" style="height: 350px; vertical-align: top; text-align: justify; text-justify: inter-word;">
                     <?php echo $allegation ?: '(Please narrate in detail the event or situation that triggers this notice)'; ?>
                 </td>
             </tr>

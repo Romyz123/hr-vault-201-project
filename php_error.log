@@ -5704,3 +5704,250 @@ Stack trace:
 #0 C:\xampp\htdocs\hr 201\public\view_doc.php(29): PDO->prepare('SELECT d.file_p...')
 #1 {main}
   thrown in C:\xampp\htdocs\hr 201\public\view_doc.php on line 29
+[01-Apr-2026 09:30:44 Asia/Manila] PHP Warning:  Undefined variable $logger in C:\xampp\htdocs\hr 201\public\generate_document.php on line 121
+[01-Apr-2026 09:30:44 Asia/Manila] PHP Fatal error:  Uncaught Error: Call to a member function log() on null in C:\xampp\htdocs\hr 201\public\generate_document.php:121
+Stack trace:
+#0 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\generate_document.php on line 121
+[01-Apr-2026 09:35:23 Asia/Manila] PHP Warning:  Undefined variable $logger in C:\xampp\htdocs\hr 201\public\generate_document.php on line 121
+[01-Apr-2026 09:35:23 Asia/Manila] PHP Fatal error:  Uncaught Error: Call to a member function log() on null in C:\xampp\htdocs\hr 201\public\generate_document.php:121
+Stack trace:
+#0 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\generate_document.php on line 121
+[01-Apr-2026 10:09:07 Asia/Manila] PHP Fatal error:  Uncaught TypeError: in_array(): Argument #2 ($haystack) must be of type array, string given in C:\xampp\htdocs\hr 201\public\settings.php:406
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\settings.php(406): in_array('hires', 'Array')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\settings.php on line 406
+[01-Apr-2026 10:32:36 Asia/Manila] PHP Warning:  Undefined variable $violation_options in C:\xampp\htdocs\hr 201\public\disciplinary.php on line 596
+[01-Apr-2026 10:32:36 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\disciplinary.php on line 596
+[01-Apr-2026 10:32:36 Asia/Manila] PHP Warning:  Undefined variable $rule_options in C:\xampp\htdocs\hr 201\public\disciplinary.php on line 606
+[01-Apr-2026 10:32:36 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\disciplinary.php on line 606
+[01-Apr-2026 10:32:36 Asia/Manila] PHP Warning:  Undefined variable $violation_options in C:\xampp\htdocs\hr 201\public\disciplinary.php on line 657
+[01-Apr-2026 10:32:36 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\disciplinary.php on line 657
+[01-Apr-2026 10:32:36 Asia/Manila] PHP Warning:  Undefined variable $rule_options in C:\xampp\htdocs\hr 201\public\disciplinary.php on line 667
+[01-Apr-2026 10:32:36 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\disciplinary.php on line 667
+[01-Apr-2026 10:32:39 Asia/Manila] PHP Warning:  Undefined variable $violation_options in C:\xampp\htdocs\hr 201\public\disciplinary.php on line 596
+[01-Apr-2026 10:32:39 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\disciplinary.php on line 596
+[01-Apr-2026 10:32:40 Asia/Manila] PHP Warning:  Undefined variable $rule_options in C:\xampp\htdocs\hr 201\public\disciplinary.php on line 606
+[01-Apr-2026 10:32:40 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\disciplinary.php on line 606
+[01-Apr-2026 10:32:40 Asia/Manila] PHP Warning:  Undefined variable $violation_options in C:\xampp\htdocs\hr 201\public\disciplinary.php on line 657
+[01-Apr-2026 10:32:40 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\disciplinary.php on line 657
+[01-Apr-2026 10:32:40 Asia/Manila] PHP Warning:  Undefined variable $rule_options in C:\xampp\htdocs\hr 201\public\disciplinary.php on line 667
+[01-Apr-2026 10:32:40 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\disciplinary.php on line 667
+[01-Apr-2026 10:32:41 Asia/Manila] PHP Warning:  Undefined variable $violation_options in C:\xampp\htdocs\hr 201\public\disciplinary.php on line 596
+[01-Apr-2026 10:32:41 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\disciplinary.php on line 596
+[01-Apr-2026 10:32:41 Asia/Manila] PHP Warning:  Undefined variable $rule_options in C:\xampp\htdocs\hr 201\public\disciplinary.php on line 606
+[01-Apr-2026 10:32:41 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\disciplinary.php on line 606
+[01-Apr-2026 10:32:41 Asia/Manila] PHP Warning:  Undefined variable $violation_options in C:\xampp\htdocs\hr 201\public\disciplinary.php on line 657
+[01-Apr-2026 10:32:41 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\disciplinary.php on line 657
+[01-Apr-2026 10:32:41 Asia/Manila] PHP Warning:  Undefined variable $rule_options in C:\xampp\htdocs\hr 201\public\disciplinary.php on line 667
+[01-Apr-2026 10:32:41 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\disciplinary.php on line 667
+[01-Apr-2026 10:33:27 Asia/Manila] PHP Fatal error:  Uncaught TypeError: in_array(): Argument #2 ($haystack) must be of type array, string given in C:\xampp\htdocs\hr 201\public\settings.php:406
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\settings.php(406): in_array('hires', 'Array')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\settings.php on line 406
+[01-Apr-2026 10:33:35 Asia/Manila] PHP Fatal error:  Uncaught TypeError: in_array(): Argument #2 ($haystack) must be of type array, string given in C:\xampp\htdocs\hr 201\public\settings.php:406
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\settings.php(406): in_array('hires', 'Array')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\settings.php on line 406
+[01-Apr-2026 10:33:39 Asia/Manila] PHP Fatal error:  Uncaught TypeError: in_array(): Argument #2 ($haystack) must be of type array, string given in C:\xampp\htdocs\hr 201\public\settings.php:406
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\settings.php(406): in_array('hires', 'Array')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\settings.php on line 406
+[01-Apr-2026 10:34:59 Asia/Manila] PHP Warning:  Undefined variable $violation_options in C:\xampp\htdocs\hr 201\public\disciplinary.php on line 596
+[01-Apr-2026 10:34:59 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\disciplinary.php on line 596
+[01-Apr-2026 10:34:59 Asia/Manila] PHP Warning:  Undefined variable $rule_options in C:\xampp\htdocs\hr 201\public\disciplinary.php on line 606
+[01-Apr-2026 10:34:59 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\disciplinary.php on line 606
+[01-Apr-2026 10:34:59 Asia/Manila] PHP Warning:  Undefined variable $violation_options in C:\xampp\htdocs\hr 201\public\disciplinary.php on line 657
+[01-Apr-2026 10:34:59 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\disciplinary.php on line 657
+[01-Apr-2026 10:34:59 Asia/Manila] PHP Warning:  Undefined variable $rule_options in C:\xampp\htdocs\hr 201\public\disciplinary.php on line 667
+[01-Apr-2026 10:34:59 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\disciplinary.php on line 667
+[01-Apr-2026 10:49:48 Asia/Manila] PHP Warning:  Undefined variable $violation_options in C:\xampp\htdocs\hr 201\public\disciplinary.php on line 596
+[01-Apr-2026 10:49:48 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\disciplinary.php on line 596
+[01-Apr-2026 10:49:48 Asia/Manila] PHP Warning:  Undefined variable $rule_options in C:\xampp\htdocs\hr 201\public\disciplinary.php on line 606
+[01-Apr-2026 10:49:48 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\disciplinary.php on line 606
+[01-Apr-2026 10:49:48 Asia/Manila] PHP Warning:  Undefined variable $violation_options in C:\xampp\htdocs\hr 201\public\disciplinary.php on line 657
+[01-Apr-2026 10:49:48 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\disciplinary.php on line 657
+[01-Apr-2026 10:49:48 Asia/Manila] PHP Warning:  Undefined variable $rule_options in C:\xampp\htdocs\hr 201\public\disciplinary.php on line 667
+[01-Apr-2026 10:49:48 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\disciplinary.php on line 667
+[01-Apr-2026 10:49:56 Asia/Manila] PHP Fatal error:  Uncaught Error: Call to undefined function h() in C:\xampp\htdocs\hr 201\public\manage_options.php:646
+Stack trace:
+#0 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\manage_options.php on line 646
+[01-Apr-2026 10:49:58 Asia/Manila] PHP Fatal error:  Uncaught Error: Call to undefined function h() in C:\xampp\htdocs\hr 201\public\manage_options.php:646
+Stack trace:
+#0 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\manage_options.php on line 646
+[01-Apr-2026 11:00:26 Asia/Manila] PHP Fatal error:  Uncaught Error: Call to undefined function h() in C:\xampp\htdocs\hr 201\public\manage_options.php:646
+Stack trace:
+#0 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\manage_options.php on line 646
+[01-Apr-2026 11:00:31 Asia/Manila] PHP Fatal error:  Uncaught Error: Call to undefined function h() in C:\xampp\htdocs\hr 201\public\manage_options.php:646
+Stack trace:
+#0 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\manage_options.php on line 646
+[01-Apr-2026 11:00:33 Asia/Manila] PHP Fatal error:  Uncaught Error: Call to undefined function h() in C:\xampp\htdocs\hr 201\public\manage_options.php:646
+Stack trace:
+#0 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\manage_options.php on line 646
+[01-Apr-2026 11:00:44 Asia/Manila] PHP Fatal error:  Uncaught Error: Call to undefined function h() in C:\xampp\htdocs\hr 201\public\manage_options.php:646
+Stack trace:
+#0 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\manage_options.php on line 646
+[01-Apr-2026 11:00:57 Asia/Manila] PHP Fatal error:  Uncaught Error: Call to undefined function h() in C:\xampp\htdocs\hr 201\public\manage_options.php:646
+Stack trace:
+#0 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\manage_options.php on line 646
+[01-Apr-2026 11:06:06 Asia/Manila] PHP Fatal error:  Uncaught Error: Call to undefined function h() in C:\xampp\htdocs\hr 201\public\manage_options.php:646
+Stack trace:
+#0 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\manage_options.php on line 646
+[01-Apr-2026 11:13:21 Asia/Manila] PHP Fatal error:  Uncaught Error: Call to undefined function h() in C:\xampp\htdocs\hr 201\public\manage_options.php:668
+Stack trace:
+#0 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\manage_options.php on line 668
+[01-Apr-2026 11:13:23 Asia/Manila] PHP Fatal error:  Uncaught Error: Call to undefined function h() in C:\xampp\htdocs\hr 201\public\manage_options.php:668
+Stack trace:
+#0 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\manage_options.php on line 668
+[01-Apr-2026 11:15:18 Asia/Manila] PHP Fatal error:  Uncaught Error: Call to undefined function h() in C:\xampp\htdocs\hr 201\public\manage_options.php:668
+Stack trace:
+#0 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\manage_options.php on line 668
+[01-Apr-2026 11:15:25 Asia/Manila] PHP Fatal error:  Uncaught Error: Call to undefined function h() in C:\xampp\htdocs\hr 201\public\manage_options.php:668
+Stack trace:
+#0 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\manage_options.php on line 668
+[01-Apr-2026 11:15:29 Asia/Manila] PHP Fatal error:  Uncaught Error: Call to undefined function h() in C:\xampp\htdocs\hr 201\public\manage_options.php:668
+Stack trace:
+#0 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\manage_options.php on line 668
+[01-Apr-2026 11:15:30 Asia/Manila] PHP Fatal error:  Uncaught Error: Call to undefined function h() in C:\xampp\htdocs\hr 201\public\manage_options.php:668
+Stack trace:
+#0 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\manage_options.php on line 668
+[01-Apr-2026 11:15:38 Asia/Manila] PHP Fatal error:  Uncaught Error: Call to undefined function h() in C:\xampp\htdocs\hr 201\public\manage_options.php:668
+Stack trace:
+#0 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\manage_options.php on line 668
+[01-Apr-2026 11:15:56 Asia/Manila] PHP Warning:  Undefined variable $violation_options in C:\xampp\htdocs\hr 201\public\disciplinary.php on line 596
+[01-Apr-2026 11:15:56 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\disciplinary.php on line 596
+[01-Apr-2026 11:15:56 Asia/Manila] PHP Warning:  Undefined variable $rule_options in C:\xampp\htdocs\hr 201\public\disciplinary.php on line 606
+[01-Apr-2026 11:15:56 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\disciplinary.php on line 606
+[01-Apr-2026 11:15:56 Asia/Manila] PHP Warning:  Undefined variable $violation_options in C:\xampp\htdocs\hr 201\public\disciplinary.php on line 657
+[01-Apr-2026 11:15:56 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\disciplinary.php on line 657
+[01-Apr-2026 11:15:56 Asia/Manila] PHP Warning:  Undefined variable $rule_options in C:\xampp\htdocs\hr 201\public\disciplinary.php on line 667
+[01-Apr-2026 11:15:56 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\disciplinary.php on line 667
+[01-Apr-2026 11:24:01 Asia/Manila] PHP Warning:  Undefined variable $violation_options in C:\xampp\htdocs\hr 201\public\disciplinary.php on line 596
+[01-Apr-2026 11:24:01 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\disciplinary.php on line 596
+[01-Apr-2026 11:24:01 Asia/Manila] PHP Warning:  Undefined variable $rule_options in C:\xampp\htdocs\hr 201\public\disciplinary.php on line 606
+[01-Apr-2026 11:24:01 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\disciplinary.php on line 606
+[01-Apr-2026 11:24:01 Asia/Manila] PHP Warning:  Undefined variable $violation_options in C:\xampp\htdocs\hr 201\public\disciplinary.php on line 657
+[01-Apr-2026 11:24:01 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\disciplinary.php on line 657
+[01-Apr-2026 11:24:01 Asia/Manila] PHP Warning:  Undefined variable $rule_options in C:\xampp\htdocs\hr 201\public\disciplinary.php on line 667
+[01-Apr-2026 11:24:01 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\disciplinary.php on line 667
+[01-Apr-2026 11:34:06 Asia/Manila] PHP Warning:  Undefined variable $violation_options in C:\xampp\htdocs\hr 201\public\disciplinary.php on line 596
+[01-Apr-2026 11:34:06 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\disciplinary.php on line 596
+[01-Apr-2026 11:34:06 Asia/Manila] PHP Warning:  Undefined variable $rule_options in C:\xampp\htdocs\hr 201\public\disciplinary.php on line 606
+[01-Apr-2026 11:34:06 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\disciplinary.php on line 606
+[01-Apr-2026 11:34:06 Asia/Manila] PHP Warning:  Undefined variable $violation_options in C:\xampp\htdocs\hr 201\public\disciplinary.php on line 657
+[01-Apr-2026 11:34:06 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\disciplinary.php on line 657
+[01-Apr-2026 11:34:06 Asia/Manila] PHP Warning:  Undefined variable $rule_options in C:\xampp\htdocs\hr 201\public\disciplinary.php on line 667
+[01-Apr-2026 11:34:06 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\disciplinary.php on line 667
+[01-Apr-2026 11:34:10 Asia/Manila] PHP Warning:  Undefined variable $violation_options in C:\xampp\htdocs\hr 201\public\disciplinary.php on line 596
+[01-Apr-2026 11:34:10 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\disciplinary.php on line 596
+[01-Apr-2026 11:34:10 Asia/Manila] PHP Warning:  Undefined variable $rule_options in C:\xampp\htdocs\hr 201\public\disciplinary.php on line 606
+[01-Apr-2026 11:34:10 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\disciplinary.php on line 606
+[01-Apr-2026 11:34:10 Asia/Manila] PHP Warning:  Undefined variable $violation_options in C:\xampp\htdocs\hr 201\public\disciplinary.php on line 657
+[01-Apr-2026 11:34:10 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\disciplinary.php on line 657
+[01-Apr-2026 11:34:10 Asia/Manila] PHP Warning:  Undefined variable $rule_options in C:\xampp\htdocs\hr 201\public\disciplinary.php on line 667
+[01-Apr-2026 11:34:10 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\disciplinary.php on line 667
+[01-Apr-2026 11:34:11 Asia/Manila] PHP Warning:  Undefined variable $violation_options in C:\xampp\htdocs\hr 201\public\disciplinary.php on line 596
+[01-Apr-2026 11:34:11 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\disciplinary.php on line 596
+[01-Apr-2026 11:34:11 Asia/Manila] PHP Warning:  Undefined variable $rule_options in C:\xampp\htdocs\hr 201\public\disciplinary.php on line 606
+[01-Apr-2026 11:34:11 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\disciplinary.php on line 606
+[01-Apr-2026 11:34:11 Asia/Manila] PHP Warning:  Undefined variable $violation_options in C:\xampp\htdocs\hr 201\public\disciplinary.php on line 657
+[01-Apr-2026 11:34:11 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\disciplinary.php on line 657
+[01-Apr-2026 11:34:11 Asia/Manila] PHP Warning:  Undefined variable $rule_options in C:\xampp\htdocs\hr 201\public\disciplinary.php on line 667
+[01-Apr-2026 11:34:11 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\disciplinary.php on line 667
+[01-Apr-2026 11:34:11 Asia/Manila] PHP Warning:  Undefined variable $violation_options in C:\xampp\htdocs\hr 201\public\disciplinary.php on line 596
+[01-Apr-2026 11:34:11 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\disciplinary.php on line 596
+[01-Apr-2026 11:34:11 Asia/Manila] PHP Warning:  Undefined variable $rule_options in C:\xampp\htdocs\hr 201\public\disciplinary.php on line 606
+[01-Apr-2026 11:34:11 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\disciplinary.php on line 606
+[01-Apr-2026 11:34:11 Asia/Manila] PHP Warning:  Undefined variable $violation_options in C:\xampp\htdocs\hr 201\public\disciplinary.php on line 657
+[01-Apr-2026 11:34:11 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\disciplinary.php on line 657
+[01-Apr-2026 11:34:11 Asia/Manila] PHP Warning:  Undefined variable $rule_options in C:\xampp\htdocs\hr 201\public\disciplinary.php on line 667
+[01-Apr-2026 11:34:11 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\disciplinary.php on line 667
+[01-Apr-2026 11:34:11 Asia/Manila] PHP Warning:  Undefined variable $violation_options in C:\xampp\htdocs\hr 201\public\disciplinary.php on line 596
+[01-Apr-2026 11:34:11 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\disciplinary.php on line 596
+[01-Apr-2026 11:34:11 Asia/Manila] PHP Warning:  Undefined variable $rule_options in C:\xampp\htdocs\hr 201\public\disciplinary.php on line 606
+[01-Apr-2026 11:34:11 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\disciplinary.php on line 606
+[01-Apr-2026 11:34:11 Asia/Manila] PHP Warning:  Undefined variable $violation_options in C:\xampp\htdocs\hr 201\public\disciplinary.php on line 657
+[01-Apr-2026 11:34:11 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\disciplinary.php on line 657
+[01-Apr-2026 11:34:11 Asia/Manila] PHP Warning:  Undefined variable $rule_options in C:\xampp\htdocs\hr 201\public\disciplinary.php on line 667
+[01-Apr-2026 11:34:11 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\disciplinary.php on line 667
+[01-Apr-2026 11:39:46 Asia/Manila] PHP Warning:  Undefined variable $violation_options in C:\xampp\htdocs\hr 201\public\disciplinary.php on line 596
+[01-Apr-2026 11:39:46 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\disciplinary.php on line 596
+[01-Apr-2026 11:39:46 Asia/Manila] PHP Warning:  Undefined variable $rule_options in C:\xampp\htdocs\hr 201\public\disciplinary.php on line 606
+[01-Apr-2026 11:39:46 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\disciplinary.php on line 606
+[01-Apr-2026 11:39:46 Asia/Manila] PHP Warning:  Undefined variable $violation_options in C:\xampp\htdocs\hr 201\public\disciplinary.php on line 657
+[01-Apr-2026 11:39:46 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\disciplinary.php on line 657
+[01-Apr-2026 11:39:46 Asia/Manila] PHP Warning:  Undefined variable $rule_options in C:\xampp\htdocs\hr 201\public\disciplinary.php on line 667
+[01-Apr-2026 11:39:46 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\disciplinary.php on line 667
+[01-Apr-2026 11:39:52 Asia/Manila] PHP Warning:  Undefined variable $violation_options in C:\xampp\htdocs\hr 201\public\disciplinary.php on line 596
+[01-Apr-2026 11:39:52 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\disciplinary.php on line 596
+[01-Apr-2026 11:39:53 Asia/Manila] PHP Warning:  Undefined variable $rule_options in C:\xampp\htdocs\hr 201\public\disciplinary.php on line 606
+[01-Apr-2026 11:39:53 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\disciplinary.php on line 606
+[01-Apr-2026 11:39:53 Asia/Manila] PHP Warning:  Undefined variable $violation_options in C:\xampp\htdocs\hr 201\public\disciplinary.php on line 657
+[01-Apr-2026 11:39:53 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\disciplinary.php on line 657
+[01-Apr-2026 11:39:53 Asia/Manila] PHP Warning:  Undefined variable $rule_options in C:\xampp\htdocs\hr 201\public\disciplinary.php on line 667
+[01-Apr-2026 11:39:53 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\disciplinary.php on line 667
+[01-Apr-2026 15:55:24 Asia/Manila] PHP Fatal error:  Uncaught TypeError: trim(): Argument #1 ($string) must be of type string, array given in C:\xampp\htdocs\hr 201\public\generate_document.php:126
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\generate_document.php(126): trim(Array)
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\generate_document.php on line 126
+[01-Apr-2026 15:58:13 Asia/Manila] PHP Fatal error:  Uncaught TypeError: trim(): Argument #1 ($string) must be of type string, array given in C:\xampp\htdocs\hr 201\public\generate_document.php:126
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\generate_document.php(126): trim(Array)
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\generate_document.php on line 126
+[01-Apr-2026 15:58:14 Asia/Manila] PHP Fatal error:  Uncaught TypeError: trim(): Argument #1 ($string) must be of type string, array given in C:\xampp\htdocs\hr 201\public\generate_document.php:126
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\generate_document.php(126): trim(Array)
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\generate_document.php on line 126
+[01-Apr-2026 15:58:17 Asia/Manila] PHP Fatal error:  Uncaught TypeError: trim(): Argument #1 ($string) must be of type string, array given in C:\xampp\htdocs\hr 201\public\generate_document.php:126
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\generate_document.php(126): trim(Array)
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\generate_document.php on line 126
+[01-Apr-2026 15:58:38 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\gen9E22.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_document.php on line 396
+[01-Apr-2026 15:58:41 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\genACD9.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_document.php on line 396
+[01-Apr-2026 15:58:50 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\genCD24.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_document.php on line 396
+[01-Apr-2026 15:58:56 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\genE734.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_document.php on line 396
+[01-Apr-2026 15:59:02 Asia/Manila] PHP Fatal error:  Uncaught TypeError: trim(): Argument #1 ($string) must be of type string, array given in C:\xampp\htdocs\hr 201\public\generate_document.php:126
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\generate_document.php(126): trim(Array)
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\generate_document.php on line 126
+[01-Apr-2026 15:59:15 Asia/Manila] PHP Fatal error:  Uncaught TypeError: trim(): Argument #1 ($string) must be of type string, array given in C:\xampp\htdocs\hr 201\public\generate_document.php:126
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\generate_document.php(126): trim(Array)
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\generate_document.php on line 126
+[01-Apr-2026 15:59:21 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\gen46AB.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_document.php on line 396
+[01-Apr-2026 15:59:31 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\gen6CC2.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_document.php on line 396
+[01-Apr-2026 16:05:25 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\genD3D1.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_document.php on line 396
+[01-Apr-2026 16:10:32 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\gen85D9.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_document.php on line 396
+[01-Apr-2026 16:22:38 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\gen98E0.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_document.php on line 396
+[01-Apr-2026 16:22:59 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\genE859.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_document.php on line 396
+[01-Apr-2026 16:50:06 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\genBC8D.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_document.php on line 396
+[01-Apr-2026 16:53:18 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\genAA5F.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_document.php on line 396
+[01-Apr-2026 16:57:49 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\genCD27.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_document.php on line 396
+[01-Apr-2026 17:00:05 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\genE20E.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_document.php on line 396
+[01-Apr-2026 17:00:19 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\gen1748.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_document.php on line 396

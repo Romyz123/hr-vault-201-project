@@ -7,6 +7,7 @@
 require '../config/db.php';
 require '../src/Security.php';
 require '../src/Logger.php';
+require '../src/FileService.php';
 session_start();
 
 // 1. SECURITY: Admin/Manager/HR/Staff
@@ -14,6 +15,8 @@ $userRole = isset($_SESSION['role']) ? strtoupper(trim($_SESSION['role'])) : '';
 if (!in_array($userRole, ['ADMIN', 'MANAGER', 'HR', 'STAFF'])) {
     die("ACCESS DENIED");
 }
+
+$logger = new Logger($pdo);
 
 // 2. FETCH EMPLOYEE
 $id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
@@ -99,6 +102,56 @@ $current_month = date('F'); // January
 $current_year = date('Y');
 $current_full_date = date('F j, Y');
 
+// [FIX] Handle Array inputs from Multi-Select dropdowns for Templates
+$violation = $_GET['violation'] ?? '';
+if (is_array($violation)) {
+    $violation = implode(', ', $violation);
+}
+
+$rule_violated = $_GET['rule_violated'] ?? '';
+if (is_array($rule_violated)) {
+    $rule_violated = implode(', ', $rule_violated);
+}
+
+// Shared variables for templates
+$incident_date = $_GET['incident_date'] ?? '';
+$incident_place = $_GET['incident_place'] ?? '';
+$allegation = $_GET['allegation'] ?? '';
+$decision = $_GET['decision'] ?? '';
+
+// [NEW] Automatically Record Disciplinary Case if generating NTE or NOD
+if (in_array($type, ['notice_to_explain', 'notice_of_decision'])) {
+    try {
+        $vDate = trim($_GET['incident_date'] ?? '');
+        $vType = $violation; // Use the processed string variable
+        $vRule = $rule_violated; // Use the processed string variable
+        $vAction = trim(($type === 'notice_to_explain') ? 'Written Explanation Required' : ($_GET['decision'] ?? ''));
+        $vDesc = trim(($type === 'notice_to_explain') ? ($_GET['allegation'] ?? '') : ($_GET['decision'] ?? ''));
+
+        // Skip recording if core fields are empty (prevents recording blank templates/samples)
+        if (!empty($vDate) && !empty($vDesc)) {
+            // Format datetime-local from NTE to Y-m-d
+            if (strpos($vDate, 'T') !== false) $vDate = explode('T', $vDate)[0];
+
+            if ($vType === '') $vType = ($type === 'notice_to_explain') ? 'NTE Issued' : 'NOD Issued';
+            if ($vAction === '') $vAction = ($type === 'notice_to_explain') ? 'Written Explanation Required' : 'Sanction Issued';
+
+            // Simple De-duplication: Check if an identical case was filed in the last hour
+            $chk = $pdo->prepare("SELECT id FROM disciplinary_cases WHERE employee_id = ? AND violation_type = ? AND incident_date = ? AND created_at > DATE_SUB(NOW(), INTERVAL 1 HOUR)");
+            $chk->execute([$emp['emp_id'], $vType, $vDate]);
+
+            if (!$chk->fetch()) {
+                $stmt = $pdo->prepare("INSERT INTO disciplinary_cases (employee_id, violation_type, rule_violated, incident_date, action_taken, description, status) 
+                                   VALUES (?, ?, ?, ?, ?, ?, 'Open')");
+                $stmt->execute([$emp['emp_id'], $vType, $vRule, $vDate, $vAction, $vDesc]);
+                $logger->log($_SESSION['user_id'], 'AUTO_CASE_FILE', "Auto-recorded disciplinary case ($type) for " . $emp['emp_id']);
+            }
+        }
+    } catch (Exception $e) {
+        error_log("Failed to auto-record disciplinary case in generate_document.php: " . $e->getMessage());
+    }
+}
+
 $logo_paths = [
     __DIR__ . '/assets/images/tesp-logo-1.png',
     __DIR__ . '/uploads/tesp-logo.png',
@@ -125,14 +178,39 @@ foreach ($logo_paths as $p) {
 }
 
 // [LOGGING] Record document generation
-$logger = new Logger($pdo);
 $logger->log($_SESSION['user_id'], 'GENERATE_DOC', "Generated $type for {$emp['first_name']} {$emp['last_name']} ({$emp['emp_id']})");
+
+// [NEW] Move Template Selection Logic Up
+$templateFile = '';
+if ($type === 'probationary') {
+    $templateFile = __DIR__ . '/templates/contract_probationary.php';
+} elseif ($type === 'confidentiality') {
+    $templateFile = __DIR__ . '/templates/confidentiality_agreement.php';
+} elseif ($type === 'project') {
+    $templateFile = __DIR__ . '/templates/contract_project.php';
+} elseif ($type === 'notice_to_explain') {
+    $templateFile = __DIR__ . '/templates/notice_to_explain.php';
+} elseif ($type === 'notice_of_decision') {
+    $templateFile = __DIR__ . '/templates/notice_of_decision.php';
+} elseif ($type === 'employee_pledge') {
+    $templateFile = __DIR__ . '/templates/employee_pledge.php';
+} elseif ($type === 'whistleblowing') {
+    $templateFile = __DIR__ . '/templates/whistleblowing.php';
+} elseif ($type === 'data_consent') {
+    $templateFile = __DIR__ . '/templates/data_consent.php';
+}
+
+// [NEW] Start Output Buffering to capture the document for auto-attachment
+ob_start();
 
 // [NEW] WORD EXPORT HEADER
 if ($format === 'word') {
     header("Content-type: application/vnd.ms-word");
     header("Content-Disposition: attachment;Filename=Contract_{$emp['last_name']}.doc");
     // No HTML wrapper for Word doc download, just the template content
+    if ($templateFile && file_exists($templateFile)) {
+        include $templateFile;
+    }
 } else {
 
     // 4. LOAD TEMPLATE
@@ -262,41 +340,65 @@ if ($format === 'word') {
                 </table>
             <?php endif; ?>
 
-        <?php } // End HTML wrapper check 
-        ?>
-        <?php
-        $templateFile = '';
-        if ($type === 'probationary') {
-            $templateFile = __DIR__ . '/templates/contract_probationary.php';
-        } elseif ($type === 'confidentiality') {
-            $templateFile = __DIR__ . '/templates/confidentiality_agreement.php';
-        } elseif ($type === 'project') {
-            $templateFile = __DIR__ . '/templates/contract_project.php';
-        } elseif ($type === 'notice_to_explain') {
-            $templateFile = __DIR__ . '/templates/notice_to_explain.php';
-        } elseif ($type === 'notice_of_decision') {
-            $templateFile = __DIR__ . '/templates/notice_of_decision.php';
-        } elseif ($type === 'employee_pledge') {
-            $templateFile = __DIR__ . '/templates/employee_pledge.php';
-        } elseif ($type === 'whistleblowing') {
-            $templateFile = __DIR__ . '/templates/whistleblowing.php';
-        } elseif ($type === 'data_consent') {
-            $templateFile = __DIR__ . '/templates/data_consent.php';
-        }
-
-        if ($templateFile && file_exists($templateFile)) {
-            include $templateFile;
-        } else {
-            echo "<div style='color: red; border: 2px solid red; padding: 20px; background: #ffe6e6;'>
+            <?php
+            if ($templateFile && file_exists($templateFile)) {
+                include $templateFile;
+            } else {
+                echo "<div style='color: red; border: 2px solid red; padding: 20px; background: #ffe6e6;'>
                 <h3>❌ Template Error</h3>
                 <p>Could not find the template file.</p>
                 <p><strong>Expected Path:</strong> " . htmlspecialchars($templateFile) . "</p>
                 <p>Please ensure the file exists inside the <code>public/templates/</code> folder.</p>
               </div>";
-        }
-        ?>
+            }
+            ?>
         </div>
 
     </body>
 
     </html>
+<?php
+} // End Format Check
+
+// --- AUTO-ATTACH LOGIC ---
+$renderedContent = ob_get_contents();
+ob_end_flush(); // Send to browser for printing
+
+if ($format === 'html' && !empty($renderedContent)) {
+    try {
+        $config = require '../config/config.php';
+        $vaultPath = $config['VAULT_PATH'] ?? realpath(__DIR__ . '/../vault');
+        if (!$vaultPath) {
+            throw new Exception('Vault path not configured or does not exist');
+        }
+        $fileService = new FileService($vaultPath);
+        // 1. Create a descriptive filename
+        $cleanType = str_replace('_', ' ', ucwords($type));
+        $originalName = $cleanType . " (" . date('M d Y') . ").html";
+
+        // 2. De-duplication Check: Don't attach if generated in the last 2 minutes (prevents refresh spam)
+        $chk = $pdo->prepare("SELECT id FROM documents WHERE employee_id = ? AND original_name = ? AND uploaded_at > DATE_SUB(NOW(), INTERVAL 2 MINUTE)");
+        $chk->execute([$emp['emp_id'], $originalName]);
+
+        if (!$chk->fetch()) {
+            // 3. Save to temporary file first
+            $tmp = tempnam(sys_get_temp_dir(), 'gen_doc');
+            file_put_contents($tmp, $renderedContent);
+
+            // 4. Encrypt and save to Vault
+            $storedName = $fileService->saveFile($tmp, $originalName);
+
+            if ($storedName) {
+                // 5. Link to 201 File
+                $category = (strpos($type, 'notice') !== false) ? 'Disciplinary' : 'Contract';
+                $docStmt = $pdo->prepare("INSERT INTO documents (file_uuid, employee_id, original_name, file_path, category, uploaded_by) VALUES (UUID(), ?, ?, ?, ?, ?)");
+                $docStmt->execute([$emp['emp_id'], $originalName, $storedName, $category, $_SESSION['user_id']]);
+            }
+
+            unlink($tmp);
+        }
+    } catch (Exception $e) {
+        error_log("Auto-attach failed: " . $e->getMessage());
+    }
+}
+?>

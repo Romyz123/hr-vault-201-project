@@ -274,8 +274,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         try {
             if (in_array($_SESSION['role'] ?? '', ['ADMIN', 'MANAGER', 'HR'], true)) {
+                // Begin transaction across employee + history
+                $pdo->beginTransaction();
+
                 // Use Service to Create
                 $newId = $empService->create($empData, $_SESSION['user_id']);
+
+                // Validate / normalize hire_date for history recording
+                $hireDate = null;
+                if (!empty($empData['hire_date']) && strtotime($empData['hire_date'])) {
+                    $hireDate = date('Y-m-d', strtotime($empData['hire_date']));
+                }
+
+                // [NEW] Auto-History: Record Hired Event
+                $hStmt = $pdo->prepare("INSERT INTO employment_history (employee_id, event_title, event_date, department, notes) VALUES (?, 'Hired', ?, ?, 'Employee onboarded via Recruitment/Application process.')");
+                $hStmt->execute([$newId, $hireDate, $empData['dept']]);
+
+                $pdo->commit();
 
                 // [MHI POLICY] Automated Welcome Email disabled.
                 $emailStatus = "";
@@ -297,11 +312,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 header("Location: index.php?msg=" . urlencode("📝 Request Submitted for Approval"));
                 exit;
             }
-        } catch (PDOException $e) {
+        } catch (Exception $e) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
             // Log full exception server-side
             error_log('Database Error in add_employee.php: ' . $e->getMessage() . '. Stack: ' . $e->getTraceAsString());
             // Show generic message to user
             $errors[] = "A database error occurred. Please contact support if the problem persists.";
+            // Propagate so calling context can handle unexpected fatal states if needed
+            throw $e;
         }
     }
 }

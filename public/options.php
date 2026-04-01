@@ -123,3 +123,42 @@ $sectionFriendlyMap = $sysOpts['section_friendly_map'] ?? [
     'EMT' => 'Emergency Medical Team',
     'SHUNTER' => 'Shunting Group'
 ];
+
+// [NEW] Disciplinary Policy Options
+$violation_options = [];
+try {
+    $vStmt = $pdo->query("SELECT category, name FROM disciplinary_violations ORDER BY category, name");
+    while ($row = $vStmt->fetch(PDO::FETCH_ASSOC)) {
+        $violation_options[$row['category']][] = $row['name'];
+    }
+} catch (Exception $e) {
+}
+
+if (empty($violation_options)) {
+    $violation_options = [
+        "Attendance" => ["Tardiness / Late", "AWOL (Absence Without Leave)", "Abandonment of Work", "Undertime"],
+        "Conduct"    => ["Insubordination", "Disrespect to Superior", "Fighting / Assault", "Gambling on Premises"],
+        "Honesty"    => ["Dishonesty", "Falsification of Records", "Theft", "Fraud"],
+        "Safety"     => ["LSR Violation", "Non-use of PPE", "Unsafe Act", "Safety Negligence"],
+        "Performance" => ["Negligence of Duty", "Sleeping on Duty", "Malingering", "Poor Work Performance"]
+    ];
+}
+
+$rule_options = [];
+try {
+    $rule_options = $pdo->query("SELECT name FROM company_rules ORDER BY name ASC")->fetchAll(PDO::FETCH_COLUMN);
+} catch (Exception $e) {
+}
+
+if (empty($rule_options)) {
+    $rule_options = [
+        "Rule I - Attendance and Punctuality",
+        "Rule II - Conduct and Decorum",
+        "Rule III - Safety and Health",
+        "Rule IV - Company Property",
+        "Rule V - Honesty and Integrity",
+        "Rule VI - General Provisions",
+        "Project-Specific Safety Protocol",
+        "Data Privacy Policy"
+    ];
+}

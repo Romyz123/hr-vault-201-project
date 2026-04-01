@@ -43,11 +43,20 @@ if (!in_array($role, ['ADMIN', 'HR', 'MANAGER'], true) && $data['employee_id'] !
 
 // Logo
 // [FIX] Standardized logo path for embedding in print/word documents
-$logo_path = __DIR__ . '/uploads/tesp-logo.png';
+$logo_paths = [
+    __DIR__ . '/uploads/tesp-logo.png',
+    __DIR__ . '/uploads/tesp logo 1.png',
+    __DIR__ . '/assets/images/tesp-logo-1.png',
+    __DIR__ . '/../uploads/tesp-logo.png',
+    __DIR__ . '/../uploads/tesp logo 1.png'
+];
 $logo_src = '';
-if (file_exists($logo_path)) {
-    $mime = pathinfo($logo_path, PATHINFO_EXTENSION) === 'png' ? 'image/png' : 'image/jpeg';
-    $logo_src = 'data:' . $mime . ';base64,' . base64_encode(file_get_contents($logo_path));
+foreach ($logo_paths as $p) {
+    if (file_exists($p)) {
+        $mime = pathinfo($p, PATHINFO_EXTENSION) === 'png' ? 'image/png' : 'image/jpeg';
+        $logo_src = 'data:' . $mime . ';base64,' . base64_encode(file_get_contents($p));
+        break;
+    }
 } ?>
 <!DOCTYPE html>
 <html lang="en" data-bs-theme="light">
@@ -254,28 +263,28 @@ if (file_exists($logo_path)) {
             <div class="score-val"><?php echo htmlspecialchars($data['score']); ?> / 100</div>
             <div class="rating-val"><?php echo htmlspecialchars($data['rating']); ?></div>
         </div>
-    </div>
-    <div class="section-title">EVALUATOR'S REMARKS / COMMENTS</div>
-    <div class="content-box"><?php echo nl2br(htmlspecialchars($data['remarks'] ?? 'N/A')); ?></div>
 
-    <div class="footer">
-        <table style="width: 100%;">
-            <tr>
-                <td style="width: 50%; padding-right: 20px;">
-                    <div style="font-weight: bold;">Evaluated by:</div>
-                    <div class="sig-line"></div>
-                    <div style="font-weight: bold; text-transform: uppercase;"><?php echo htmlspecialchars($data['evaluator']); ?></div>
-                    <div style="font-size: 9pt;">Evaluator / Supervisor</div>
-                </td>
-                <td style="width: 50%; padding-left: 20px;">
-                    <div style="font-weight: bold;">Acknowledged by:</div>
-                    <div class="sig-line"></div>
-                    <div style="font-weight: bold; text-transform: uppercase;"><?php echo htmlspecialchars($data['first_name'] . ' ' . $data['last_name']); ?></div>
-                    <div style="font-size: 9pt;">Employee Signature</div>
-                </td>
-            </tr>
-        </table>
-    </div>
+        <div class="section-title">EVALUATOR'S REMARKS / COMMENTS</div>
+        <div class="content-box"><?php echo nl2br(htmlspecialchars($data['remarks'] ?? 'N/A')); ?></div>
+
+        <div class="footer">
+            <table style="width: 100%;">
+                <tr>
+                    <td style="width: 50%; padding-right: 20px;">
+                        <div style="font-weight: bold;">Evaluated by:</div>
+                        <div class="sig-line"></div>
+                        <div style="font-weight: bold; text-transform: uppercase;"><?php echo htmlspecialchars($data['evaluator']); ?></div>
+                        <div style="font-size: 9pt;">Evaluator / Supervisor</div>
+                    </td>
+                    <td style="width: 50%; padding-left: 20px;">
+                        <div style="font-weight: bold;">Acknowledged by:</div>
+                        <div class="sig-line"></div>
+                        <div style="font-weight: bold; text-transform: uppercase;"><?php echo htmlspecialchars($data['first_name'] . ' ' . $data['last_name']); ?></div>
+                        <div style="font-size: 9pt;">Employee Signature</div>
+                    </td>
+                </tr>
+            </table>
+        </div>
     </div>
 
     <script>

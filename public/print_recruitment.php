@@ -44,11 +44,20 @@ $stmt->execute($params);
 $candidates = $stmt->fetchAll();
 
 // [FIX] Standardized logo path for embedding in print/word documents
-$logo_path = __DIR__ . '/uploads/tesp-logo.png';
+$logo_paths = [
+    __DIR__ . '/uploads/tesp-logo.png',
+    __DIR__ . '/uploads/tesp logo 1.png',
+    __DIR__ . '/assets/images/tesp-logo-1.png',
+    __DIR__ . '/../uploads/tesp-logo.png',
+    __DIR__ . '/../uploads/tesp logo 1.png'
+];
 $logo_src = '';
-if (file_exists($logo_path)) {
-    $mime = pathinfo($logo_path, PATHINFO_EXTENSION) === 'png' ? 'image/png' : 'image/jpeg';
-    $logo_src = 'data:' . $mime . ';base64,' . base64_encode(file_get_contents($logo_path));
+foreach ($logo_paths as $p) {
+    if (file_exists($p)) {
+        $mime = pathinfo($p, PATHINFO_EXTENSION) === 'png' ? 'image/png' : 'image/jpeg';
+        $logo_src = 'data:' . $mime . ';base64,' . base64_encode(file_get_contents($p));
+        break;
+    }
 }
 
 if (empty($logo_src)) {

@@ -15,6 +15,12 @@ if (!isset($_SESSION['user_id']) || !in_array($_SESSION['role'], ['ADMIN', 'MANA
     exit;
 }
 
+// [NEW] Helper function for safe HTML output (prevents fatal error and tab locking)
+function h($v): string
+{
+    return htmlspecialchars((string)$v, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+}
+
 $security = new Security($pdo);
 $logger   = new Logger($pdo);
 
@@ -116,6 +122,46 @@ try {
             }
         }
     }
+
+    // E. Disciplinary Violations
+    $pdo->exec("CREATE TABLE IF NOT EXISTS disciplinary_violations (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        category VARCHAR(50) NOT NULL,
+        name VARCHAR(100) NOT NULL,
+        description TEXT NULL,
+        UNIQUE KEY unique_viol (category, name)
+    )");
+    if ($pdo->query("SELECT COUNT(*) FROM disciplinary_violations")->fetchColumn() == 0) {
+        $vDefaults = [
+            "Attendance" => ["Tardiness / Late", "AWOL (Absence Without Leave)", "Abandonment of Work", "Undertime"],
+            "Conduct"    => ["Insubordination", "Disrespect to Superior", "Fighting / Assault", "Gambling on Premises"],
+            "Honesty"    => ["Dishonesty", "Falsification of Records", "Theft", "Fraud"],
+            "Safety"     => ["LSR Violation", "Non-use of PPE", "Unsafe Act", "Safety Negligence"],
+            "Performance" => ["Negligence of Duty", "Sleeping on Duty", "Malingering", "Poor Work Performance"]
+        ];
+        $stmt = $pdo->prepare("INSERT INTO disciplinary_violations (category, name) VALUES (?, ?)");
+        foreach ($vDefaults as $cat => $items) {
+            foreach ($items as $item) try {
+                $stmt->execute([$cat, $item]);
+            } catch (Exception $e) {
+            }
+        }
+    }
+
+    // F. Company Rules
+    $pdo->exec("CREATE TABLE IF NOT EXISTS company_rules (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        name VARCHAR(100) NOT NULL UNIQUE,
+        description TEXT NULL
+    )");
+    if ($pdo->query("SELECT COUNT(*) FROM company_rules")->fetchColumn() == 0) {
+        $rDefaults = ["Rule I - Attendance and Punctuality", "Rule II - Conduct and Decorum", "Rule III - Safety and Health", "Rule IV - Company Property", "Rule V - Honesty and Integrity", "Rule VI - General Provisions", "Project-Specific Safety Protocol", "Data Privacy Policy"];
+        $stmt = $pdo->prepare("INSERT INTO company_rules (name) VALUES (?)");
+        foreach ($rDefaults as $r) try {
+            $stmt->execute([$r]);
+        } catch (Exception $e) {
+        }
+    }
 } catch (PDOException $e) {
     die("Database Initialization Error: " . $e->getMessage());
 }
@@ -140,6 +186,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $activeTab = 'role';
         } elseif (strpos($action, 'dept') !== false || strpos($action, 'section') !== false) {
             $activeTab = 'dept';
+        } elseif (strpos($action, 'violation') !== false) {
+            $activeTab = 'violation';
+        } elseif (strpos($action, 'rule') !== false) {
+            $activeTab = 'rule';
         }
 
         // [SECURITY] Validate Name Length
@@ -276,6 +326,94 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
 
+        // --- VIOLATIONS ---
+        elseif ($action === 'add_violation' && !empty($name)) {
+            $cat = strtoupper(trim($_POST['category'] ?? 'GENERAL'));
+            $desc = trim($_POST['description'] ?? '');
+
+            if (strlen($cat) > 50) $error = "❌ Category name is too long (Max 50 chars).";
+            elseif (strlen($name) > 100) $error = "❌ Violation name is too long (Max 100 chars).";
+            elseif (strlen($desc) > 1000) $error = "❌ Description is too long (Max 1000 chars).";
+
+            // [NEW] Duplication Guard
+            $chk = $pdo->prepare("SELECT id FROM disciplinary_violations WHERE name = ? AND category = ?");
+            $chk->execute([$name, $cat]);
+            if ($chk->fetch()) {
+                $error = "❌ Violation '$name' already exists in category '$cat'.";
+            }
+
+            if (empty($error)) {
+                $pdo->prepare("INSERT INTO disciplinary_violations (category, name, description) VALUES (?, ?, ?)")->execute([$cat, $name, $desc]);
+                $msg = "✅ Violation added.";
+                $redirectMsg = $msg;
+            }
+        } elseif ($action === 'delete_violation' && $id > 0) {
+            $pdo->prepare("DELETE FROM disciplinary_violations WHERE id = ?")->execute([$id]);
+            $msg = "✅ Violation removed.";
+            $redirectMsg = $msg;
+        } elseif ($action === 'edit_violation' && $id > 0) {
+            $desc = trim($_POST['description'] ?? '');
+            $cat = strtoupper(trim($_POST['category'] ?? ''));
+
+            if (strlen($cat) > 50) $error = "❌ Category name is too long (Max 50 chars).";
+            elseif (strlen($name) > 100) $error = "❌ Violation name is too long (Max 100 chars).";
+            elseif (strlen($desc) > 1000) $error = "❌ Description is too long (Max 1000 chars).";
+
+            // [NEW] Duplication Guard (Ignore self)
+            $chk = $pdo->prepare("SELECT id FROM disciplinary_violations WHERE name = ? AND category = ? AND id != ?");
+            $chk->execute([$name, $cat, $id]);
+            if ($chk->fetch()) {
+                $error = "❌ Another violation with the name '$name' already exists in category '$cat'.";
+            }
+
+            if (empty($error)) {
+                $pdo->prepare("UPDATE disciplinary_violations SET name = ?, category = ?, description = ? WHERE id = ?")->execute([$name, $cat, $desc, $id]);
+                $msg = "✅ Violation updated.";
+                $redirectMsg = $msg;
+            }
+        }
+
+        // --- RULES ---
+        elseif ($action === 'add_rule' && !empty($name)) {
+            $desc = trim($_POST['description'] ?? '');
+            if (strlen($name) > 100) $error = "❌ Rule name is too long.";
+            elseif (strlen($desc) > 2000) $error = "❌ Rule description is too long (Max 2000 chars).";
+
+            // [NEW] Duplication Guard
+            $chk = $pdo->prepare("SELECT id FROM company_rules WHERE name = ?");
+            $chk->execute([$name]);
+            if ($chk->fetch()) {
+                $error = "❌ Rule '$name' already exists.";
+            }
+
+            if (empty($error)) {
+                $pdo->prepare("INSERT INTO company_rules (name, description) VALUES (?, ?)")->execute([$name, $desc]);
+                $msg = "✅ Rule added.";
+                $redirectMsg = $msg;
+            }
+        } elseif ($action === 'delete_rule' && $id > 0) {
+            $pdo->prepare("DELETE FROM company_rules WHERE id = ?")->execute([$id]);
+            $msg = "✅ Rule removed.";
+            $redirectMsg = $msg;
+        } elseif ($action === 'edit_rule' && $id > 0) {
+            $desc = trim($_POST['description'] ?? '');
+            if (strlen($name) > 100) $error = "❌ Rule name is too long.";
+            elseif (strlen($desc) > 2000) $error = "❌ Rule description is too long.";
+
+            // [NEW] Duplication Guard (Ignore self)
+            $chk = $pdo->prepare("SELECT id FROM company_rules WHERE name = ? AND id != ?");
+            $chk->execute([$name, $id]);
+            if ($chk->fetch()) {
+                $error = "❌ Another rule with the name '$name' already exists.";
+            }
+
+            if (empty($error)) {
+                $pdo->prepare("UPDATE company_rules SET name = ?, description = ? WHERE id = ?")->execute([$name, $desc, $id]);
+                $msg = "✅ Rule updated.";
+                $redirectMsg = $msg;
+            }
+        }
+
         // [SECURITY] Regenerate CSRF token on success to prevent replay attacks
         if (!empty($msg)) {
             $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
@@ -294,6 +432,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $agencies = $pdo->query("SELECT * FROM agencies ORDER BY name ASC")->fetchAll(); // [UX] Alphabetical
 $roles    = $pdo->query("SELECT * FROM system_roles ORDER BY name ASC")->fetchAll(); // [UX] Alphabetical
 $depts    = $pdo->query("SELECT * FROM departments ORDER BY name ASC")->fetchAll(); // [UX] Alphabetical
+$vList    = $pdo->query("SELECT * FROM disciplinary_violations ORDER BY category, name")->fetchAll();
+$rList    = $pdo->query("SELECT * FROM company_rules ORDER BY name")->fetchAll();
 
 // Fetch sections grouped by dept
 $sections = [];
@@ -346,6 +486,8 @@ if (isset($_GET['tab'])) $activeTab = $_GET['tab'];
             <li class="nav-item"><button class="nav-link <?php echo $activeTab === 'agency' ? 'active' : ''; ?> fw-bold" id="agency-tab" data-bs-toggle="tab" data-bs-target="#agency" type="button">🏢 Agencies</button></li>
             <li class="nav-item"><button class="nav-link <?php echo $activeTab === 'role' ? 'active' : ''; ?> fw-bold" id="role-tab" data-bs-toggle="tab" data-bs-target="#role" type="button">💼 System Roles & Duties</button></li>
             <li class="nav-item"><button class="nav-link <?php echo $activeTab === 'dept' ? 'active' : ''; ?> fw-bold" id="dept-tab" data-bs-toggle="tab" data-bs-target="#dept" type="button">📂 Departments & Sections</button></li>
+            <li class="nav-item"><button class="nav-link <?php echo $activeTab === 'violation' ? 'active' : ''; ?> fw-bold text-danger" id="violation-tab" data-bs-toggle="tab" data-bs-target="#violation" type="button">⚠️ Violations</button></li>
+            <li class="nav-item"><button class="nav-link <?php echo $activeTab === 'rule' ? 'active' : ''; ?> fw-bold text-danger" id="rule-tab" data-bs-toggle="tab" data-bs-target="#rule" type="button">📜 Company Rules</button></li>
         </ul>
 
         <div class="tab-content" id="optionTabsContent">
@@ -523,6 +665,115 @@ if (isset($_GET['tab'])) $activeTab = $_GET['tab'];
                     </div>
                 </div>
             </div>
+
+            <!-- TAB 4: VIOLATIONS -->
+            <div class="tab-pane fade <?php echo $activeTab === 'violation' ? 'show active' : ''; ?>" id="violation" role="tabpanel">
+                <div class="card shadow-sm border-danger">
+                    <div class="card-body">
+                        <form method="POST" class="row g-2 mb-4 align-items-end p-3 bg-light border rounded">
+                            <input type="hidden" name="csrf_token" value="<?php echo $_SESSION['csrf_token']; ?>">
+                            <input type="hidden" name="action" value="add_violation">
+                            <div class="col-md-3">
+                                <label class="form-label fw-bold">Category</label>
+                                <input type="text" name="category" class="form-control form-control-sm" placeholder="e.g. ATTENDANCE" required maxlength="50" oninput="this.value = this.value.toUpperCase()">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label fw-bold">Violation Name</label>
+                                <input type="text" name="name" class="form-control form-control-sm" placeholder="e.g. Excessive Tardiness" required maxlength="100">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label fw-bold">Policy Description</label>
+                                <input type="text" name="description" class="form-control form-control-sm" placeholder="Optional details..." maxlength="1000">
+                            </div>
+                            <div class="col-md-2">
+                                <button type="submit" class="btn btn-danger btn-sm w-100 fw-bold">Add Violation</button>
+                            </div>
+                        </form>
+                        <table class="table table-sm table-hover align-middle">
+                            <thead class="table-dark">
+                                <tr>
+                                    <th>Category</th>
+                                    <th>Violation</th>
+                                    <th>Description</th>
+                                    <th class="text-end">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php foreach ($vList as $v): ?>
+                                    <tr>
+                                        <td><span class="badge bg-secondary"><?php echo h($v['category']); ?></span></td>
+                                        <td class="fw-bold"><?php echo h($v['name']); ?></td>
+                                        <td class="small text-muted"><?php echo h($v['description']); ?></td>
+                                        <td class="text-end">
+                                            <form method="POST" class="d-inline" onsubmit="return confirm('Remove this violation?');">
+                                                <button type="button" class="btn btn-sm btn-outline-primary border-0 me-1"
+                                                    onclick='editViolation(<?php echo $v["id"]; ?>, <?php echo h(json_encode($v["category"])); ?>, <?php echo h(json_encode($v["name"])); ?>, <?php echo h(json_encode($v["description"] ?? "")); ?>)'>
+                                                    <i class="bi bi-pencil-square"></i>
+                                                </button>
+                                                <input type="hidden" name="csrf_token" value="<?php echo $_SESSION['csrf_token']; ?>">
+                                                <input type="hidden" name="action" value="delete_violation"><input type="hidden" name="id" value="<?php echo $v['id']; ?>">
+                                                <button type="submit" class="btn btn-sm btn-outline-danger border-0"><i class="bi bi-trash"></i></button>
+                                            </form>
+                                        </td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB 5: COMPANY RULES -->
+            <div class="tab-pane fade <?php echo $activeTab === 'rule' ? 'show active' : ''; ?>" id="rule" role="tabpanel">
+                <div class="card shadow-sm border-danger">
+                    <div class="card-body">
+                        <form method="POST" class="row g-2 mb-4 align-items-end p-3 bg-light border rounded">
+                            <input type="hidden" name="csrf_token" value="<?php echo $_SESSION['csrf_token']; ?>">
+                            <input type="hidden" name="action" value="add_rule">
+                            <div class="col-md-5">
+                                <label class="form-label fw-bold">Rule Name / Header</label>
+                                <input type="text" name="name" class="form-control form-control-sm" placeholder="e.g. Rule I - Section 1" required maxlength="100">
+                            </div>
+                            <div class="col-md-5">
+                                <label class="form-label fw-bold">Full Rule Description</label>
+                                <input type="text" name="description" class="form-control form-control-sm" placeholder="Reference text from handbook..." maxlength="2000">
+                            </div>
+                            <div class="col-md-2">
+                                <button type="submit" class="btn btn-danger btn-sm w-100 fw-bold">Add Rule</button>
+                            </div>
+                        </form>
+                        <table class="table table-sm table-hover align-middle">
+                            <thead class="table-dark">
+                                <tr>
+                                    <th>Rule Name</th>
+                                    <th>Reference Description</th>
+                                    <th class="text-end">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php foreach ($rList as $r): ?>
+                                    <tr>
+                                        <td class="fw-bold"><?php echo h($r['name']); ?></td>
+                                        <td class="small text-muted"><?php echo h($r['description']); ?></td>
+                                        <td class="text-end">
+                                            <form method="POST" class="d-inline" onsubmit="return confirm('Remove this rule?');">
+                                                <button type="button" class="btn btn-sm btn-outline-primary border-0 me-1"
+                                                    onclick='editRule(<?php echo $r["id"]; ?>, <?php echo h(json_encode($r["name"])); ?>, <?php echo h(json_encode($r["description"] ?? "")); ?>)'>
+                                                    <i class="bi bi-pencil-square"></i>
+                                                </button>
+                                                <input type="hidden" name="csrf_token" value="<?php echo $_SESSION['csrf_token']; ?>">
+                                                <input type="hidden" name="action" value="delete_rule"><input type="hidden" name="id" value="<?php echo $r['id']; ?>">
+                                                <button type="submit" class="btn btn-sm btn-outline-danger border-0"><i class="bi bi-trash"></i></button>
+                                            </form>
+                                        </td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
         </div>
     </div>
 
@@ -556,6 +807,68 @@ if (isset($_GET['tab'])) $activeTab = $_GET['tab'];
         </div>
     </div>
 
+    <!-- EDIT VIOLATION MODAL -->
+    <div class="modal fade" id="editViolationModal" tabindex="-1">
+        <div class="modal-dialog">
+            <form method="POST" class="modal-content">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title">Edit Violation</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" name="csrf_token" value="<?php echo $_SESSION['csrf_token']; ?>">
+                    <input type="hidden" name="action" value="edit_violation">
+                    <input type="hidden" name="id" id="editViolId">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Category</label>
+                        <input type="text" name="category" id="editViolCat" class="form-control" required maxlength="50">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Violation Name</label>
+                        <input type="text" name="name" id="editViolName" class="form-control" required maxlength="100">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Policy Description</label>
+                        <textarea name="description" id="editViolDesc" class="form-control" rows="4" maxlength="1000"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Update Violation</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- EDIT RULE MODAL -->
+    <div class="modal fade" id="editRuleModal" tabindex="-1">
+        <div class="modal-dialog">
+            <form method="POST" class="modal-content">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title">Edit Company Rule</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" name="csrf_token" value="<?php echo $_SESSION['csrf_token']; ?>">
+                    <input type="hidden" name="action" value="edit_rule">
+                    <input type="hidden" name="id" id="editRuleId">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Rule Name / Header</label>
+                        <input type="text" name="name" id="editRuleName" class="form-control" required maxlength="100">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Full Rule Description</label>
+                        <textarea name="description" id="editRuleDesc" class="form-control" rows="6" maxlength="2000"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Update Rule</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <script src="assets/bootstrap.bundle.min.js"></script>
     <script>
         // Section Data from PHP
@@ -569,6 +882,21 @@ if (isset($_GET['tab'])) $activeTab = $_GET['tab'];
             document.getElementById('modalRoleName').innerText = name;
             document.getElementById('modalDuties').value = currentDuties;
             dutiesModal.show();
+        }
+
+        function editViolation(id, cat, name, desc) {
+            document.getElementById('editViolId').value = id;
+            document.getElementById('editViolCat').value = cat;
+            document.getElementById('editViolName').value = name;
+            document.getElementById('editViolDesc').value = desc;
+            new bootstrap.Modal(document.getElementById('editViolationModal')).show();
+        }
+
+        function editRule(id, name, desc) {
+            document.getElementById('editRuleId').value = id;
+            document.getElementById('editRuleName').value = name;
+            document.getElementById('editRuleDesc').value = desc;
+            new bootstrap.Modal(document.getElementById('editRuleModal')).show();
         }
 
         function previewDuties() {
@@ -629,8 +957,9 @@ if (isset($_GET['tab'])) $activeTab = $_GET['tab'];
             }
         }
 
-        // Auto-capitalize inputs
-        document.querySelectorAll('input[name="name"]').forEach(input => {
+        // Auto-capitalize specific organizational inputs (Agencies, Depts, Sections)
+        // We exclude Violation/Rule names to allow mixed-case branding/policy text
+        document.querySelectorAll('#agency input[name="name"], #dept input[name="name"]').forEach(input => {
             input.addEventListener('input', function() {
                 this.value = this.value.toUpperCase();
             });

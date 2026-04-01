@@ -7,8 +7,9 @@ if (!isset($emp)) {
 // 1. Prepare Data
 $date_created = (!empty($_GET['notice_date'])) ? date('F d, Y', strtotime($_GET['notice_date'])) : '___________________________';
 $incident_date = (!empty($_GET['incident_date'])) ? date('F d, Y h:i A', strtotime($_GET['incident_date'])) : '___________________________';
-$violation = nl2br(htmlspecialchars($_GET['violation'] ?? ''));
+$violation = nl2br(htmlspecialchars($violation ?? ''));
 $decision = nl2br(htmlspecialchars($_GET['decision'] ?? ''));
+$rule_violated = nl2br(htmlspecialchars($rule_violated ?? ''));
 ?>
 
 <!DOCTYPE html>
@@ -140,6 +141,12 @@ $decision = nl2br(htmlspecialchars($_GET['decision'] ?? ''));
                 <td colspan="4" style="height: 100px; vertical-align: top; text-align: justify; text-justify: inter-word;">
                     <?php echo $violation ?: '(No violation recorded)'; ?>
                 </td>
+            </tr>
+            <tr>
+                <td colspan="4" class="label">Specific Company Rule & Regulation Violated</td>
+            </tr>
+            <tr>
+                <td colspan="4" style="height: 80px; vertical-align: top; text-align: justify; text-justify: inter-word;"><?php echo $rule_violated ?: 'N/A'; ?></td>
             </tr>
             <tr>
                 <td colspan="4" class="label">Decision / Sanction</td>

@@ -1512,6 +1512,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 <div class="form-text text-muted" style="font-size: 0.7rem;">Leave empty to hand-write date.</div>
                             </div>
 
+                            <div class="mb-2">
+                                <label class="form-label small fw-bold">Violation(s) (Multi-Select)</label>
+                                <select name="violation[]" class="form-select form-select-sm" multiple required style="height: 100px;">
+                                    <?php foreach ($violation_options as $group => $items): ?>
+                                        <optgroup label="<?php echo h($group); ?>">
+                                            <?php foreach ($items as $v): ?><option value="<?php echo h($v); ?>"><?php echo h($v); ?></option><?php endforeach; ?>
+                                        </optgroup>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
+
                             <div class="row g-2 mb-2">
                                 <div class="col-6">
                                     <label class="form-label small fw-bold">Date of Incident</label>
@@ -1530,9 +1541,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             </div>
 
                             <div class="mb-0">
-                                <label class="form-label small fw-bold">Rule Violated (Optional)</label>
-                                <textarea name="rule_violated" class="form-control form-control-sm" rows="2" maxlength="500" style="text-align: center; white-space: pre-wrap; word-wrap: break-word;" placeholder="e.g. Rule V. Section 3 - Insubordination" spellcheck="true" lang="en"></textarea>
-                                <div class="form-text extra-small">Press Enter for new lines.</div>
+                                <label class="form-label small fw-bold">Rule(s) Violated</label>
+                                <select name="rule_violated[]" class="form-select form-select-sm" multiple style="height: 80px;">
+                                    <?php foreach ($rule_options as $r): ?><option value="<?php echo h($r); ?>"><?php echo h($r); ?></option><?php endforeach; ?>
+                                </select>
                             </div>
                         </div>
 
@@ -1550,10 +1562,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 <input type="date" name="incident_date" class="form-control form-control-sm">
                             </div>
                             <div class="mb-2">
-                                <label class="form-label small fw-bold">Violation / Offense</label>
-                                <textarea name="violation" class="form-control form-control-sm" rows="2" maxlength="500" style="text-align: center; white-space: pre-wrap; word-wrap: break-word;" placeholder="e.g. Habitual Tardiness" required spellcheck="true" lang="en"></textarea>
-                                <div class="form-text extra-small">Press Enter for new lines.</div>
+                                <label class="form-label small fw-bold">Violation / Offense (Multi-Select)</label>
+                                <select name="violation[]" class="form-select form-select-sm" multiple required style="height: 100px;">
+                                    <?php foreach ($violation_options as $group => $items): ?>
+                                        <optgroup label="<?php echo h($group); ?>">
+                                            <?php foreach ($items as $v): ?><option value="<?php echo h($v); ?>"><?php echo h($v); ?></option><?php endforeach; ?>
+                                        </optgroup>
+                                    <?php endforeach; ?>
+                                </select>
                             </div>
+
+                            <div class="mb-2">
+                                <label class="form-label small fw-bold">Rule(s) Violated</label>
+                                <select name="rule_violated[]" class="form-select form-select-sm" multiple style="height: 80px;">
+                                    <?php foreach ($rule_options as $r): ?><option value="<?php echo h($r); ?>"><?php echo h($r); ?></option><?php endforeach; ?>
+                                </select>
+                            </div>
+
                             <div class="mb-0">
                                 <label class="form-label small fw-bold">Decision / Sanction</label>
                                 <textarea name="decision" class="form-control form-control-sm" rows="4" maxlength="2000" style="text-align: center; white-space: pre-wrap; word-wrap: break-word;" placeholder="e.g. 3 Days Suspension" required spellcheck="true" lang="en"></textarea>

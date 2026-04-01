@@ -155,6 +155,10 @@ $columnSchema = [
         'is_resolved' => "TINYINT(1) DEFAULT 0",
         'resolution_note' => "TEXT NULL"
     ],
+    'disciplinary_cases' => [
+        'violation_type' => "VARCHAR(100) NOT NULL",
+        'rule_violated' => "VARCHAR(255) NULL AFTER violation_type"
+    ],
     'candidates' => [
         'email' => "VARCHAR(100) NULL",
         'phone_number' => "VARCHAR(25) NULL",
@@ -243,6 +247,20 @@ $tableSchema = [
         `evaluator` VARCHAR(100),
         `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         KEY `idx_emp_eval` (`employee_id`)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;",
+
+    'disciplinary_violations' => "CREATE TABLE IF NOT EXISTS `disciplinary_violations` (
+        `id` INT AUTO_INCREMENT PRIMARY KEY,
+        `category` VARCHAR(50) NOT NULL,
+        `name` VARCHAR(100) NOT NULL,
+        `description` TEXT NULL,
+        UNIQUE KEY `unique_viol` (`category`, `name`)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;",
+
+    'company_rules' => "CREATE TABLE IF NOT EXISTS `company_rules` (
+        `id` INT AUTO_INCREMENT PRIMARY KEY,
+        `name` VARCHAR(100) NOT NULL UNIQUE,
+        `description` TEXT NULL
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;",
 
     'disciplinary_cases' => "CREATE TABLE IF NOT EXISTS `disciplinary_cases` (

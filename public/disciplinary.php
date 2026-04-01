@@ -9,6 +9,7 @@ require '../src/Logger.php';
 require '../src/Security.php';
 require '../src/Validator.php';
 require '../src/SearchHelper.php';
+require 'options.php';
 session_start();
 checkSessionTimeout($pdo); // [SECURITY] Enforce Timeout
 
@@ -52,19 +53,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         $emp_ids = [$_POST['employee_id']];
     }
 
-    $type       = trim($_POST['violation_type']);
+    // [FIX] Handle Multiple Violations and Rules
+    $viols      = $_POST['violation_type'] ?? [];
+    $type       = is_array($viols) ? implode(', ', $viols) : trim($viols);
+
+    $rules      = $_POST['rule_violated'] ?? [];
+    $rule_text  = is_array($rules) ? implode(', ', $rules) : trim($rules);
+
     $date       = $_POST['incident_date'];
     $action     = trim($_POST['action_taken']);
     $desc       = trim($_POST['description']);
 
     // [SECURITY] Input Validation
-    if (strlen($type) > 100) {
+    if (strlen($type) > 255) {
         $alertType = 'error';
-        $alertMsg = "❌ Violation Type is too long (Max 100 chars).";
+        $alertMsg = "❌ Total Violation text is too long.";
         $isValid = false;
-    } elseif (!preg_match('/^[a-zA-Z0-9\s\-\(\)\.\,]+$/', $type)) {
+    } elseif (strlen($rule_text) > 255) {
         $alertType = 'error';
-        $alertMsg = "❌ Violation Type contains invalid characters. Allowed: Letters, Numbers, () - . ,";
+        $alertMsg = "❌ Total Rules text is too long.";
         $isValid = false;
     } elseif (strlen($action) > 100) {
         $alertType = 'error';
@@ -166,8 +173,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 }
 
                 // 1. Insert Case
-                $stmt = $pdo->prepare("INSERT INTO disciplinary_cases (employee_id, violation_type, incident_date, action_taken, description, attachment_path) VALUES (?, ?, ?, ?, ?, ?)");
-                $stmt->execute([$e_id, $type, $date, $action, $desc, $thisFilePath]);
+                $stmt = $pdo->prepare("INSERT INTO disciplinary_cases (employee_id, violation_type, rule_violated, incident_date, action_taken, description, attachment_path) VALUES (?, ?, ?, ?, ?, ?, ?)");
+                $stmt->execute([$e_id, $type, $rule_text, $date, $action, $desc, $thisFilePath]);
 
                 // 2. Sync to Documents (If file exists)
                 if ($thisFilePath) {
@@ -189,6 +196,129 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 exit;
             }
         } catch (PDOException $e) {
+            $alertType = 'error';
+            $alertMsg = "Database Error: " . $e->getMessage();
+        }
+    }
+}
+
+// 2.5 HANDLE EDIT CASE
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] == 'edit_case') {
+    if (empty($_POST['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'])) {
+        die("❌ Security Error: Invalid Session Token. Please refresh and try again.");
+    }
+
+    $case_id = (int)$_POST['case_id'];
+    $viols   = $_POST['violation_type'] ?? [];
+    $type    = is_array($viols) ? implode(', ', $viols) : trim($viols);
+
+    $rules   = $_POST['rule_violated'] ?? [];
+    $rule_text = is_array($rules) ? implode(', ', $rules) : trim($rules);
+
+    $date    = $_POST['incident_date'];
+    $action  = trim($_POST['action_taken']);
+    $desc    = trim($_POST['description']);
+
+    // [SECURITY] Input Validation
+    $isValid = true;
+    if (strlen($type) > 255) {
+        $alertType = 'error';
+        $alertMsg = "❌ Violation text too long.";
+        $isValid = false;
+    } elseif (strlen($rule_text) > 255) {
+        $alertType = 'error';
+        $alertMsg = "❌ Rules text too long.";
+        $isValid = false;
+    } elseif (strlen($action) > 100) {
+        $alertType = 'error';
+        $alertMsg = "❌ Action Taken is too long.";
+        $isValid = false;
+    } elseif (empty($date) || !strtotime($date)) {
+        $alertType = 'error';
+        $alertMsg = "❌ Invalid Incident Date.";
+        $isValid = false;
+    } elseif (strlen($desc) > 5000) {
+        $alertType = 'error';
+        $alertMsg = "❌ Description is too long.";
+        $isValid = false;
+    }
+    if ($isValid) {
+        try {
+            $pdo->beginTransaction();
+
+            // 1. Update Core Details
+            $stmt = $pdo->prepare("UPDATE disciplinary_cases SET violation_type = ?, rule_violated = ?, incident_date = ?, action_taken = ?, description = ? WHERE id = ?");
+            $stmt->execute([$type, $rule_text, $date, $action, $desc, $case_id]);
+
+            // 2. Handle File Replacement (Optional)
+            if (!empty($_FILES['attachment']['name'])) {
+                $targetDir = "uploads/";
+                $originalName = basename($_FILES['attachment']['name']);
+                $ext = strtolower(pathinfo($originalName, PATHINFO_EXTENSION));
+
+                if (in_array($ext, ['pdf', 'jpg', 'jpeg', 'png'])) {
+                    // [SECURITY] Validate PDF content (for PDF files only)
+                    if ($ext === 'pdf') {
+                        $tmpFile = $_FILES['attachment']['tmp_name'];
+                        $handle = fopen($tmpFile, 'rb');
+                        if ($handle === false) {
+                            throw new Exception('Unable to verify uploaded PDF file.');
+                        }
+                        $fileSize = filesize($tmpFile);
+                        $chunkSize = min(1024, $fileSize);
+                        $header = fread($handle, $chunkSize);
+                        if ($fileSize > $chunkSize) {
+                            fseek($handle, -$chunkSize, SEEK_END);
+                            $footer = fread($handle, $chunkSize);
+                        } else {
+                            $footer = $header;
+                        }
+                        fclose($handle);
+
+                        if (strpos($header, '%PDF-') !== 0 || strpos($footer, '%%EOF') === false) {
+                            throw new Exception('Uploaded PDF file is corrupted or incomplete.');
+                        }
+                    }
+
+                    $cleanName = preg_replace('/[^a-zA-Z0-9._-]/', '', $originalName);
+                    $fileName  = "DISCIPLINARY_" . time() . "_" . $cleanName;
+
+                    if (move_uploaded_file($_FILES['attachment']['tmp_name'], $targetDir . $fileName)) {
+                        // Retain old path first (for cleanup)
+                        $oldStmt = $pdo->prepare("SELECT attachment_path FROM disciplinary_cases WHERE id = ?");
+                        $oldStmt->execute([$case_id]);
+                        $oldPath = $oldStmt->fetchColumn();
+
+                        // Update path in cases table
+                        $pdo->prepare("UPDATE disciplinary_cases SET attachment_path = ? WHERE id = ?")->execute([$fileName, $case_id]);
+
+                        // Link to documents table
+                        $st = $pdo->prepare("SELECT employee_id FROM disciplinary_cases WHERE id = ?");
+                        $st->execute([$case_id]);
+                        $eid = $st->fetchColumn();
+
+                        $pdo->prepare("INSERT INTO documents (file_uuid, employee_id, original_name, file_path, category, uploaded_by) VALUES (UUID(), ?, ?, ?, 'Disciplinary', ?)")
+                            ->execute([$eid, $originalName, $fileName, $_SESSION['user_id']]);
+
+                        // Delete old file from uploads if present and not same as new
+                        if (!empty($oldPath) && $oldPath !== $fileName) {
+                            $oldFullPath = $targetDir . $oldPath;
+                            if (file_exists($oldFullPath)) {
+                                @unlink($oldFullPath);
+                            }
+                        }
+                    } else {
+                        throw new Exception('Failed to move uploaded file to destination.');
+                    }
+                }
+            }
+
+            $pdo->commit();
+            $logger->log($_SESSION['user_id'], 'CASE_EDIT', "Updated disciplinary case details for ID: $case_id");
+            header("Location: disciplinary.php?msg=" . urlencode("✅ Case details updated successfully!"));
+            exit;
+        } catch (Exception $e) {
+            if ($pdo->inTransaction()) $pdo->rollBack();
             $alertType = 'error';
             $alertMsg = "Database Error: " . $e->getMessage();
         }
@@ -401,7 +531,8 @@ if (isset($_GET['msg'])) {
                             <th style="width: 40px;"><input type="checkbox" class="form-check-input" id="selectAll"></th>
                             <th>Date <span id="selection-count" class="badge bg-primary ms-1" style="display:none">0</span></th>
                             <th>Employee</th>
-                            <th>Violation</th>
+                            <th>Violation / Offense</th>
+                            <th>Rule Violated</th>
                             <th>Action</th>
                             <th>Status</th>
                             <th>Manage / Docs</th>
@@ -416,7 +547,8 @@ if (isset($_GET['msg'])) {
                                     <strong><?php echo htmlspecialchars($c['last_name']); ?></strong>, <?php echo htmlspecialchars($c['first_name']); ?>
                                     <br><small class="text-muted"><?php echo htmlspecialchars($c['dept']); ?></small>
                                 </td>
-                                <td><?php echo htmlspecialchars($c['violation_type']); ?></td>
+                                <td class="small"><?php echo htmlspecialchars($c['violation_type']); ?></td>
+                                <td class="small text-muted"><?php echo htmlspecialchars($c['rule_violated'] ?? 'N/A'); ?></td>
                                 <td><span class="badge bg-secondary"><?php echo $c['action_taken']; ?></span></td>
                                 <td><span class="badge status-<?php echo $c['status']; ?>"><?php echo $c['status']; ?></span></td>
                                 <td>
@@ -425,6 +557,7 @@ if (isset($_GET['msg'])) {
                                             data-emp-id="<?php echo $c['emp_pk']; ?>"
                                             data-date="<?php echo $c['incident_date']; ?>"
                                             data-violation="<?php echo htmlspecialchars($c['violation_type']); ?>"
+                                            data-rule="<?php echo htmlspecialchars($c['rule_violated'] ?? ''); ?>"
                                             data-desc="<?php echo htmlspecialchars($c['description']); ?>"
                                             onclick="prepDocModal(this, 'notice_to_explain')">
                                             <i class="bi bi-file-earmark-text"></i> NTE
@@ -433,9 +566,14 @@ if (isset($_GET['msg'])) {
                                             data-emp-id="<?php echo $c['emp_pk']; ?>"
                                             data-date="<?php echo $c['incident_date']; ?>"
                                             data-violation="<?php echo htmlspecialchars($c['violation_type']); ?>"
+                                            data-rule="<?php echo htmlspecialchars($c['rule_violated'] ?? ''); ?>"
                                             data-action="<?php echo htmlspecialchars($c['action_taken']); ?>"
                                             onclick="prepDocModal(this, 'notice_of_decision')">
                                             <i class="bi bi-gavel"></i> NOD
+                                        </button>
+                                        <button type="button" class="btn btn-sm btn-outline-primary"
+                                            onclick='openEditCaseModal(<?php echo htmlspecialchars(json_encode($c), ENT_QUOTES, "UTF-8"); ?>)' title="Edit Details">
+                                            <i class="bi bi-pencil-square"></i>
                                         </button>
                                     </div>
                                     <br>
@@ -502,8 +640,20 @@ if (isset($_GET['msg'])) {
                             <div class="form-text small text-muted">Hold <strong>Ctrl</strong> (Windows) or <strong>Cmd</strong> (Mac) to select multiple people.</div>
                         </div>
                         <div class="mb-3">
-                            <label>Violation</label>
-                            <input type="text" name="violation_type" class="form-control" required placeholder="Tardiness or Company Policy Violation" spellcheck="true" lang="en" maxlength="100" pattern="[a-zA-Z0-9\s\-\(\)\.\,]+" title="Allowed: Letters, Numbers, () - . ," oninput="this.value = this.value.replace(/[^a-zA-Z0-9\s\-\(\)\.\,]/g, '')">
+                            <label class="fw-bold">Violation (Multi-Select)</label>
+                            <select name="violation_type[]" class="form-select" multiple required style="height: 120px;">
+                                <?php foreach ($violation_options as $group => $items): ?>
+                                    <optgroup label="<?php echo htmlspecialchars($group, ENT_QUOTES, 'UTF-8'); ?>">
+                                        <?php foreach ($items as $v): ?><option value="<?php echo htmlspecialchars($v, ENT_QUOTES, 'UTF-8'); ?>"><?php echo htmlspecialchars($v, ENT_QUOTES, 'UTF-8'); ?></option><?php endforeach; ?>
+                                    </optgroup>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="fw-bold">Rule Violated (Multi-Select)</label>
+                            <select name="rule_violated[]" class="form-select" multiple style="height: 100px;">
+                                <?php foreach ($rule_options as $r): ?><option value="<?php echo htmlspecialchars($r, ENT_QUOTES, 'UTF-8'); ?>"><?php echo htmlspecialchars($r, ENT_QUOTES, 'UTF-8'); ?></option><?php endforeach; ?>
+                            </select>
                         </div>
                         <div class="mb-3">
                             <label>Date</label>
@@ -534,6 +684,63 @@ if (isset($_GET['msg'])) {
         </div>
     </div>
 
+    <!-- EDIT CASE MODAL -->
+    <div class="modal fade" id="editCaseModal" tabindex="-1">
+        <div class="modal-dialog">
+            <form method="POST" enctype="multipart/form-data" class="modal-content" onsubmit="showLoadingSpinner(this)">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title">Edit Case Details</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" name="action" value="edit_case">
+                    <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
+                    <input type="hidden" name="case_id" id="edit_case_id">
+                    <div class="mb-3">
+                        <label class="fw-bold">Employee</label>
+                        <input type="text" id="edit_emp_name" class="form-control bg-light" readonly>
+                    </div>
+                    <div class="mb-3">
+                        <label class="fw-bold">Violation Type (Multi-Select)</label>
+                        <select name="violation_type[]" id="edit_violation_type" class="form-select" multiple required style="height: 120px;">
+                            <?php foreach ($violation_options as $group => $items): ?>
+                                <optgroup label="<?php echo $group; ?>">
+                                    <?php foreach ($items as $v): ?><option value="<?php echo $v; ?>"><?php echo $v; ?></option><?php endforeach; ?>
+                                </optgroup>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="fw-bold">Rule Violated (Multi-Select)</label>
+                        <select name="rule_violated[]" id="edit_rule_violated" class="form-select" multiple style="height: 100px;">
+                            <?php foreach ($rule_options as $r): ?><option value="<?php echo $r; ?>"><?php echo $r; ?></option><?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="fw-bold">Incident Date</label>
+                        <input type="date" name="incident_date" id="edit_incident_date" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="fw-bold">Action Taken</label>
+                        <input type="text" name="action_taken" id="edit_action_taken" class="form-control" required maxlength="100">
+                    </div>
+                    <div class="mb-3">
+                        <label class="fw-bold">Description / Details</label>
+                        <textarea name="description" id="edit_description" class="form-control" rows="4" maxlength="5000" placeholder="Add more context or update the incident summary..."></textarea>
+                    </div>
+                    <div class="mb-0 p-2 bg-light border rounded">
+                        <label class="fw-bold small">Replace Attachment (Optional)</label>
+                        <input type="file" name="attachment" class="form-control form-control-sm">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save Changes</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <!-- GENERATE DOCUMENT MODAL (Custom Input) -->
     <div class="modal fade" id="genDocModal" tabindex="-1">
         <div class="modal-dialog">
@@ -558,10 +765,21 @@ if (isset($_GET['msg'])) {
                     </div>
 
                     <div class="mb-3">
-                        <label class="form-label fw-bold">Violation / Rule</label>
-                        <textarea name="rule_violated" id="gen_violation" class="form-control" rows="2" maxlength="500" style="text-align: justify;" placeholder="e.g. Rule V. Section 3 - Insubordination" required spellcheck="true" lang="en"></textarea>
-                        <!-- For NOD, we map this to 'violation' param in JS -->
-                        <input type="hidden" name="violation" id="gen_violation_hidden">
+                        <label class="form-label fw-bold">Violation(s) (Multi-Select)</label>
+                        <select name="violation[]" id="gen_violation_select" class="form-select" multiple required style="height: 100px;">
+                            <?php foreach ($violation_options as $group => $items): ?>
+                                <optgroup label="<?php echo htmlspecialchars($group); ?>">
+                                    <?php foreach ($items as $v): ?><option value="<?php echo htmlspecialchars($v); ?>"><?php echo htmlspecialchars($v); ?></option><?php endforeach; ?>
+                                </optgroup>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Rule(s) Violated</label>
+                        <select name="rule_violated[]" id="gen_rule_select" class="form-select" multiple style="height: 80px;">
+                            <?php foreach ($rule_options as $r): ?><option value="<?php echo htmlspecialchars($r); ?>"><?php echo htmlspecialchars($r); ?></option><?php endforeach; ?>
+                        </select>
                     </div>
 
                     <!-- NTE Specific -->
@@ -623,6 +841,26 @@ if (isset($_GET['msg'])) {
             }
         }
 
+        function openEditCaseModal(data) {
+            document.getElementById('edit_case_id').value = data.id;
+            document.getElementById('edit_emp_name').value = data.last_name + ', ' + data.first_name + ' (' + data.employee_id + ')';
+
+            // [NEW] Set Multi-Select Values for Violations
+            const vSelect = document.getElementById('edit_violation_type');
+            const vValues = data.violation_type.split(', ');
+            Array.from(vSelect.options).forEach(opt => opt.selected = vValues.includes(opt.value));
+
+            // [NEW] Set Multi-Select Values for Rules
+            const rSelect = document.getElementById('edit_rule_violated');
+            const rValues = (data.rule_violated || "").split(', ');
+            Array.from(rSelect.options).forEach(opt => opt.selected = rValues.includes(opt.value));
+
+            document.getElementById('edit_incident_date').value = data.incident_date;
+            document.getElementById('edit_action_taken').value = data.action_taken;
+            document.getElementById('edit_description').value = data.description || '';
+            new bootstrap.Modal(document.getElementById('editCaseModal')).show();
+        }
+
         function updateCount() {
             const count = document.querySelectorAll('.case-checkbox:checked').length;
             const badge = document.getElementById('selection-count');
@@ -652,12 +890,20 @@ if (isset($_GET['msg'])) {
             const empId = btn.getAttribute('data-emp-id');
             const date = btn.getAttribute('data-date');
             const violation = btn.getAttribute('data-violation');
+            const rule = btn.getAttribute('data-rule');
 
             document.getElementById('gen_emp_id').value = empId;
             document.getElementById('gen_type').value = type;
             document.getElementById('gen_date').value = date;
-            document.getElementById('gen_violation').value = violation;
-            document.getElementById('gen_violation_hidden').value = violation; // Sync for NOD
+
+            // [NEW] Set Dropdown Selections
+            const vSelect = document.getElementById('gen_violation_select');
+            const vValues = violation.split(', ');
+            Array.from(vSelect.options).forEach(opt => opt.selected = vValues.includes(opt.value));
+
+            const rSelect = document.getElementById('gen_rule_select');
+            const rValues = (rule || "").split(', ');
+            Array.from(rSelect.options).forEach(opt => opt.selected = rValues.includes(opt.value));
 
             // Helper to toggle visibility AND validation (disabled inputs are not required)
             const toggleGroup = (id, show) => {
