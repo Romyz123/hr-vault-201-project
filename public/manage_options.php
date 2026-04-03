@@ -407,11 +407,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $error = "❌ Another rule with the name '$name' already exists.";
             }
 
-            if (empty($error)) {
-                $pdo->prepare("UPDATE company_rules SET name = ?, description = ? WHERE id = ?")->execute([$name, $desc, $id]);
-                $msg = "✅ Rule updated.";
-                $redirectMsg = $msg;
-            }
+            $pdo->prepare("UPDATE company_rules SET name = ?, description = ? WHERE id = ?")->execute([$name, $desc, $id]);
+            $msg = "✅ Rule updated.";
+            $redirectMsg = $msg;
         }
 
         // [SECURITY] Regenerate CSRF token on success to prevent replay attacks
@@ -957,9 +955,11 @@ if (isset($_GET['tab'])) $activeTab = $_GET['tab'];
             }
         }
 
-        // Auto-capitalize specific organizational inputs (Agencies, Depts, Sections)
-        // We exclude Violation/Rule names to allow mixed-case branding/policy text
-        document.querySelectorAll('#agency input[name="name"], #dept input[name="name"]').forEach(input => {
+        // Auto-capitalize organizational inputs
+        document.querySelectorAll('input[name="name"]').forEach(input => {
+            // [UX] Only capitalize if inside Agency or Dept tabs
+            const parentId = input.closest('.tab-pane')?.id;
+            if (parentId !== 'agency' && parentId !== 'dept') return;
             input.addEventListener('input', function() {
                 this.value = this.value.toUpperCase();
             });

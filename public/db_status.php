@@ -156,7 +156,7 @@ $columnSchema = [
         'resolution_note' => "TEXT NULL"
     ],
     'disciplinary_cases' => [
-        'violation_type' => "VARCHAR(100) NOT NULL",
+        'violation_type' => "VARCHAR(255) NOT NULL",
         'rule_violated' => "VARCHAR(255) NULL AFTER violation_type"
     ],
     'candidates' => [
@@ -463,6 +463,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_POST['auto_fix']) || isset
                     $errors[] = "Failed to add index $idxName to $table: " . $e->getMessage();
                 }
             }
+        }
+    }
+
+    // 4. Seed Default Settings
+    if (!$isDryRun) {
+        try {
+            $defaultSettings = [
+                'session_timeout_server' => '1800',
+                'session_timeout_client' => '900',
+                'auto_refresh_interval' => '60',
+                'vault_size_limit_gb' => '1',
+                'backup_day' => 'Fri',
+                'backup_time' => '00:00',
+                'backup_path' => '',
+                'secondary_backup_path' => '',
+                'backup_max_size_gb' => '1.9',
+                'backup_include_vault' => '0',
+                'backup_alert_email' => '',
+                'maintenance_mode' => '0',
+                'staff_direct_approval' => '0',
+                'default_project_name' => 'MRT-3 REHABILITATION PROJECT',
+                'default_notice_place' => 'QUEZON CITY',
+                'bulk_margin_left' => '30',
+                'bulk_margin_right' => '20',
+                'document_font_size' => '11',
+                'approval_widgets' => '["hires","edits","docs","doc-edits","tickets"]'
+            ];
+            $stmt = $pdo->prepare("INSERT IGNORE INTO system_settings (setting_key, setting_value) VALUES (?, ?)");
+            foreach ($defaultSettings as $key => $value) {
+                $stmt->execute([$key, $value]);
+            }
+            $updates++;
+        } catch (Exception $e) {
+            // Table might not exist yet if create failed
         }
     }
 

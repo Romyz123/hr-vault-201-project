@@ -217,8 +217,9 @@ $vaultLimitGB = $settings['vault_size_limit_gb'] ?? '1'; // Default 1GB
 $maintMode = $settings['maintenance_mode'] ?? '0';
 
 // [NEW from user code]
-$staffDirect = ($settings['staff_direct_approval'] ?? '0') === '1';
+$staffDirect = ($settings['staff_direct_approval'] ?? '0') === '1' || ($settings['staff_direct_approval'] ?? '0') === 1;
 $defProject  = $settings['default_project_name'] ?? '';
+$defPlace    = $settings['default_notice_place'] ?? '';
 $marginL     = $settings['bulk_margin_left'] ?? '30';
 $marginR     = $settings['bulk_margin_right'] ?? '20';
 $approvalWidgets = json_decode($settings['approval_widgets'] ?? '[]', true);
@@ -227,6 +228,7 @@ $docFontSize = $settings['document_font_size'] ?? '11';
 $backupDay = $settings['backup_day'] ?? 'Fri';
 $backupTime = $settings['backup_time'] ?? '00:00';
 $backupPath = $settings['backup_path'] ?? '';
+$secondaryPath = $settings['secondary_backup_path'] ?? '';
 $backupPass = $settings['backup_password'] ?? '';
 $backupVault = $settings['backup_include_vault'] ?? '0';
 $backupEmail = $settings['backup_alert_email'] ?? '';
@@ -242,6 +244,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['settings'])) {
     $maintMode = isset($p['maintenance_mode']) ? '1' : '0';
     $staffDirect = isset($p['staff_direct_approval']);
     $defProject = $p['default_project_name'] ?? $defProject;
+    $defPlace = $p['default_notice_place'] ?? $defPlace;
     $marginL = $p['bulk_margin_left'] ?? $marginL;
     $marginR = $p['bulk_margin_right'] ?? $marginR;
     $approvalWidgets = $p['approval_widgets'] ?? []; // This will be an array from the form
@@ -249,6 +252,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['settings'])) {
     $backupDay = $p['backup_day'] ?? $backupDay;
     $backupTime = $p['backup_time'] ?? $backupTime;
     $backupPath = $p['backup_path'] ?? $backupPath;
+    $secondaryPath = $p['secondary_backup_path'] ?? $secondaryPath;
     $backupVault = isset($p['backup_include_vault']) ? '1' : '0';
     $backupEmail = $p['backup_alert_email'] ?? $backupEmail;
     $backupMaxSize = $p['backup_max_size_gb'] ?? $backupMaxSize;
@@ -421,6 +425,11 @@ if (PHP_OS_FAMILY === 'Windows') {
                                 <input type="text" name="settings[default_project_name]" class="form-control" value="<?php echo htmlspecialchars($defProject); ?>" placeholder="e.g. MRT-3 Rehabilitation Project" maxlength="100" pattern="[a-zA-Z0-9\s\-\.\(\)]+" title="Allowed: Letters, Numbers, Spaces, - . ( )">
                                 <div class="form-text">Auto-fills the Project Name in contracts.</div>
                             </div>
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">Default Notice Place</label>
+                                <input type="text" name="settings[default_notice_place]" class="form-control" value="<?php echo htmlspecialchars($defPlace); ?>" placeholder="e.g. Quezon City" maxlength="100">
+                                <div class="form-text">Auto-fills the "Place of Incident" in disciplinary notices.</div>
+                            </div>
                             <div class="row g-2">
                                 <div class="col-4"><label class="form-label fw-bold">Bulk Print Margin (Left)</label><input type="number" name="settings[bulk_margin_left]" class="form-control" value="<?php echo htmlspecialchars($marginL); ?>" min="0" max="500" oninput="validateMargin(this)"></div>
                                 <div class="col-4"><label class="form-label fw-bold">Bulk Print Margin (Right)</label><input type="number" name="settings[bulk_margin_right]" class="form-control" value="<?php echo htmlspecialchars($marginR); ?>" min="0" max="500" oninput="validateMargin(this)"></div>
@@ -497,6 +506,14 @@ if (PHP_OS_FAMILY === 'Windows') {
                                         <i class="bi bi-exclamation-triangle-fill"></i> <strong>Critical Warning:</strong> Your backups are currently being saved to the exact same physical drive (<strong><?php echo htmlspecialchars($targetDrive); ?></strong>) as the main application. If this drive crashes, both your system and backups will be lost. Please attach an external drive and update this path.
                                     </div>
                                 <?php endif; ?>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">Secondary Backup Path (Redundancy)</label>
+                                <div class="input-group">
+                                    <input type="text" name="settings[secondary_backup_path]" id="secondaryPathInput" class="form-control" value="<?php echo htmlspecialchars($secondaryPath); ?>" placeholder="e.g. D:\backups_mirror\">
+                                    <button type="button" class="btn btn-outline-secondary" onclick="testSecondaryPath(this)" title="Verify Mirror Path"><i class="bi bi-folder-check"></i> Test Path</button>
+                                </div>
+                                <div class="form-text text-info small"><i class="bi bi-info-circle"></i> Recommended: Use a different physical drive or a network mapped drive (UNC path).</div>
                             </div>
                             <!-- [NEW from user code] Backup Password -->
                             <div class="mb-3">
@@ -628,10 +645,41 @@ if (PHP_OS_FAMILY === 'Windows') {
                     if (data.status === 'success') Swal.fire('Verified', data.message, 'success');
                     else if (data.status === 'warning') Swal.fire('Warning', data.message, 'warning');
                     else Swal.fire('Test Failed', data.message, 'error');
+                    updateAllPathStatus();
                 })
                 .catch(e => {
                     console.error(e);
                     Swal.fire('Error', 'Network or server error occurred.', 'error');
+                })
+                .finally(() => {
+                    btn.disabled = false;
+                    btn.innerHTML = originalHtml;
+                });
+        }
+
+        function testSecondaryPath(btn) {
+            const input = document.getElementById('secondaryPathInput');
+            const path = input.value.trim();
+            if (!path) {
+                Swal.fire('Input Required', 'Please enter a path to test.', 'info');
+                return;
+            }
+            const originalHtml = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+            const formData = new FormData();
+            formData.append('path', path);
+            formData.append('csrf_token', '<?php echo $_SESSION['csrf_token']; ?>');
+            fetch('test_backup_path.php', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.status === 'success') Swal.fire('Verified', data.message, 'success');
+                    else if (data.status === 'warning') Swal.fire('Warning', data.message, 'warning');
+                    else Swal.fire('Test Failed', data.message, 'error');
+                    updateAllPathStatus();
                 })
                 .finally(() => {
                     btn.disabled = false;
