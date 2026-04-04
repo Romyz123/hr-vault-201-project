@@ -28,7 +28,7 @@ $approvalWidgetsSetting = $pdo->query("SELECT setting_value FROM system_settings
 $enabledWidgets = ['hires', 'edits', 'docs', 'doc-edits', 'tickets']; // Default fallback
 if ($approvalWidgetsSetting !== false && $approvalWidgetsSetting !== '') {
     $decoded = json_decode($approvalWidgetsSetting, true);
-    if (is_array($decoded)) { // [FIX] Removed !empty() so admins can explicitly hide ALL widgets
+    if ($decoded !== null) { // [FIX] Respect empty selections to allow hiding all widgets
         $enabledWidgets = $decoded;
     }
 }

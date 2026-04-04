@@ -15,8 +15,8 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'ADMIN') {
 $security = new Security($pdo);
 $logger = new Logger($pdo);
 $csrf_token = $security->generateCSRF();
-
-$msg = "";
+// Grab the message from the URL if it exists
+$msg = $_GET['msg'] ?? "";
 $error = "";
 
 // [NEW] Dynamically calculate total drive space to use as a realistic cap
@@ -65,7 +65,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 // Skip checkboxes as they are already handled safely above
                 if (in_array($key, $checkboxes, true)) continue;
 
-                $value = trim((string)$value);
+                // [FIX] Handle array inputs (like approval_widgets) correctly to prevent conversion warnings
+                if (is_array($value)) {
+                    $value = array_map(fn($v) => trim((string)$v), $value);
+                } else {
+                    $value = trim((string)$value);
+                }
 
                 // Handle backup password
                 if ($key === 'backup_password') {
@@ -90,12 +95,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $value = ''; // [FIX 2] Allow empty values to use default system path
                     } elseif (strpos($clean, '..') !== false) {
                         $errors[] = "Backup path must not contain '..' sequences.";
-                        // [FIX] Removed colon (:) from regex so Windows drive letters (C:\) are accepted
                     } elseif (preg_match('/[<>"|?*]/', $clean) || strpos($clean, '://') !== false) {
                         $errors[] = "Backup path contains invalid characters or protocol wrappers (e.g., < > \" | ? *).";
                     } else {
                         // [FIX] Loosen validation: Don't require the directory to exist yet.
-                        // Only check for writability if it *does* exist.
                         if (file_exists($clean)) {
                             if (!is_dir($clean)) {
                                 $errors[] = "Backup path exists but is not a directory.";
@@ -103,7 +106,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 $errors[] = "Backup path exists but is not writable by the web server.";
                             }
                         }
-                        $value = $clean; // Use the user's input directly after sanitization
+                        $value = $clean;
                     }
                 }
 
@@ -116,7 +119,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
                 }
 
-                // Specific validation for timeouts (must be numeric, in seconds)
+                // Specific validation for timeouts
                 if (strpos($key, 'timeout') !== false || strpos($key, 'interval') !== false) {
                     if (!is_numeric($value) || (int)$value < 10) {
                         $errors[] = "Timeout/Interval values must be numeric and at least 10 seconds.";
@@ -127,7 +130,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
                 }
 
-                // Specific validation for margins (Max 500, numbers only)
+                // Specific validation for margins
                 if (strpos($key, 'margin') !== false) {
                     $value = preg_replace('/[^0-9]/', '', (string)$value);
                     if ($value === '' || (int)$value > 500) {
@@ -137,8 +140,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 // [NEW] Handle approval widgets
                 if ($key === 'approval_widgets') {
-                    // Value will be an array from the form, so we json_encode it.
-                    // If it's not set (all unchecked), it will be an empty array.
                     $value = json_encode($value ?? []);
                 }
 
@@ -150,16 +151,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
                 }
 
-                // Validate Vault Size Limit (GB)
+                // Validate Vault Size Limit
                 if ($key === 'vault_size_limit_gb') {
                     $value = (float)$value;
-                    if ($value < 0) $value = 0; // Minimum 0 (Unlimited)
-                    if ($value > $diskTotalGB) $value = $diskTotalGB; // [FIX] Cap at actual drive size
+                    if ($value < 0) $value = 0;
+                    if ($value > $diskTotalGB) $value = $diskTotalGB;
                 }
 
-                // Validate Max Backup Size (GB)
+                // Validate Max Backup Size
                 if ($key === 'backup_max_size_gb') {
-                    // [NEW] Calculate limits based on the newly submitted backup path (the "other" drive)
                     $newBackupPath = rtrim(trim($_POST['settings']['backup_path'] ?? ''), '\\/');
                     $valBackupPathForDisk = (!empty($newBackupPath) && file_exists($newBackupPath)) ? realpath($newBackupPath) : realpath(__DIR__ . '/../backups');
                     if (!$valBackupPathForDisk) $valBackupPathForDisk = __DIR__;
@@ -168,20 +168,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     if ($valBackupDiskGB < 1) $valBackupDiskGB = 1;
 
                     $value = (float)$value;
-                    if ($value < 0.1) $value = 0.1; // Minimum 100MB
-                    if ($value > $valBackupDiskGB) $value = $valBackupDiskGB; // [FIX] Cap at Backup Drive size
+                    if ($value < 0.1) $value = 0.1;
+                    if ($value > $valBackupDiskGB) $value = $valBackupDiskGB;
                 }
 
-                // Queue this setting for update
                 $updates[$key] = $value;
             }
         }
 
         if (empty($errors)) {
-            // Persist all validated settings
             $stmt = $pdo->prepare("INSERT INTO system_settings (setting_key, setting_value) VALUES (?, ?) ON DUPLICATE KEY UPDATE setting_value = ?");
             foreach ($updates as $k => $v) {
-                $valStr = (string)$v; // [FIX] Force string cast to prevent strict DB float rejection
+                $valStr = (string)$v;
                 $stmt->execute([$k, $valStr, $valStr]);
             }
 
@@ -190,7 +188,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             header("Location: settings.php?msg=" . urlencode($msg));
             exit;
         } else {
-            $error = implode('<br>', $errors); // [FIX] Allow line breaks so the alert is readable
+            $error = implode('<br>', $errors);
         }
     } catch (Exception $e) {
         $error = "Error: " . htmlspecialchars($e->getMessage());
@@ -205,24 +203,22 @@ try {
         $settings[$row['setting_key']] = $row['setting_value'];
     }
 } catch (Exception $e) {
-    // Table might not exist, use defaults
     $error = "Could not load settings. Please run DB Status check from the Admin dashboard.";
 }
 
-// Set defaults if not in DB
+// Set defaults
 $serverTimeout = $settings['session_timeout_server'] ?? 1800;
 $clientTimeout = $settings['session_timeout_client'] ?? 900;
 $refreshInterval = $settings['auto_refresh_interval'] ?? 60;
-$vaultLimitGB = $settings['vault_size_limit_gb'] ?? '1'; // Default 1GB
+$vaultLimitGB = $settings['vault_size_limit_gb'] ?? '1';
 $maintMode = $settings['maintenance_mode'] ?? '0';
 
-// [NEW from user code]
 $staffDirect = ($settings['staff_direct_approval'] ?? '0') === '1' || ($settings['staff_direct_approval'] ?? '0') === 1;
 $defProject  = $settings['default_project_name'] ?? '';
 $defPlace    = $settings['default_notice_place'] ?? '';
 $marginL     = $settings['bulk_margin_left'] ?? '30';
 $marginR     = $settings['bulk_margin_right'] ?? '20';
-$approvalWidgets = json_decode($settings['approval_widgets'] ?? '[]', true);
+$approvalWidgets = json_decode($settings['approval_widgets'] ?? 'null', true);
 $docFontSize = $settings['document_font_size'] ?? '11';
 
 $backupDay = $settings['backup_day'] ?? 'Fri';
@@ -232,9 +228,9 @@ $secondaryPath = $settings['secondary_backup_path'] ?? '';
 $backupPass = $settings['backup_password'] ?? '';
 $backupVault = $settings['backup_include_vault'] ?? '0';
 $backupEmail = $settings['backup_alert_email'] ?? '';
-$backupMaxSize = $settings['backup_max_size_gb'] ?? '1.9'; // Default to 1.9GB
+$backupMaxSize = $settings['backup_max_size_gb'] ?? '1.9';
 
-// [FIX] If there was a validation error, restore the user's typed values so they don't lose their changes
+// Form re-population on error
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['settings'])) {
     $p = $_POST['settings'];
     $serverTimeout = $p['session_timeout_server'] ?? $serverTimeout;
@@ -247,7 +243,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['settings'])) {
     $defPlace = $p['default_notice_place'] ?? $defPlace;
     $marginL = $p['bulk_margin_left'] ?? $marginL;
     $marginR = $p['bulk_margin_right'] ?? $marginR;
-    $approvalWidgets = $p['approval_widgets'] ?? []; // This will be an array from the form
+    $approvalWidgets = $p['approval_widgets'] ?? [];
     $docFontSize = $p['document_font_size'] ?? $docFontSize;
     $backupDay = $p['backup_day'] ?? $backupDay;
     $backupTime = $p['backup_time'] ?? $backupTime;
@@ -258,14 +254,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['settings'])) {
     $backupMaxSize = $p['backup_max_size_gb'] ?? $backupMaxSize;
 }
 
-// [NEW] Calculate capacity specifically for the backup drive
+// Calculate capacity specifically for the backup drive
 $actualBackupPathForDisk = (!empty($backupPath) && file_exists($backupPath)) ? realpath($backupPath) : realpath(__DIR__ . '/../backups');
 if (!$actualBackupPathForDisk) $actualBackupPathForDisk = __DIR__;
 $backupDiskTotalBytes = @disk_total_space($actualBackupPathForDisk);
 $backupDiskTotalGB = $backupDiskTotalBytes ? floor($backupDiskTotalBytes / 1024 / 1024 / 1024) : 1000;
 if ($backupDiskTotalGB < 1) $backupDiskTotalGB = 1;
 
-// [NEW] Detect if Backup Path is on the same drive as the app (Windows only)
+// Detect if Backup Path is on the same drive as the app (Windows only)
 $isSameDrive = false;
 $targetDrive = '';
 if (PHP_OS_FAMILY === 'Windows') {
@@ -276,7 +272,6 @@ if (PHP_OS_FAMILY === 'Windows') {
         $isSameDrive = ($appDrive === $targetDrive);
     }
 }
-
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -310,7 +305,6 @@ if (PHP_OS_FAMILY === 'Windows') {
                 <strong><i class="bi bi-exclamation-triangle-fill"></i> Settings could not be saved:</strong><br>
                 <?php echo $error; ?>
             </div>
-            <!-- [FIX] Explicitly trigger SweetAlert so the user doesn't miss the validation failure -->
             <script>
                 document.addEventListener("DOMContentLoaded", function() {
                     Swal.fire({
@@ -327,7 +321,6 @@ if (PHP_OS_FAMILY === 'Windows') {
 
             <div class="row">
                 <div class="col-lg-12">
-                    <!-- Session Settings -->
                     <div class="card shadow-sm mb-4">
                         <div class="card-header bg-primary text-white">
                             <h5 class="mb-0"><i class="bi bi-clock-history"></i> Session & Inactivity Timeouts</h5>
@@ -342,9 +335,7 @@ if (PHP_OS_FAMILY === 'Windows') {
                                         <option value="7200" <?php echo ($serverTimeout == 7200) ? 'selected' : ''; ?>>2 Hours</option>
                                         <option value="14400" <?php echo ($serverTimeout == 14400) ? 'selected' : ''; ?>>4 Hours</option>
                                     </select>
-                                    <div class="form-text">
-                                        The maximum time a session is valid on the server. After this, the user is forced to log in again, regardless of activity.
-                                    </div>
+                                    <div class="form-text">The maximum time a session is valid on the server. After this, the user is forced to log in again.</div>
                                 </div>
                                 <div class="col-md-6 mb-3">
                                     <label for="client_timeout" class="form-label fw-bold">Client Inactivity Timer</label>
@@ -355,17 +346,14 @@ if (PHP_OS_FAMILY === 'Windows') {
                                         <option value="1800" <?php echo ($clientTimeout == 1800) ? 'selected' : ''; ?>>30 Minutes</option>
                                     </select>
                                     <div class="form-text">
-                                        The time of user inactivity (no mouse/keyboard) before the dashboard automatically logs them out.
-                                        <br>
-                                        <span class="text-danger">Warning:</span> This must be less than the Server Session Lifetime.
-                                        If set higher, the server will log out the user before the client-side timer.
+                                        The time of user inactivity before automatic logout.<br>
+                                        <span class="text-danger">Warning:</span> Must be less than Server Session Lifetime.
                                     </div>
                                 </div>
                             </div>
                         </div>
                     </div>
 
-                    <!-- [NEW from user code] Permissions -->
                     <div class="card shadow-sm mb-4">
                         <div class="card-header bg-info text-white">
                             <h5 class="mb-0"><i class="bi bi-shield-check"></i> Permissions & Access</h5>
@@ -374,26 +362,22 @@ if (PHP_OS_FAMILY === 'Windows') {
                             <div class="form-check form-switch mb-3">
                                 <input class="form-check-input" type="checkbox" id="staffDirect" name="settings[staff_direct_approval]" value="1" <?php echo $staffDirect ? 'checked' : ''; ?>>
                                 <label class="form-check-label fw-bold" for="staffDirect">Allow Staff Direct Edit/Add</label>
-                                <div class="form-text text-muted">
-                                    If <strong>ON</strong>: Staff changes are saved immediately.<br>
-                                    If <strong>OFF</strong>: Staff changes create a "Request" that requires Admin approval.
-                                </div>
+                                <div class="form-text text-muted">If <strong>ON</strong>: Changes saved immediately. If <strong>OFF</strong>: Creates a Request for Admin.</div>
                             </div>
                             <div class="form-check form-switch mb-3">
                                 <input class="form-check-input" type="checkbox" role="switch" id="maintMode" name="settings[maintenance_mode]" value="1" <?php echo ($maintMode === '1') ? 'checked' : ''; ?>>
                                 <label class="form-check-label fw-bold text-danger" for="maintMode">Enable Maintenance Mode</label>
-                                <div class="form-text text-muted">If <strong>ON</strong>: Only ADMINS can log in. All other users will be blocked.</div>
+                                <div class="form-text text-muted">If <strong>ON</strong>: Only ADMINS can log in. All other users blocked.</div>
                             </div>
                         </div>
                     </div>
 
-                    <!-- [NEW] Approval Center Widgets -->
                     <div class="card shadow-sm mb-4">
                         <div class="card-header bg-info text-white">
                             <h5 class="mb-0"><i class="bi bi-clipboard-check"></i> Approval Center Widgets</h5>
                         </div>
                         <div class="card-body">
-                            <p class="small text-muted">Select which request types to display on the Admin Approval Center dashboard.</p>
+                            <p class="small text-muted">Select which request types to display on the Admin dashboard.</p>
                             <?php
                             $allWidgets = [
                                 'hires' => 'New Hires',
@@ -402,8 +386,8 @@ if (PHP_OS_FAMILY === 'Windows') {
                                 'doc-edits' => 'Document Edits',
                                 'tickets' => 'Ticket Resolutions'
                             ];
-                            // If setting is empty, default to all checked
-                            $enabledWidgets = !empty($approvalWidgets) ? $approvalWidgets : array_keys($allWidgets);
+                            // [FIX] Use strict null check to preserve empty selections (hiding all widgets)
+                            $enabledWidgets = is_array($approvalWidgets) ? $approvalWidgets : array_keys($allWidgets);
                             foreach ($allWidgets as $key => $label):
                             ?>
                                 <div class="form-check form-switch">
@@ -414,7 +398,6 @@ if (PHP_OS_FAMILY === 'Windows') {
                         </div>
                     </div>
 
-                    <!-- [NEW from user code] Document Defaults -->
                     <div class="card shadow-sm mb-4">
                         <div class="card-header bg-secondary text-white">
                             <h5 class="mb-0"><i class="bi bi-file-earmark-ruled"></i> Document Defaults</h5>
@@ -423,23 +406,28 @@ if (PHP_OS_FAMILY === 'Windows') {
                             <div class="mb-3">
                                 <label class="form-label fw-bold">Default Project Name</label>
                                 <input type="text" name="settings[default_project_name]" class="form-control" value="<?php echo htmlspecialchars($defProject); ?>" placeholder="e.g. MRT-3 Rehabilitation Project" maxlength="100" pattern="[a-zA-Z0-9\s\-\.\(\)]+" title="Allowed: Letters, Numbers, Spaces, - . ( )">
-                                <div class="form-text">Auto-fills the Project Name in contracts.</div>
                             </div>
                             <div class="mb-3">
                                 <label class="form-label fw-bold">Default Notice Place</label>
                                 <input type="text" name="settings[default_notice_place]" class="form-control" value="<?php echo htmlspecialchars($defPlace); ?>" placeholder="e.g. Quezon City" maxlength="100">
-                                <div class="form-text">Auto-fills the "Place of Incident" in disciplinary notices.</div>
                             </div>
                             <div class="row g-2">
-                                <div class="col-4"><label class="form-label fw-bold">Bulk Print Margin (Left)</label><input type="number" name="settings[bulk_margin_left]" class="form-control" value="<?php echo htmlspecialchars($marginL); ?>" min="0" max="500" oninput="validateMargin(this)"></div>
-                                <div class="col-4"><label class="form-label fw-bold">Bulk Print Margin (Right)</label><input type="number" name="settings[bulk_margin_right]" class="form-control" value="<?php echo htmlspecialchars($marginR); ?>" min="0" max="500" oninput="validateMargin(this)"></div>
-                                <div class="col-4"><label class="form-label fw-bold">Document Font Size (pt)</label><input type="number" step="0.5" name="settings[document_font_size]" class="form-control" value="<?php echo htmlspecialchars($docFontSize); ?>" min="8" max="24" oninput="validateFontSize(this)"></div>
+                                <div class="col-4">
+                                    <label class="form-label fw-bold">Margin (Left)</label>
+                                    <input type="number" name="settings[bulk_margin_left]" class="form-control" value="<?php echo htmlspecialchars($marginL); ?>" min="0" max="500" oninput="validateMargin(this)">
+                                </div>
+                                <div class="col-4">
+                                    <label class="form-label fw-bold">Margin (Right)</label>
+                                    <input type="number" name="settings[bulk_margin_right]" class="form-control" value="<?php echo htmlspecialchars($marginR); ?>" min="0" max="500" oninput="validateMargin(this)">
+                                </div>
+                                <div class="col-4">
+                                    <label class="form-label fw-bold">Font Size (pt)</label>
+                                    <input type="number" step="0.5" name="settings[document_font_size]" class="form-control" value="<?php echo htmlspecialchars($docFontSize); ?>" min="8" max="24" oninput="validateFontSize(this)">
+                                </div>
                             </div>
-                            <div class="form-text mb-3">Adjusts the side spacing for bulk printed contracts (in pixels).</div>
                         </div>
                     </div>
 
-                    <!-- General Settings -->
                     <div class="card shadow-sm mb-4">
                         <div class="card-header bg-secondary text-white">
                             <h5 class="mb-0"><i class="bi bi-gear-wide-connected"></i> General Settings</h5>
@@ -447,20 +435,18 @@ if (PHP_OS_FAMILY === 'Windows') {
                         <div class="card-body">
                             <div class="row">
                                 <div class="col-md-6 mb-3">
-                                    <label for="refresh_interval" class="form-label fw-bold">Dashboard Auto-Refresh Interval (seconds)</label>
-                                    <input type="number" id="refresh_interval" name="settings[auto_refresh_interval]" class="form-control" value="<?php echo htmlspecialchars($refreshInterval); ?>" min="10" max="3600" oninput="this.value = this.value.replace(/[^0-9]/g, ''); if(this.value.length > 4) this.value = this.value.slice(0, 4); if(parseInt(this.value) > 3600) this.value = '3600';">
-                                    <div class="form-text">How often the dashboard checks for new notifications. Min 10s, Max 3600s (1 hour).</div>
+                                    <label for="refresh_interval" class="form-label fw-bold">Dashboard Refresh Interval (seconds)</label>
+                                    <input type="number" id="refresh_interval" name="settings[auto_refresh_interval]" class="form-control" value="<?php echo htmlspecialchars($refreshInterval); ?>" min="10" max="3600" oninput="this.value = this.value.replace(/[^0-9]/g, ''); if(parseInt(this.value) > 3600) this.value = '3600';">
                                 </div>
                                 <div class="col-md-6 mb-3">
                                     <label for="vault_size_limit_gb" class="form-label fw-bold">Vault Size Limit (GB)</label>
-                                    <input type="number" step="0.1" id="vault_size_limit_gb" name="settings[vault_size_limit_gb]" class="form-control" value="<?php echo htmlspecialchars($vaultLimitGB); ?>" min="0" max="<?php echo $diskTotalGB; ?>" oninput="this.value = this.value.replace(/[^0-9\.]/g, ''); if(this.value.split('.').length > 2) this.value = this.value.replace(/\.+$/, ''); if(parseFloat(this.value) > <?php echo $diskTotalGB; ?>) this.value = '<?php echo $diskTotalGB; ?>';">
-                                    <div class="form-text">Maximum allowed storage (Server Drive Capacity: <strong><?php echo $diskTotalGB; ?> GB</strong>). Set to 0 for unlimited.</div>
+                                    <input type="number" step="0.1" id="vault_size_limit_gb" name="settings[vault_size_limit_gb]" class="form-control" value="<?php echo htmlspecialchars($vaultLimitGB); ?>" min="0" max="<?php echo $diskTotalGB; ?>" oninput="this.value = this.value.replace(/[^0-9\.]/g, ''); if(parseFloat(this.value) > <?php echo $diskTotalGB; ?>) this.value = '<?php echo $diskTotalGB; ?>';">
+                                    <div class="form-text">Maximum allowed storage (Capacity: <strong><?php echo $diskTotalGB; ?> GB</strong>). Set 0 for unlimited.</div>
                                 </div>
                             </div>
                         </div>
                     </div>
 
-                    <!-- Backup Settings -->
                     <div class="card shadow-sm mb-4">
                         <div class="card-header bg-dark text-white">
                             <h5 class="mb-0"><i class="bi bi-server"></i> Automated Backup</h5>
@@ -475,12 +461,10 @@ if (PHP_OS_FAMILY === 'Windows') {
                                             <option value="<?php echo $day; ?>" <?php echo ($backupDay === $day) ? 'selected' : ''; ?>><?php echo date('l', strtotime($day)); ?></option>
                                         <?php endforeach; ?>
                                     </select>
-                                    <div class="form-text">Day of the week to run the automated backup.</div>
                                 </div>
                                 <div class="col-md-3 mb-3">
                                     <label class="form-label fw-bold">Backup Time</label>
                                     <input type="time" name="settings[backup_time]" class="form-control" value="<?php echo htmlspecialchars($backupTime); ?>">
-                                    <div class="form-text">Time of day to run the backup (24-hour format).</div>
                                 </div>
                                 <div class="col-md-3 mb-3">
                                     <label class="form-label fw-bold">Max Split Size (GB)</label>
@@ -495,27 +479,25 @@ if (PHP_OS_FAMILY === 'Windows') {
                                 </div>
                             </div>
                             <div class="mb-3">
-                                <label class="form-label fw-bold">Backup Path (Optional)</label>
+                                <label class="form-label fw-bold">Backup Path (Optional) <span id="primaryStatus"></span></label>
                                 <div class="input-group">
                                     <input type="text" name="settings[backup_path]" id="backupPathInput" class="form-control" value="<?php echo htmlspecialchars($backupPath); ?>" placeholder="e.g. C:\backups\" maxlength="255">
                                     <button type="button" class="btn btn-outline-secondary" onclick="testBackupPath(this)" title="Verify Path Access"><i class="bi bi-folder-check"></i> Test Path</button>
                                 </div>
-                                <div class="form-text">Absolute path to a custom backup folder. Leave blank to use default `backups/` folder.</div>
+                                <div class="form-text">Leave blank to use default `backups/` folder.</div>
                                 <?php if ($isSameDrive): ?>
                                     <div class="alert alert-danger small mt-2 mb-0 border-danger border-2">
-                                        <i class="bi bi-exclamation-triangle-fill"></i> <strong>Critical Warning:</strong> Your backups are currently being saved to the exact same physical drive (<strong><?php echo htmlspecialchars($targetDrive); ?></strong>) as the main application. If this drive crashes, both your system and backups will be lost. Please attach an external drive and update this path.
+                                        <i class="bi bi-exclamation-triangle-fill"></i> <strong>Warning:</strong> Backups are saving to the same drive (<strong><?php echo htmlspecialchars($targetDrive); ?></strong>) as the app.
                                     </div>
                                 <?php endif; ?>
                             </div>
                             <div class="mb-3">
-                                <label class="form-label fw-bold">Secondary Backup Path (Redundancy)</label>
+                                <label class="form-label fw-bold">Secondary Backup Path (Redundancy) <span id="secondaryStatus"></span></label>
                                 <div class="input-group">
                                     <input type="text" name="settings[secondary_backup_path]" id="secondaryPathInput" class="form-control" value="<?php echo htmlspecialchars($secondaryPath); ?>" placeholder="e.g. D:\backups_mirror\">
                                     <button type="button" class="btn btn-outline-secondary" onclick="testSecondaryPath(this)" title="Verify Mirror Path"><i class="bi bi-folder-check"></i> Test Path</button>
                                 </div>
-                                <div class="form-text text-info small"><i class="bi bi-info-circle"></i> Recommended: Use a different physical drive or a network mapped drive (UNC path).</div>
                             </div>
-                            <!-- [NEW from user code] Backup Password -->
                             <div class="mb-3">
                                 <label class="form-label fw-bold">ZIP Password</label>
                                 <div class="input-group">
@@ -530,18 +512,14 @@ if (PHP_OS_FAMILY === 'Windows') {
                                 <div class="progress mt-1" style="height: 5px;">
                                     <div id="backupStrengthBar" class="progress-bar bg-danger" role="progressbar" style="width: 0%"></div>
                                 </div>
-                                <div class="form-text">Encrypts the backup ZIP file. Max 50 characters. (Leave blank to keep current)</div>
                             </div>
-
                             <div class="mb-3">
                                 <label class="form-label fw-bold">Failure Alert Email</label>
                                 <input type="email" name="settings[backup_alert_email]" class="form-control" value="<?php echo htmlspecialchars($backupEmail); ?>" placeholder="admin@example.com" maxlength="100">
-                                <div class="form-text">Email address to notify if the automated backup fails.</div>
                             </div>
                         </div>
                     </div>
 
-                    <!-- [NEW from user code] Manual Trigger -->
                     <div class="alert alert-info mt-3">
                         <h6 class="fw-bold"><i class="bi bi-robot"></i> Automatic System Backup</h6>
                         <p class="small mb-2">The system will automatically run a backup when an <strong>Admin logs in</strong> on <strong><?php echo htmlspecialchars($backupDay); ?></strong> after <strong><?php echo htmlspecialchars($backupTime); ?></strong>.</p>
@@ -555,38 +533,53 @@ if (PHP_OS_FAMILY === 'Windows') {
             </div>
         </form>
     </div>
+
     <script src="assets/bootstrap.bundle.min.js"></script>
     <script src="assets/sweetalert2.all.min.js"></script>
     <script src="main.js"></script>
     <script>
+        function togglePass(id) {
+            const input = document.getElementById(id);
+            if (!input) return;
+            const btn = input.nextElementSibling;
+            const icon = btn ? btn.querySelector('i') : null;
+            if (input.type === 'password') {
+                input.type = 'text';
+                if (icon) icon.classList.replace('bi-eye', 'bi-eye-slash');
+            } else {
+                input.type = 'password';
+                if (icon) icon.classList.replace('bi-eye-slash', 'bi-eye');
+            }
+        }
+
+        function updateAllPathStatus() {
+            const p = document.getElementById('backupPathInput')?.value.trim() || '';
+            const s = document.getElementById('secondaryPathInput')?.value.trim() || '';
+            if (document.getElementById('primaryStatus')) document.getElementById('primaryStatus').innerHTML = p !== "" ? '<i class="bi bi-check-circle-fill text-success" title="Custom path active"></i>' : '';
+            if (document.getElementById('secondaryStatus')) document.getElementById('secondaryStatus').innerHTML = s !== "" ? '<i class="bi bi-check-circle-fill text-success" title="Mirror path active"></i>' : '';
+        }
+
         function testZipPassword(btn) {
             const input = document.getElementById('backupPassInput');
             const pass = input.value;
-
             if (!pass) {
                 Swal.fire('Input Required', 'Please enter a password in the field to test it.', 'warning');
                 return;
             }
-
             const originalHtml = btn.innerHTML;
             btn.disabled = true;
             btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
-
             const formData = new FormData();
             formData.append('password', pass);
             formData.append('csrf_token', '<?php echo $_SESSION['csrf_token']; ?>');
-
             fetch('test_zip_password.php', {
                     method: 'POST',
                     body: formData
                 })
                 .then(r => r.json())
                 .then(data => {
-                    if (data.status === 'success') {
-                        Swal.fire('Verified', data.message, 'success');
-                    } else {
-                        Swal.fire('Test Failed', data.message, 'error');
-                    }
+                    if (data.status === 'success') Swal.fire('Verified', data.message, 'success');
+                    else Swal.fire('Test Failed', data.message, 'error');
                 })
                 .catch(e => {
                     console.error(e);
@@ -598,44 +591,19 @@ if (PHP_OS_FAMILY === 'Windows') {
                 });
         }
 
-        function testAlertEmail(btn) {
-            // This function is not fully implemented in the user's code, but I'll add the skeleton.
-            // It would require a backend script `test_email_alert.php`.
-            const input = document.querySelector('input[name="settings[backup_alert_email]"]');
-            const email = input.value;
-
-            if (!email) {
-                Swal.fire('Input Required', 'Please enter an email address to test.', 'warning');
-                return;
-            }
-
-            Swal.fire({
-                title: 'Sending Test Email...',
-                text: `A test email will be sent to ${email}.`,
-                didOpen: () => {
-                    Swal.showLoading()
-                }
-            });
-            // In a real scenario, you'd fetch a test endpoint here.
-        }
-
         function testBackupPath(btn) {
             const input = document.getElementById('backupPathInput');
             const path = input.value.trim();
-
             if (!path) {
-                Swal.fire('Input Required', 'Please enter a custom backup path to test. (Leaving it blank safely uses the default system folder).', 'info');
+                Swal.fire('Input Required', 'Please enter a custom backup path to test.', 'info');
                 return;
             }
-
             const originalHtml = btn.innerHTML;
             btn.disabled = true;
             btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
-
             const formData = new FormData();
             formData.append('path', path);
             formData.append('csrf_token', '<?php echo $_SESSION['csrf_token']; ?>');
-
             fetch('test_backup_path.php', {
                     method: 'POST',
                     body: formData
@@ -661,7 +629,7 @@ if (PHP_OS_FAMILY === 'Windows') {
             const input = document.getElementById('secondaryPathInput');
             const path = input.value.trim();
             if (!path) {
-                Swal.fire('Input Required', 'Please enter a path to test.', 'info');
+                Swal.fire('Input Required', 'Please enter a secondary backup path to test.', 'info');
                 return;
             }
             const originalHtml = btn.innerHTML;
@@ -681,6 +649,10 @@ if (PHP_OS_FAMILY === 'Windows') {
                     else Swal.fire('Test Failed', data.message, 'error');
                     updateAllPathStatus();
                 })
+                .catch(e => {
+                    console.error(e);
+                    Swal.fire('Error', 'Network or server error occurred.', 'error');
+                })
                 .finally(() => {
                     btn.disabled = false;
                     btn.innerHTML = originalHtml;
@@ -698,7 +670,6 @@ if (PHP_OS_FAMILY === 'Windows') {
             if (/[a-z]/.test(val)) score++;
             if (/[0-9]/.test(val)) score++;
             if (/[^A-Za-z0-9]/.test(val)) score++;
-
             let pct = Math.min(100, (score / 7) * 100);
             bar.style.width = pct + '%';
             bar.className = 'progress-bar ' + (score > 5 ? 'bg-success' : (score > 3 ? 'bg-warning' : 'bg-danger'));
@@ -708,10 +679,8 @@ if (PHP_OS_FAMILY === 'Windows') {
         function runManualBackup() {
             const btn = document.getElementById('manualBackupBtn');
             const ogText = btn.innerHTML;
-
             btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> Packing Data... Please wait.';
             btn.disabled = true;
-
             fetch('cron_backup.php?ajax=1')
                 .then(r => r.json())
                 .then(data => {
@@ -723,7 +692,7 @@ if (PHP_OS_FAMILY === 'Windows') {
                 })
                 .catch(err => {
                     console.error(err);
-                    Swal.fire('Network Error', 'An unexpected error occurred while communicating with the server.', 'error');
+                    Swal.fire('Network Error', 'An unexpected error occurred.', 'error');
                 })
                 .finally(() => {
                     btn.innerHTML = ogText;
@@ -732,20 +701,21 @@ if (PHP_OS_FAMILY === 'Windows') {
         }
 
         function validateMargin(input) {
-            // [FIX] Strict Validation: Numbers only, 3 digits length, max 500
             input.value = input.value.replace(/[^0-9]/g, '');
             if (input.value.length > 3) input.value = input.value.slice(0, 3);
             if (input.value !== '' && parseInt(input.value) > 500) input.value = '500';
         }
 
         function validateFontSize(input) {
-            input.value = input.value.replace(/[^0-9\.]/g, ''); // Numbers and dots only
-            if ((input.value.match(/\./g) || []).length > 1) input.value = input.value.replace(/\.$/, ''); // Prevent double dots
-            if (input.value.length > 4) input.value = input.value.slice(0, 4); // Max 4 chars (e.g., 24.5)
-            if (parseFloat(input.value) > 24) input.value = '24'; // Hard cap at 24pt
+            input.value = input.value.replace(/[^0-9\.]/g, '');
+            if ((input.value.match(/\./g) || []).length > 1) input.value = input.value.replace(/\.$/, '');
+            if (input.value.length > 4) input.value = input.value.slice(0, 4);
+            if (parseFloat(input.value) > 24) input.value = '24';
         }
 
-        // [SECURITY] Auto-Logout Timer
+        document.addEventListener('DOMContentLoaded', updateAllPathStatus);
+
+        // Session Timeout Timer
         const timeoutDuration = <?php echo $clientTimeout * 1000; ?>;
         let timeLeft = timeoutDuration;
 
@@ -761,7 +731,7 @@ if (PHP_OS_FAMILY === 'Windows') {
         setInterval(updateTimer, 1000);
         updateTimer();
     </script>
-    <script src="dark_mode.js"></script>
+    <script src="assets/dark_mode.js"></script>
 </body>
 
 </html>

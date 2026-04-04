@@ -6,7 +6,7 @@
 
 require '../config/db.php';
 require '../src/Security.php';
-require '../src/Logger.php'; // Standardized capitalization
+require '../src/Logger.php';
 session_start();
 
 // 1. SECURITY
@@ -15,7 +15,7 @@ if (!isset($_SESSION['user_id']) || !in_array($_SESSION['role'], ['ADMIN', 'MANA
     exit;
 }
 
-// [NEW] Helper function for safe HTML output (prevents fatal error and tab locking)
+// [NEW] Helper function for safe HTML output
 function h($v): string
 {
     return htmlspecialchars((string)$v, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
@@ -84,7 +84,6 @@ try {
 
     // Seed Departments & Sections if empty
     if ($pdo->query("SELECT COUNT(*) FROM departments")->fetchColumn() == 0) {
-        // Default Map from options.php logic
         $seedMap = [
             "SQP"     => ["GENERAL", "SAFETY", "QA", "PLANNING", "IT"],
             "ADMIN"   => ["GENERAL", "GAG", "TKG", "PCG", "ACG", "MED", "CLEANERS"],
@@ -169,7 +168,7 @@ try {
 // 3. HANDLE ACTIONS
 $msg = "";
 $error = "";
-$activeTab = 'agency'; // Default tab
+$activeTab = 'agency';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (empty($_POST['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'])) {
@@ -179,7 +178,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $name   = strtoupper(trim($_POST['name'] ?? ''));
         $id     = (int)($_POST['id'] ?? 0);
 
-        // [UX] Keep the active tab open based on the action performed
+        // Keep the active tab open
         if (strpos($action, 'agency') !== false) {
             $activeTab = 'agency';
         } elseif (strpos($action, 'role') !== false) {
@@ -192,7 +191,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $activeTab = 'rule';
         }
 
-        // [SECURITY] Validate Name Length
         if (strlen($name) > 100) $error = "Name is too long (Max 100 chars).";
 
         // --- AGENCIES ---
@@ -201,7 +199,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmt = $pdo->prepare("INSERT INTO agencies (name) VALUES (?)");
                 $stmt->execute([$name]);
                 $logger->log($_SESSION['user_id'], 'ADD_AGENCY', "Added agency: $name");
-                $msg = "✅ Agency '$name' added successfully.";
                 $redirectMsg = "✅ Agency '$name' added successfully.";
             } catch (PDOException $e) {
                 $error = "Error: Agency name already exists.";
@@ -211,13 +208,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmt = $pdo->prepare("UPDATE agencies SET name = ? WHERE id = ?");
                 $stmt->execute([$name, $id]);
                 $logger->log($_SESSION['user_id'], 'EDIT_AGENCY', "Updated agency ID $id to $name");
-                $msg = "✅ Agency updated successfully.";
                 $redirectMsg = "✅ Agency updated successfully.";
             } catch (PDOException $e) {
                 $error = "Error: Name already taken.";
             }
         } elseif ($action === 'delete_agency' && $id > 0) {
-            // Check usage before delete
             $chk = $pdo->prepare("SELECT COUNT(*) FROM employees WHERE agency_name = (SELECT name FROM agencies WHERE id = ?)");
             $chk->execute([$id]);
             if ($chk->fetchColumn() > 0) {
@@ -225,7 +220,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             } else {
                 $pdo->prepare("DELETE FROM agencies WHERE id = ?")->execute([$id]);
                 $logger->log($_SESSION['user_id'], 'DELETE_AGENCY', "Deleted agency ID $id");
-                $msg = "✅ Agency deleted.";
                 $redirectMsg = "✅ Agency deleted.";
             }
         }
@@ -235,13 +229,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             try {
                 $pdo->prepare("INSERT INTO system_roles (name) VALUES (?)")->execute([$name]);
                 $logger->log($_SESSION['user_id'], 'ADD_ROLE', "Added system role: $name");
-                $msg = "✅ Role added.";
                 $redirectMsg = "✅ Role added.";
             } catch (Exception $e) {
                 $error = "Role exists.";
             }
         } elseif ($action === 'delete_role' && $id > 0) {
-            // Check usage before delete
             $chk = $pdo->prepare("SELECT COUNT(*) FROM employees WHERE system_role = (SELECT name FROM system_roles WHERE id = ?)");
             $chk->execute([$id]);
             if ($chk->fetchColumn() > 0) {
@@ -249,27 +241,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             } else {
                 $pdo->prepare("DELETE FROM system_roles WHERE id = ?")->execute([$id]);
                 $logger->log($_SESSION['user_id'], 'DELETE_ROLE', "Deleted system role ID: $id");
-                $msg = "✅ Role deleted.";
                 $redirectMsg = "✅ Role deleted.";
             }
         } elseif ($action === 'update_role_duties' && $id > 0) {
-            // [NEW] Logic to update duties with Validation
             $duties = trim($_POST['duties'] ?? '');
-
             if (strlen($duties) > 3000) {
                 $error = "❌ Duties list is too long (Max 3000 characters).";
             } else {
-                // Verify role exists
                 $checkStmt = $pdo->prepare("SELECT COUNT(*) FROM system_roles WHERE id = ?");
                 $checkStmt->execute([$id]);
                 if ($checkStmt->fetchColumn() == 0) {
                     $error = "❌ Role not found.";
                 } else {
-                    $duties = strip_tags($duties); // Remove HTML tags for safety
+                    $duties = strip_tags($duties);
                     $stmt = $pdo->prepare("UPDATE system_roles SET duties = ? WHERE id = ?");
                     $stmt->execute([$duties, $id]);
                     $logger->log($_SESSION['user_id'], 'EDIT_ROLE', "Updated duties for Role ID $id");
-                    $msg = "✅ Role duties updated successfully.";
                     $redirectMsg = "✅ Role duties updated successfully.";
                 }
             }
@@ -280,13 +267,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             try {
                 $pdo->prepare("INSERT INTO departments (name) VALUES (?)")->execute([$name]);
                 $logger->log($_SESSION['user_id'], 'ADD_DEPT', "Added department: $name");
-                $msg = "✅ Department added.";
                 $redirectMsg = "✅ Department added.";
             } catch (Exception $e) {
                 $error = "Department exists.";
             }
         } elseif ($action === 'delete_dept' && $id > 0) {
-            // Check usage
             $chk = $pdo->prepare("SELECT COUNT(*) FROM employees WHERE dept = (SELECT name FROM departments WHERE id = ?)");
             $chk->execute([$id]);
             if ($chk->fetchColumn() > 0) {
@@ -294,7 +279,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             } else {
                 $pdo->prepare("DELETE FROM departments WHERE id = ?")->execute([$id]);
                 $logger->log($_SESSION['user_id'], 'DELETE_DEPT', "Deleted department ID: $id");
-                $msg = "✅ Department deleted.";
                 $redirectMsg = "✅ Department deleted.";
             }
         }
@@ -306,14 +290,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 try {
                     $pdo->prepare("INSERT INTO sections (department_id, name) VALUES (?, ?)")->execute([$deptId, $name]);
                     $logger->log($_SESSION['user_id'], 'ADD_SECTION', "Added section '$name' to Dept ID: $deptId");
-                    $msg = "✅ Section added.";
                     $redirectMsg = "✅ Section added.";
                 } catch (Exception $e) {
                     $error = "Section exists in this department.";
                 }
             }
         } elseif ($action === 'delete_section' && $id > 0) {
-            // Check usage before delete
             $chk = $pdo->prepare("SELECT COUNT(*) FROM employees WHERE section = (SELECT name FROM sections WHERE id = ?)");
             $chk->execute([$id]);
             if ($chk->fetchColumn() > 0) {
@@ -321,7 +303,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             } else {
                 $pdo->prepare("DELETE FROM sections WHERE id = ?")->execute([$id]);
                 $logger->log($_SESSION['user_id'], 'DELETE_SECTION', "Deleted section ID: $id");
-                $msg = "✅ Section deleted.";
                 $redirectMsg = "✅ Section deleted.";
             }
         }
@@ -335,7 +316,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             elseif (strlen($name) > 100) $error = "❌ Violation name is too long (Max 100 chars).";
             elseif (strlen($desc) > 1000) $error = "❌ Description is too long (Max 1000 chars).";
 
-            // [NEW] Duplication Guard
             $chk = $pdo->prepare("SELECT id FROM disciplinary_violations WHERE name = ? AND category = ?");
             $chk->execute([$name, $cat]);
             if ($chk->fetch()) {
@@ -344,22 +324,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             if (empty($error)) {
                 $pdo->prepare("INSERT INTO disciplinary_violations (category, name, description) VALUES (?, ?, ?)")->execute([$cat, $name, $desc]);
-                $msg = "✅ Violation added.";
-                $redirectMsg = $msg;
+                $redirectMsg = "✅ Violation added.";
             }
         } elseif ($action === 'delete_violation' && $id > 0) {
             $pdo->prepare("DELETE FROM disciplinary_violations WHERE id = ?")->execute([$id]);
-            $msg = "✅ Violation removed.";
-            $redirectMsg = $msg;
+            $redirectMsg = "✅ Violation removed.";
         } elseif ($action === 'edit_violation' && $id > 0) {
             $desc = trim($_POST['description'] ?? '');
             $cat = strtoupper(trim($_POST['category'] ?? ''));
 
-            if (strlen($cat) > 50) $error = "❌ Category name is too long (Max 50 chars).";
-            elseif (strlen($name) > 100) $error = "❌ Violation name is too long (Max 100 chars).";
-            elseif (strlen($desc) > 1000) $error = "❌ Description is too long (Max 1000 chars).";
+            if (strlen($cat) > 50) $error = "❌ Category name is too long.";
+            elseif (strlen($name) > 100) $error = "❌ Violation name is too long.";
+            elseif (strlen($desc) > 1000) $error = "❌ Description is too long.";
 
-            // [NEW] Duplication Guard (Ignore self)
             $chk = $pdo->prepare("SELECT id FROM disciplinary_violations WHERE name = ? AND category = ? AND id != ?");
             $chk->execute([$name, $cat, $id]);
             if ($chk->fetch()) {
@@ -368,8 +345,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             if (empty($error)) {
                 $pdo->prepare("UPDATE disciplinary_violations SET name = ?, category = ?, description = ? WHERE id = ?")->execute([$name, $cat, $desc, $id]);
-                $msg = "✅ Violation updated.";
-                $redirectMsg = $msg;
+                $redirectMsg = "✅ Violation updated.";
             }
         }
 
@@ -379,7 +355,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (strlen($name) > 100) $error = "❌ Rule name is too long.";
             elseif (strlen($desc) > 2000) $error = "❌ Rule description is too long (Max 2000 chars).";
 
-            // [NEW] Duplication Guard
             $chk = $pdo->prepare("SELECT id FROM company_rules WHERE name = ?");
             $chk->execute([$name]);
             if ($chk->fetch()) {
@@ -388,38 +363,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             if (empty($error)) {
                 $pdo->prepare("INSERT INTO company_rules (name, description) VALUES (?, ?)")->execute([$name, $desc]);
-                $msg = "✅ Rule added.";
-                $redirectMsg = $msg;
+                $redirectMsg = "✅ Rule added.";
             }
         } elseif ($action === 'delete_rule' && $id > 0) {
             $pdo->prepare("DELETE FROM company_rules WHERE id = ?")->execute([$id]);
-            $msg = "✅ Rule removed.";
-            $redirectMsg = $msg;
+            $redirectMsg = "✅ Rule removed.";
         } elseif ($action === 'edit_rule' && $id > 0) {
             $desc = trim($_POST['description'] ?? '');
             if (strlen($name) > 100) $error = "❌ Rule name is too long.";
             elseif (strlen($desc) > 2000) $error = "❌ Rule description is too long.";
 
-            // [NEW] Duplication Guard (Ignore self)
             $chk = $pdo->prepare("SELECT id FROM company_rules WHERE name = ? AND id != ?");
             $chk->execute([$name, $id]);
             if ($chk->fetch()) {
                 $error = "❌ Another rule with the name '$name' already exists.";
             }
 
-            $pdo->prepare("UPDATE company_rules SET name = ?, description = ? WHERE id = ?")->execute([$name, $desc, $id]);
-            $msg = "✅ Rule updated.";
-            $redirectMsg = $msg;
+            if (empty($error)) {
+                $pdo->prepare("UPDATE company_rules SET name = ?, description = ? WHERE id = ?")->execute([$name, $desc, $id]);
+                $redirectMsg = "✅ Rule updated.";
+            }
         }
 
-        // [SECURITY] Regenerate CSRF token on success to prevent replay attacks
-        if (!empty($msg)) {
-            $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
-        }
-
-        // [FIX] Redirect on Success (PRG Pattern)
+        // Regenerate CSRF token on success
         if (!empty($redirectMsg)) {
-            // Pass active tab to keep user in context
+            $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
             header("Location: manage_options.php?msg=" . urlencode($redirectMsg) . "&tab=" . urlencode($activeTab));
             exit;
         }
@@ -427,20 +395,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 // 4. FETCH DATA
-$agencies = $pdo->query("SELECT * FROM agencies ORDER BY name ASC")->fetchAll(); // [UX] Alphabetical
-$roles    = $pdo->query("SELECT * FROM system_roles ORDER BY name ASC")->fetchAll(); // [UX] Alphabetical
-$depts    = $pdo->query("SELECT * FROM departments ORDER BY name ASC")->fetchAll(); // [UX] Alphabetical
+$agencies = $pdo->query("SELECT * FROM agencies ORDER BY name ASC")->fetchAll();
+$roles    = $pdo->query("SELECT * FROM system_roles ORDER BY name ASC")->fetchAll();
+$depts    = $pdo->query("SELECT * FROM departments ORDER BY name ASC")->fetchAll();
 $vList    = $pdo->query("SELECT * FROM disciplinary_violations ORDER BY category, name")->fetchAll();
 $rList    = $pdo->query("SELECT * FROM company_rules ORDER BY name")->fetchAll();
 
-// Fetch sections grouped by dept
 $sections = [];
-$stmt = $pdo->query("SELECT s.id, s.name, s.department_id FROM sections s ORDER BY s.name ASC"); // [UX] Alphabetical
+$stmt = $pdo->query("SELECT s.id, s.name, s.department_id FROM sections s ORDER BY s.name ASC");
 while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
     $sections[$row['department_id']][] = $row;
 }
 
-// [FIX] Handle GET messages
 if (isset($_GET['msg'])) $msg = $_GET['msg'];
 if (isset($_GET['tab'])) $activeTab = $_GET['tab'];
 ?>
@@ -471,7 +437,6 @@ if (isset($_GET['tab'])) $activeTab = $_GET['tab'];
     </nav>
 
     <div class="container mt-5">
-
         <?php if ($msg): ?>
             <div class="alert alert-success"><?php echo htmlspecialchars($msg); ?></div>
         <?php endif; ?>
@@ -479,7 +444,6 @@ if (isset($_GET['tab'])) $activeTab = $_GET['tab'];
             <div class="alert alert-danger"><?php echo htmlspecialchars($error); ?></div>
         <?php endif; ?>
 
-        <!-- TABS -->
         <ul class="nav nav-tabs mb-4" id="optionTabs" role="tablist">
             <li class="nav-item"><button class="nav-link <?php echo $activeTab === 'agency' ? 'active' : ''; ?> fw-bold" id="agency-tab" data-bs-toggle="tab" data-bs-target="#agency" type="button">🏢 Agencies</button></li>
             <li class="nav-item"><button class="nav-link <?php echo $activeTab === 'role' ? 'active' : ''; ?> fw-bold" id="role-tab" data-bs-toggle="tab" data-bs-target="#role" type="button">💼 System Roles & Duties</button></li>
@@ -490,7 +454,6 @@ if (isset($_GET['tab'])) $activeTab = $_GET['tab'];
 
         <div class="tab-content" id="optionTabsContent">
 
-            <!-- TAB 1: AGENCIES -->
             <div class="tab-pane fade <?php echo $activeTab === 'agency' ? 'show active' : ''; ?>" id="agency" role="tabpanel">
                 <div class="card shadow-sm">
                     <div class="card-body">
@@ -542,7 +505,6 @@ if (isset($_GET['tab'])) $activeTab = $_GET['tab'];
                 </div>
             </div>
 
-            <!-- TAB 2: ROLES -->
             <div class="tab-pane fade <?php echo $activeTab === 'role' ? 'show active' : ''; ?>" id="role" role="tabpanel">
                 <div class="card shadow-sm">
                     <div class="card-body">
@@ -557,7 +519,6 @@ if (isset($_GET['tab'])) $activeTab = $_GET['tab'];
                                 <button type="submit" class="btn btn-success w-100"><i class="bi bi-plus-lg"></i> Add</button>
                             </div>
                         </form>
-
                         <div class="table-responsive">
                             <table class="table table-bordered table-hover align-middle">
                                 <thead class="table-light">
@@ -585,7 +546,6 @@ if (isset($_GET['tab'])) $activeTab = $_GET['tab'];
                                                         onclick="editDuties(this.dataset.roleId, this.dataset.roleName, this.dataset.roleDuties)">
                                                         <i class="bi bi-pencil-square"></i>
                                                     </button>
-
                                                     <form method="POST" onsubmit="return confirm('Delete this role?');" class="m-0">
                                                         <input type="hidden" name="csrf_token" value="<?php echo $_SESSION['csrf_token']; ?>">
                                                         <input type="hidden" name="action" value="delete_role">
@@ -603,10 +563,8 @@ if (isset($_GET['tab'])) $activeTab = $_GET['tab'];
                 </div>
             </div>
 
-            <!-- TAB 3: DEPARTMENTS & SECTIONS -->
             <div class="tab-pane fade <?php echo $activeTab === 'dept' ? 'show active' : ''; ?>" id="dept" role="tabpanel">
                 <div class="row">
-                    <!-- DEPARTMENTS -->
                     <div class="col-md-5">
                         <div class="card shadow-sm h-100">
                             <div class="card-header bg-dark text-white">Departments</div>
@@ -636,7 +594,6 @@ if (isset($_GET['tab'])) $activeTab = $_GET['tab'];
                         </div>
                     </div>
 
-                    <!-- SECTIONS -->
                     <div class="col-md-7">
                         <div class="card shadow-sm h-100">
                             <div class="card-header bg-secondary text-white d-flex justify-content-between">
@@ -652,7 +609,6 @@ if (isset($_GET['tab'])) $activeTab = $_GET['tab'];
                                         <button class="btn btn-success" type="submit"><i class="bi bi-plus-lg"></i> Add</button>
                                     </form>
                                     <ul class="list-group" id="sectList">
-                                        <!-- Populated by JS -->
                                     </ul>
                                 </div>
                                 <div id="sectPlaceholder" class="text-muted text-center mt-5">
@@ -664,7 +620,6 @@ if (isset($_GET['tab'])) $activeTab = $_GET['tab'];
                 </div>
             </div>
 
-            <!-- TAB 4: VIOLATIONS -->
             <div class="tab-pane fade <?php echo $activeTab === 'violation' ? 'show active' : ''; ?>" id="violation" role="tabpanel">
                 <div class="card shadow-sm border-danger">
                     <div class="card-body">
@@ -721,7 +676,6 @@ if (isset($_GET['tab'])) $activeTab = $_GET['tab'];
                 </div>
             </div>
 
-            <!-- TAB 5: COMPANY RULES -->
             <div class="tab-pane fade <?php echo $activeTab === 'rule' ? 'show active' : ''; ?>" id="rule" role="tabpanel">
                 <div class="card shadow-sm border-danger">
                     <div class="card-body">
@@ -774,8 +728,6 @@ if (isset($_GET['tab'])) $activeTab = $_GET['tab'];
 
         </div>
     </div>
-
-    <!-- DUTIES MODAL -->
     <div class="modal fade" id="dutiesModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-lg">
             <div class="modal-content">
@@ -805,7 +757,6 @@ if (isset($_GET['tab'])) $activeTab = $_GET['tab'];
         </div>
     </div>
 
-    <!-- EDIT VIOLATION MODAL -->
     <div class="modal fade" id="editViolationModal" tabindex="-1">
         <div class="modal-dialog">
             <form method="POST" class="modal-content">
@@ -838,7 +789,6 @@ if (isset($_GET['tab'])) $activeTab = $_GET['tab'];
         </div>
     </div>
 
-    <!-- EDIT RULE MODAL -->
     <div class="modal fade" id="editRuleModal" tabindex="-1">
         <div class="modal-dialog">
             <form method="POST" class="modal-content">
@@ -869,11 +819,12 @@ if (isset($_GET['tab'])) $activeTab = $_GET['tab'];
 
     <script src="assets/bootstrap.bundle.min.js"></script>
     <script>
-        // Section Data from PHP
         const sections = <?php echo json_encode($sections); ?>;
 
-        // DUTIES MODAL LOGIC
-        const dutiesModal = new bootstrap.Modal(document.getElementById('dutiesModal'));
+        let dutiesModal;
+        document.addEventListener("DOMContentLoaded", () => {
+            dutiesModal = new bootstrap.Modal(document.getElementById('dutiesModal'));
+        });
 
         function editDuties(id, name, currentDuties) {
             document.getElementById('modalRoleId').value = id;
@@ -955,9 +906,7 @@ if (isset($_GET['tab'])) $activeTab = $_GET['tab'];
             }
         }
 
-        // Auto-capitalize organizational inputs
         document.querySelectorAll('input[name="name"]').forEach(input => {
-            // [UX] Only capitalize if inside Agency or Dept tabs
             const parentId = input.closest('.tab-pane')?.id;
             if (parentId !== 'agency' && parentId !== 'dept') return;
             input.addEventListener('input', function() {
@@ -965,12 +914,11 @@ if (isset($_GET['tab'])) $activeTab = $_GET['tab'];
             });
         });
 
-        // Clear URL params on load
         if (window.history.replaceState) {
             window.history.replaceState(null, null, window.location.href);
         }
     </script>
-    <script src="dark_mode.js"></script>
+    <script src="assets/dark_mode.js"></script>
 </body>
 
 </html>

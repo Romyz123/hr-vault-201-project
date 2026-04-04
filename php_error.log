@@ -6086,3 +6086,243 @@ Stack trace:
 #0 C:\xampp\htdocs\hr 201\public\settings.php(410): in_array('hires', 'Array')
 #1 {main}
   thrown in C:\xampp\htdocs\hr 201\public\settings.php on line 410
+[03-Apr-2026 16:51:41 Asia/Manila] PHP Fatal error:  Uncaught TypeError: in_array(): Argument #2 ($haystack) must be of type array, string given in C:\xampp\htdocs\hr 201\public\settings.php:415
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\settings.php(415): in_array('hires', 'Array')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\settings.php on line 415
+[03-Apr-2026 16:59:40 Asia/Manila] PHP Fatal error:  Uncaught TypeError: in_array(): Argument #2 ($haystack) must be of type array, string given in C:\xampp\htdocs\hr 201\public\settings.php:415
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\settings.php(415): in_array('hires', 'Array')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\settings.php on line 415
+[03-Apr-2026 16:59:41 Asia/Manila] PHP Fatal error:  Uncaught TypeError: in_array(): Argument #2 ($haystack) must be of type array, string given in C:\xampp\htdocs\hr 201\public\settings.php:415
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\settings.php(415): in_array('hires', 'Array')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\settings.php on line 415
+[03-Apr-2026 16:59:45 Asia/Manila] PHP Fatal error:  Uncaught TypeError: in_array(): Argument #2 ($haystack) must be of type array, string given in C:\xampp\htdocs\hr 201\public\settings.php:415
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\settings.php(415): in_array('hires', 'Array')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\settings.php on line 415
+[03-Apr-2026 17:05:20 Asia/Manila] PHP Fatal error:  Uncaught TypeError: in_array(): Argument #2 ($haystack) must be of type array, string given in C:\xampp\htdocs\hr 201\public\settings.php:410
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\settings.php(410): in_array('hires', 'Array')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\settings.php on line 410
+[03-Apr-2026 17:05:21 Asia/Manila] PHP Fatal error:  Uncaught TypeError: in_array(): Argument #2 ($haystack) must be of type array, string given in C:\xampp\htdocs\hr 201\public\settings.php:410
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\settings.php(410): in_array('hires', 'Array')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\settings.php on line 410
+[03-Apr-2026 17:05:27 Asia/Manila] PHP Fatal error:  Uncaught TypeError: in_array(): Argument #2 ($haystack) must be of type array, string given in C:\xampp\htdocs\hr 201\public\settings.php:410
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\settings.php(410): in_array('hires', 'Array')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\settings.php on line 410
+[03-Apr-2026 17:05:30 Asia/Manila] PHP Fatal error:  Uncaught TypeError: in_array(): Argument #2 ($haystack) must be of type array, string given in C:\xampp\htdocs\hr 201\public\settings.php:410
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\settings.php(410): in_array('hires', 'Array')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\settings.php on line 410
+[03-Apr-2026 17:05:32 Asia/Manila] PHP Fatal error:  Uncaught TypeError: in_array(): Argument #2 ($haystack) must be of type array, string given in C:\xampp\htdocs\hr 201\public\settings.php:410
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\settings.php(410): in_array('hires', 'Array')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\settings.php on line 410
+[03-Apr-2026 17:23:40 Asia/Manila] PHP Fatal error:  Uncaught TypeError: in_array(): Argument #2 ($haystack) must be of type array, string given in C:\xampp\htdocs\hr 201\public\settings.php:415
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\settings.php(415): in_array('hires', 'Array')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\settings.php on line 415
+[03-Apr-2026 17:23:42 Asia/Manila] PHP Fatal error:  Uncaught TypeError: in_array(): Argument #2 ($haystack) must be of type array, string given in C:\xampp\htdocs\hr 201\public\settings.php:415
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\settings.php(415): in_array('hires', 'Array')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\settings.php on line 415
+[03-Apr-2026 17:23:43 Asia/Manila] PHP Fatal error:  Uncaught TypeError: in_array(): Argument #2 ($haystack) must be of type array, string given in C:\xampp\htdocs\hr 201\public\settings.php:415
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\settings.php(415): in_array('hires', 'Array')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\settings.php on line 415
+[04-Apr-2026 09:04:53 Asia/Manila] PHP Fatal error:  Uncaught TypeError: in_array(): Argument #2 ($haystack) must be of type array, string given in C:\xampp\htdocs\hr 201\public\settings.php:415
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\settings.php(415): in_array('hires', 'Array')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\settings.php on line 415
+[04-Apr-2026 09:15:27 Asia/Manila] PHP Fatal error:  Uncaught TypeError: in_array(): Argument #2 ($haystack) must be of type array, string given in C:\xampp\htdocs\hr 201\public\settings.php:415
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\settings.php(415): in_array('hires', 'Array')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\settings.php on line 415
+[04-Apr-2026 09:32:52 Asia/Manila] PHP Fatal error:  Uncaught TypeError: in_array(): Argument #2 ($haystack) must be of type array, string given in C:\xampp\htdocs\hr 201\public\settings.php:415
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\settings.php(415): in_array('hires', 'Array')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\settings.php on line 415
+[04-Apr-2026 09:40:45 Asia/Manila] PHP Fatal error:  Uncaught TypeError: in_array(): Argument #2 ($haystack) must be of type array, string given in C:\xampp\htdocs\hr 201\public\settings.php:415
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\settings.php(415): in_array('hires', 'Array')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\settings.php on line 415
+[04-Apr-2026 09:48:48 Asia/Manila] PHP Fatal error:  Uncaught TypeError: in_array(): Argument #2 ($haystack) must be of type array, string given in C:\xampp\htdocs\hr 201\public\settings.php:415
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\settings.php(415): in_array('hires', 'Array')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\settings.php on line 415
+[04-Apr-2026 10:07:06 Asia/Manila] PHP Fatal error:  Uncaught TypeError: in_array(): Argument #2 ($haystack) must be of type array, string given in C:\xampp\htdocs\hr 201\public\settings.php:415
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\settings.php(415): in_array('hires', 'Array')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\settings.php on line 415
+[04-Apr-2026 10:07:12 Asia/Manila] PHP Fatal error:  Uncaught TypeError: in_array(): Argument #2 ($haystack) must be of type array, string given in C:\xampp\htdocs\hr 201\public\settings.php:415
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\settings.php(415): in_array('hires', 'Array')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\settings.php on line 415
+[04-Apr-2026 10:08:01 Asia/Manila] PHP Fatal error:  Uncaught TypeError: in_array(): Argument #2 ($haystack) must be of type array, string given in C:\xampp\htdocs\hr 201\public\settings.php:415
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\settings.php(415): in_array('hires', 'Array')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\settings.php on line 415
+[04-Apr-2026 10:08:23 Asia/Manila] PHP Fatal error:  Uncaught TypeError: in_array(): Argument #2 ($haystack) must be of type array, string given in C:\xampp\htdocs\hr 201\public\settings.php:415
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\settings.php(415): in_array('hires', 'Array')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\settings.php on line 415
+[04-Apr-2026 10:29:47 Asia/Manila] PHP Fatal error:  Uncaught TypeError: in_array(): Argument #2 ($haystack) must be of type array, string given in C:\xampp\htdocs\hr 201\public\settings.php:415
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\settings.php(415): in_array('hires', 'Array')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\settings.php on line 415
+[04-Apr-2026 10:29:51 Asia/Manila] PHP Fatal error:  Uncaught TypeError: in_array(): Argument #2 ($haystack) must be of type array, string given in C:\xampp\htdocs\hr 201\public\settings.php:415
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\settings.php(415): in_array('hires', 'Array')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\settings.php on line 415
+[04-Apr-2026 10:29:52 Asia/Manila] PHP Fatal error:  Uncaught TypeError: in_array(): Argument #2 ($haystack) must be of type array, string given in C:\xampp\htdocs\hr 201\public\settings.php:415
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\settings.php(415): in_array('hires', 'Array')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\settings.php on line 415
+[04-Apr-2026 10:29:52 Asia/Manila] PHP Fatal error:  Uncaught TypeError: in_array(): Argument #2 ($haystack) must be of type array, string given in C:\xampp\htdocs\hr 201\public\settings.php:415
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\settings.php(415): in_array('hires', 'Array')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\settings.php on line 415
+[04-Apr-2026 10:29:52 Asia/Manila] PHP Fatal error:  Uncaught TypeError: in_array(): Argument #2 ($haystack) must be of type array, string given in C:\xampp\htdocs\hr 201\public\settings.php:415
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\settings.php(415): in_array('hires', 'Array')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\settings.php on line 415
+[04-Apr-2026 10:55:44 Asia/Manila] PHP Fatal error:  Uncaught TypeError: in_array(): Argument #2 ($haystack) must be of type array, string given in C:\xampp\htdocs\hr 201\public\settings.php:415
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\settings.php(415): in_array('hires', 'Array')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\settings.php on line 415
+[04-Apr-2026 10:55:47 Asia/Manila] PHP Fatal error:  Uncaught TypeError: in_array(): Argument #2 ($haystack) must be of type array, string given in C:\xampp\htdocs\hr 201\public\settings.php:415
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\settings.php(415): in_array('hires', 'Array')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\settings.php on line 415
+[04-Apr-2026 11:06:50 Asia/Manila] PHP Fatal error:  Uncaught TypeError: in_array(): Argument #2 ($haystack) must be of type array, string given in C:\xampp\htdocs\hr 201\public\settings.php:378
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\settings.php(378): in_array('hires', 'Array')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\settings.php on line 378
+[04-Apr-2026 11:07:24 Asia/Manila] PHP Fatal error:  Uncaught TypeError: in_array(): Argument #2 ($haystack) must be of type array, string given in C:\xampp\htdocs\hr 201\public\settings.php:378
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\settings.php(378): in_array('hires', 'Array')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\settings.php on line 378
+[04-Apr-2026 11:07:29 Asia/Manila] PHP Fatal error:  Uncaught TypeError: in_array(): Argument #2 ($haystack) must be of type array, string given in C:\xampp\htdocs\hr 201\public\settings.php:378
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\settings.php(378): in_array('hires', 'Array')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\settings.php on line 378
+[04-Apr-2026 11:08:37 Asia/Manila] PHP Fatal error:  Uncaught TypeError: in_array(): Argument #2 ($haystack) must be of type array, string given in C:\xampp\htdocs\hr 201\public\settings.php:406
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\settings.php(406): in_array('hires', 'Array')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\settings.php on line 406
+[04-Apr-2026 11:08:38 Asia/Manila] PHP Fatal error:  Uncaught TypeError: in_array(): Argument #2 ($haystack) must be of type array, string given in C:\xampp\htdocs\hr 201\public\settings.php:406
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\settings.php(406): in_array('hires', 'Array')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\settings.php on line 406
+[04-Apr-2026 11:08:40 Asia/Manila] PHP Fatal error:  Uncaught TypeError: in_array(): Argument #2 ($haystack) must be of type array, string given in C:\xampp\htdocs\hr 201\public\settings.php:406
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\settings.php(406): in_array('hires', 'Array')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\settings.php on line 406
+[04-Apr-2026 11:08:40 Asia/Manila] PHP Fatal error:  Uncaught TypeError: in_array(): Argument #2 ($haystack) must be of type array, string given in C:\xampp\htdocs\hr 201\public\settings.php:406
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\settings.php(406): in_array('hires', 'Array')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\settings.php on line 406
+[04-Apr-2026 11:09:16 Asia/Manila] PHP Fatal error:  Uncaught TypeError: in_array(): Argument #2 ($haystack) must be of type array, string given in C:\xampp\htdocs\hr 201\public\settings.php:410
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\settings.php(410): in_array('hires', 'Array')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\settings.php on line 410
+[04-Apr-2026 11:09:19 Asia/Manila] PHP Fatal error:  Uncaught TypeError: in_array(): Argument #2 ($haystack) must be of type array, string given in C:\xampp\htdocs\hr 201\public\settings.php:410
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\settings.php(410): in_array('hires', 'Array')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\settings.php on line 410
+[04-Apr-2026 11:09:44 Asia/Manila] PHP Fatal error:  Uncaught TypeError: in_array(): Argument #2 ($haystack) must be of type array, string given in C:\xampp\htdocs\hr 201\public\settings.php:415
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\settings.php(415): in_array('hires', 'Array')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\settings.php on line 415
+[04-Apr-2026 12:20:06 Asia/Manila] PHP Fatal error:  Uncaught TypeError: in_array(): Argument #2 ($haystack) must be of type array, string given in C:\xampp\htdocs\hr 201\public\settings.php:398
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\settings.php(398): in_array('hires', 'Array')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\settings.php on line 398
+[04-Apr-2026 14:19:42 Asia/Manila] PHP Fatal error:  Uncaught TypeError: in_array(): Argument #2 ($haystack) must be of type array, string given in C:\xampp\htdocs\hr 201\public\manage_options.php:393
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\manage_options.php(393): in_array('hires', 'Array')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\manage_options.php on line 393
+[04-Apr-2026 14:22:16 Asia/Manila] PHP Fatal error:  Uncaught TypeError: in_array(): Argument #2 ($haystack) must be of type array, string given in C:\xampp\htdocs\hr 201\public\settings.php:393
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\settings.php(393): in_array('hires', 'Array')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\settings.php on line 393
+[04-Apr-2026 14:46:47 Asia/Manila] PHP Fatal error:  Uncaught TypeError: in_array(): Argument #2 ($haystack) must be of type array, string given in C:\xampp\htdocs\hr 201\public\settings.php:394
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\settings.php(394): in_array('hires', 'Array')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\settings.php on line 394
+[04-Apr-2026 14:46:48 Asia/Manila] PHP Fatal error:  Uncaught TypeError: in_array(): Argument #2 ($haystack) must be of type array, string given in C:\xampp\htdocs\hr 201\public\settings.php:394
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\settings.php(394): in_array('hires', 'Array')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\settings.php on line 394
+[04-Apr-2026 14:56:11 Asia/Manila] PHP Fatal error:  Uncaught TypeError: in_array(): Argument #2 ($haystack) must be of type array, string given in C:\xampp\htdocs\hr 201\public\settings.php:394
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\settings.php(394): in_array('hires', 'Array')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\settings.php on line 394
+[04-Apr-2026 14:56:13 Asia/Manila] PHP Fatal error:  Uncaught TypeError: in_array(): Argument #2 ($haystack) must be of type array, string given in C:\xampp\htdocs\hr 201\public\settings.php:394
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\settings.php(394): in_array('hires', 'Array')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\settings.php on line 394
+[04-Apr-2026 15:01:13 Asia/Manila] PHP Fatal error:  Uncaught TypeError: in_array(): Argument #2 ($haystack) must be of type array, string given in C:\xampp\htdocs\hr 201\public\settings.php:394
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\settings.php(394): in_array('hires', 'Array')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\settings.php on line 394
+[04-Apr-2026 16:29:25 Asia/Manila] PHP Fatal error:  Uncaught TypeError: in_array(): Argument #2 ($haystack) must be of type array, string given in C:\xampp\htdocs\hr 201\public\settings.php:394
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\settings.php(394): in_array('hires', 'Array')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\settings.php on line 394
+[04-Apr-2026 16:29:28 Asia/Manila] PHP Fatal error:  Uncaught TypeError: in_array(): Argument #2 ($haystack) must be of type array, string given in C:\xampp\htdocs\hr 201\public\settings.php:394
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\settings.php(394): in_array('hires', 'Array')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\settings.php on line 394

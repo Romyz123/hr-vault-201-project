@@ -176,7 +176,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
     <link href="assets/bootstrap.min.css?v=3" rel="stylesheet">
     <link rel="stylesheet" href="assets/icons/bootstrap-icons.css?v=3">
     <script src="assets/sweetalert2.all.min.js?v=3"></script>
-    <link rel="icon" href="uploads/tesp-logo.png?v=3" type="image/png">
+    <link rel="icon" href="assets/tesp-logo.png?v=4" type="image/png">
     <style>
         body {
             /* --- BACKGROUND THEMES (Uncomment the one you want to use) --- */
