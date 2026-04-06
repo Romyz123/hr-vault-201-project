@@ -156,17 +156,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             continue;
         }
 
-        $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+        $rawName = basename($file['name']);
+        $ext = strtolower(pathinfo($rawName, PATHINFO_EXTENSION));
         $allowed = ['pdf', 'jpg', 'jpeg', 'png'];
         $allowedMime = ['application/pdf', 'image/jpeg', 'image/png'];
 
         if (!in_array($ext, $allowed)) {
-            $errors[] = "File " . ($idx + 1) . ": Invalid file type ($ext)";
+            $errors[] = "File " . ($idx + 1) . ": Invalid file extension ($ext). Strictly allow only PDF, JPG, and PNG.";
             continue;
         }
 
-        $finfo = new finfo(FILEINFO_MIME_TYPE);
-        $mimeType = $finfo->file($file['tmp_name']);
+        // [SECURITY] Use finfo_open and finfo_file to check the actual mathematical MIME type signature
+        $finfo = finfo_open(FILEINFO_MIME_TYPE);
+        $mimeType = finfo_file($finfo, $file['tmp_name']);
+        finfo_close($finfo);
+
         if (!in_array($mimeType, $allowedMime)) {
             $errors[] = "File " . ($idx + 1) . ": Invalid MIME type ($mimeType)";
             continue;
@@ -219,6 +223,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } else {
             $displayName = $file['name'];
         }
+        // [SECURITY] Sanitize $displayName before storing in DB to prevent XSS on display
+        $displayName = htmlspecialchars($displayName, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        // Further sanitize to remove potentially problematic characters for display/filesystem, even if not directly used for disk filename
+        $displayName = preg_replace('/[^a-zA-Z0-9\s\-\.\(\)_]/', '', $displayName);
 
         $storedName = $fileService->saveFile($file['tmp_name'], $displayName);
 
