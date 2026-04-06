@@ -27,6 +27,10 @@ if (($_SESSION['role'] ?? '') !== 'ADMIN') {
 $security = new Security($pdo);
 $logger   = new Logger($pdo);
 
+// [FIX] Initialize $dynamicCats early so it always exists for rendering.
+// This prevents the "Undefined variable $dynamicCats" warning on line 1247.
+$dynamicCats = [];
+
 // 2. FETCH EMPLOYEE
 $id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
 if ($id <= 0) {
@@ -69,7 +73,6 @@ try {
 }
 
 // [NEW] Fetch Dynamic Categories for the Edit Document Modal
-$dynamicCats = [];
 try {
     $stmt = $pdo->query("SELECT DISTINCT name FROM document_requirements ORDER BY name ASC");
     $dynamicCats = $stmt->fetchAll(PDO::FETCH_COLUMN);

@@ -58,6 +58,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             $step = 2;
                         }
                     } else {
+                        // Log failed attempt to prevent account enumeration
                         // Prevent account enumeration – do not reveal whether the account exists
                         $error = "If an account with that username or email exists, you will be prompted to verify your identity.";
                     }
@@ -94,6 +95,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $_SESSION['forgot_step'] = 3;
                         $step = 3;
                     } else {
+                        // Log failed attempt
                         $_SESSION['forgot_answer_attempts']['count']++;
                         $error = "❌ Incorrect answer.";
                         $step = 2;
@@ -172,6 +174,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     if ($secret && GoogleAuthenticator::verifyCode($secret, $code)) {
                         $_SESSION['forgot_step'] = 3;
                         $step = 3;
+                        $logger->log($_SESSION['forgot_user_id'], 'PASSWORD_RECOVERY_AUTH_VERIFIED', "Authenticator code verified for password recovery.");
                     } else {
                         $error = "❌ Invalid Authenticator code.";
                         $step = 'authenticator';
@@ -200,6 +203,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $error = "❌ Update Failed: Password cannot contain your Username.";
                 $step = 3;
             } else {
+                // Log password reset
                 $hashed = password_hash($new_pass, PASSWORD_DEFAULT);
                 $pdo->prepare("UPDATE users SET password = ?, password_changed_at = NOW() WHERE id = ?")->execute([$hashed, $_SESSION['forgot_user_id']]);
                 unset($_SESSION['forgot_step'], $_SESSION['forgot_user_id'], $_SESSION['forgot_question'], $_SESSION['forgot_username']);

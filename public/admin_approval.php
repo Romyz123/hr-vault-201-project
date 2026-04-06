@@ -23,14 +23,20 @@ if (!in_array($_SESSION['role'], ['ADMIN', 'MANAGER', 'HR'])) {
     exit;
 }
 
-// [NEW] Fetch widget visibility settings
-$approvalWidgetsSetting = $pdo->query("SELECT setting_value FROM system_settings WHERE setting_key = 'approval_widgets'")->fetchColumn();
+// [NEW] Fetch widget visibility settings (BULLETPROOF)
 $enabledWidgets = ['hires', 'edits', 'docs', 'doc-edits', 'tickets']; // Default fallback
-if ($approvalWidgetsSetting !== false && $approvalWidgetsSetting !== '') {
-    $decoded = json_decode($approvalWidgetsSetting, true);
-    if ($decoded !== null) { // [FIX] Respect empty selections to allow hiding all widgets
-        $enabledWidgets = $decoded;
+try {
+    $approvalWidgetsSetting = $pdo->query("SELECT setting_value FROM system_settings WHERE setting_key = 'approval_widgets'")->fetchColumn();
+    if ($approvalWidgetsSetting !== false && $approvalWidgetsSetting !== '') {
+        $decoded = json_decode($approvalWidgetsSetting, true);
+
+        // Ensure it is strictly an array. This ignores corrupt data (like '1' or "null").
+        if (is_array($decoded)) {
+            $enabledWidgets = $decoded;
+        }
     }
+} catch (Exception $e) {
+    // If the table doesn't exist yet or the DB fails, silently ignore and use defaults
 }
 
 
@@ -95,9 +101,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         $stmt->execute([$current_req_id]);
         $req = $stmt->fetch();
 
-        if (!$req) continue; // Skip if already processed or deleted
+        if (!$req) continue;
 
         $data = json_decode($req['json_payload'], true);
+        if (!is_array($data)) {
+            // [FIX] Prevent 500 Error if JSON is malformed or null
+            continue;
+        }
 
         if ($coreAction === 'approve') {
             try {
@@ -115,43 +125,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                     // SAFETY: Remove the note so it doesn't break the SQL INSERT
                     unset($data['request_note']);
 
-                    // [FIX] Synchronized Whitelist with Database Schema to prevent data loss on approval
-                    $allowedColumns = [
-                        'emp_id',
-                        'first_name',
-                        'middle_name',
-                        'last_name',
-                        'job_title',
-                        'system_role',
-                        'dept',
-                        'section',
-                        'employment_type',
-                        'agency_name',
-                        'company_name',
-                        'previous_company',
-                        'hire_date',
-                        'gender',
-                        'birth_date',
-                        'contact_number',
-                        'email',
-                        'present_address',
-                        'permanent_address',
-                        'sss_no',
-                        'tin_no',
-                        'pagibig_no',
-                        'philhealth_no',
-                        'emergency_name',
-                        'emergency_contact',
-                        'emergency_address',
-                        'education',
-                        'experience',
-                        'skills',
-                        'licenses',
-                        'status',
-                        'exit_date',
-                        'exit_reason',
-                        'avatar_path'
-                    ];
                     // [FIX] Synchronized Whitelist with Database Schema to prevent data loss on approval
                     $allowedColumns = [
                         'emp_id',
@@ -229,10 +202,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                     // SAFETY: Remove the note so it doesn't break the SQL UPDATE
                     unset($data['request_note']);
 
-                    // Whitelist allowed columns for employees table
-                    $allowedColumns = ['emp_id', 'first_name', 'last_name', 'email', 'phone', 'department', 'job_title', 'manager_id', 'date_hired', 'salary', 'status', 'avatar_path'];
+                    $allowedColumns = ['emp_id', 'first_name', 'middle_name', 'last_name', 'job_title', 'system_role', 'dept', 'section', 'employment_type', 'agency_name', 'company_name', 'previous_company', 'hire_date', 'gender', 'birth_date', 'contact_number', 'email', 'present_address', 'permanent_address', 'sss_no', 'tin_no', 'pagibig_no', 'philhealth_no', 'emergency_name', 'emergency_contact', 'emergency_address', 'education', 'experience', 'skills', 'licenses', 'status', 'exit_date', 'exit_reason', 'avatar_path'];
                     $filteredData = array_intersect_key($data, array_flip($allowedColumns));
-
                     if (!empty($filteredData)) {
                         $setParts = [];
                         $updateValues = [];
@@ -244,7 +215,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                         $sql = "UPDATE employees SET " . implode(', ', $setParts) . " WHERE id = ?";
                         $pdo->prepare($sql)->execute($updateValues);
                     }
-
                     // CRITICAL: Cascade Update if ID changed (Fixing Ghost Records)
                     if ($oldEmp && $newEmpId && $oldEmp['emp_id'] !== $newEmpId) {
                         $oldStr = $oldEmp['emp_id'];
@@ -427,7 +397,7 @@ $tickets  = in_array('tickets', $enabledWidgets) ? $pdo->query("SELECT r.*, u.us
     <meta charset="UTF-8">
     <title>Approvals</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <link rel="icon" href="uploads/tesp-logo.png" type="image/png">
+    <link rel="icon" href="assets/tesp-logo.png?v=4" type="image/png">
     <link href="assets/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="assets/icons/bootstrap-icons.css">
     <script src="assets/sweetalert2.all.min.js"></script>
@@ -594,6 +564,11 @@ $tickets  = in_array('tickets', $enabledWidgets) ? $pdo->query("SELECT r.*, u.us
 
         foreach ($requests as $r) {
             $data = json_decode($r['json_payload'], true);
+
+            if (!is_array($data)) {
+                // Skip corrupted data to prevent 500 error when accessing keys
+                continue;
+            }
 
             // [FIX] Ensure doc_name exists for old records (Ticket Resolutions)
             if ($type == 'ticket' && empty($data['doc_name']) && isset($data['doc_id'])) {

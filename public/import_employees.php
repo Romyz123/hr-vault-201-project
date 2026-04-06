@@ -692,7 +692,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['undo_batch'])) {
                                         'request_note' => 'Bulk Import Update'
                                     ];
                                     $payload = json_encode($updateData, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
-                                    if ($payload === false) {
+                                    if ($payload === false) { // Check for json_encode errors
                                         error_log("Failed to encode request payload for emp_id $emp_id: " . json_last_error_msg());
                                         continue;
                                     }
@@ -703,7 +703,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['undo_batch'])) {
                                     $origStmt = $pdo->prepare("SELECT * FROM employees WHERE id = ?");
                                     $origStmt->execute([$existingId]);
                                     $originalRow = $origStmt->fetch(PDO::FETCH_ASSOC);
-                                    if ($originalRow) {
+                                    if ($originalRow) { // $originalRow is an array
                                         $backupStmt = $pdo->prepare("INSERT INTO import_rollbacks (employee_id, import_batch, old_data) VALUES (?, ?, ?)");
                                         $backupStmt->execute([$existingId, $batch_id, json_encode($originalRow)]);
                                     }
@@ -789,7 +789,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['undo_batch'])) {
                                         'request_note' => 'Bulk Import New Hire'
                                     ];
                                     $payload = json_encode($insertData, JSON_UNESCAPED_UNICODE);
-                                    $pdo->prepare("INSERT INTO requests (user_id, request_type, target_id, json_payload) VALUES (?, 'ADD_EMPLOYEE', 0, ?)")->execute([$_SESSION['user_id'], $payload]);
+                                    $pdo->prepare("INSERT INTO requests (user_id, request_type, target_id, json_payload) VALUES (?, 'ADD_EMPLOYEE', 0, ?)")->execute([$_SESSION['user_id'], json_encode($insertData, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE)]);
                                     $success_count++;
                                 } else {
                                     // INSERT NEW RECORD

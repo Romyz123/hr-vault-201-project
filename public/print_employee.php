@@ -131,7 +131,7 @@ if (empty($logo_src)) {
 <head>
     <meta charset="UTF-8">
     <title>Print Profile - <?php echo htmlspecialchars($emp['last_name']); ?></title>
-    <link rel="icon" href="uploads/tesp-logo.png?v=3" type="image/png">
+    <link rel="icon" href="assets/tesp-logo.png?v=4" type="image/png">
     <link href="assets/bootstrap.min.css" rel="stylesheet">
     <style>
         /* 1. Force Browser to recognize A4 paper */

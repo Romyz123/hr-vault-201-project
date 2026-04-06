@@ -6326,3 +6326,392 @@ Stack trace:
 #0 C:\xampp\htdocs\hr 201\public\settings.php(394): in_array('hires', 'Array')
 #1 {main}
   thrown in C:\xampp\htdocs\hr 201\public\settings.php on line 394
+[06-Apr-2026 08:03:39 Asia/Manila] PHP Fatal error:  Uncaught TypeError: in_array(): Argument #2 ($haystack) must be of type array, string given in C:\xampp\htdocs\hr 201\public\settings.php:394
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\settings.php(394): in_array('hires', 'Array')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\settings.php on line 394
+[06-Apr-2026 13:05:16 Asia/Manila] PHP Fatal error:  Uncaught TypeError: in_array(): Argument #2 ($haystack) must be of type array, string given in C:\xampp\htdocs\hr 201\public\admin_approval.php:416
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\admin_approval.php(416): in_array('hires', 'Array')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\admin_approval.php on line 416
+[06-Apr-2026 13:05:19 Asia/Manila] PHP Fatal error:  Uncaught TypeError: in_array(): Argument #2 ($haystack) must be of type array, string given in C:\xampp\htdocs\hr 201\public\admin_approval.php:416
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\admin_approval.php(416): in_array('hires', 'Array')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\admin_approval.php on line 416
+[06-Apr-2026 13:09:36 Asia/Manila] PHP Fatal error:  Uncaught TypeError: in_array(): Argument #2 ($haystack) must be of type array, string given in C:\xampp\htdocs\hr 201\public\admin_approval.php:416
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\admin_approval.php(416): in_array('hires', 'Array')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\admin_approval.php on line 416
+[06-Apr-2026 13:09:38 Asia/Manila] PHP Fatal error:  Uncaught TypeError: in_array(): Argument #2 ($haystack) must be of type array, string given in C:\xampp\htdocs\hr 201\public\admin_approval.php:416
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\admin_approval.php(416): in_array('hires', 'Array')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\admin_approval.php on line 416
+[06-Apr-2026 13:11:05 Asia/Manila] PHP Fatal error:  Uncaught TypeError: in_array(): Argument #2 ($haystack) must be of type array, string given in C:\xampp\htdocs\hr 201\public\admin_approval.php:416
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\admin_approval.php(416): in_array('hires', 'Array')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\admin_approval.php on line 416
+[06-Apr-2026 13:11:59 Asia/Manila] [SMS SIMULATION] To: 1221 | Length: 175
+[06-Apr-2026 13:27:07 Asia/Manila] PHP Fatal error:  Uncaught TypeError: in_array(): Argument #2 ($haystack) must be of type array, string given in C:\xampp\htdocs\hr 201\public\admin_approval.php:416
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\admin_approval.php(416): in_array('hires', 'Array')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\admin_approval.php on line 416
+[06-Apr-2026 13:50:12 Asia/Manila] PHP Fatal error:  Uncaught TypeError: in_array(): Argument #2 ($haystack) must be of type array, string given in C:\xampp\htdocs\hr 201\public\admin_approval.php:385
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\admin_approval.php(385): in_array('hires', 'Array')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\admin_approval.php on line 385
+[06-Apr-2026 13:50:30 Asia/Manila] PHP Fatal error:  Uncaught TypeError: in_array(): Argument #2 ($haystack) must be of type array, string given in C:\xampp\htdocs\hr 201\public\admin_approval.php:385
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\admin_approval.php(385): in_array('hires', 'Array')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\admin_approval.php on line 385
+[06-Apr-2026 13:52:46 Asia/Manila] PHP Fatal error:  Uncaught TypeError: in_array(): Argument #2 ($haystack) must be of type array, string given in C:\xampp\htdocs\hr 201\public\admin_approval.php:385
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\admin_approval.php(385): in_array('hires', 'Array')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\admin_approval.php on line 385
+[06-Apr-2026 13:52:55 Asia/Manila] PHP Fatal error:  Uncaught TypeError: in_array(): Argument #2 ($haystack) must be of type array, string given in C:\xampp\htdocs\hr 201\public\admin_approval.php:385
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\admin_approval.php(385): in_array('hires', 'Array')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\admin_approval.php on line 385
+[06-Apr-2026 13:58:58 Asia/Manila] PHP Fatal error:  Uncaught TypeError: in_array(): Argument #2 ($haystack) must be of type array, string given in C:\xampp\htdocs\hr 201\public\admin_approval.php:379
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\admin_approval.php(379): in_array('hires', 'Array')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\admin_approval.php on line 379
+[06-Apr-2026 13:58:59 Asia/Manila] PHP Fatal error:  Uncaught TypeError: in_array(): Argument #2 ($haystack) must be of type array, string given in C:\xampp\htdocs\hr 201\public\admin_approval.php:379
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\admin_approval.php(379): in_array('hires', 'Array')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\admin_approval.php on line 379
+[06-Apr-2026 13:59:00 Asia/Manila] PHP Fatal error:  Uncaught TypeError: in_array(): Argument #2 ($haystack) must be of type array, string given in C:\xampp\htdocs\hr 201\public\admin_approval.php:379
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\admin_approval.php(379): in_array('hires', 'Array')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\admin_approval.php on line 379
+[06-Apr-2026 13:59:00 Asia/Manila] PHP Fatal error:  Uncaught TypeError: in_array(): Argument #2 ($haystack) must be of type array, string given in C:\xampp\htdocs\hr 201\public\admin_approval.php:379
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\admin_approval.php(379): in_array('hires', 'Array')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\admin_approval.php on line 379
+[06-Apr-2026 13:59:00 Asia/Manila] PHP Fatal error:  Uncaught TypeError: in_array(): Argument #2 ($haystack) must be of type array, string given in C:\xampp\htdocs\hr 201\public\admin_approval.php:379
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\admin_approval.php(379): in_array('hires', 'Array')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\admin_approval.php on line 379
+[06-Apr-2026 13:59:00 Asia/Manila] PHP Fatal error:  Uncaught TypeError: in_array(): Argument #2 ($haystack) must be of type array, string given in C:\xampp\htdocs\hr 201\public\admin_approval.php:379
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\admin_approval.php(379): in_array('hires', 'Array')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\admin_approval.php on line 379
+[06-Apr-2026 13:59:01 Asia/Manila] PHP Fatal error:  Uncaught TypeError: in_array(): Argument #2 ($haystack) must be of type array, string given in C:\xampp\htdocs\hr 201\public\admin_approval.php:379
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\admin_approval.php(379): in_array('hires', 'Array')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\admin_approval.php on line 379
+[06-Apr-2026 13:59:01 Asia/Manila] PHP Fatal error:  Uncaught TypeError: in_array(): Argument #2 ($haystack) must be of type array, string given in C:\xampp\htdocs\hr 201\public\admin_approval.php:379
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\admin_approval.php(379): in_array('hires', 'Array')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\admin_approval.php on line 379
+[06-Apr-2026 13:59:02 Asia/Manila] PHP Fatal error:  Uncaught TypeError: in_array(): Argument #2 ($haystack) must be of type array, string given in C:\xampp\htdocs\hr 201\public\admin_approval.php:379
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\admin_approval.php(379): in_array('hires', 'Array')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\admin_approval.php on line 379
+[06-Apr-2026 13:59:03 Asia/Manila] PHP Fatal error:  Uncaught TypeError: in_array(): Argument #2 ($haystack) must be of type array, string given in C:\xampp\htdocs\hr 201\public\admin_approval.php:379
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\admin_approval.php(379): in_array('hires', 'Array')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\admin_approval.php on line 379
+[06-Apr-2026 13:59:06 Asia/Manila] PHP Fatal error:  Uncaught TypeError: in_array(): Argument #2 ($haystack) must be of type array, string given in C:\xampp\htdocs\hr 201\public\admin_approval.php:379
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\admin_approval.php(379): in_array('hires', 'Array')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\admin_approval.php on line 379
+[06-Apr-2026 14:14:58 Asia/Manila] PHP Fatal error:  Uncaught TypeError: in_array(): Argument #2 ($haystack) must be of type array, string given in C:\xampp\htdocs\hr 201\public\admin_approval.php:376
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\admin_approval.php(376): in_array('hires', 'Array')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\admin_approval.php on line 376
+[06-Apr-2026 14:14:59 Asia/Manila] PHP Fatal error:  Uncaught TypeError: in_array(): Argument #2 ($haystack) must be of type array, string given in C:\xampp\htdocs\hr 201\public\admin_approval.php:376
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\admin_approval.php(376): in_array('hires', 'Array')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\admin_approval.php on line 376
+[06-Apr-2026 14:15:00 Asia/Manila] PHP Fatal error:  Uncaught TypeError: in_array(): Argument #2 ($haystack) must be of type array, string given in C:\xampp\htdocs\hr 201\public\admin_approval.php:376
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\admin_approval.php(376): in_array('hires', 'Array')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\admin_approval.php on line 376
+[06-Apr-2026 14:15:00 Asia/Manila] PHP Fatal error:  Uncaught TypeError: in_array(): Argument #2 ($haystack) must be of type array, string given in C:\xampp\htdocs\hr 201\public\admin_approval.php:376
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\admin_approval.php(376): in_array('hires', 'Array')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\admin_approval.php on line 376
+[06-Apr-2026 14:15:00 Asia/Manila] PHP Fatal error:  Uncaught TypeError: in_array(): Argument #2 ($haystack) must be of type array, string given in C:\xampp\htdocs\hr 201\public\admin_approval.php:376
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\admin_approval.php(376): in_array('hires', 'Array')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\admin_approval.php on line 376
+[06-Apr-2026 14:15:01 Asia/Manila] PHP Fatal error:  Uncaught TypeError: in_array(): Argument #2 ($haystack) must be of type array, string given in C:\xampp\htdocs\hr 201\public\admin_approval.php:376
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\admin_approval.php(376): in_array('hires', 'Array')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\admin_approval.php on line 376
+[06-Apr-2026 14:15:01 Asia/Manila] PHP Fatal error:  Uncaught TypeError: in_array(): Argument #2 ($haystack) must be of type array, string given in C:\xampp\htdocs\hr 201\public\admin_approval.php:376
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\admin_approval.php(376): in_array('hires', 'Array')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\admin_approval.php on line 376
+[06-Apr-2026 14:15:01 Asia/Manila] PHP Fatal error:  Uncaught TypeError: in_array(): Argument #2 ($haystack) must be of type array, string given in C:\xampp\htdocs\hr 201\public\admin_approval.php:376
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\admin_approval.php(376): in_array('hires', 'Array')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\admin_approval.php on line 376
+[06-Apr-2026 14:15:01 Asia/Manila] PHP Fatal error:  Uncaught TypeError: in_array(): Argument #2 ($haystack) must be of type array, string given in C:\xampp\htdocs\hr 201\public\admin_approval.php:376
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\admin_approval.php(376): in_array('hires', 'Array')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\admin_approval.php on line 376
+[06-Apr-2026 14:15:01 Asia/Manila] PHP Fatal error:  Uncaught TypeError: in_array(): Argument #2 ($haystack) must be of type array, string given in C:\xampp\htdocs\hr 201\public\admin_approval.php:376
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\admin_approval.php(376): in_array('hires', 'Array')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\admin_approval.php on line 376
+[06-Apr-2026 14:58:06 Asia/Manila] PHP Fatal error:  Uncaught TypeError: in_array(): Argument #2 ($haystack) must be of type array, string given in C:\xampp\htdocs\hr 201\public\settings.php:394
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\settings.php(394): in_array('hires', 'Array')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\settings.php on line 394
+[06-Apr-2026 14:58:09 Asia/Manila] PHP Fatal error:  Uncaught TypeError: in_array(): Argument #2 ($haystack) must be of type array, string given in C:\xampp\htdocs\hr 201\public\settings.php:394
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\settings.php(394): in_array('hires', 'Array')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\settings.php on line 394
+[06-Apr-2026 15:03:36 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesFD90.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:36 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesFE4C.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:36 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesFE5D.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:36 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesFE6E.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:36 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesFE8E.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:36 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesFE9F.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:36 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesFEBF.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:36 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesFECF.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:36 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesFEE0.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:36 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesFF00.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:36 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesFF11.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:36 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesFF22.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:36 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesFF42.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:36 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesFF52.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:36 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesFF73.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:36 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesFF93.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:36 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesFFB3.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:36 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesFFC4.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:36 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesFFD4.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:36 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesFFE5.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:36 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tes5.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:36 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tes16.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:36 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tes36.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:36 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tes56.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:36 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tes67.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:36 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tes87.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:36 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesA8.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:36 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesB8.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:36 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesC9.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:36 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesE9.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:36 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tes109.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:36 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tes12A.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:36 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tes14A.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:36 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tes15A.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:37 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tes17B.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:37 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tes18B.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:37 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tes19C.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:37 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tes1BC.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:37 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tes1DC.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:37 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tes1ED.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:37 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tes1FE.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:37 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tes20E.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:37 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tes23E.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:37 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tes24F.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:37 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tes26F.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:37 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tes280.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:37 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tes290.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:37 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tes2B1.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:37 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tes2D1.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:37 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tes2E1.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:37 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tes302.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:37 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tes332.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:37 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tes352.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:37 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tes372.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:37 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tes383.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:37 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tes3A3.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:37 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tes3C3.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:37 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tes3D4.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:37 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tes3F4.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:37 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tes405.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:37 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tes415.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:37 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tes436.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:37 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tes446.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:37 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tes457.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:37 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tes477.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:37 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tes497.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:37 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tes4A8.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:37 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tes4D8.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:37 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tes4E8.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:37 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tes4E9.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:37 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tes4FA.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:37 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tes51A.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:37 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tes52B.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:37 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tes54B.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:37 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tes54C.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:37 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tes55D.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:37 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tes56D.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:37 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tes57E.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:38 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tes58F.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:38 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tes59F.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:38 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tes5B0.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:38 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tes5C1.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:38 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tes5E1.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:38 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tes5F1.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:38 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tes612.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:38 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tes622.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:38 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tes633.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:38 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tes644.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:38 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tes654.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:38 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tes674.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:38 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tes685.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:38 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tes6A5.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:38 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tes6B6.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:38 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tes6C7.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:38 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tes6E7.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:38 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tes6F7.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:38 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tes708.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:38 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tes728.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:38 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tes749.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:38 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tes759.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:38 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tes76A.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:38 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tes77A.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:38 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tes78B.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:38 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tes79C.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:38 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tes7BC.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:38 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tes7CD.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:38 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tes7ED.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:38 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tes7FD.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:38 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tes80E.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:38 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tes82E.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:38 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tes83F.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:38 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tes850.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:38 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tes870.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:38 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tes890.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:38 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tes8A1.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:38 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tes8C1.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:38 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tes8D2.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:38 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tes8E2.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:38 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tes8F3.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:38 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tes913.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:38 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tes924.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:38 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tes934.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:38 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tes964.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:38 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tes975.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:39 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tes985.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:39 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tes9A6.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:39 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tes9B6.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:39 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tes9C7.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:39 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tes9D8.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:39 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tes9F8.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:39 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesA18.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:39 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesA29.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:39 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesA49.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:39 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesA5A.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:39 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesA6A.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:39 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesA8A.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:39 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesA9B.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:39 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesABB.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:39 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesAEB.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:39 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesAFC.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:39 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesB0C.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:39 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesB1D.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:39 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesB2E.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:39 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesB4E.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:39 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesB5F.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:39 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesB7F.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:39 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesB9F.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:39 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesBB0.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:39 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesBC0.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:39 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesBD1.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:39 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesBF1.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:39 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesC11.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:39 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesC32.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:39 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesC42.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:39 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesC63.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:39 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesC83.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:39 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesCA3.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:39 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesCC3.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:39 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesCE4.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:39 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesD04.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:39 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesD14.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:39 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesD35.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:39 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesD55.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:39 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesD66.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:40 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesD95.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:40 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesDC5.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:40 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesE05.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:40 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesE15.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:40 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesE36.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:40 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesE37.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:40 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesE57.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:40 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesE68.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:40 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesE88.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:40 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesE98.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:40 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesEB9.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:40 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesED9.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:40 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesEEA.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:40 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesF0A.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:40 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesF2A.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:40 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesF3B.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:40 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesF5B.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:40 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesF6C.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:40 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesF8C.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 124
+[06-Apr-2026 15:03:40 Asia/Manila] PHP Warning:  Undefined variable $logger in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 128
+[06-Apr-2026 15:03:40 Asia/Manila] PHP Fatal error:  Uncaught Error: Call to a member function log() on null in C:\xampp\htdocs\hr 201\public\generate_test_data.php:128
+Stack trace:
+#0 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 128
+[06-Apr-2026 15:03:40 Asia/Manila] PHP Warning:  Undefined variable $logger in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 165
+[06-Apr-2026 15:03:40 Asia/Manila] PHP Fatal error:  Uncaught Error: Call to a member function log() on null in C:\xampp\htdocs\hr 201\public\generate_test_data.php:165
+Stack trace:
+#0 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 165
+[06-Apr-2026 17:30:13 Asia/Manila] PHP Warning:  Undefined variable $logger in C:\xampp\htdocs\hr 201\public\tracker.php on line 154
+[06-Apr-2026 17:30:13 Asia/Manila] PHP Fatal error:  Uncaught Error: Call to a member function log() on null in C:\xampp\htdocs\hr 201\public\tracker.php:154
+Stack trace:
+#0 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\tracker.php on line 154
+[06-Apr-2026 17:30:31 Asia/Manila] PHP Warning:  Undefined variable $logger in C:\xampp\htdocs\hr 201\public\tracker.php on line 154
+[06-Apr-2026 17:30:31 Asia/Manila] PHP Fatal error:  Uncaught Error: Call to a member function log() on null in C:\xampp\htdocs\hr 201\public\tracker.php:154
+Stack trace:
+#0 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\tracker.php on line 154
+[06-Apr-2026 17:32:26 Asia/Manila] PHP Warning:  Undefined variable $logger in C:\xampp\htdocs\hr 201\public\tracker.php on line 276
+[06-Apr-2026 17:32:26 Asia/Manila] PHP Fatal error:  Uncaught Error: Call to a member function log() on null in C:\xampp\htdocs\hr 201\public\tracker.php:276
+Stack trace:
+#0 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\tracker.php on line 276
+[06-Apr-2026 17:33:46 Asia/Manila] PHP Warning:  Undefined variable $logger in C:\xampp\htdocs\hr 201\public\tracker.php on line 276
+[06-Apr-2026 17:33:46 Asia/Manila] PHP Fatal error:  Uncaught Error: Call to a member function log() on null in C:\xampp\htdocs\hr 201\public\tracker.php:276
+Stack trace:
+#0 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\tracker.php on line 276
+[06-Apr-2026 17:37:00 Asia/Manila] PHP Warning:  Undefined variable $logger in C:\xampp\htdocs\hr 201\public\tracker.php on line 154
+[06-Apr-2026 17:37:00 Asia/Manila] PHP Fatal error:  Uncaught Error: Call to a member function log() on null in C:\xampp\htdocs\hr 201\public\tracker.php:154
+Stack trace:
+#0 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\tracker.php on line 154

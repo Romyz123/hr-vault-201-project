@@ -6,12 +6,14 @@
 
 require '../config/db.php';
 require '../src/Security.php';
+require '../src/Logger.php';
 require '../src/Validator.php';
 require '../src/SearchHelper.php';
 require 'options.php';
 session_start();
 checkSessionTimeout($pdo); // [SECURITY] Enforce Timeout
 
+$logger = new Logger($pdo);
 // [UX] Fetch Client Timeout
 $clientTimeout = 900;
 try {
@@ -89,6 +91,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($_SESSION['role'], ['ADMIN
                     }
                     $pdo->prepare("INSERT INTO document_requirements (name, keywords) VALUES (?, ?)")->execute([$name, $keys]);
                 }
+                $logger->log($_SESSION['user_id'], 'ADD_REQUIREMENT', "Added document requirement: $name ($keys)");
             } catch (PDOException $e) { /* Ignore if table missing */
             }
         } elseif ($_POST['action'] === 'delete_req') {
@@ -100,6 +103,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($_SESSION['role'], ['ADMIN
             try {
                 $id = $_POST['req_id'];
                 $pdo->prepare("DELETE FROM document_requirements WHERE id = ?")->execute([$id]);
+                $logger->log($_SESSION['user_id'], 'DELETE_REQUIREMENT', "Deleted document requirement ID: $id");
             } catch (PDOException $e) {
             }
         } elseif ($_POST['action'] === 'edit_req') {
@@ -124,6 +128,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($_SESSION['role'], ['ADMIN
                 }
 
                 if ($name && $keys) {
+                    $logger->log($_SESSION['user_id'], 'EDIT_REQUIREMENT', "Edited document requirement ID: $id to $name ($keys)");
                     $pdo->prepare("UPDATE document_requirements SET name = ?, keywords = ? WHERE id = ?")->execute([$name, $keys, $id]);
                 }
             } catch (PDOException $e) {
@@ -139,7 +144,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($_SESSION['role'], ['ADMIN
             $stmt->execute([$empId]);
             $emp = $stmt->fetch();
 
-            if ($emp && !empty($emp['email'])) {
+            if (is_array($emp) && !empty($emp['email'])) {
                 // [SPAM PROTECTION] Limit to 1 email per 24 hours (86400 seconds)
                 if ($emp['seconds_since'] !== null && $emp['seconds_since'] < 86400) {
                     header("Location: tracker.php?error=" . urlencode("⏳ Please wait 24 hours before sending another reminder to " . $emp['first_name']));
@@ -148,6 +153,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($_SESSION['role'], ['ADMIN
 
                 // [MHI POLICY] Emails disabled. Just update the timestamp for tracking manual reminders.
                 $pdo->prepare("UPDATE employees SET last_reminded = NOW() WHERE emp_id = ?")->execute([$empId]);
+                $logger->log($_SESSION['user_id'], 'SENT_REMINDER', "Sent manual reminder to employee ID: $empId");
                 header("Location: tracker.php?msg=" . urlencode("✅ Marked as reminded manually for " . $emp['first_name']));
                 exit;
             }
@@ -214,6 +220,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($_SESSION['role'], ['ADMIN
 
             if (empty($missing)) {
                 echo json_encode(['status' => 'skipped', 'message' => 'No missing docs']);
+                $logger->log($_SESSION['user_id'], 'SKIPPED_REMINDER', "Skipped reminder for employee ID: $empId (no missing docs)");
                 exit;
             }
 
@@ -239,6 +246,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($_SESSION['role'], ['ADMIN
 
             if (mail($to, $subject, $body, $headers)) {
                 $pdo->prepare("UPDATE employees SET last_reminded = NOW() WHERE emp_id = ?")->execute([$empId]);
+                $logger->log($_SESSION['user_id'], 'SENT_AJAX_REMINDER', "Sent AJAX reminder to employee ID: $empId");
                 echo json_encode(['status' => 'success']);
             } else {
                 echo json_encode(['status' => 'error', 'message' => 'Mail failed']);
@@ -264,8 +272,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($_SESSION['role'], ['ADMIN
 
             if ($stmt->fetch()) {
                 $pdo->prepare("DELETE FROM document_exemptions WHERE employee_id = ? AND requirement_name = ?")->execute([$empId, $reqName]);
+                $logger->log($_SESSION['user_id'], 'TOGGLE_EXEMPTION', "Removed exemption for employee ID: $empId, requirement: $reqName");
             } else {
                 $pdo->prepare("INSERT INTO document_exemptions (employee_id, requirement_name) VALUES (?, ?)")->execute([$empId, $reqName]);
+                $logger->log($_SESSION['user_id'], 'TOGGLE_EXEMPTION', "Added exemption for employee ID: $empId, requirement: $reqName");
             }
             header("Location: tracker.php");
             exit;
@@ -331,6 +341,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($_SESSION['role'], ['ADMIN
                     if (!empty($missing)) {
                         // [MHI POLICY] Email disabled. Just update timestamp.
                         $pdo->prepare("UPDATE employees SET last_reminded = NOW() WHERE emp_id = ?")->execute([$eid]);
+                        $logger->log($_SESSION['user_id'], 'BULK_REMINDER', "Logged manual bulk reminder for $eid");
                         $sent++;
                     }
                 }
@@ -376,6 +387,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($_SESSION['role'], ['ADMIN
             $count = $stmt->rowCount();
 
             header("Location: tracker.php?report=misclassified&msg=" . urlencode("✅ Moved/Updated $count documents."));
+            $logger->log($_SESSION['user_id'], 'BULK_MOVE_DOCUMENTS', "Bulk moved/updated $count documents. New category: $newCat, Target Emp: $targetEmp");
             exit;
         } elseif ($_POST['action'] === 'rename_file') {
             // [NEW] Rename File
@@ -411,10 +423,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($_SESSION['role'], ['ADMIN
                             'new_name' => $newName,
                             'original_details' => $currentDoc
                         ];
-                        $pdo->prepare("INSERT INTO requests (user_id, request_type, target_id, json_payload) VALUES (?, 'EDIT_DOC', ?, ?)")
-                            ->execute([$_SESSION['user_id'], $docId, json_encode($payload)]);
+                        $pdo->prepare("INSERT INTO requests (user_id, request_type, target_id, json_payload) VALUES (?, 'EDIT_DOC', ?, ?)") // $payload is an array
+                            ->execute([$_SESSION['user_id'], $docId, json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE)]);
 
                         header("Location: tracker.php?report=misclassified&msg=" . urlencode("✅ Rename request submitted for approval."));
+                        $logger->log($_SESSION['user_id'], 'REQUEST_RENAME_DOC', "Requested rename for document ID: $docId to $newName");
                         exit;
                     }
 
@@ -422,6 +435,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($_SESSION['role'], ['ADMIN
                     $pdo->prepare("UPDATE documents SET original_name = ?, updated_at = NOW() WHERE id = ?")->execute([$newName, $docId]);
                 }
                 header("Location: tracker.php?report=misclassified&msg=" . urlencode("✅ File renamed."));
+                $logger->log($_SESSION['user_id'], 'RENAME_DOCUMENT', "Renamed document ID: $docId from {$currentDoc['original_name']} to $newName");
                 exit;
             }
         }

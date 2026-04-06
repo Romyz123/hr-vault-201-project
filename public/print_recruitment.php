@@ -70,7 +70,7 @@ if (empty($logo_src)) {
 <head>
     <meta charset="UTF-8">
     <title>Recruitment Report</title>
-    <link rel="icon" href="uploads/tesp-logo.png?v=3" type="image/png">
+    <link rel="icon" href="assets/tesp-logo.png?v=4" type="image/png">
     <style>
         body {
             font-family: Arial, sans-serif;

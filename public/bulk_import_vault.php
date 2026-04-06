@@ -132,7 +132,7 @@ if ($sourceDir && is_dir($sourceDir)) {
 <head>
     <meta charset="UTF-8">
     <title>Bulk Vault Importer</title>
-    <link rel="icon" href="uploads/tesp-logo.png?v=3" type="image/png">
+    <link rel="icon" href="assets/tesp-logo.png?v=4" type="image/png">
     <link href="assets/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="assets/icons/bootstrap-icons.css">
 </head>

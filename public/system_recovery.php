@@ -317,6 +317,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $logger->log($_SESSION['user_id'], 'VAULT_COMPRESS', "Zipped and removed $archivedCount files older than $months months ($freedMB MB freed).");
                 } else {
                     $msg = "❌ Failed to archive files. Files might be missing on disk.";
+                    $logger->log($_SESSION['user_id'], 'VAULT_COMPRESS_FAIL', "Failed to compress old files older than $months months.");
                 }
             } else {
                 $msg = "❌ Could not create ZIP archive.";
@@ -432,6 +433,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         $msg = empty($logMessages) ? "✅ System is already in sync." : "✅ Sync Complete: " . implode(" ", $logMessages);
+        $logger->log($_SESSION['user_id'], 'MASTER_SYNC', "Master Sync executed. Details: " . implode(" | ", $logMessages));
     }
 
     // --- RESTORE EMPLOYEE ---

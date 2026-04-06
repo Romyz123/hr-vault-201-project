@@ -179,7 +179,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (empty($errors)) {
             $stmt = $pdo->prepare("INSERT INTO system_settings (setting_key, setting_value) VALUES (?, ?) ON DUPLICATE KEY UPDATE setting_value = ?");
             foreach ($updates as $k => $v) {
-                $valStr = (string)$v;
+                // [FIX] Correctly handle array values (like approval_widgets) during database save.
+                // This prevents storing the literal string "Array" which causes 500 errors on the dashboard.
+                $valStr = is_array($v) ? json_encode($v) : (string)$v;
+
                 $stmt->execute([$k, $valStr, $valStr]);
             }
 
@@ -386,7 +389,7 @@ if (PHP_OS_FAMILY === 'Windows') {
                                 'doc-edits' => 'Document Edits',
                                 'tickets' => 'Ticket Resolutions'
                             ];
-                            // [FIX] Use strict null check to preserve empty selections (hiding all widgets)
+                            // [FIX] Use is_array to handle potential null/corrupt data from the database
                             $enabledWidgets = is_array($approvalWidgets) ? $approvalWidgets : array_keys($allWidgets);
                             foreach ($allWidgets as $key => $label):
                             ?>

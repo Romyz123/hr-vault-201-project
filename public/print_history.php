@@ -50,7 +50,7 @@ foreach ($logo_paths as $p) {
 <head>
     <meta charset="UTF-8">
     <title>Employment History - <?php echo htmlspecialchars($emp['last_name']); ?></title>
-    <link rel="icon" href="uploads/tesp-logo.png?v=3" type="image/png">
+    <link rel="icon" href="assets/tesp-logo.png?v=4" type="image/png">
     <link href="assets/bootstrap.min.css" rel="stylesheet">
     <style>
         @media print {

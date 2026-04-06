@@ -6,6 +6,7 @@
 
 require '../config/db.php';
 require '../src/Security.php';
+require '../src/Logger.php';
 require '../src/FileService.php';
 session_start();
 
@@ -15,6 +16,7 @@ if (!isset($_SESSION['user_id']) || ($_SESSION['role'] ?? '') !== 'ADMIN') {
 }
 
 $security = new Security($pdo);
+$logger = new Logger($pdo);
 if (empty($_SESSION['csrf_token'])) {
     $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 }
@@ -125,6 +127,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate_emp'])) {
                 }
             }
             $pdo->commit();
+            $logger->log($_SESSION['user_id'], 'GENERATE_EMPLOYEES', "Generated $count test employees.");
             $msg = "✅ Successfully generated $count random employees with documents!";
         } else {
             $error = "Count must be between 1 and 500.";
@@ -161,6 +164,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate_cand'])) {
                 ]);
             }
             $pdo->commit();
+            $logger->log($_SESSION['user_id'], 'GENERATE_CANDIDATES', "Generated $count test candidates.");
             $msg = "✅ Successfully generated $count random candidates for the Recruitment ATS!";
         } else {
             $error = "Count must be between 1 and 500.";
@@ -182,7 +186,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['clear_data'])) {
 
             // 1. Get all test employee IDs
             $testEmpIds = $pdo->query("SELECT emp_id FROM employees WHERE emp_id LIKE 'TST-%'")->fetchAll(PDO::FETCH_COLUMN);
-            $docsDeleted = 0;
+            $docsDeleted = 0; // [FIX] Ensure variable is initialized
 
             if (!empty($testEmpIds)) {
                 // 2. Get all file paths for these employees
@@ -215,6 +219,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['clear_data'])) {
             $candDeleted = $stmtCand->rowCount();
 
             $pdo->commit();
+            $logger->log($_SESSION['user_id'], 'CLEAR_TEST_DATA', "Cleared $empDeleted test employees and $candDeleted test candidates.");
             $msg = "🧹 Successfully cleared $empDeleted test employees, $docsDeleted documents, and $candDeleted test candidates!";
         } catch (Exception $e) {
             $pdo->rollBack();
@@ -229,7 +234,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['clear_data'])) {
 <head>
     <meta charset="UTF-8">
     <title>Test Data Generator</title>
-    <link rel="icon" href="uploads/tesp-logo.png?v=3" type="image/png">
+    <link rel="icon" href="assets/tesp-logo.png?v=4" type="image/png">
     <link href="assets/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="assets/icons/bootstrap-icons.css">
 </head>

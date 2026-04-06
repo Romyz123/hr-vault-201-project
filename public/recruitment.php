@@ -27,35 +27,53 @@ unset($_SESSION['msg'], $_SESSION['error']);
 // ==============================================================
 function sendSMS($phone, $message)
 {
-    // Clean phone number (e.g., remove spaces and dashes)
+    // Access the global $_ENV array where config.php is loaded
+    global $_ENV;
+
+    // Clean phone number
     $phone = preg_replace('/[^0-9+]/', '', $phone);
 
-    // [SIMULATION MODE] - Set to FALSE when you have your API key
-    $simulationMode = true;
+    // Load SMS settings from $_ENV
+    $apiKey = $_ENV['SMS_API_KEY'] ?? '';
+    $senderName = $_ENV['SMS_SENDER_NAME'] ?? 'TESP_HR';
+    $simulationMode = $_ENV['SMS_SIMULATION_MODE'] ?? true;
 
     if ($simulationMode) {
         error_log("[SMS SIMULATION] To: " . substr($phone, -4) . " | Length: " . strlen($message));
         return true;
     }
 
-    // TODO: Implement real SMS API before disabling simulation mode
-    return false;
-    /* --- REAL SEMAPHORE API CODE ---
+    if (empty($apiKey)) {
+        error_log("[SMS ERROR] Semaphore API Key is not configured in config.php.");
+        return false;
+    }
+
     $ch = curl_init();
     $parameters = array(
-        'apikey' => 'YOUR_SEMAPHORE_API_KEY_HERE', 
+        'apikey' => $apiKey,
         'number' => $phone,
         'message' => $message,
-        'sendername' => 'TESP_HR' // Optional: Custom Sender ID
+        'sendername' => $senderName
     );
-    curl_setopt($ch, CURLOPT_URL,'https://api.semaphore.co/api/v4/messages');
+    curl_setopt($ch, CURLOPT_URL, 'https://api.semaphore.co/api/v4/messages');
     curl_setopt($ch, CURLOPT_POST, 1);
     curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($parameters));
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     $output = curl_exec($ch);
     curl_close($ch);
-    return $output !== false;
-    */
+
+    if ($output === false) {
+        error_log("[SMS ERROR] Semaphore API call failed: " . curl_error($ch));
+        return false;
+    }
+
+    $response = json_decode($output, true);
+    if (isset($response['status']) && $response['status'] === 'success') {
+        return true;
+    } else {
+        error_log("[SMS ERROR] Semaphore API returned error: " . $output);
+        return false;
+    }
 }
 
 // [NEW] Fetch Roles for Dropdown (System Roles > Employee Jobs)
@@ -300,7 +318,30 @@ try {
     // 3. Needs Follow-up (More than 3 days ago, and not Hired/Rejected)
     $needs_action = $pdo->query("SELECT COUNT(*) FROM candidates WHERE last_follow_up < DATE_SUB(CURDATE(), INTERVAL 3 DAY) AND status NOT IN ('Hired', 'Rejected')")->fetchColumn();
 
-    // 4. Chart Data (Count by Status)
+    // [NEW] 4. Interviews Today & Tomorrow
+    $stmtToday = $pdo->query("SELECT COUNT(*) FROM candidates WHERE DATE(interview_date) = CURDATE() AND status != 'Rejected'");
+    $interviewsToday = $stmtToday->fetchColumn();
+
+    $stmtTomorrow = $pdo->query("SELECT COUNT(*) FROM candidates WHERE DATE(interview_date) = DATE_ADD(CURDATE(), INTERVAL 1 DAY) AND status != 'Rejected'");
+    $interviewsTomorrow = $stmtTomorrow->fetchColumn();
+
+    // [NEW] 5. Calendar Logic
+    $calYear = isset($_GET['cal_year']) ? (int)$_GET['cal_year'] : (int)date('Y');
+    $calMonth = isset($_GET['cal_month']) ? (int)$_GET['cal_month'] : (int)date('m');
+    $calEvents = [];
+    $calStmt = $pdo->prepare("SELECT id, first_name, last_name, interview_date, position_applied, status, email, phone_number, notes, rejection_reason, is_blacklisted FROM candidates WHERE YEAR(interview_date) = ? AND MONTH(interview_date) = ? AND status != 'Rejected'");
+    $calStmt->execute([$calYear, $calMonth]);
+    while ($row = $calStmt->fetch(PDO::FETCH_ASSOC)) {
+        $d = (int)date('j', strtotime($row['interview_date']));
+        $calEvents[$d][] = $row;
+    }
+
+    // [NEW] 6. Fetch Upcoming Alarms (Interviews in the next hour)
+    $alarmStmt = $pdo->prepare("SELECT id, first_name, last_name, interview_date FROM candidates WHERE interview_date > NOW() AND interview_date <= DATE_ADD(NOW(), INTERVAL 1 HOUR) AND status != 'Rejected'");
+    $alarmStmt->execute();
+    $upcomingAlarms = $alarmStmt->fetchAll(PDO::FETCH_ASSOC);
+
+    // 7. Chart Data (Count by Status)
     $chartData = $pdo->query("SELECT status, COUNT(*) as count FROM candidates GROUP BY status")->fetchAll(PDO::FETCH_ASSOC);
     $labels = [];
     $data = [];
@@ -410,7 +451,7 @@ try {
 <head>
     <meta charset="UTF-8">
     <title>Recruitment Dashboard</title>
-    <link rel="icon" href="uploads/tesp-logo.png?v=3" type="image/png">
+    <link rel="icon" href="assets/tesp-logo.png?v=4" type="image/png">
     <link href="assets/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="assets/icons/bootstrap-icons.css">
     <script src="assets/chart.min.js"></script>
@@ -535,15 +576,7 @@ try {
         </div>
 
         <div class="row mb-4">
-            <div class="col-md-4 mb-3">
-                <div class="card bg-primary text-white shadow-sm h-100">
-                    <div class="card-body text-center">
-                        <h5 class="card-title">Total Candidates</h5>
-                        <h2 class="display-4 fw-bold"><?php echo $total; ?></h2>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-4 mb-3">
+            <div class="col-md-3 mb-3">
                 <div class="card bg-success text-white shadow-sm h-100">
                     <div class="card-body text-center">
                         <h5 class="card-title">Successfully Hired</h5>
@@ -551,7 +584,16 @@ try {
                     </div>
                 </div>
             </div>
-            <div class="col-md-4 mb-3">
+            <div class="col-md-3 mb-3">
+                <div class="card bg-primary text-white shadow-sm h-100">
+                    <div class="card-body text-center">
+                        <h5 class="card-title">Interviews Today</h5>
+                        <h2 class="display-4 fw-bold"><?php echo $interviewsToday; ?></h2>
+                        <small>Tomorrow: <?php echo $interviewsTomorrow; ?> scheduled</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3 mb-3">
                 <div class="card bg-danger text-white shadow-sm h-100">
                     <div class="card-body text-center">
                         <h5 class="card-title">Action Required (Follow-up)</h5>
@@ -560,172 +602,162 @@ try {
                     </div>
                 </div>
             </div>
+            <div class="col-md-3 mb-3">
+                <div class="card bg-dark text-white shadow-sm h-100">
+                    <div class="card-body text-center">
+                        <h5 class="card-title">Total Database</h5>
+                        <h2 class="display-4 fw-bold"><?php echo $total; ?></h2>
+                        <small>Active & Past Applicants</small>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <div class="row">
-            <!-- FULL WIDTH TRACKER TABLE -->
-            <div class="col-lg-12 mb-4">
-                <div class="card shadow border-0 h-100">
-                    <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center flex-wrap gap-2">
-                        <div class="d-flex flex-wrap gap-2 align-items-center w-100">
-                            <span class="fw-bold fs-5 me-auto"><i class="bi bi-people-fill me-2"></i> Active Tracker</span>
+            <datalist id="cand_search_list">
+                <?php
+                $allCands = $pdo->query("SELECT DISTINCT first_name, last_name, position_applied FROM candidates ORDER BY last_name LIMIT 100")->fetchAll();
+                foreach ($allCands as $ac) {
+                    echo "<option value=\"" . htmlspecialchars($ac['first_name'] . ' ' . $ac['last_name']) . "\">";
+                    echo "<option value=\"" . htmlspecialchars($ac['position_applied']) . "\">";
+                }
+                ?> </datalist>
+            <button class="btn btn-light text-primary" type="submit"><i class="bi bi-search"></i></button>
+        </div>
+        <?php if ($filterStatus || $filterMonth || $filterWeek || $filterSearch): ?>
+            <a href="recruitment.php" class="btn btn-sm btn-outline-light text-nowrap" title="Clear Filters"><i class="bi bi-x-lg"></i></a>
+        <?php endif; ?>
+        </form>
 
-                            <form method="GET" class="d-flex flex-wrap gap-2 align-items-center m-0">
-                                <select name="status" class="form-select form-select-sm w-auto" onchange="this.form.submit()">
-                                    <option value="">All Status</option>
-                                    <option value="New Applicant" <?php if ($filterStatus == 'New Applicant') echo 'selected'; ?>>New Applicant</option>
-                                    <option value="Screening" <?php if ($filterStatus == 'Screening') echo 'selected'; ?>>Screening</option>
-                                    <option value="Interviewed" <?php if ($filterStatus == 'Interviewed') echo 'selected'; ?>>Interviewed</option>
-                                    <option value="Hired" <?php if ($filterStatus == 'Hired') echo 'selected'; ?>>Hired</option>
-                                    <option value="Rejected" <?php if ($filterStatus == 'Rejected') echo 'selected'; ?>>Rejected</option>
-                                </select>
-                                <input type="month" name="month" class="form-control form-control-sm w-auto" value="<?php echo $filterMonth; ?>" onchange="this.form.submit()">
-                                <div class="input-group input-group-sm" style="width: 250px;">
-                                    <input type="text" name="search" class="form-control" placeholder="Search name or pos..." value="<?php echo htmlspecialchars($filterSearch); ?>" maxlength="50" pattern="[a-zA-Z0-9\-_ \@\.]+" oninput="this.value = this.value.replace(/[^a-zA-Z0-9\-_ \@\.]/g, '')" list="cand_search_list" autocomplete="off">
-                                    <datalist id="cand_search_list">
-                                        <?php
-                                        $allCands = $pdo->query("SELECT DISTINCT first_name, last_name, position_applied FROM candidates ORDER BY last_name LIMIT 100")->fetchAll();
-                                        foreach ($allCands as $ac) {
-                                            echo "<option value=\"" . htmlspecialchars($ac['first_name'] . ' ' . $ac['last_name']) . "\">";
-                                            echo "<option value=\"" . htmlspecialchars($ac['position_applied']) . "\">";
-                                        }
-                                        ?> </datalist>
-                                    <button class="btn btn-light text-primary" type="submit"><i class="bi bi-search"></i></button>
-                                </div>
-                                <?php if ($filterStatus || $filterMonth || $filterWeek || $filterSearch): ?>
-                                    <a href="recruitment.php" class="btn btn-sm btn-outline-light text-nowrap" title="Clear Filters"><i class="bi bi-x-lg"></i></a>
-                                <?php endif; ?>
-                            </form>
+        <div class="no-print d-flex gap-2 ms-lg-3">
+            <a href="export_recruitment.php" class="btn btn-sm btn-light text-success fw-bold"><i class="bi bi-file-earmark-excel-fill"></i> Excel</a>
+            <a href="print_recruitment.php?status=<?php echo urlencode($filterStatus); ?>&month=<?php echo urlencode($filterMonth); ?>&week=<?php echo urlencode($filterWeek); ?>" target="_blank" class="btn btn-sm btn-light text-dark fw-bold"><i class="bi bi-printer-fill"></i> Print</a>
+            <button class="btn btn-sm btn-warning text-dark fw-bold" data-bs-toggle="modal" data-bs-target="#addModal"><i class="bi bi-plus-circle-fill"></i> Add Candidate</button>
+        </div>
+    </div>
+    </div>
+    <div class="card-body p-0 table-responsive">
+        <table class="table table-hover align-middle mb-0" style="font-size: 0.9rem;">
+            <thead class="table-light text-secondary">
+                <tr>
+                    <th>Name</th>
+                    <th>Position</th>
+                    <th>Contact Info</th>
+                    <th>Status</th>
+                    <th>Action</th>
+                    <th>Last Follow-up</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php foreach ($candidates as $c):
+                    // Calculate days since last follow-up
+                    $follow_up_date = strtotime($c['last_follow_up'] ?? $c['application_date']);
+                    $days_ago = round((time() - $follow_up_date) / (60 * 60 * 24));
 
-                            <div class="no-print d-flex gap-2 ms-lg-3">
-                                <a href="export_recruitment.php" class="btn btn-sm btn-light text-success fw-bold"><i class="bi bi-file-earmark-excel-fill"></i> Excel</a>
-                                <a href="print_recruitment.php?status=<?php echo urlencode($filterStatus); ?>&month=<?php echo urlencode($filterMonth); ?>&week=<?php echo urlencode($filterWeek); ?>" target="_blank" class="btn btn-sm btn-light text-dark fw-bold"><i class="bi bi-printer-fill"></i> Print</a>
-                                <button class="btn btn-sm btn-warning text-dark fw-bold" data-bs-toggle="modal" data-bs-target="#addModal"><i class="bi bi-plus-circle-fill"></i> Add Candidate</button>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="card-body p-0 table-responsive">
-                        <table class="table table-hover align-middle mb-0" style="font-size: 0.9rem;">
-                            <thead class="table-light text-secondary">
-                                <tr>
-                                    <th>Name</th>
-                                    <th>Position</th>
-                                    <th>Contact Info</th>
-                                    <th>Status</th>
-                                    <th>Action</th>
-                                    <th>Last Follow-up</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <?php foreach ($candidates as $c):
-                                    // Calculate days since last follow-up
-                                    $follow_up_date = strtotime($c['last_follow_up'] ?? $c['application_date']);
-                                    $days_ago = round((time() - $follow_up_date) / (60 * 60 * 24));
+                    // Highlight logic
+                    $row_class = "";
+                    $badge = match ($c['status']) {
+                        'New Applicant' => 'bg-primary rounded-pill',
+                        'Screening' => 'bg-info text-dark rounded-pill',
+                        'Interviewed' => 'bg-warning text-dark rounded-pill',
+                        'Hired' => 'bg-success rounded-pill',
+                        'Rejected' => 'bg-danger rounded-pill',
+                        default => 'bg-secondary rounded-pill'
+                    };
 
-                                    // Highlight logic
-                                    $row_class = "";
-                                    $badge = match ($c['status']) {
-                                        'New Applicant' => 'bg-primary rounded-pill',
-                                        'Screening' => 'bg-info text-dark rounded-pill',
-                                        'Interviewed' => 'bg-warning text-dark rounded-pill',
-                                        'Hired' => 'bg-success rounded-pill',
-                                        'Rejected' => 'bg-danger rounded-pill',
-                                        default => 'bg-secondary rounded-pill'
-                                    };
+                    if ($days_ago > 3 && !in_array($c['status'], ['Hired', 'Rejected'])) {
+                        $row_class = "table-warning border-warning"; // Soft warning!
+                    }
+                    $isBlacklisted = !empty($c['is_blacklisted']);
+                ?>
+                    <tr class="<?php echo $row_class; ?>" id="cand-<?php echo $c['id']; ?>">
+                        <td class="fw-bold text-primary"><?php echo htmlspecialchars($c['last_name'] . ', ' . $c['first_name']); ?></td>
+                        <td>
+                            <div class="text-dark fw-semibold text-wrap" style="max-width: 250px;" title="<?php echo htmlspecialchars($c['position_applied']); ?>"><?php echo htmlspecialchars($c['position_applied']); ?></div>
+                            <div class="small text-muted border-top mt-1 pt-1"><i class="bi bi-calendar-plus"></i> Applied: <?php echo date('M d, Y', strtotime($c['application_date'])); ?></div>
+                        </td>
+                        <td>
+                            <?php if (!empty($c['phone_number'])): ?><div class="small text-nowrap"><i class="bi bi-telephone-fill text-secondary me-1"></i> <?php echo htmlspecialchars($c['phone_number']); ?></div><?php endif; ?>
+                            <?php if (!empty($c['email'])): ?><div class="small text-nowrap"><i class="bi bi-envelope-fill text-secondary me-1"></i> <a href="mailto:<?php echo htmlspecialchars($c['email']); ?>" class="text-decoration-none text-muted"><?php echo htmlspecialchars($c['email']); ?></a></div><?php endif; ?>
+                        </td>
+                        <td>
+                            <span class="badge <?php echo $badge; ?>"><?php echo htmlspecialchars($c['status']); ?></span>
+                            <?php if ($isBlacklisted): ?>
+                                <span class="badge bg-dark text-danger border border-danger mt-1"><i class="bi bi-slash-circle"></i> BLACKLISTED</span>
+                            <?php endif; ?>
+                            <?php if ($c['status'] == 'Rejected' && !empty($c['rejection_reason'])): ?>
+                                <div class="small text-danger mt-1">Reason: <?php echo htmlspecialchars($c['rejection_reason']); ?></div>
+                            <?php endif; ?>
 
-                                    if ($days_ago > 3 && !in_array($c['status'], ['Hired', 'Rejected'])) {
-                                        $row_class = "table-warning border-warning"; // Soft warning!
-                                    }
-                                    $isBlacklisted = !empty($c['is_blacklisted']);
+                            <!-- COLOR CODED INTERVIEW DATE INDICATOR -->
+                            <?php if (!empty($c['interview_date'])): ?>
+                                <?php
+                                $iDate = strtotime($c['interview_date']);
+                                $today = strtotime('today');
+                                $iDay = strtotime('midnight', $iDate);
+
+                                if ($iDay == $today) {
+                                    echo '<div class="small text-danger fw-bold mt-2 bg-danger-subtle px-2 py-1 rounded d-inline-block border border-danger shadow-sm"><i class="bi bi-calendar-event-fill"></i> Today at ' . date('h:i A', $iDate) . '</div>';
+                                } elseif ($iDay < $today) {
+                                    echo '<div class="small text-muted mt-2"><i class="bi bi-calendar-check"></i> Past: ' . date('M d', $iDate) . '</div>';
+                                } else {
+                                    echo '<div class="small text-primary mt-2 fw-bold"><i class="bi bi-calendar-event"></i> Upcoming: ' . date('M d, h:i A', $iDate) . '</div>';
+                                }
                                 ?>
-                                    <tr class="<?php echo $row_class; ?>" id="cand-<?php echo $c['id']; ?>">
-                                        <td class="fw-bold text-primary"><?php echo htmlspecialchars($c['last_name'] . ', ' . $c['first_name']); ?></td>
-                                        <td>
-                                            <div class="text-dark fw-semibold text-wrap" style="max-width: 250px;" title="<?php echo htmlspecialchars($c['position_applied']); ?>"><?php echo htmlspecialchars($c['position_applied']); ?></div>
-                                            <div class="small text-muted border-top mt-1 pt-1"><i class="bi bi-calendar-plus"></i> Applied: <?php echo date('M d, Y', strtotime($c['application_date'])); ?></div>
-                                        </td>
-                                        <td>
-                                            <?php if (!empty($c['phone_number'])): ?><div class="small text-nowrap"><i class="bi bi-telephone-fill text-secondary me-1"></i> <?php echo htmlspecialchars($c['phone_number']); ?></div><?php endif; ?>
-                                            <?php if (!empty($c['email'])): ?><div class="small text-nowrap"><i class="bi bi-envelope-fill text-secondary me-1"></i> <a href="mailto:<?php echo htmlspecialchars($c['email']); ?>" class="text-decoration-none text-muted"><?php echo htmlspecialchars($c['email']); ?></a></div><?php endif; ?>
-                                        </td>
-                                        <td>
-                                            <span class="badge <?php echo $badge; ?>"><?php echo htmlspecialchars($c['status']); ?></span>
-                                            <?php if ($isBlacklisted): ?>
-                                                <span class="badge bg-dark text-danger border border-danger mt-1"><i class="bi bi-slash-circle"></i> BLACKLISTED</span>
-                                            <?php endif; ?>
-                                            <?php if ($c['status'] == 'Rejected' && !empty($c['rejection_reason'])): ?>
-                                                <div class="small text-danger mt-1">Reason: <?php echo htmlspecialchars($c['rejection_reason']); ?></div>
-                                            <?php endif; ?>
-
-                                            <!-- COLOR CODED INTERVIEW DATE INDICATOR -->
-                                            <?php if (!empty($c['interview_date'])): ?>
-                                                <?php
-                                                $iDate = strtotime($c['interview_date']);
-                                                $today = strtotime('today');
-                                                $iDay = strtotime('midnight', $iDate);
-
-                                                if ($iDay == $today) {
-                                                    echo '<div class="small text-danger fw-bold mt-2 bg-danger-subtle px-2 py-1 rounded d-inline-block border border-danger shadow-sm"><i class="bi bi-calendar-event-fill"></i> Today at ' . date('h:i A', $iDate) . '</div>';
-                                                } elseif ($iDay < $today) {
-                                                    echo '<div class="small text-muted mt-2"><i class="bi bi-calendar-check"></i> Past: ' . date('M d', $iDate) . '</div>';
-                                                } else {
-                                                    echo '<div class="small text-primary mt-2 fw-bold"><i class="bi bi-calendar-event"></i> Upcoming: ' . date('M d, h:i A', $iDate) . '</div>';
-                                                }
-                                                ?>
-                                            <?php endif; ?>
-                                        </td>
-                                        <td>
-                                            <div class="btn-group btn-group-sm">
-                                                <?php if ($isBlacklisted): ?>
-                                                    <button class="btn btn-secondary disabled" title="Cannot Hire: Candidate is Blacklisted" disabled><i class="bi bi-person-x-fill"></i></button>
-                                                <?php else: ?>
-                                                    <form method="POST" class="d-inline" onsubmit="return confirm('Mark as Hired and proceed to Add Employee?');">
-                                                        <input type="hidden" name="hire_candidate" value="1">
-                                                        <input type="hidden" name="csrf_token" value="<?php echo $csrf_token; ?>">
-                                                        <input type="hidden" name="candidate_id" value="<?php echo $c['id']; ?>">
-                                                        <button type="submit" class="btn btn-outline-success" title="Hire & Add to Employee Database">
-                                                            <i class="bi bi-person-check-fill"></i>
-                                                        </button>
-                                                    </form>
-                                                <?php endif; ?>
-                                                <!-- [FIX] Bulletproof JSON injection for all Action Buttons -->
-                                                <?php $safeData = htmlspecialchars(json_encode($c), ENT_QUOTES, 'UTF-8'); ?>
-                                                <button type="button" class="btn btn-outline-primary" title="Schedule Interview" onclick='openSchedModal(<?php echo $safeData; ?>)'><i class="bi bi-calendar-event"></i></button>
-                                                <button type="button" class="btn btn-outline-info" title="Send SMS Follow Up" onclick='openFollowModal(<?php echo $safeData; ?>)'><i class="bi bi-chat-left-text-fill"></i></button>
-                                                <button type="button" class="btn btn-outline-secondary" title="Edit Profile" onclick='openEditModal(<?php echo $safeData; ?>)'><i class="bi bi-pencil-square"></i></button>
-                                                <button type="button" class="btn btn-outline-danger" title="Blacklist Candidate" onclick="openBlacklistModal(<?php echo $c['id']; ?>)"><i class="bi bi-slash-circle"></i></button>
-                                                <button type="button" class="btn btn-outline-danger" title="Delete" onclick="deleteCandidate(<?php echo $c['id']; ?>)"><i class="bi bi-trash"></i></button>
-                                            </div>
-                                        </td>
-                                        <td class="small">
-                                            <?php echo date('M d, Y', $follow_up_date); ?>
-                                            <?php if ($row_class == "table-warning border-warning"): ?>
-                                                <br><span class="badge bg-warning text-dark mt-1"><i class="bi bi-clock-history"></i> <?php echo $days_ago; ?> days ago</span>
-                                            <?php endif; ?>
-                                        </td>
-                                    </tr>
-                                <?php endforeach; ?>
-                                <?php if (empty($candidates)): ?>
-                                    <tr>
-                                        <td colspan="6" class="text-center p-4 text-muted">No candidates found matching your criteria.</td>
-                                    </tr>
+                            <?php endif; ?>
+                        </td>
+                        <td>
+                            <div class="btn-group btn-group-sm">
+                                <?php if ($isBlacklisted): ?>
+                                    <button class="btn btn-secondary disabled" title="Cannot Hire: Candidate is Blacklisted" disabled><i class="bi bi-person-x-fill"></i></button>
+                                <?php else: ?>
+                                    <form method="POST" class="d-inline" onsubmit="return confirm('Mark as Hired and proceed to Add Employee?');">
+                                        <input type="hidden" name="hire_candidate" value="1">
+                                        <input type="hidden" name="csrf_token" value="<?php echo $csrf_token; ?>">
+                                        <input type="hidden" name="candidate_id" value="<?php echo $c['id']; ?>">
+                                        <button type="submit" class="btn btn-outline-success" title="Hire & Add to Employee Database">
+                                            <i class="bi bi-person-check-fill"></i>
+                                        </button>
+                                    </form>
                                 <?php endif; ?>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
+                                <!-- [FIX] Bulletproof JSON injection for all Action Buttons -->
+                                <?php $safeData = htmlspecialchars(json_encode($c), ENT_QUOTES, 'UTF-8'); ?>
+                                <button type="button" class="btn btn-outline-primary" title="Schedule Interview" onclick='openSchedModal(<?php echo $safeData; ?>)'><i class="bi bi-calendar-event"></i></button>
+                                <button type="button" class="btn btn-outline-info" title="Send SMS Follow Up" onclick='openFollowModal(<?php echo $safeData; ?>)'><i class="bi bi-chat-left-text-fill"></i></button>
+                                <button type="button" class="btn btn-outline-secondary" title="Edit Profile" onclick='openEditModal(<?php echo $safeData; ?>)'><i class="bi bi-pencil-square"></i></button>
+                                <button type="button" class="btn btn-outline-danger" title="Blacklist Candidate" onclick="openBlacklistModal(<?php echo $c['id']; ?>)"><i class="bi bi-slash-circle"></i></button>
+                                <button type="button" class="btn btn-outline-danger" title="Delete" onclick="deleteCandidate(<?php echo $c['id']; ?>)"><i class="bi bi-trash"></i></button>
+                            </div>
+                        </td>
+                        <td class="small">
+                            <?php echo date('M d, Y', $follow_up_date); ?>
+                            <?php if ($row_class == "table-warning border-warning"): ?>
+                                <br><span class="badge bg-warning text-dark mt-1"><i class="bi bi-clock-history"></i> <?php echo $days_ago; ?> days ago</span>
+                            <?php endif; ?>
+                        </td>
+                    </tr>
+                <?php endforeach; ?>
+                <?php if (empty($candidates)): ?>
+                    <tr>
+                        <td colspan="6" class="text-center p-4 text-muted">No candidates found matching your criteria.</td>
+                    </tr>
+                <?php endif; ?>
+            </tbody>
+        </table>
+    </div>
+    </div>
+    </div>
 
-            <!-- PIPELINE BREAKDOWN (MOVED DOWN) -->
-            <div class="col-lg-6 mb-4">
-                <div class="card shadow border-0 h-100">
-                    <div class="card-header bg-dark text-white fw-bold"><i class="bi bi-pie-chart-fill me-2"></i> Pipeline Breakdown</div>
-                    <div class="card-body" style="min-height: 300px;">
-                        <canvas id="pipelineChart"></canvas>
-                    </div>
-                </div>
+    <!-- PIPELINE BREAKDOWN (MOVED DOWN) -->
+    <div class="col-lg-6 mb-4">
+        <div class="card shadow border-0 h-100">
+            <div class="card-header bg-dark text-white fw-bold"><i class="bi bi-pie-chart-fill me-2"></i> Pipeline Breakdown</div>
+            <div class="card-body" style="min-height: 300px;">
+                <canvas id="pipelineChart"></canvas>
             </div>
         </div>
+    </div>
+    </div>
     </div>
 
     <div class="modal fade" id="addModal" tabindex="-1">
