@@ -401,291 +401,265 @@ $auditLogs = $pdo->query("SELECT a.*, u.username FROM maintenance_actions a LEFT
 // Fetch Employees for Dropdown
 $emps = $pdo->query("SELECT emp_id, first_name, last_name FROM employees WHERE status = 'Active' ORDER BY last_name ASC")->fetchAll();
 ?>
+<?php require 'header.php'; ?>
 
-<!DOCTYPE html>
-<html lang="en">
-
-<head>
-    <meta charset="UTF-8">
-    <title>Hardware Maintenance Log</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <link rel="icon" href="uploads/tesp-logo.png" type="image/png">
-    <link href="assets/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="assets/icons/bootstrap-icons.css">
-</head>
-
-<body class="bg-body-tertiary">
-
-    <nav class="navbar navbar-dark bg-dark mb-4">
-        <div class="container">
-            <a class="navbar-brand" href="index.php">Back to Dashboard</a>
-            <div class="d-flex align-items-center gap-2">
-                <button id="darkModeToggle" class="btn btn-sm btn-outline-light border-0" title="Toggle Dark Mode">
-                    <i class="bi bi-moon-stars-fill"></i>
-                </button>
-                <span class="navbar-text text-white"><i class="bi bi-tools"></i> Hardware Maintenance Log</span>
-            </div>
+<div class="container">
+    <?php if ($msg): ?>
+        <div class="alert alert-<?php echo htmlspecialchars($msgType ?: 'info'); ?> alert-dismissible fade show">
+            <?php echo htmlspecialchars($msg); ?>
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
         </div>
-    </nav>
+    <?php endif; ?>
 
-    <div class="container">
-        <?php if ($msg): ?>
-            <div class="alert alert-<?php echo htmlspecialchars($msgType ?: 'info'); ?> alert-dismissible fade show">
-                <?php echo htmlspecialchars($msg); ?>
-                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-            </div>
-        <?php endif; ?>
-
-        <div class="row mb-4">
-            <div class="col-md-8">
-                <form class="d-flex flex-wrap gap-2 align-items-center" method="GET">
-                    <select name="status" class="form-select form-select-sm" onchange="this.form.submit()" style="width: auto;">
-                        <option value="">All Statuses</option>
-                        <option value="Pending" <?php echo ($filter_status === 'Pending') ? 'selected' : ''; ?>>Pending</option>
-                        <option value="Resolved" <?php echo ($filter_status === 'Resolved') ? 'selected' : ''; ?>>Resolved</option>
-                    </select>
-                    <input type="text" name="search" class="form-control" placeholder="Search..." value="<?php echo htmlspecialchars($search); ?>" style="max-width: 180px;" maxlength="50">
-                    <div class="input-group" style="width: auto;">
-                        <span class="input-group-text text-secondary small">From</span>
-                        <input type="date" name="date_from" class="form-control" value="<?php echo htmlspecialchars($dateFrom); ?>" title="Start Date">
-                    </div>
-                    <div class="input-group" style="width: auto;">
-                        <span class="input-group-text text-secondary small">To</span>
-                        <input type="date" name="date_to" class="form-control" value="<?php echo htmlspecialchars($dateTo); ?>" title="End Date">
-                    </div>
-                    <button type="submit" class="btn btn-primary"><i class="bi bi-search"></i></button>
-                    <?php if ($search || $dateFrom || $dateTo || $filter_status): ?>
-                        <a href="maintenance_log.php" class="btn btn-outline-secondary" title="Clear Filters"><i class="bi bi-x-lg"></i></a>
-                    <?php endif; ?>
-                </form>
-            </div>
-            <div class="col-md-4 text-end">
-                <button class="btn btn-outline-dark me-2" data-bs-toggle="modal" data-bs-target="#auditModal">
-                    <i class="bi bi-shield-check"></i> Audit Trail
-                </button>
-                <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#addLogModal">
-                    <i class="bi bi-plus-lg"></i> Record Maintenance
-                </button>
-            </div>
+    <div class="row mb-4">
+        <div class="col-md-8">
+            <form class="d-flex flex-wrap gap-2 align-items-center" method="GET">
+                <select name="status" class="form-select form-select-sm" onchange="this.form.submit()" style="width: auto;">
+                    <option value="">All Statuses</option>
+                    <option value="Pending" <?php echo ($filter_status === 'Pending') ? 'selected' : ''; ?>>Pending</option>
+                    <option value="Resolved" <?php echo ($filter_status === 'Resolved') ? 'selected' : ''; ?>>Resolved</option>
+                </select>
+                <input type="text" name="search" class="form-control" placeholder="Search..." value="<?php echo htmlspecialchars($search); ?>" style="max-width: 180px;" maxlength="50">
+                <div class="input-group" style="width: auto;">
+                    <span class="input-group-text text-secondary small">From</span>
+                    <input type="date" name="date_from" class="form-control" value="<?php echo htmlspecialchars($dateFrom); ?>" title="Start Date">
+                </div>
+                <div class="input-group" style="width: auto;">
+                    <span class="input-group-text text-secondary small">To</span>
+                    <input type="date" name="date_to" class="form-control" value="<?php echo htmlspecialchars($dateTo); ?>" title="End Date">
+                </div>
+                <button type="submit" class="btn btn-primary"><i class="bi bi-search"></i></button>
+                <?php if ($search || $dateFrom || $dateTo || $filter_status): ?>
+                    <a href="maintenance_log.php" class="btn btn-outline-secondary" title="Clear Filters"><i class="bi bi-x-lg"></i></a>
+                <?php endif; ?>
+            </form>
         </div>
+        <div class="col-md-4 text-end">
+            <button class="btn btn-outline-dark me-2" data-bs-toggle="modal" data-bs-target="#auditModal">
+                <i class="bi bi-shield-check"></i> Audit Trail
+            </button>
+            <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#addLogModal">
+                <i class="bi bi-plus-lg"></i> Record Maintenance
+            </button>
+        </div>
+    </div>
 
-        <div class="card shadow-sm">
-            <div class="card-body p-0 table-responsive">
-                <table class="table table-hover mb-0 align-middle">
-                    <thead class="table-light">
+    <div class="card shadow-sm">
+        <div class="card-body p-0 table-responsive">
+            <table class="table table-hover mb-0 align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th>Date</th>
+                        <th>Employee</th>
+                        <th>Equipment</th>
+                        <th>Status</th>
+                        <th>Issue / Details</th>
+                        <th>Action Taken</th>
+                        <th>Tech</th>
+                        <th>Vendor/Support</th>
+                        <th class="text-end">Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php foreach ($logs as $log): ?>
                         <tr>
-                            <th>Date</th>
-                            <th>Employee</th>
-                            <th>Equipment</th>
-                            <th>Status</th>
-                            <th>Issue / Details</th>
-                            <th>Action Taken</th>
-                            <th>Tech</th>
-                            <th>Vendor/Support</th>
-                            <th class="text-end">Action</th>
+                            <td><?php echo date('M d, Y', strtotime($log['maintenance_date'])); ?></td>
+                            <td>
+                                <strong><?php echo htmlspecialchars($log['last_name'] . ', ' . $log['first_name']); ?></strong>
+                                <br><small class="text-muted"><?php echo htmlspecialchars($log['employee_id']); ?></small>
+                            </td>
+                            <td><span class="badge bg-dark"><?php echo htmlspecialchars($log['equipment_type']); ?></span></td>
+                            <td>
+                                <?php
+                                $status_class = $log['status'] === 'Resolved' ? 'bg-success' : 'bg-warning text-dark';
+                                ?>
+                                <span class="badge <?php echo $status_class; ?>"><?php echo htmlspecialchars($log['status']); ?></span>
+                            </td>
+                            <td><?php echo htmlspecialchars($log['issue']); ?></td>
+                            <td><?php echo htmlspecialchars($log['action_taken']); ?></td>
+                            <td class="small text-muted"><?php echo htmlspecialchars($log['performed_by']); ?></td>
+                            <td class="small text-info"><?php echo htmlspecialchars($log['vendor_name'] ?? 'Internal'); ?></td>
+                            <td class="text-end">
+                                <button type="button" class="btn btn-sm btn-outline-primary me-1" onclick='openEditModal(<?php echo htmlspecialchars(json_encode($log), ENT_QUOTES, 'UTF-8'); ?>)' title="Edit"><i class="bi bi-pencil-square"></i></button>
+                                <form method="POST" onsubmit="return confirm('Are you sure you want to delete this log?');" class="d-inline">
+                                    <input type="hidden" name="delete_log" value="1">
+                                    <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
+                                    <input type="hidden" name="log_id" value="<?php echo $log['id']; ?>">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete"><i class="bi bi-trash"></i></button>
+                                </form>
+                            </td>
+                        </tr>
+                    <?php endforeach; ?>
+                    <?php if (empty($logs)): ?>
+                        <tr>
+                            <td colspan="9" class="text-center p-4 text-muted">No maintenance records found.</td>
+                        </tr>
+                    <?php endif; ?>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- ADD MODAL -->
+<div class="modal fade" id="addLogModal" tabindex="-1">
+    <div class="modal-dialog">
+        <form method="POST" class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title">Record Maintenance</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" name="add_log" value="1">
+                <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Employee</label>
+                    <select name="employee_id" class="form-select" required>
+                        <option value="">-- Select Employee --</option>
+                        <?php foreach ($emps as $e): ?>
+                            <option value="<?php echo $e['emp_id']; ?>"><?php echo htmlspecialchars($e['last_name'] . ', ' . $e['first_name']); ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div class="mb-3"><label class="form-label">Equipment</label><input type="text" name="equipment_type" class="form-control" placeholder="e.g. Laptop Dell Latitude" required maxlength="50" pattern="[a-zA-Z0-9\s\-\.\,\(\)]+" title="Allowed: Alphanumeric and basic punctuation" oninput="this.value = this.value.replace(/[^a-zA-Z0-9\s\-\.\,\(\)]/g, '')"></div>
+                <div class="mb-3"><label class="form-label">Issue</label><input type="text" name="issue" class="form-control" placeholder="e.g. Slow performance, Battery replacement" required maxlength="255" pattern="[a-zA-Z0-9\s\-\.\,\(\)]+" title="Allowed: Alphanumeric and basic punctuation" oninput="this.value = this.value.replace(/[^a-zA-Z0-9\s\-\.\,\(\)]/g, '')"></div>
+                <div class="mb-3"><label class="form-label">Action Taken</label><textarea name="action_taken" class="form-control" rows="2" placeholder="e.g. Replaced battery, Re-imaged OS" maxlength="1000"></textarea></div>
+                <div class="mb-3"><label class="form-label">Date</label><input type="date" name="maintenance_date" class="form-control" value="<?php echo date('Y-m-d'); ?>" required></div>
+                <div class="mb-3"><label class="form-label">External Vendor (Optional)</label><input type="text" name="vendor_name" class="form-control" placeholder="e.g. Dell Support, HP Technician" maxlength="100" pattern="[a-zA-Z0-9\s\-\.\,\(\)]+" title="Allowed: Alphanumeric and basic punctuation" oninput="this.value = this.value.replace(/[^a-zA-Z0-9\s\-\.\,\(\)]/g, '')"></div>
+                <div class="mb-3">
+                    <label class="form-label">Confirm Password</label>
+                    <div class="input-group">
+                        <input type="password" name="admin_password" id="add_admin_password" class="form-control" placeholder="Enter your account password to confirm" required maxlength="128">
+                        <button class="btn btn-outline-secondary" type="button" onclick="togglePass('add_admin_password')"><i class="bi bi-eye"></i></button>
+                    </div>
+                    <div class="form-text text-muted small"><i class="bi bi-shield-lock"></i> Required for security audit logging.</div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="submit" class="btn btn-success">Save Record</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- EDIT MODAL -->
+<div class="modal fade" id="editLogModal" tabindex="-1">
+    <div class="modal-dialog">
+        <form method="POST" class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title">Edit Maintenance Record</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" name="edit_log" value="1">
+                <input type="hidden" name="log_id" id="edit_log_id">
+                <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Employee</label>
+                    <select name="employee_id" id="edit_employee_id" class="form-select" required>
+                        <option value="">-- Select Employee --</option>
+                        <?php foreach ($emps as $e): ?>
+                            <option value="<?php echo $e['emp_id']; ?>"><?php echo htmlspecialchars($e['last_name'] . ', ' . $e['first_name']); ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div class="mb-3"><label class="form-label">Equipment</label><input type="text" name="equipment_type" id="edit_equipment_type" class="form-control" required maxlength="50" pattern="[a-zA-Z0-9\s\-\.\,\(\)]+" title="Allowed: Alphanumeric and basic punctuation" oninput="this.value = this.value.replace(/[^a-zA-Z0-9\s\-\.\,\(\)]/g, '')"></div>
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Status</label>
+                    <select name="status" id="edit_status" class="form-select" required>
+                        <option value="Pending">Pending</option>
+                        <option value="Resolved">Resolved</option>
+                    </select>
+                </div>
+                <div class="mb-3"><label class="form-label">Issue</label><input type="text" name="issue" id="edit_issue" class="form-control" required maxlength="255" pattern="[a-zA-Z0-9\s\-\.\,\(\)]+" title="Allowed: Alphanumeric and basic punctuation" oninput="this.value = this.value.replace(/[^a-zA-Z0-9\s\-\.\,\(\)]/g, '')"></div>
+                <div class="mb-3"><label class="form-label">Action Taken</label><textarea name="action_taken" id="edit_action_taken" class="form-control" rows="2" maxlength="1000"></textarea></div>
+                <div class="mb-3"><label class="form-label">Date</label><input type="date" name="maintenance_date" id="edit_maintenance_date" class="form-control" required></div>
+                <div class="mb-3"><label class="form-label">External Vendor (Optional)</label><input type="text" name="vendor_name" id="edit_vendor_name" class="form-control" maxlength="100" pattern="[a-zA-Z0-9\s\-\.\,\(\)]+" title="Allowed: Alphanumeric and basic punctuation" oninput="this.value = this.value.replace(/[^a-zA-Z0-9\s\-\.\,\(\)]/g, '')"></div>
+                <div class="mb-3">
+                    <label class="form-label">Confirm Password</label>
+                    <div class="input-group">
+                        <input type="password" name="admin_password" id="edit_admin_password" class="form-control" placeholder="Enter your account password to confirm" required maxlength="128">
+                        <button class="btn btn-outline-secondary" type="button" onclick="togglePass('edit_admin_password')"><i class="bi bi-eye"></i></button>
+                    </div>
+                    <div class="form-text text-muted small"><i class="bi bi-shield-lock"></i> Required for security audit logging.</div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="submit" class="btn btn-primary">Save Changes</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- AUDIT TRAIL MODAL (MHI Compliance) -->
+<div class="modal fade" id="auditModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header bg-dark text-white">
+                <h5 class="modal-title"><i class="bi bi-shield-lock"></i> Supply Chain Audit Log</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-0 table-responsive">
+                <table class="table table-striped table-sm mb-0 small">
+                    <thead class="table-secondary sticky-top">
+                        <tr>
+                            <th>Time</th>
+                            <th>User</th>
+                            <th>Action</th>
+                            <th>Details / Target</th>
+                            <th>IP Address</th>
                         </tr>
                     </thead>
                     <tbody>
-                        <?php foreach ($logs as $log): ?>
+                        <?php foreach ($auditLogs as $log): ?>
                             <tr>
-                                <td><?php echo date('M d, Y', strtotime($log['maintenance_date'])); ?></td>
-                                <td>
-                                    <strong><?php echo htmlspecialchars($log['last_name'] . ', ' . $log['first_name']); ?></strong>
-                                    <br><small class="text-muted"><?php echo htmlspecialchars($log['employee_id']); ?></small>
+                                <td><?php echo date('M d H:i', strtotime($log['created_at'])); ?></td>
+                                <td class="fw-bold"><?php echo htmlspecialchars($log['username'] ?? 'System'); ?></td>
+                                <td><?php echo htmlspecialchars($log['action']); ?></td>
+                                <td class="text-muted text-truncate" style="max-width: 200px;" title="<?php echo htmlspecialchars($log['details']); ?>">
+                                    <?php echo htmlspecialchars($log['details']); ?>
                                 </td>
-                                <td><span class="badge bg-dark"><?php echo htmlspecialchars($log['equipment_type']); ?></span></td>
-                                <td>
-                                    <?php
-                                    $status_class = $log['status'] === 'Resolved' ? 'bg-success' : 'bg-warning text-dark';
-                                    ?>
-                                    <span class="badge <?php echo $status_class; ?>"><?php echo htmlspecialchars($log['status']); ?></span>
-                                </td>
-                                <td><?php echo htmlspecialchars($log['issue']); ?></td>
-                                <td><?php echo htmlspecialchars($log['action_taken']); ?></td>
-                                <td class="small text-muted"><?php echo htmlspecialchars($log['performed_by']); ?></td>
-                                <td class="small text-info"><?php echo htmlspecialchars($log['vendor_name'] ?? 'Internal'); ?></td>
-                                <td class="text-end">
-                                    <button type="button" class="btn btn-sm btn-outline-primary me-1" onclick='openEditModal(<?php echo htmlspecialchars(json_encode($log), ENT_QUOTES, 'UTF-8'); ?>)' title="Edit"><i class="bi bi-pencil-square"></i></button>
-                                    <form method="POST" onsubmit="return confirm('Are you sure you want to delete this log?');" class="d-inline">
-                                        <input type="hidden" name="delete_log" value="1">
-                                        <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
-                                        <input type="hidden" name="log_id" value="<?php echo $log['id']; ?>">
-                                        <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete"><i class="bi bi-trash"></i></button>
-                                    </form>
-                                </td>
+                                <td><?php echo htmlspecialchars($log['ip']); ?></td>
                             </tr>
                         <?php endforeach; ?>
-                        <?php if (empty($logs)): ?>
-                            <tr>
-                                <td colspan="9" class="text-center p-4 text-muted">No maintenance records found.</td>
-                            </tr>
-                        <?php endif; ?>
                     </tbody>
                 </table>
             </div>
-        </div>
-    </div>
-
-    <!-- ADD MODAL -->
-    <div class="modal fade" id="addLogModal" tabindex="-1">
-        <div class="modal-dialog">
-            <form method="POST" class="modal-content">
-                <div class="modal-header bg-success text-white">
-                    <h5 class="modal-title">Record Maintenance</h5>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body">
-                    <input type="hidden" name="add_log" value="1">
-                    <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
-                    <div class="mb-3">
-                        <label class="form-label fw-bold">Employee</label>
-                        <select name="employee_id" class="form-select" required>
-                            <option value="">-- Select Employee --</option>
-                            <?php foreach ($emps as $e): ?>
-                                <option value="<?php echo $e['emp_id']; ?>"><?php echo htmlspecialchars($e['last_name'] . ', ' . $e['first_name']); ?></option>
-                            <?php endforeach; ?>
-                        </select>
-                    </div>
-                    <div class="mb-3"><label class="form-label">Equipment</label><input type="text" name="equipment_type" class="form-control" placeholder="e.g. Laptop Dell Latitude" required maxlength="50" pattern="[a-zA-Z0-9\s\-\.\,\(\)]+" title="Allowed: Alphanumeric and basic punctuation" oninput="this.value = this.value.replace(/[^a-zA-Z0-9\s\-\.\,\(\)]/g, '')"></div>
-                    <div class="mb-3"><label class="form-label">Issue</label><input type="text" name="issue" class="form-control" placeholder="e.g. Slow performance, Battery replacement" required maxlength="255" pattern="[a-zA-Z0-9\s\-\.\,\(\)]+" title="Allowed: Alphanumeric and basic punctuation" oninput="this.value = this.value.replace(/[^a-zA-Z0-9\s\-\.\,\(\)]/g, '')"></div>
-                    <div class="mb-3"><label class="form-label">Action Taken</label><textarea name="action_taken" class="form-control" rows="2" placeholder="e.g. Replaced battery, Re-imaged OS" maxlength="1000"></textarea></div>
-                    <div class="mb-3"><label class="form-label">Date</label><input type="date" name="maintenance_date" class="form-control" value="<?php echo date('Y-m-d'); ?>" required></div>
-                    <div class="mb-3"><label class="form-label">External Vendor (Optional)</label><input type="text" name="vendor_name" class="form-control" placeholder="e.g. Dell Support, HP Technician" maxlength="100" pattern="[a-zA-Z0-9\s\-\.\,\(\)]+" title="Allowed: Alphanumeric and basic punctuation" oninput="this.value = this.value.replace(/[^a-zA-Z0-9\s\-\.\,\(\)]/g, '')"></div>
-                    <div class="mb-3">
-                        <label class="form-label">Confirm Password</label>
-                        <div class="input-group">
-                            <input type="password" name="admin_password" id="add_admin_password" class="form-control" placeholder="Enter your account password to confirm" required maxlength="128">
-                            <button class="btn btn-outline-secondary" type="button" onclick="togglePass('add_admin_password')"><i class="bi bi-eye"></i></button>
-                        </div>
-                        <div class="form-text text-muted small"><i class="bi bi-shield-lock"></i> Required for security audit logging.</div>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="submit" class="btn btn-success">Save Record</button>
-                </div>
-            </form>
-        </div>
-    </div>
-
-    <!-- EDIT MODAL -->
-    <div class="modal fade" id="editLogModal" tabindex="-1">
-        <div class="modal-dialog">
-            <form method="POST" class="modal-content">
-                <div class="modal-header bg-primary text-white">
-                    <h5 class="modal-title">Edit Maintenance Record</h5>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body">
-                    <input type="hidden" name="edit_log" value="1">
-                    <input type="hidden" name="log_id" id="edit_log_id">
-                    <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
-                    <div class="mb-3">
-                        <label class="form-label fw-bold">Employee</label>
-                        <select name="employee_id" id="edit_employee_id" class="form-select" required>
-                            <option value="">-- Select Employee --</option>
-                            <?php foreach ($emps as $e): ?>
-                                <option value="<?php echo $e['emp_id']; ?>"><?php echo htmlspecialchars($e['last_name'] . ', ' . $e['first_name']); ?></option>
-                            <?php endforeach; ?>
-                        </select>
-                    </div>
-                    <div class="mb-3"><label class="form-label">Equipment</label><input type="text" name="equipment_type" id="edit_equipment_type" class="form-control" required maxlength="50" pattern="[a-zA-Z0-9\s\-\.\,\(\)]+" title="Allowed: Alphanumeric and basic punctuation" oninput="this.value = this.value.replace(/[^a-zA-Z0-9\s\-\.\,\(\)]/g, '')"></div>
-                    <div class="mb-3">
-                        <label class="form-label fw-bold">Status</label>
-                        <select name="status" id="edit_status" class="form-select" required>
-                            <option value="Pending">Pending</option>
-                            <option value="Resolved">Resolved</option>
-                        </select>
-                    </div>
-                    <div class="mb-3"><label class="form-label">Issue</label><input type="text" name="issue" id="edit_issue" class="form-control" required maxlength="255" pattern="[a-zA-Z0-9\s\-\.\,\(\)]+" title="Allowed: Alphanumeric and basic punctuation" oninput="this.value = this.value.replace(/[^a-zA-Z0-9\s\-\.\,\(\)]/g, '')"></div>
-                    <div class="mb-3"><label class="form-label">Action Taken</label><textarea name="action_taken" id="edit_action_taken" class="form-control" rows="2" maxlength="1000"></textarea></div>
-                    <div class="mb-3"><label class="form-label">Date</label><input type="date" name="maintenance_date" id="edit_maintenance_date" class="form-control" required></div>
-                    <div class="mb-3"><label class="form-label">External Vendor (Optional)</label><input type="text" name="vendor_name" id="edit_vendor_name" class="form-control" maxlength="100" pattern="[a-zA-Z0-9\s\-\.\,\(\)]+" title="Allowed: Alphanumeric and basic punctuation" oninput="this.value = this.value.replace(/[^a-zA-Z0-9\s\-\.\,\(\)]/g, '')"></div>
-                    <div class="mb-3">
-                        <label class="form-label">Confirm Password</label>
-                        <div class="input-group">
-                            <input type="password" name="admin_password" id="edit_admin_password" class="form-control" placeholder="Enter your account password to confirm" required maxlength="128">
-                            <button class="btn btn-outline-secondary" type="button" onclick="togglePass('edit_admin_password')"><i class="bi bi-eye"></i></button>
-                        </div>
-                        <div class="form-text text-muted small"><i class="bi bi-shield-lock"></i> Required for security audit logging.</div>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="submit" class="btn btn-primary">Save Changes</button>
-                </div>
-            </form>
-        </div>
-    </div>
-
-    <!-- AUDIT TRAIL MODAL (MHI Compliance) -->
-    <div class="modal fade" id="auditModal" tabindex="-1">
-        <div class="modal-dialog modal-lg modal-dialog-scrollable">
-            <div class="modal-content">
-                <div class="modal-header bg-dark text-white">
-                    <h5 class="modal-title"><i class="bi bi-shield-lock"></i> Supply Chain Audit Log</h5>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body p-0 table-responsive">
-                    <table class="table table-striped table-sm mb-0 small">
-                        <thead class="table-secondary sticky-top">
-                            <tr>
-                                <th>Time</th>
-                                <th>User</th>
-                                <th>Action</th>
-                                <th>Details / Target</th>
-                                <th>IP Address</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php foreach ($auditLogs as $log): ?>
-                                <tr>
-                                    <td><?php echo date('M d H:i', strtotime($log['created_at'])); ?></td>
-                                    <td class="fw-bold"><?php echo htmlspecialchars($log['username'] ?? 'System'); ?></td>
-                                    <td><?php echo htmlspecialchars($log['action']); ?></td>
-                                    <td class="text-muted text-truncate" style="max-width: 200px;" title="<?php echo htmlspecialchars($log['details']); ?>">
-                                        <?php echo htmlspecialchars($log['details']); ?>
-                                    </td>
-                                    <td><?php echo htmlspecialchars($log['ip']); ?></td>
-                                </tr>
-                            <?php endforeach; ?>
-                        </tbody>
-                    </table>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
             </div>
         </div>
     </div>
+</div>
 
-    <script src="assets/bootstrap.bundle.min.js"></script>
-    <script>
-        function openEditModal(data) {
-            const modal = new bootstrap.Modal(document.getElementById('editLogModal'));
-            document.getElementById('edit_log_id').value = data.id;
-            document.getElementById('edit_employee_id').value = data.employee_id;
-            document.getElementById('edit_equipment_type').value = data.equipment_type;
-            document.getElementById('edit_status').value = data.status;
-            document.getElementById('edit_issue').value = data.issue;
-            document.getElementById('edit_action_taken').value = data.action_taken;
-            document.getElementById('edit_maintenance_date').value = data.maintenance_date;
-            document.getElementById('edit_vendor_name').value = data.vendor_name || '';
-            document.getElementById('edit_admin_password').value = '';
-            modal.show();
-        }
+<script src="assets/bootstrap.bundle.min.js"></script>
+<script>
+    function openEditModal(data) {
+        const modal = new bootstrap.Modal(document.getElementById('editLogModal'));
+        document.getElementById('edit_log_id').value = data.id;
+        document.getElementById('edit_employee_id').value = data.employee_id;
+        document.getElementById('edit_equipment_type').value = data.equipment_type;
+        document.getElementById('edit_status').value = data.status;
+        document.getElementById('edit_issue').value = data.issue;
+        document.getElementById('edit_action_taken').value = data.action_taken;
+        document.getElementById('edit_maintenance_date').value = data.maintenance_date;
+        document.getElementById('edit_vendor_name').value = data.vendor_name || '';
+        document.getElementById('edit_admin_password').value = '';
+        modal.show();
+    }
 
-        function togglePass(id) {
-            const input = document.getElementById(id);
-            const icon = input.nextElementSibling.querySelector('i');
-            if (input.type === 'password') {
-                input.type = 'text';
-                icon.classList.replace('bi-eye', 'bi-eye-slash');
-            } else {
-                input.type = 'password';
-                icon.classList.replace('bi-eye-slash', 'bi-eye');
-            }
+    function togglePass(id) {
+        const input = document.getElementById(id);
+        const icon = input.nextElementSibling.querySelector('i');
+        if (input.type === 'password') {
+            input.type = 'text';
+            icon.classList.replace('bi-eye', 'bi-eye-slash');
+        } else {
+            input.type = 'password';
+            icon.classList.replace('bi-eye-slash', 'bi-eye');
         }
-    </script>
-    <script src="dark_mode.js"></script>
+    }
+</script>
 </body>
 
 </html>

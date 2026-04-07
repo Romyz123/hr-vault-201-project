@@ -202,6 +202,44 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $msg = "🗑️ Bulk Deleted $count orphaned files.";
     }
 
+    // --- [NEW] REASSIGN GHOST DOCUMENT ---
+    if (isset($_POST['reassign_ghost'])) {
+        $docId = (int)$_POST['doc_id'];
+        $targetEmpId = trim($_POST['target_emp_id']);
+
+        if ($docId <= 0 || empty($targetEmpId)) {
+            $msg = "❌ Invalid reassignment data.";
+        } else {
+            // [SECURITY] Validate target employee exists and isn't soft-deleted
+            $stmt = $pdo->prepare("SELECT id FROM employees WHERE emp_id = ? AND deleted_at IS NULL");
+            $stmt->execute([$targetEmpId]);
+            if (!$stmt->fetch()) {
+                $msg = "❌ Target Employee ID '$targetEmpId' not found or is currently in Recycle Bin.";
+            } else {
+                $stmt = $pdo->prepare("UPDATE documents SET employee_id = ? WHERE id = ?");
+                if ($stmt->execute([$targetEmpId, $docId])) {
+                    $msg = "✅ Document reassigned to $targetEmpId successfully.";
+                    $logger->log($_SESSION['user_id'], 'REASSIGN_GHOST', "Reassigned Ghost Doc ID $docId to $targetEmpId");
+                }
+            }
+        }
+    }
+
+    // --- [NEW] ARCHIVE GHOST DOCUMENT ---
+    if (isset($_POST['archive_ghost'])) {
+        $docId = (int)$_POST['doc_id'];
+        if ($docId <= 0) {
+            $msg = "❌ Invalid document ID.";
+        } else {
+            // Move to a safe placeholder ID to remove from main compliance radar
+            $stmt = $pdo->prepare("UPDATE documents SET employee_id = 'ORPHANED_ARCHIVE', description = CONCAT(COALESCE(description, ''), ' [Moved to Orphan Archive]') WHERE id = ?");
+            if ($stmt->execute([$docId])) {
+                $msg = "📂 Document moved to Orphaned Archive.";
+                $logger->log($_SESSION['user_id'], 'ARCHIVE_GHOST', "Moved Ghost Doc ID $docId to ORPHANED_ARCHIVE");
+            }
+        }
+    }
+
     // --- DELETE DUPLICATE RECORD ---
     if (isset($_POST['delete_duplicate'])) {
         // [FIX] Cast to int for security
@@ -789,7 +827,7 @@ $ghostRecords = [];
 $ghostSql = "SELECT d.id, d.original_name, d.employee_id, d.file_path 
              FROM documents d 
              LEFT JOIN employees e ON TRIM(d.employee_id) = TRIM(e.emp_id) 
-             WHERE e.id IS NULL AND d.employee_id != 'RECOVERED'";
+             WHERE e.id IS NULL AND d.employee_id NOT IN ('RECOVERED', 'ORPHANED_ARCHIVE')";
 $ghostRecords = $pdo->query($ghostSql)->fetchAll(PDO::FETCH_ASSOC);
 
 // 7. SCAN FOR DUPLICATE UPLOADS (Same Employee, Same Name, Same Category)
@@ -815,562 +853,585 @@ $bkVaultSetting = $pdo->query("SELECT setting_value FROM system_settings WHERE s
 $vaultChecked = ($bkVaultSetting === '1') ? 'checked' : '';
 $bkMaxSize = $pdo->query("SELECT setting_value FROM system_settings WHERE setting_key = 'backup_max_size_gb'")->fetchColumn() ?: '1.9';
 ?>
+<?php include 'header.php'; ?>
 
-<!DOCTYPE html>
-<html lang="en">
+<div class="container">
 
-<head>
-    <meta charset="UTF-8">
-    <title>System Recovery Console</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <link rel="icon" href="uploads/tesp-logo.png" type="image/png">
-    <link href="assets/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="assets/icons/bootstrap-icons.css">
-</head>
+    <!-- [NEW] GHOST RECOVERY FORMS -->
+    <form id="reassignGhostForm" method="POST" style="display:none;">
+        <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
+        <input type="hidden" name="reassign_ghost" value="1">
+        <input type="hidden" name="doc_id" id="reassignDocId">
+        <input type="hidden" name="target_emp_id" id="reassignTargetId">
+    </form>
 
-<body class="bg-body-tertiary">
+    <form id="archiveGhostForm" method="POST" style="display:none;">
+        <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
+        <input type="hidden" name="archive_ghost" value="1">
+        <input type="hidden" name="doc_id" id="archiveDocId">
+    </form>
 
-    <nav class="navbar navbar-dark bg-danger mb-4">
-        <div class="container">
-            <a class="navbar-brand" href="manager_user.php">⬅ Back to User Manager</a>
-            <div class="d-flex align-items-center gap-2">
-                <button type="button" class="btn btn-sm btn-outline-light fw-bold" onclick="downloadRestorationGuide()"><i class="bi bi-file-earmark-text"></i> Restoration Guide</button>
-                <button id="darkModeToggle" class="btn btn-sm btn-outline-light border-0" title="Toggle Dark Mode">
-                    <i class="bi bi-moon-stars-fill"></i>
-                </button>
-                <span class="navbar-text text-white fw-bold"><i class="bi bi-tools"></i> System Recovery Console</span>
-                <span class="navbar-text text-white-50 ms-3 font-monospace small"><i class="bi bi-clock"></i> <span id="sessionTimer"></span></span>
-            </div>
+    <?php if ($msg): ?>
+        <div class="alert alert-info alert-dismissible fade show">
+            <?php echo htmlspecialchars($msg); ?>
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
         </div>
-    </nav>
+    <?php endif; ?>
 
-    <div class="container">
+    <ul class="nav nav-tabs mb-4" id="recoveryTabs">
+        <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#orphans">👻 Orphaned Files (<?php echo count($orphans); ?>)</button></li>
+        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#deleted">🗑️ Deleted Employees (<?php echo count($deletedEmployees); ?>)</button></li>
+        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#broken">⚠️ Broken Links (<?php echo count($brokenLinks); ?>)</button></li>
+        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#ghosts">🧟 Ghost Records (<?php echo count($ghostRecords); ?>)</button></li>
+        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#duplicates">👯 Duplicates (<?php echo count($duplicates); ?>)</button></li>
+        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#compress">🗜️ Storage Optimization</button></li>
+    </ul>
 
-        <?php if ($msg): ?>
-            <div class="alert alert-info alert-dismissible fade show">
-                <?php echo htmlspecialchars($msg); ?>
-                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    <div class="tab-content">
+
+        <!-- ORPHANED FILES TAB -->
+        <div class="tab-pane fade show active" id="orphans">
+            <div class="alert alert-info d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-info-circle-fill"></i> <strong>Master Sync:</strong> Run this to fix dashboard counts and clean the vault in one go.</span>
+                <form method="POST" onsubmit="return confirm('WARNING: This will delete ALL orphaned files and broken database records. Ensure you have a backup first. Proceed?');">
+                    <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
+                    <button type="submit" name="master_sync" class="btn btn-primary fw-bold"><i class="bi bi-arrow-repeat"></i> Run Master Sync</button>
+                </form>
             </div>
-        <?php endif; ?>
 
-        <ul class="nav nav-tabs mb-4" id="recoveryTabs">
-            <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#orphans">👻 Orphaned Files (<?php echo count($orphans); ?>)</button></li>
-            <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#deleted">🗑️ Deleted Employees (<?php echo count($deletedEmployees); ?>)</button></li>
-            <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#broken">⚠️ Broken Links (<?php echo count($brokenLinks); ?>)</button></li>
-            <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#ghosts">🧟 Ghost Records (<?php echo count($ghostRecords); ?>)</button></li>
-            <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#duplicates">👯 Duplicates (<?php echo count($duplicates); ?>)</button></li>
-            <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#compress">🗜️ Storage Optimization</button></li>
-        </ul>
-
-        <div class="tab-content">
-
-            <!-- ORPHANED FILES TAB -->
-            <div class="tab-pane fade show active" id="orphans">
-                <div class="alert alert-info d-flex justify-content-between align-items-center">
-                    <span><i class="bi bi-info-circle-fill"></i> <strong>Master Sync:</strong> Run this to fix dashboard counts and clean the vault in one go.</span>
-                    <form method="POST" onsubmit="return confirm('WARNING: This will delete ALL orphaned files and broken database records. Ensure you have a backup first. Proceed?');">
-                        <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
-                        <button type="submit" name="master_sync" class="btn btn-primary fw-bold"><i class="bi bi-arrow-repeat"></i> Run Master Sync</button>
-                    </form>
+            <div class="card shadow-sm">
+                <div class="card-header bg-warning text-dark">
+                    <i class="bi bi-file-earmark-x"></i> <strong>Orphaned Files</strong>
+                    <small class="d-block text-muted">Files on server but missing from database.</small>
+                    <?php if (!empty($orphans)): ?>
+                        <div class="mt-2">
+                            <button type="button" onclick="submitBulkOrphans()" class="btn btn-sm btn-danger fw-bold me-2">🗑️ Delete Selected</button>
+                            <form method="POST" class="d-inline" onsubmit="return confirm('WARNING: This will permanently delete ALL listed orphaned files. This cannot be undone. Proceed?');">
+                                <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
+                                <input type="hidden" name="orphan_list" value="<?php echo htmlspecialchars(json_encode(array_column($orphans, 'name'))); ?>">
+                                <button type="submit" name="delete_all_orphans" class="btn btn-sm btn-outline-danger">Delete ALL</button>
+                            </form>
+                        </div>
+                    <?php endif; ?>
                 </div>
-
-                <div class="card shadow-sm">
-                    <div class="card-header bg-warning text-dark">
-                        <i class="bi bi-file-earmark-x"></i> <strong>Orphaned Files</strong>
-                        <small class="d-block text-muted">Files on server but missing from database.</small>
-                        <?php if (!empty($orphans)): ?>
-                            <div class="mt-2">
-                                <button type="button" onclick="submitBulkOrphans()" class="btn btn-sm btn-danger fw-bold me-2">🗑️ Delete Selected</button>
-                                <form method="POST" class="d-inline" onsubmit="return confirm('WARNING: This will permanently delete ALL listed orphaned files. This cannot be undone. Proceed?');">
-                                    <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
-                                    <input type="hidden" name="orphan_list" value="<?php echo htmlspecialchars(json_encode(array_column($orphans, 'name'))); ?>">
-                                    <button type="submit" name="delete_all_orphans" class="btn btn-sm btn-outline-danger">Delete ALL</button>
-                                </form>
-                            </div>
-                        <?php endif; ?>
-                    </div>
-                    <div class="card-body p-0 table-responsive">
-                        <table class="table table-hover mb-0">
-                            <thead class="table-light">
+                <div class="card-body p-0 table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th style="width: 40px;"><input type="checkbox" class="form-check-input" id="selectAllOrphans"></th>
+                                <th>Filename</th>
+                                <th>Size</th>
+                                <th>Date Modified</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php if (empty($orphans)): ?>
                                 <tr>
-                                    <th style="width: 40px;"><input type="checkbox" class="form-check-input" id="selectAllOrphans"></th>
-                                    <th>Filename</th>
-                                    <th>Size</th>
-                                    <th>Date Modified</th>
-                                    <th>Action</th>
+                                    <td colspan="5" class="text-center p-4 text-muted">✅ No orphaned files found. System is in sync.</td>
                                 </tr>
-                            </thead>
-                            <tbody>
-                                <?php if (empty($orphans)): ?>
+                            <?php else: ?>
+                                <?php foreach ($orphans as $o): ?>
                                     <tr>
-                                        <td colspan="5" class="text-center p-4 text-muted">✅ No orphaned files found. System is in sync.</td>
-                                    </tr>
-                                <?php else: ?>
-                                    <?php foreach ($orphans as $o): ?>
-                                        <tr>
-                                            <td><input type="checkbox" value="<?php echo htmlspecialchars($o['name']); ?>" class="form-check-input orphan-checkbox"></td>
-                                            <td class="font-monospace small"><?php echo htmlspecialchars($o['name']); ?></td>
-                                            <td><?php echo $o['size']; ?></td>
-                                            <td><?php echo $o['date']; ?></td>
-                                            <td>
-                                                <form method="POST">
-                                                    <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
-                                                    <input type="hidden" name="filename" value="<?php echo htmlspecialchars($o['name']); ?>">
-                                                    <?php if (strpos($o['name'], 'uploads/') === false): ?>
-                                                        <button type="submit" name="recover_file" class="btn btn-sm btn-success">
-                                                            <i class="bi bi-recycle"></i> Recover to DB
-                                                        </button>
-                                                    <?php endif; ?>
-                                                    <button type="submit" name="delete_orphan" class="btn btn-sm btn-danger ms-1" onclick="return confirm('Permanently delete this file? This cannot be undone.');">
-                                                        <i class="bi bi-trash"></i> Delete
+                                        <td><input type="checkbox" value="<?php echo htmlspecialchars($o['name']); ?>" class="form-check-input orphan-checkbox"></td>
+                                        <td class="font-monospace small"><?php echo htmlspecialchars($o['name']); ?></td>
+                                        <td><?php echo $o['size']; ?></td>
+                                        <td><?php echo $o['date']; ?></td>
+                                        <td>
+                                            <form method="POST">
+                                                <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
+                                                <input type="hidden" name="filename" value="<?php echo htmlspecialchars($o['name']); ?>">
+                                                <?php if (strpos($o['name'], 'uploads/') === false): ?>
+                                                    <button type="submit" name="recover_file" class="btn btn-sm btn-success">
+                                                        <i class="bi bi-recycle"></i> Recover to DB
                                                     </button>
-                                                </form>
-                                            </td>
-                                        </tr>
-                                    <?php endforeach; ?>
-                                <?php endif; ?>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-
-            <!-- DELETED EMPLOYEES TAB -->
-            <div class="tab-pane fade" id="deleted">
-                <div class="card shadow-sm">
-                    <div class="card-header bg-secondary text-white">
-                        <i class="bi bi-person-x"></i> <strong>Recycle Bin: Employees</strong>
-                        <small class="d-block text-light">Restore employees or permanently delete them (including files).</small>
-                    </div>
-                    <div class="card-body p-0 table-responsive">
-                        <table class="table table-hover mb-0 align-middle">
-                            <thead>
-                                <tr>
-                                    <th>Date Deleted</th>
-                                    <th>Name</th>
-                                    <th>ID</th>
-                                    <th>Department</th>
-                                    <th>Deleted By</th>
-                                    <th class="text-end">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <?php foreach ($deletedEmployees as $emp): ?>
-                                    <tr>
-                                        <td><?php echo date('M d, Y h:i A', strtotime($emp['deleted_at'])); ?></td>
-                                        <td class="fw-bold"><?php echo htmlspecialchars($emp['last_name'] . ', ' . $emp['first_name']); ?></td>
-                                        <td><?php echo htmlspecialchars($emp['emp_id']); ?></td>
-                                        <td><?php echo htmlspecialchars($emp['dept']); ?></td>
-                                        <td><span class="badge bg-secondary"><?php echo htmlspecialchars($emp['deleted_by_user'] ?? 'Unknown'); ?></span></td>
-                                        <td class="text-end">
-                                            <form method="POST" class="d-inline">
-                                                <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
-                                                <input type="hidden" name="emp_id" value="<?php echo $emp['id']; ?>">
-                                                <button type="submit" name="restore_employee" class="btn btn-sm btn-success"><i class="bi bi-arrow-counterclockwise"></i> Restore</button>
-                                            </form>
-                                            <form method="POST" class="d-inline" onsubmit="return confirm('⚠️ PERMANENTLY DELETE? This will wipe the database record AND all uploaded files. This cannot be undone.');">
-                                                <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
-                                                <input type="hidden" name="emp_id" value="<?php echo $emp['id']; ?>">
-                                                <input type="hidden" name="emp_id_str" value="<?php echo htmlspecialchars($emp['emp_id']); ?>">
-                                                <button type="submit" name="permanent_delete_employee" class="btn btn-sm btn-outline-danger ms-1"><i class="bi bi-x-lg"></i> Delete Forever</button>
+                                                <?php endif; ?>
+                                                <button type="submit" name="delete_orphan" class="btn btn-sm btn-danger ms-1" onclick="return confirm('Permanently delete this file? This cannot be undone.');">
+                                                    <i class="bi bi-trash"></i> Delete
+                                                </button>
                                             </form>
                                         </td>
                                     </tr>
                                 <?php endforeach; ?>
-                                <?php if (empty($deletedEmployees)): ?>
-                                    <tr>
-                                        <td colspan="5" class="text-center p-4 text-muted">No deleted employees found.</td>
-                                    </tr>
-                                <?php endif; ?>
-                            </tbody>
-                        </table>
-                    </div>
+                            <?php endif; ?>
+                        </tbody>
+                    </table>
                 </div>
             </div>
+        </div>
 
-            <!-- BROKEN LINKS TAB -->
-            <div class="tab-pane fade" id="broken">
-                <div class="card shadow-sm">
-                    <div class="card-header bg-danger text-white">
-                        <i class="bi bi-link-45deg"></i> <strong>Broken Database Links</strong>
-                        <small class="d-block text-white-50">These records exist in the database, but the actual files are missing from the server. This causes incorrect charts.</small>
-                        <?php if (!empty($brokenLinks)): ?>
-                            <form method="POST" class="mt-2" onsubmit="return confirm('This will delete these records from the database to fix your charts. Proceed?');">
-                                <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
-                                <input type="hidden" name="broken_list" value="<?php echo htmlspecialchars(json_encode(array_column($brokenLinks, 'id'))); ?>">
-                                <button type="submit" name="prune_broken_links" class="btn btn-sm btn-light text-danger fw-bold">🧹 Prune Database Records</button>
-                            </form>
-                        <?php endif; ?>
-                    </div>
-                    <div class="card-body p-0 table-responsive">
-                        <table class="table table-hover mb-0">
-                            <thead class="table-light">
+        <!-- DELETED EMPLOYEES TAB -->
+        <div class="tab-pane fade" id="deleted">
+            <div class="card shadow-sm">
+                <div class="card-header bg-secondary text-white">
+                    <i class="bi bi-person-x"></i> <strong>Recycle Bin: Employees</strong>
+                    <small class="d-block text-light">Restore employees or permanently delete them (including files).</small>
+                </div>
+                <div class="card-body p-0 table-responsive">
+                    <table class="table table-hover mb-0 align-middle">
+                        <thead>
+                            <tr>
+                                <th>Date Deleted</th>
+                                <th>Name</th>
+                                <th>ID</th>
+                                <th>Department</th>
+                                <th>Deleted By</th>
+                                <th class="text-end">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($deletedEmployees as $emp): ?>
                                 <tr>
-                                    <th>Document Name</th>
-                                    <th>Category</th>
-                                    <th>Missing File Path</th>
-                                    <th>Action</th>
+                                    <td><?php echo date('M d, Y h:i A', strtotime($emp['deleted_at'])); ?></td>
+                                    <td class="fw-bold"><?php echo htmlspecialchars($emp['last_name'] . ', ' . $emp['first_name']); ?></td>
+                                    <td><?php echo htmlspecialchars($emp['emp_id']); ?></td>
+                                    <td><?php echo htmlspecialchars($emp['dept']); ?></td>
+                                    <td><span class="badge bg-secondary"><?php echo htmlspecialchars($emp['deleted_by_user'] ?? 'Unknown'); ?></span></td>
+                                    <td class="text-end">
+                                        <form method="POST" class="d-inline">
+                                            <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
+                                            <input type="hidden" name="emp_id" value="<?php echo $emp['id']; ?>">
+                                            <button type="submit" name="restore_employee" class="btn btn-sm btn-success"><i class="bi bi-arrow-counterclockwise"></i> Restore</button>
+                                        </form>
+                                        <form method="POST" class="d-inline" onsubmit="return confirm('⚠️ PERMANENTLY DELETE? This will wipe the database record AND all uploaded files. This cannot be undone.');">
+                                            <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
+                                            <input type="hidden" name="emp_id" value="<?php echo $emp['id']; ?>">
+                                            <input type="hidden" name="emp_id_str" value="<?php echo htmlspecialchars($emp['emp_id']); ?>">
+                                            <button type="submit" name="permanent_delete_employee" class="btn btn-sm btn-outline-danger ms-1"><i class="bi bi-x-lg"></i> Delete Forever</button>
+                                        </form>
+                                    </td>
                                 </tr>
-                            </thead>
-                            <tbody>
-                                <?php if (empty($brokenLinks)): ?>
-                                    <tr>
-                                        <td colspan="4" class="text-center p-4 text-muted">✅ No broken links found. Database is consistent.</td>
-                                    </tr>
-                                <?php else: ?>
-                                    <?php foreach ($brokenLinks as $b): ?>
-                                        <tr>
-                                            <td class="fw-bold"><?php echo htmlspecialchars($b['original_name']); ?></td>
-                                            <td><span class="badge bg-secondary"><?php echo htmlspecialchars($b['category']); ?></span></td>
-                                            <td class="text-muted small font-monospace"><?php echo htmlspecialchars($b['file_path']); ?></td>
-                                            <td>
-                                                <form method="POST" onsubmit="return confirm('Delete this record?');">
-                                                    <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
-                                                    <input type="hidden" name="doc_id" value="<?php echo $b['id']; ?>">
-                                                    <button type="submit" name="delete_broken_link" class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
-                                                </form>
-                                            </td>
-                                        </tr>
-                                    <?php endforeach; ?>
-                                <?php endif; ?>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-
-            <!-- GHOST RECORDS TAB -->
-            <div class="tab-pane fade" id="ghosts">
-                <div class="card shadow-sm">
-                    <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
-                        <div>
-                            <i class="bi bi-person-dash"></i> <strong>Ghost Records</strong>
-                            <small class="d-block text-white-50">These documents exist, but the Employee they belong to has been deleted.</small>
-                        </div>
-                        <?php if (!empty($ghostRecords)): ?>
-                            <button type="button" onclick="submitPruneGhosts()" class="btn btn-sm btn-danger fw-bold">🧟 Prune Selected</button>
-                        <?php endif; ?>
-                    </div>
-                    <div class="card-body p-0 table-responsive">
-                        <table class="table table-hover mb-0">
-                            <thead class="table-light">
+                            <?php endforeach; ?>
+                            <?php if (empty($deletedEmployees)): ?>
                                 <tr>
-                                    <th style="width: 40px;"><input type="checkbox" class="form-check-input" id="selectAllGhosts"></th>
-                                    <th>Document Name</th>
-                                    <th>Missing Employee ID</th>
-                                    <th>File Path</th>
-                                    <th>Action</th>
+                                    <td colspan="5" class="text-center p-4 text-muted">No deleted employees found.</td>
                                 </tr>
-                            </thead>
-                            <tbody>
-                                <?php if (empty($ghostRecords)): ?>
-                                    <tr>
-                                        <td colspan="5" class="text-center p-4 text-muted">✅ No ghost records found.</td>
-                                    </tr>
-                                <?php else: ?>
-                                    <?php foreach ($ghostRecords as $g): ?>
-                                        <tr>
-                                            <td><input type="checkbox" value="<?php echo $g['id']; ?>" class="form-check-input ghost-checkbox"></td>
-                                            <td><?php echo htmlspecialchars($g['original_name']); ?></td>
-                                            <td><span class="badge bg-danger"><?php echo htmlspecialchars($g['employee_id']); ?></span></td>
-                                            <td class="text-muted small"><?php echo htmlspecialchars($g['file_path']); ?></td>
-                                            <td>
-                                                <form method="POST" class="d-inline">
-                                                    <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
-                                                    <input type="hidden" name="ghost_emp_id" value="<?php echo htmlspecialchars($g['employee_id']); ?>">
-                                                    <button type="submit" name="restore_ghost" class="btn btn-sm btn-outline-success" title="Attempt to restore from logs">
-                                                        <i class="bi bi-magic"></i> Restore
-                                                    </button>
-                                                </form>
-                                            </td>
-                                        </tr>
-                                    <?php endforeach; ?>
-                                <?php endif; ?>
-                            </tbody>
-                        </table>
-                    </div>
+                            <?php endif; ?>
+                        </tbody>
+                    </table>
                 </div>
             </div>
+        </div>
 
-            <!-- DUPLICATES TAB -->
-            <div class="tab-pane fade" id="duplicates">
-                <div class="card shadow-sm">
-                    <div class="card-header bg-info text-white">
-                        <i class="bi bi-files"></i> <strong>Duplicate Uploads</strong>
-                        <small class="d-block text-white-50">Documents with the same Name and Category for the same Employee.</small>
-                    </div>
-                    <div class="card-body p-0 table-responsive">
-                        <table class="table table-hover mb-0">
-                            <thead class="table-light">
-                                <tr>
-                                    <th>Employee</th>
-                                    <th>Document Name</th>
-                                    <th>Category</th>
-                                    <th>Uploaded At</th>
-                                    <th>Action</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <?php if (empty($duplicates)): ?>
-                                    <tr>
-                                        <td colspan="5" class="text-center p-4 text-muted">✅ No duplicate uploads found.</td>
-                                    </tr>
-                                <?php else: ?>
-                                    <?php foreach ($duplicates as $d): ?>
-                                        <tr>
-                                            <td>
-                                                <strong><?php echo htmlspecialchars($d['last_name'] . ', ' . $d['first_name']); ?></strong>
-                                                <br><small class="text-muted"><?php echo htmlspecialchars($d['employee_id']); ?></small>
-                                            </td>
-                                            <td class="fw-bold"><?php echo htmlspecialchars($d['original_name']); ?></td>
-                                            <td><span class="badge bg-secondary"><?php echo htmlspecialchars($d['category']); ?></span></td>
-                                            <td class="small"><?php echo $d['uploaded_at'] ? date('M d, Y h:i A', strtotime($d['uploaded_at'])) : 'Unknown'; ?></td>
-                                            <td>
-                                                <form method="POST" onsubmit="return confirm('Delete this duplicate?');">
-                                                    <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
-                                                    <input type="hidden" name="doc_id" value="<?php echo $d['id']; ?>">
-                                                    <button type="submit" name="delete_duplicate" class="btn btn-sm btn-danger"><i class="bi bi-trash"></i> Delete</button>
-                                                </form>
-                                            </td>
-                                        </tr>
-                                    <?php endforeach; ?>
-                                <?php endif; ?>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-
-            <!-- COMPRESS VAULT TAB -->
-            <div class="tab-pane fade" id="compress">
-                <div class="card shadow-sm border-warning">
-                    <div class="card-header bg-warning text-dark">
-                        <i class="bi bi-file-zip"></i> <strong>Compress & Archive Old Documents</strong>
-                        <small class="d-block text-muted">Move old, inactive documents out of the Vault into a highly compressed ZIP archive to save active disk space.</small>
-                    </div>
-                    <div class="card-body">
-                        <div class="alert alert-info small">
-                            <i class="bi bi-info-circle-fill"></i> <strong>How this works:</strong> This tool will package documents older than your selected timeframe into a ZIP file in the <code>backups/</code> folder. The original files will be deleted from the Vault, freeing up space, and their database records will be soft-deleted (moved to the Recycle Bin).
-                        </div>
-                        <form method="POST" onsubmit="return confirm('WARNING: This will remove old files from active employee profiles and archive them. This action is intended for saving disk space. Proceed?');">
+        <!-- BROKEN LINKS TAB -->
+        <div class="tab-pane fade" id="broken">
+            <div class="card shadow-sm">
+                <div class="card-header bg-danger text-white">
+                    <i class="bi bi-link-45deg"></i> <strong>Broken Database Links</strong>
+                    <small class="d-block text-white-50">These records exist in the database, but the actual files are missing from the server. This causes incorrect charts.</small>
+                    <?php if (!empty($brokenLinks)): ?>
+                        <form method="POST" class="mt-2" onsubmit="return confirm('This will delete these records from the database to fix your charts. Proceed?');">
                             <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
-                            <div class="row align-items-end">
-                                <div class="col-md-4">
-                                    <label class="form-label fw-bold">Age of Documents to Archive</label>
-                                    <select name="months_old" class="form-select">
-                                        <option value="12">Older than 1 Year (12 months)</option>
-                                        <option value="24">Older than 2 Years (24 months)</option>
-                                        <option value="36">Older than 3 Years (36 months)</option>
-                                        <option value="60">Older than 5 Years (60 months)</option>
-                                        <option value="6">Older than 6 Months</option>
-                                    </select>
-                                </div>
-                                <div class="col-md-4">
-                                    <button type="submit" name="archive_old_vault" class="btn btn-warning fw-bold w-100"><i class="bi bi-file-zip-fill"></i> Compress & Archive</button>
-                                </div>
-                            </div>
+                            <input type="hidden" name="broken_list" value="<?php echo htmlspecialchars(json_encode(array_column($brokenLinks, 'id'))); ?>">
+                            <button type="submit" name="prune_broken_links" class="btn btn-sm btn-light text-danger fw-bold">🧹 Prune Database Records</button>
                         </form>
-                    </div>
+                    <?php endif; ?>
+                </div>
+                <div class="card-body p-0 table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Document Name</th>
+                                <th>Category</th>
+                                <th>Missing File Path</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php if (empty($brokenLinks)): ?>
+                                <tr>
+                                    <td colspan="4" class="text-center p-4 text-muted">✅ No broken links found. Database is consistent.</td>
+                                </tr>
+                            <?php else: ?>
+                                <?php foreach ($brokenLinks as $b): ?>
+                                    <tr>
+                                        <td class="fw-bold"><?php echo htmlspecialchars($b['original_name']); ?></td>
+                                        <td><span class="badge bg-secondary"><?php echo htmlspecialchars($b['category']); ?></span></td>
+                                        <td class="text-muted small font-monospace"><?php echo htmlspecialchars($b['file_path']); ?></td>
+                                        <td>
+                                            <form method="POST" onsubmit="return confirm('Delete this record?');">
+                                                <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
+                                                <input type="hidden" name="doc_id" value="<?php echo $b['id']; ?>">
+                                                <button type="submit" name="delete_broken_link" class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
+                                            </form>
+                                        </td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            <?php endif; ?>
+                        </tbody>
+                    </table>
                 </div>
             </div>
-
         </div>
-    </div>
 
-    <!-- HIDDEN FORM FOR BULK PRUNE -->
-    <form id="pruneGhostsForm" method="POST" style="display:none;">
-        <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
-        <input type="hidden" name="prune_ghosts" value="1">
-        <input type="hidden" name="ghost_ids_json" id="hidden_ghost_ids">
-    </form>
-
-    <!-- HIDDEN FORM FOR BULK ORPHANS -->
-    <form id="bulkOrphansForm" method="POST" style="display:none;">
-        <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
-        <input type="hidden" name="bulk_delete_orphans" value="1">
-        <input type="hidden" name="orphan_list_json" id="hidden_orphan_list">
-    </form>
-
-    <!-- MODALS FOR BACKUP -->
-    <div class="modal fade" id="downloadBackupModal" tabindex="-1">
-        <div class="modal-dialog">
-            <form action="backup.php" method="POST" class="modal-content" onsubmit="showBackupLoader(this)">
-                <div class="modal-header">
-                    <h5 class="modal-title">Download Database Backup</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        <!-- GHOST RECORDS TAB -->
+        <div class="tab-pane fade" id="ghosts">
+            <div class="card shadow-sm">
+                <div class="card-header bg-danger text-white fw-bold">
+                    <i class="bi bi-exclamation-triangle"></i> Ghost Record Scanner
                 </div>
-                <div class="modal-body">
-                    <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
-                    <div class="form-check mb-3">
-                        <input class="form-check-input" type="checkbox" name="include_vault" value="1" id="dlVault" <?php echo $vaultChecked; ?>>
-                        <label class="form-check-label fw-bold" for="dlVault">Include Vault Files (Images/PDFs)</label>
-                        <div class="alert alert-warning small mb-0 mt-2 border-warning">
-                            <i class="bi bi-info-circle-fill"></i> <strong>Massive Data Reminder:</strong> If your backup exceeds the <strong><?php echo htmlspecialchars($bkMaxSize); ?> GB</strong> limit, the system will automatically split it into multiple volumes (Part 1, Part 2, etc.) and download them consecutively.
+                <div class="card-body py-2">
+                    <div class="small text-muted">Found <strong><?php echo count($ghostRecords); ?></strong> documents pointing to non-existent Employee IDs. Use the buttons below to reassign them to a valid profile or move them to the system archive.</div>
+                </div>
+                <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
+                    <div>
+                        <i class="bi bi-person-dash"></i> <strong>Ghost Records</strong>
+                        <small class="d-block text-white-50">These documents exist, but the Employee they belong to has been deleted.</small>
+                    </div>
+                    <?php if (!empty($ghostRecords)): ?>
+                        <button type="button" onclick="submitPruneGhosts()" class="btn btn-sm btn-danger fw-bold">🧟 Prune Selected</button>
+                    <?php endif; ?>
+                </div>
+                <div class="card-body p-0 table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th style="width: 40px;"><input type="checkbox" class="form-check-input" id="selectAllGhosts"></th>
+                                <th>Document Name</th>
+                                <th>Missing Employee ID</th>
+                                <th>File Path</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php if (empty($ghostRecords)): ?>
+                                <tr>
+                                    <td colspan="5" class="text-center p-4 text-muted">✅ No ghost records found.</td>
+                                </tr>
+                            <?php else: ?>
+                                <?php foreach ($ghostRecords as $g): ?>
+                                    <tr>
+                                        <td><input type="checkbox" value="<?php echo $g['id']; ?>" class="form-check-input ghost-checkbox"></td>
+                                        <td><?php echo htmlspecialchars($g['original_name']); ?></td>
+                                        <td><span class="badge bg-danger"><?php echo htmlspecialchars($g['employee_id']); ?></span></td>
+                                        <td class="text-muted small"><?php echo htmlspecialchars($g['file_path']); ?></td>
+                                        <td class="text-nowrap">
+                                            <button type="button" class="btn btn-sm btn-primary" onclick="reassignGhost(<?php echo $g['id']; ?>)">Reassign</button>
+                                            <button type="button" class="btn btn-sm btn-secondary" onclick="archiveGhost(<?php echo $g['id']; ?>)">Archive</button>
+                                            <form method="POST" class="d-inline">
+                                                <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
+                                                <input type="hidden" name="ghost_emp_id" value="<?php echo htmlspecialchars($g['employee_id']); ?>">
+                                                <button type="submit" name="restore_ghost" class="btn btn-sm btn-outline-success" title="Attempt to restore from logs">
+                                                    <i class="bi bi-magic"></i> Log Restore
+                                                </button>
+                                            </form>
+                                        </td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            <?php endif; ?>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- DUPLICATES TAB -->
+        <div class="tab-pane fade" id="duplicates">
+            <div class="card shadow-sm">
+                <div class="card-header bg-info text-white">
+                    <i class="bi bi-files"></i> <strong>Duplicate Uploads</strong>
+                    <small class="d-block text-white-50">Documents with the same Name and Category for the same Employee.</small>
+                </div>
+                <div class="card-body p-0 table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Employee</th>
+                                <th>Document Name</th>
+                                <th>Category</th>
+                                <th>Uploaded At</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php if (empty($duplicates)): ?>
+                                <tr>
+                                    <td colspan="5" class="text-center p-4 text-muted">✅ No duplicate uploads found.</td>
+                                </tr>
+                            <?php else: ?>
+                                <?php foreach ($duplicates as $d): ?>
+                                    <tr>
+                                        <td>
+                                            <strong><?php echo htmlspecialchars($d['last_name'] . ', ' . $d['first_name']); ?></strong>
+                                            <br><small class="text-muted"><?php echo htmlspecialchars($d['employee_id']); ?></small>
+                                        </td>
+                                        <td class="fw-bold"><?php echo htmlspecialchars($d['original_name']); ?></td>
+                                        <td><span class="badge bg-secondary"><?php echo htmlspecialchars($d['category']); ?></span></td>
+                                        <td class="small"><?php echo $d['uploaded_at'] ? date('M d, Y h:i A', strtotime($d['uploaded_at'])) : 'Unknown'; ?></td>
+                                        <td>
+                                            <form method="POST" onsubmit="return confirm('Delete this duplicate?');">
+                                                <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
+                                                <input type="hidden" name="doc_id" value="<?php echo $d['id']; ?>">
+                                                <button type="submit" name="delete_duplicate" class="btn btn-sm btn-danger"><i class="bi bi-trash"></i> Delete</button>
+                                            </form>
+                                        </td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            <?php endif; ?>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- COMPRESS VAULT TAB -->
+        <div class="tab-pane fade" id="compress">
+            <div class="card shadow-sm border-warning">
+                <div class="card-header bg-warning text-dark">
+                    <i class="bi bi-file-zip"></i> <strong>Compress & Archive Old Documents</strong>
+                    <small class="d-block text-muted">Move old, inactive documents out of the Vault into a highly compressed ZIP archive to save active disk space.</small>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-info small">
+                        <i class="bi bi-info-circle-fill"></i> <strong>How this works:</strong> This tool will package documents older than your selected timeframe into a ZIP file in the <code>backups/</code> folder. The original files will be deleted from the Vault, freeing up space, and their database records will be soft-deleted (moved to the Recycle Bin).
+                    </div>
+                    <form method="POST" onsubmit="return confirm('WARNING: This will remove old files from active employee profiles and archive them. This action is intended for saving disk space. Proceed?');">
+                        <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
+                        <div class="row align-items-end">
+                            <div class="col-md-4">
+                                <label class="form-label fw-bold">Age of Documents to Archive</label>
+                                <select name="months_old" class="form-select">
+                                    <option value="12">Older than 1 Year (12 months)</option>
+                                    <option value="24">Older than 2 Years (24 months)</option>
+                                    <option value="36">Older than 3 Years (36 months)</option>
+                                    <option value="60">Older than 5 Years (60 months)</option>
+                                    <option value="6">Older than 6 Months</option>
+                                </select>
+                            </div>
+                            <div class="col-md-4">
+                                <button type="submit" name="archive_old_vault" class="btn btn-warning fw-bold w-100"><i class="bi bi-file-zip-fill"></i> Compress & Archive</button>
+                            </div>
                         </div>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Password (Optional)</label>
-                        <input type="password" name="backup_password" class="form-control" placeholder="Leave blank for unencrypted SQL" maxlength="50" autocomplete="new-password">
-                        <div class="form-text">Creates a password-protected ZIP file.</div>
-                    </div>
+                    </form>
                 </div>
-                <div class="modal-footer"><button type="submit" class="btn btn-primary">Download</button></div>
-            </form>
+            </div>
         </div>
+
     </div>
-    <div class="modal fade" id="serverBackupModal" tabindex="-1">
-        <div class="modal-dialog">
-            <form action="backup.php?mode=server" method="POST" class="modal-content" onsubmit="showBackupLoader(this)">
-                <div class="modal-header">
-                    <h5 class="modal-title">Save Backup to Server</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body">
-                    <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
-                    <p>This will save a backup to the configured server paths. This is recommended for automated recovery.</p>
-                    <div class="form-check mb-3">
-                        <input class="form-check-input" type="checkbox" name="include_vault" value="1" id="svVault" <?php echo $vaultChecked; ?>>
-                        <label class="form-check-label fw-bold" for="svVault">Include Vault Files (Images/PDFs)</label>
-                        <div class="form-text text-muted mt-1" style="font-size: 0.75rem;">
-                            <i class="bi bi-info-circle"></i> Note: When saving to the server, Vault files are mirrored, not zipped.
-                        </div>
+</div>
+
+<!-- HIDDEN FORM FOR BULK PRUNE -->
+<form id="pruneGhostsForm" method="POST" style="display:none;">
+    <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
+    <input type="hidden" name="prune_ghosts" value="1">
+    <input type="hidden" name="ghost_ids_json" id="hidden_ghost_ids">
+</form>
+
+<!-- HIDDEN FORM FOR BULK ORPHANS -->
+<form id="bulkOrphansForm" method="POST" style="display:none;">
+    <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
+    <input type="hidden" name="bulk_delete_orphans" value="1">
+    <input type="hidden" name="orphan_list_json" id="hidden_orphan_list">
+</form>
+
+<!-- MODALS FOR BACKUP -->
+<div class="modal fade" id="downloadBackupModal" tabindex="-1">
+    <div class="modal-dialog">
+        <form action="backup.php" method="POST" class="modal-content" onsubmit="showBackupLoader(this)">
+            <div class="modal-header">
+                <h5 class="modal-title">Download Database Backup</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
+                <div class="form-check mb-3">
+                    <input class="form-check-input" type="checkbox" name="include_vault" value="1" id="dlVault" <?php echo $vaultChecked; ?>>
+                    <label class="form-check-label fw-bold" for="dlVault">Include Vault Files (Images/PDFs)</label>
+                    <div class="alert alert-warning small mb-0 mt-2 border-warning">
+                        <i class="bi bi-info-circle-fill"></i> <strong>Massive Data Reminder:</strong> If your backup exceeds the <strong><?php echo htmlspecialchars($bkMaxSize); ?> GB</strong> limit, the system will automatically split it into multiple volumes (Part 1, Part 2, etc.) and download them consecutively.
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label">Password (Optional)</label>
-                        <input type="password" name="backup_password" class="form-control" placeholder="Leave blank for unencrypted SQL" maxlength="50" autocomplete="new-password">
-                        <div class="form-text">Creates a password-protected ZIP file on the server.</div>
-                    </div>
                 </div>
-                <div class="modal-footer"><button type="submit" class="btn btn-danger">Save to Server</button></div>
-            </form>
-        </div>
+                <div class="mb-3">
+                    <label class="form-label">Password (Optional)</label>
+                    <input type="password" name="backup_password" class="form-control" placeholder="Leave blank for unencrypted SQL" maxlength="50" autocomplete="new-password">
+                    <div class="form-text">Creates a password-protected ZIP file.</div>
+                </div>
+            </div>
+            <div class="modal-footer"><button type="submit" class="btn btn-primary">Download</button></div>
+        </form>
     </div>
+</div>
+<div class="modal fade" id="serverBackupModal" tabindex="-1">
+    <div class="modal-dialog">
+        <form action="backup.php?mode=server" method="POST" class="modal-content" onsubmit="showBackupLoader(this)">
+            <div class="modal-header">
+                <h5 class="modal-title">Save Backup to Server</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
+                <p>This will save a backup to the configured server paths. This is recommended for automated recovery.</p>
+                <div class="form-check mb-3">
+                    <input class="form-check-input" type="checkbox" name="include_vault" value="1" id="svVault" <?php echo $vaultChecked; ?>>
+                    <label class="form-check-label fw-bold" for="svVault">Include Vault Files (Images/PDFs)</label>
+                    <div class="form-text text-muted mt-1" style="font-size: 0.75rem;">
+                        <i class="bi bi-info-circle"></i> Note: When saving to the server, Vault files are mirrored, not zipped.
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Password (Optional)</label>
+                    <input type="password" name="backup_password" class="form-control" placeholder="Leave blank for unencrypted SQL" maxlength="50" autocomplete="new-password">
+                    <div class="form-text">Creates a password-protected ZIP file on the server.</div>
+                </div>
+            </div>
+            <div class="modal-footer"><button type="submit" class="btn btn-danger">Save to Server</button></div>
+        </form>
+    </div>
+</div>
 
-    <script src="assets/bootstrap.bundle.min.js"></script>
-    <script src="dark_mode.js"></script>
-    <script>
-        // Select-all checkbox for ghost records
-        document.addEventListener('DOMContentLoaded', function() {
-            const selectAllCheckbox = document.getElementById('selectAllGhosts');
-            const ghostCheckboxes = document.querySelectorAll('.ghost-checkbox');
+<script src="assets/bootstrap.bundle.min.js"></script>
+<script src="dark_mode.js"></script>
+<script>
+    // Select-all checkbox for ghost records
+    document.addEventListener('DOMContentLoaded', function() {
+        const selectAllCheckbox = document.getElementById('selectAllGhosts');
+        const ghostCheckboxes = document.querySelectorAll('.ghost-checkbox');
 
-            const selectAllOrphans = document.getElementById('selectAllOrphans');
-            const orphanCheckboxes = document.querySelectorAll('.orphan-checkbox');
+        const selectAllOrphans = document.getElementById('selectAllOrphans');
+        const orphanCheckboxes = document.querySelectorAll('.orphan-checkbox');
 
-            if (selectAllCheckbox) {
-                selectAllCheckbox.addEventListener('change', function() {
-                    ghostCheckboxes.forEach(cb => {
-                        cb.checked = this.checked;
-                    });
+        if (selectAllCheckbox) {
+            selectAllCheckbox.addEventListener('change', function() {
+                ghostCheckboxes.forEach(cb => {
+                    cb.checked = this.checked;
                 });
+            });
+        }
+
+        if (selectAllOrphans) {
+            selectAllOrphans.addEventListener('change', function() {
+                orphanCheckboxes.forEach(cb => {
+                    cb.checked = this.checked;
+                });
+            });
+        }
+    });
+
+    function submitPruneGhosts() {
+        const checked = document.querySelectorAll('.ghost-checkbox:checked');
+        if (checked.length === 0) {
+            alert("Please select at least one record to prune.");
+            return;
+        }
+        if (!confirm(`Permanently delete ${checked.length} ghost records and their files? This cannot be undone.`)) {
+            return;
+        }
+
+        const ids = Array.from(checked).map(cb => parseInt(cb.value));
+        document.getElementById('hidden_ghost_ids').value = JSON.stringify(ids);
+        document.getElementById('pruneGhostsForm').submit();
+    }
+
+    function submitBulkOrphans() {
+        const checked = document.querySelectorAll('.orphan-checkbox:checked');
+        if (checked.length === 0) {
+            alert("Please select at least one file to delete.");
+            return;
+        }
+        if (!confirm(`Permanently delete ${checked.length} orphaned files? This cannot be undone.`)) {
+            return;
+        }
+
+        const files = Array.from(checked).map(cb => cb.value);
+        document.getElementById('hidden_orphan_list').value = JSON.stringify(files);
+        document.getElementById('bulkOrphansForm').submit();
+    }
+
+    // [SECURITY] Auto-Logout Timer
+    const timeoutDuration = <?php echo $clientTimeout * 1000; ?>;
+    let timeLeft = timeoutDuration;
+
+    function updateTimer() {
+        timeLeft -= 1000;
+        if (timeLeft <= 0) window.location.href = 'logout.php';
+        const m = Math.floor(timeLeft / 60000);
+        const s = Math.floor((timeLeft % 60000) / 1000);
+        document.getElementById('sessionTimer').innerText = `${m}:${s.toString().padStart(2, '0')}`;
+    }
+    document.addEventListener('mousemove', () => timeLeft = timeoutDuration);
+    document.addEventListener('keypress', () => timeLeft = timeoutDuration);
+    setInterval(updateTimer, 1000);
+    updateTimer();
+
+    function showBackupLoader(form) {
+        const submitBtn = form.querySelector('button[type="submit"]');
+        if (submitBtn) {
+            const originalHtml = submitBtn.innerHTML;
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Working...';
+            const csrf = form.querySelector('[name="csrf_token"]').value;
+            let pollCount = 0;
+            const maxPollAttempts = 300; // 5 minutes at 1s intervals
+            const checkCookie = setInterval(() => {
+                pollCount++;
+                if (document.cookie.includes('downloadToken=' + csrf)) {
+                    clearInterval(checkCookie);
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = originalHtml;
+                    document.cookie = "downloadToken=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+                } else if (pollCount >= maxPollAttempts) {
+                    clearInterval(checkCookie);
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = originalHtml;
+                }
+            }, 1000);
+        }
+        return true;
+    }
+
+    const guideText = `RESTORATION GUIDE\n\nOption 1: Database Restore (Automatic)\nUse this to roll back data changes (e.g. accidental deletion).\n1. Locate a backup in the Available Auto-Backups list.\n2. Click the Restore This button.\n3. Enter your Admin Password to confirm.\n\nOption 2: Full System Recovery (Manual & Split ZIPs)\nUse this if the server crashed, you moved to a new PC, or you have a multi-part backup.\n1. Database: Under "2. System Restore", click the "Choose Files" button.\n2. Upload: Browse to your backup file. If your backup is split into multiple parts (e.g., Part1.zip, Part2.zip), highlight and select ALL of them at the exact same time.\n3. Confirm: Type in your Admin Password and click "Restore Database". The server will automatically organize the parts, silently unpack the SQL inside them, and reconstruct your entire database!\n4. Documents (Vault):\n   Note: The ZIP files above only restore the database records.\n   - If your backup included Vault Files, open the ZIP file manually on your computer.\n   - Extract the 'vault' folder from the ZIP.\n   - Paste it into your server's directory: C:\\xampp\\htdocs\\hr 201\\vault\\\n5. Encryption Key: Ensure config/config.php is restored if lost, as it contains your secure Vault Key.`;
+
+    function downloadRestorationGuide() {
+        const blob = new Blob([guideText], {
+            type: "text/plain;charset=utf-8"
+        });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "HR_System_Restoration_Guide.txt";
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+
+        if (typeof Swal !== 'undefined') {
+            Swal.fire({
+                toast: true,
+                position: 'top-end',
+                icon: 'success',
+                title: 'Guide downloaded successfully!',
+                showConfirmButton: false,
+                timer: 2000
+            });
+        }
+    }
+
+    // --- [NEW] GHOST RECORD SCANNER LOGIC ---
+    function reassignGhost(docId) {
+        Swal.fire({
+            title: 'Reassign Document',
+            text: 'Enter the valid Employee ID to move this document to:',
+            input: 'text',
+            inputPlaceholder: 'e.g. EMP-101',
+            showCancelButton: true,
+            confirmButtonText: 'Reassign',
+            inputValidator: (value) => {
+                if (!value) return 'You need to enter an ID!'
             }
-
-            if (selectAllOrphans) {
-                selectAllOrphans.addEventListener('change', function() {
-                    orphanCheckboxes.forEach(cb => {
-                        cb.checked = this.checked;
-                    });
-                });
+        }).then((result) => {
+            if (result.isConfirmed) {
+                document.getElementById('reassignDocId').value = docId;
+                document.getElementById('reassignTargetId').value = result.value;
+                document.getElementById('reassignGhostForm').submit();
             }
         });
+    }
 
-        function submitPruneGhosts() {
-            const checked = document.querySelectorAll('.ghost-checkbox:checked');
-            if (checked.length === 0) {
-                alert("Please select at least one record to prune.");
-                return;
-            }
-            if (!confirm(`Permanently delete ${checked.length} ghost records and their files? This cannot be undone.`)) {
-                return;
-            }
-
-            const ids = Array.from(checked).map(cb => parseInt(cb.value));
-            document.getElementById('hidden_ghost_ids').value = JSON.stringify(ids);
-            document.getElementById('pruneGhostsForm').submit();
+    function archiveGhost(docId) {
+        if (confirm('Move to Archive? This will change the owner to ORPHANED_ARCHIVE and hide it from compliance tracking.')) {
+            document.getElementById('archiveDocId').value = docId;
+            document.getElementById('archiveGhostForm').submit();
         }
-
-        function submitBulkOrphans() {
-            const checked = document.querySelectorAll('.orphan-checkbox:checked');
-            if (checked.length === 0) {
-                alert("Please select at least one file to delete.");
-                return;
-            }
-            if (!confirm(`Permanently delete ${checked.length} orphaned files? This cannot be undone.`)) {
-                return;
-            }
-
-            const files = Array.from(checked).map(cb => cb.value);
-            document.getElementById('hidden_orphan_list').value = JSON.stringify(files);
-            document.getElementById('bulkOrphansForm').submit();
-        }
-
-        // [SECURITY] Auto-Logout Timer
-        const timeoutDuration = <?php echo $clientTimeout * 1000; ?>;
-        let timeLeft = timeoutDuration;
-
-        function updateTimer() {
-            timeLeft -= 1000;
-            if (timeLeft <= 0) window.location.href = 'logout.php';
-            const m = Math.floor(timeLeft / 60000);
-            const s = Math.floor((timeLeft % 60000) / 1000);
-            document.getElementById('sessionTimer').innerText = `${m}:${s.toString().padStart(2, '0')}`;
-        }
-        document.addEventListener('mousemove', () => timeLeft = timeoutDuration);
-        document.addEventListener('keypress', () => timeLeft = timeoutDuration);
-        setInterval(updateTimer, 1000);
-        updateTimer();
-
-        function showBackupLoader(form) {
-            const submitBtn = form.querySelector('button[type="submit"]');
-            if (submitBtn) {
-                const originalHtml = submitBtn.innerHTML;
-                submitBtn.disabled = true;
-                submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Working...';
-                const csrf = form.querySelector('[name="csrf_token"]').value;
-                let pollCount = 0;
-                const maxPollAttempts = 300; // 5 minutes at 1s intervals
-                const checkCookie = setInterval(() => {
-                    pollCount++;
-                    if (document.cookie.includes('downloadToken=' + csrf)) {
-                        clearInterval(checkCookie);
-                        submitBtn.disabled = false;
-                        submitBtn.innerHTML = originalHtml;
-                        document.cookie = "downloadToken=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
-                    } else if (pollCount >= maxPollAttempts) {
-                        clearInterval(checkCookie);
-                        submitBtn.disabled = false;
-                        submitBtn.innerHTML = originalHtml;
-                    }
-                }, 1000);
-            }
-            return true;
-        }
-
-        const guideText = `RESTORATION GUIDE\n\nOption 1: Database Restore (Automatic)\nUse this to roll back data changes (e.g. accidental deletion).\n1. Locate a backup in the Available Auto-Backups list.\n2. Click the Restore This button.\n3. Enter your Admin Password to confirm.\n\nOption 2: Full System Recovery (Manual & Split ZIPs)\nUse this if the server crashed, you moved to a new PC, or you have a multi-part backup.\n1. Database: Under "2. System Restore", click the "Choose Files" button.\n2. Upload: Browse to your backup file. If your backup is split into multiple parts (e.g., Part1.zip, Part2.zip), highlight and select ALL of them at the exact same time.\n3. Confirm: Type in your Admin Password and click "Restore Database". The server will automatically organize the parts, silently unpack the SQL inside them, and reconstruct your entire database!\n4. Documents (Vault):\n   Note: The ZIP files above only restore the database records.\n   - If your backup included Vault Files, open the ZIP file manually on your computer.\n   - Extract the 'vault' folder from the ZIP.\n   - Paste it into your server's directory: C:\\xampp\\htdocs\\hr 201\\vault\\\n5. Encryption Key: Ensure config/config.php is restored if lost, as it contains your secure Vault Key.`;
-
-        function downloadRestorationGuide() {
-            const blob = new Blob([guideText], {
-                type: "text/plain;charset=utf-8"
-            });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement("a");
-            a.href = url;
-            a.download = "HR_System_Restoration_Guide.txt";
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-
-            if (typeof Swal !== 'undefined') {
-                Swal.fire({
-                    toast: true,
-                    position: 'top-end',
-                    icon: 'success',
-                    title: 'Guide downloaded successfully!',
-                    showConfirmButton: false,
-                    timer: 2000
-                });
-            }
-        }
-    </script>
+    }
+</script>
 </body>
 
 </html>

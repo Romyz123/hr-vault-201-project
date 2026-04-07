@@ -24,6 +24,20 @@ $csrf_token = $security->generateCSRF();
 
 // 2. Handle Login Request
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
+
+    // [SECURITY] Session-based Rate Limiting (Brute Force Protection)
+    if (isset($_SESSION['login_attempts']) && $_SESSION['login_attempts'] >= 5) {
+        $lockout_time = 15 * 60; // 15 minutes
+        $time_since_last = time() - ($_SESSION['last_login_attempt'] ?? 0);
+        if ($time_since_last < $lockout_time) {
+            $remaining = ceil(($lockout_time - $time_since_last) / 60);
+            die("Security Error: Too many failed login attempts. Access blocked for $remaining minute(s).");
+        } else {
+            // Lockout period has passed
+            $_SESSION['login_attempts'] = 0;
+        }
+    }
+
     $username = trim($_POST['username']);
     $password = $_POST['password'] ?? ''; // DON'T trim password - users might have trailing spaces intentionally
 
@@ -101,6 +115,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
                     }
 
                     if ($requires2FA) {
+                        // [SECURITY] Reset session attempts on credential match
+                        $_SESSION['login_attempts'] = 0;
+                        unset($_SESSION['last_login_attempt']);
+
                         // Redirect to Authenticator Verification
                         $_SESSION['partial_user_id'] = $user['id'];
                         header("Location: verify_otp.php");
@@ -152,6 +170,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
                         // Ignore if column missing
                     }
                 }
+
+                // [SECURITY] Track failed login attempts in session
+                $_SESSION['login_attempts'] = ($_SESSION['login_attempts'] ?? 0) + 1;
+                $_SESSION['last_login_attempt'] = time();
 
                 // If user exists (wrong password), log ID. If not (wrong username), log 0.
                 $failedId = $user ? $user['id'] : 0;

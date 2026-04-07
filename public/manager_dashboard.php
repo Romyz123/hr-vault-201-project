@@ -71,247 +71,222 @@ $ageLabels = json_encode(array_keys($ageBands));
 $ageCounts = json_encode(array_values($ageBands));
 
 ?>
-<!DOCTYPE html>
-<html lang="en">
+<?php include 'header.php'; ?>
 
-<head>
-    <meta charset="UTF-8">
-    <title>Manager Dashboard</title>
-    <link rel="icon" href="assets/tesp-logo.png?v=4" type="image/png">
-    <link href="assets/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="assets/icons/bootstrap-icons.css">
-</head>
+<div class="container">
 
-<body class="bg-body-tertiary">
-
-    <nav class="navbar navbar-dark bg-primary mb-4 shadow">
-        <div class="container">
-            <a class="navbar-brand" href="index.php">Back to Dashboard</a>
-            <div class="d-flex align-items-center gap-2">
-                <span class="navbar-text text-white fw-bold me-2"><i class="bi bi-speedometer2"></i> Manager Command Center</span>
-                <button id="darkModeToggle" class="btn btn-sm btn-outline-light border-0" title="Toggle Dark Mode">
-                    <i class="bi bi-moon-stars-fill"></i>
-                </button>
-                <a href="help.php" class="btn btn-outline-info btn-sm"><i class="bi bi-question-circle"></i> Help</a>
-                <a href="logout.php" class="btn btn-danger btn-sm">Logout</a>
-            </div>
-        </div>
-    </nav>
-
-    <div class="container">
-
-        <!-- WELCOME BANNER -->
-        <div class="row mb-4">
-            <div class="col-12">
-                <div class="card border-0 shadow-sm d-flex justify-content-between align-items-center p-3">
-                    <div>
-                        <h4 class="mb-1 text-primary">Welcome back, <?php echo htmlspecialchars($_SESSION['username']); ?>!</h4>
-                        <p class="text-muted mb-0">Here is what requires your attention today.</p>
-                    </div>
-                    <div class="text-end">
-                        <h2 class="fw-bold mb-0"><?php echo date('j'); ?></h2>
-                        <span class="text-uppercase small text-muted"><?php echo date('F Y'); ?></span>
-                    </div>
+    <!-- WELCOME BANNER -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card border-0 shadow-sm d-flex justify-content-between align-items-center p-3">
+                <div>
+                    <h4 class="mb-1 text-primary">Welcome back, <?php echo htmlspecialchars($_SESSION['username']); ?>!</h4>
+                    <p class="text-muted mb-0">Here is what requires your attention today.</p>
                 </div>
-            </div>
-        </div>
-
-        <!-- ACTION CARDS -->
-        <div class="row g-4 mb-4">
-            <!-- Approvals -->
-            <div class="col-md-4">
-                <div class="card h-100 shadow-sm border-start border-4 border-warning">
-                    <div class="card-body">
-                        <div class="d-flex justify-content-between align-items-center mb-3">
-                            <h6 class="text-muted text-uppercase mb-0">Pending Requests</h6>
-                            <div class="icon-shape bg-warning text-white rounded-circle p-2">
-                                <i class="bi bi-inbox-fill"></i>
-                            </div>
-                        </div>
-                        <h2 class="fw-bold mb-3"><?php echo $pendingCount; ?></h2>
-                        <a href="admin_approval.php" class="btn btn-sm btn-outline-warning w-100">Review Requests</a>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Expirations -->
-            <div class="col-md-4">
-                <div class="card h-100 shadow-sm border-start border-4 border-danger">
-                    <div class="card-body">
-                        <div class="d-flex justify-content-between align-items-center mb-3">
-                            <h6 class="text-muted text-uppercase mb-0">Expiring Docs</h6>
-                            <div class="icon-shape bg-danger text-white rounded-circle p-2">
-                                <i class="bi bi-exclamation-triangle-fill"></i>
-                            </div>
-                        </div>
-                        <h2 class="fw-bold mb-3"><?php echo $expiringCount; ?></h2>
-                        <a href="expiry_report.php" class="btn btn-sm btn-outline-danger w-100">View Forecast</a>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Headcount -->
-            <div class="col-md-4">
-                <div class="card h-100 shadow-sm border-start border-4 border-success">
-                    <div class="card-body">
-                        <div class="d-flex justify-content-between align-items-center mb-3">
-                            <h6 class="text-muted text-uppercase mb-0">Active Workforce</h6>
-                            <div class="icon-shape bg-success text-white rounded-circle p-2">
-                                <i class="bi bi-people-fill"></i>
-                            </div>
-                        </div>
-                        <h2 class="fw-bold mb-0"><?php echo $activeCount; ?></h2>
-                        <small class="text-muted"><?php echo $probationCount; ?> Probationary</small>
-                        <a href="analytics.php" class="btn btn-sm btn-outline-success w-100 mt-3">View Analytics</a>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- SYSTEM HEALTH WIDGET (ADMIN ONLY) -->
-        <?php if (($_SESSION['role'] ?? '') === 'ADMIN'): ?>
-            <div class="row mb-4">
-                <div class="col-12">
-                    <div class="card shadow-sm border-start border-4 border-danger">
-                        <div class="card-body d-flex justify-content-between align-items-center">
-                            <div>
-                                <h6 class="text-muted text-uppercase mb-1">System Health Alert</h6>
-                                <div class="d-flex align-items-center">
-                                    <h2 class="fw-bold text-danger mb-0 me-2"><?php echo $failedLogins; ?></h2>
-                                    <span class="text-muted">Failed Login Attempts (Last 24h)</span>
-                                </div>
-                            </div>
-                            <a href="security_audit.php" class="btn btn-sm btn-outline-danger"><i class="bi bi-shield-check"></i> View Security Audit</a>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        <?php endif; ?>
-
-        <!-- RECENT UPLOADS & DEMOGRAPHICS WIDGETS -->
-        <div class="row mb-4">
-            <div class="col-lg-8 mb-4 mb-lg-0">
-                <div class="card shadow-sm h-100">
-                    <div class="card-header fw-bold">
-                        <i class="bi bi-cloud-arrow-up"></i> Recent Uploads
-                    </div>
-                    <div class="card-body p-0">
-                        <table class="table table-hover mb-0 align-middle">
-                            <thead class="table-light">
-                                <tr>
-                                    <th>File</th>
-                                    <th>Employee</th>
-                                    <th>Date</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <?php if (empty($recentUploads)): ?>
-                                    <tr>
-                                        <td colspan="3" class="text-center p-3 text-muted">No recent uploads.</td>
-                                    </tr>
-                                <?php else: ?>
-                                    <?php foreach ($recentUploads as $up): ?>
-                                        <tr>
-                                            <td>
-                                                <a href="view_doc.php?id=<?php echo htmlspecialchars($up['file_uuid'], ENT_QUOTES, 'UTF-8'); ?>" target="_blank" class="text-decoration-none fw-bold text-dark">
-                                                    <i class="bi bi-file-earmark-text text-secondary"></i> <?php echo htmlspecialchars($up['original_name']); ?>
-                                                </a> <br><small class="text-muted"><?php echo htmlspecialchars($up['category']); ?></small>
-                                            </td>
-                                            <td><?php echo htmlspecialchars($up['first_name'] . ' ' . $up['last_name']); ?></td>
-                                            <td class="small text-muted"><?php echo date('M d', strtotime($up['uploaded_at'])); ?></td>
-                                        </tr>
-                                    <?php endforeach; ?>
-                                <?php endif; ?>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-
-            <!-- AGE DEMOGRAPHICS WIDGET -->
-            <div class="col-lg-4">
-                <div class="card shadow-sm h-100">
-                    <div class="card-header fw-bold text-dark">
-                        <i class="bi bi-pie-chart-fill text-warning"></i> Age Demographics
-                    </div>
-                    <div class="card-body position-relative d-flex align-items-center justify-content-center" style="min-height: 250px;">
-                        <canvas id="ageChart"></canvas>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- QUICK LINKS -->
-        <div class="row">
-            <div class="col-12">
-                <div class="card shadow-sm">
-                    <div class="card-header fw-bold"><i class="bi bi-lightning-charge"></i> Management Tools</div>
-                    <div class="card-body d-flex gap-2 flex-wrap">
-                        <a href="add_employee.php" class="btn btn-outline-success"><i class="bi bi-person-plus-fill me-2"></i> Add Employee</a>
-                        <a href="import_employees.php" class="btn btn-outline-success"><i class="bi bi-file-spreadsheet me-2"></i> Bulk Import</a>
-                        <a href="tracker.php" class="btn btn-outline-info"><i class="bi bi-kanban me-2"></i> Compliance Tracker</a>
-                        <a href="bulk_update_roles.php" class="btn btn-outline-warning"><i class="bi bi-people-fill me-2"></i> Bulk Update Roles</a>
-                        <a href="bulk_contract.php" class="btn btn-outline-primary"><i class="bi bi-printer-fill me-2"></i> Bulk Contract Print</a>
-                    </div>
+                <div class="text-end">
+                    <h2 class="fw-bold mb-0"><?php echo date('j'); ?></h2>
+                    <span class="text-uppercase small text-muted"><?php echo date('F Y'); ?></span>
                 </div>
             </div>
         </div>
     </div>
-    <script src="assets/chart.min.js"></script>
-    <script src="assets/bootstrap.bundle.min.js"></script>
-    <script src="dark_mode.js"></script>
-    <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            const ctxAge = document.getElementById('ageChart');
-            if (ctxAge) {
-                window.ageChartInstance = new Chart(ctxAge, {
-                    type: 'doughnut',
-                    data: {
-                        labels: <?php echo $ageLabels; ?>,
-                        datasets: [{
-                            data: <?php echo $ageCounts; ?>,
-                            backgroundColor: ['#0d6efd', '#198754', '#ffc107', '#fd7e14', '#dc3545'],
-                            borderWidth: 2,
-                            hoverOffset: 4
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        plugins: {
-                            legend: {
-                                position: 'bottom',
-                                labels: {
-                                    padding: 15
-                                }
+
+    <!-- ACTION CARDS -->
+    <div class="row g-4 mb-4">
+        <!-- Approvals -->
+        <div class="col-md-4">
+            <div class="card h-100 shadow-sm border-start border-4 border-warning">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h6 class="text-muted text-uppercase mb-0">Pending Requests</h6>
+                        <div class="icon-shape bg-warning text-white rounded-circle p-2">
+                            <i class="bi bi-inbox-fill"></i>
+                        </div>
+                    </div>
+                    <h2 class="fw-bold mb-3"><?php echo $pendingCount; ?></h2>
+                    <a href="admin_approval.php" class="btn btn-sm btn-outline-warning w-100">Review Requests</a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Expirations -->
+        <div class="col-md-4">
+            <div class="card h-100 shadow-sm border-start border-4 border-danger">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h6 class="text-muted text-uppercase mb-0">Expiring Docs</h6>
+                        <div class="icon-shape bg-danger text-white rounded-circle p-2">
+                            <i class="bi bi-exclamation-triangle-fill"></i>
+                        </div>
+                    </div>
+                    <h2 class="fw-bold mb-3"><?php echo $expiringCount; ?></h2>
+                    <a href="expiry_report.php" class="btn btn-sm btn-outline-danger w-100">View Forecast</a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Headcount -->
+        <div class="col-md-4">
+            <div class="card h-100 shadow-sm border-start border-4 border-success">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h6 class="text-muted text-uppercase mb-0">Active Workforce</h6>
+                        <div class="icon-shape bg-success text-white rounded-circle p-2">
+                            <i class="bi bi-people-fill"></i>
+                        </div>
+                    </div>
+                    <h2 class="fw-bold mb-0"><?php echo $activeCount; ?></h2>
+                    <small class="text-muted"><?php echo $probationCount; ?> Probationary</small>
+                    <a href="analytics.php" class="btn btn-sm btn-outline-success w-100 mt-3">View Analytics</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- SYSTEM HEALTH WIDGET (ADMIN ONLY) -->
+    <?php if (($_SESSION['role'] ?? '') === 'ADMIN'): ?>
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card shadow-sm border-start border-4 border-danger">
+                    <div class="card-body d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="text-muted text-uppercase mb-1">System Health Alert</h6>
+                            <div class="d-flex align-items-center">
+                                <h2 class="fw-bold text-danger mb-0 me-2"><?php echo $failedLogins; ?></h2>
+                                <span class="text-muted">Failed Login Attempts (Last 24h)</span>
+                            </div>
+                        </div>
+                        <a href="security_audit.php" class="btn btn-sm btn-outline-danger"><i class="bi bi-shield-check"></i> View Security Audit</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    <?php endif; ?>
+
+    <!-- RECENT UPLOADS & DEMOGRAPHICS WIDGETS -->
+    <div class="row mb-4">
+        <div class="col-lg-8 mb-4 mb-lg-0">
+            <div class="card shadow-sm h-100">
+                <div class="card-header fw-bold">
+                    <i class="bi bi-cloud-arrow-up"></i> Recent Uploads
+                </div>
+                <div class="card-body p-0">
+                    <table class="table table-hover mb-0 align-middle">
+                        <thead class="table-light">
+                            <tr>
+                                <th>File</th>
+                                <th>Employee</th>
+                                <th>Date</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php if (empty($recentUploads)): ?>
+                                <tr>
+                                    <td colspan="3" class="text-center p-3 text-muted">No recent uploads.</td>
+                                </tr>
+                            <?php else: ?>
+                                <?php foreach ($recentUploads as $up): ?>
+                                    <tr>
+                                        <td>
+                                            <a href="view_doc.php?id=<?php echo htmlspecialchars($up['file_uuid'], ENT_QUOTES, 'UTF-8'); ?>" target="_blank" class="text-decoration-none fw-bold text-dark">
+                                                <i class="bi bi-file-earmark-text text-secondary"></i> <?php echo htmlspecialchars($up['original_name']); ?>
+                                            </a> <br><small class="text-muted"><?php echo htmlspecialchars($up['category']); ?></small>
+                                        </td>
+                                        <td><?php echo htmlspecialchars($up['first_name'] . ' ' . $up['last_name']); ?></td>
+                                        <td class="small text-muted"><?php echo date('M d', strtotime($up['uploaded_at'])); ?></td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            <?php endif; ?>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- AGE DEMOGRAPHICS WIDGET -->
+        <div class="col-lg-4">
+            <div class="card shadow-sm h-100">
+                <div class="card-header fw-bold text-dark">
+                    <i class="bi bi-pie-chart-fill text-warning"></i> Age Demographics
+                </div>
+                <div class="card-body position-relative d-flex align-items-center justify-content-center" style="min-height: 250px;">
+                    <canvas id="ageChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- QUICK LINKS -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card shadow-sm">
+                <div class="card-header fw-bold"><i class="bi bi-lightning-charge"></i> Management Tools</div>
+                <div class="card-body d-flex gap-2 flex-wrap">
+                    <a href="add_employee.php" class="btn btn-outline-success"><i class="bi bi-person-plus-fill me-2"></i> Add Employee</a>
+                    <a href="import_employees.php" class="btn btn-outline-success"><i class="bi bi-file-spreadsheet me-2"></i> Bulk Import</a>
+                    <a href="tracker.php" class="btn btn-outline-info"><i class="bi bi-kanban me-2"></i> Compliance Tracker</a>
+                    <a href="bulk_update_roles.php" class="btn btn-outline-warning"><i class="bi bi-people-fill me-2"></i> Bulk Update Roles</a>
+                    <a href="bulk_contract.php" class="btn btn-outline-primary"><i class="bi bi-printer-fill me-2"></i> Bulk Contract Print</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<script src="assets/chart.min.js"></script>
+<script src="assets/bootstrap.bundle.min.js"></script>
+<script src="dark_mode.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const ctxAge = document.getElementById('ageChart');
+        if (ctxAge) {
+            window.ageChartInstance = new Chart(ctxAge, {
+                type: 'doughnut',
+                data: {
+                    labels: <?php echo $ageLabels; ?>,
+                    datasets: [{
+                        data: <?php echo $ageCounts; ?>,
+                        backgroundColor: ['#0d6efd', '#198754', '#ffc107', '#fd7e14', '#dc3545'],
+                        borderWidth: 2,
+                        hoverOffset: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: {
+                                padding: 15
                             }
-                        },
-                        cutout: '65%'
-                    }
-                });
-
-                // Dark Mode Adapter
-                function updateChartTheme() {
-                    const isDark = document.documentElement.getAttribute('data-bs-theme') === 'dark';
-                    const textColor = isDark ? '#adb5bd' : '#6c757d';
-                    const borderColor = isDark ? '#212529' : '#fff';
-
-                    if (window.ageChartInstance) {
-                        if (window.ageChartInstance.options.plugins.legend) {
-                            window.ageChartInstance.options.plugins.legend.labels.color = textColor;
                         }
-                        window.ageChartInstance.data.datasets[0].borderColor = borderColor;
-                        window.ageChartInstance.update();
-                    }
+                    },
+                    cutout: '65%'
                 }
-                new MutationObserver(updateChartTheme).observe(document.documentElement, {
-                    attributes: true,
-                    attributeFilter: ['data-bs-theme']
-                });
-                updateChartTheme(); // Initial check
+            });
+
+            // Dark Mode Adapter
+            function updateChartTheme() {
+                const isDark = document.documentElement.getAttribute('data-bs-theme') === 'dark';
+                const textColor = isDark ? '#adb5bd' : '#6c757d';
+                const borderColor = isDark ? '#212529' : '#fff';
+
+                if (window.ageChartInstance) {
+                    if (window.ageChartInstance.options.plugins.legend) {
+                        window.ageChartInstance.options.plugins.legend.labels.color = textColor;
+                    }
+                    window.ageChartInstance.data.datasets[0].borderColor = borderColor;
+                    window.ageChartInstance.update();
+                }
             }
-        });
-    </script>
+            new MutationObserver(updateChartTheme).observe(document.documentElement, {
+                attributes: true,
+                attributeFilter: ['data-bs-theme']
+            });
+            updateChartTheme(); // Initial check
+        }
+    });
+</script>
 </body>
 
 </html>

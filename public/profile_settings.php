@@ -248,488 +248,461 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     }
 }
 ?>
-<!DOCTYPE html>
-<html lang="en">
+<?php include 'header.php'; ?>
 
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Profile Settings</title>
-    <link rel="icon" href="assets/tesp-logo.png?v=4" type="image/png">
-    <link href="assets/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="assets/icons/bootstrap-icons.css">
-    <script src="assets/sweetalert2.all.min.js"></script>
-</head>
+<div class="container mt-5">
+    <div class="row justify-content-center">
 
-<body class="bg-body-tertiary">
-
-    <nav class="navbar navbar-dark bg-dark mb-4">
-        <div class="container">
-            <a class="navbar-brand" href="index.php">Back to Dashboard</a>
-            <div class="d-flex align-items-center gap-2">
-                <button id="darkModeToggle" class="btn btn-sm btn-outline-light border-0" title="Toggle Dark Mode">
-                    <i class="bi bi-moon-stars-fill"></i>
-                </button>
-                <span class="navbar-text text-white">My Profile Settings</span>
-                <span class="navbar-text text-white-50 ms-3 font-monospace small"><i class="bi bi-clock"></i> <span id="sessionTimer"></span></span>
-            </div>
-        </div>
-    </nav>
-
-    <div class="container mt-5">
-        <div class="row justify-content-center">
-
-            <div class="col-md-6 mb-4">
-                <!-- EMAIL SETTINGS -->
-                <div class="card shadow mb-4">
-                    <div class="card-header bg-info text-white">
-                        <h5 class="mb-0"><i class="bi bi-envelope-fill"></i> Recovery Email</h5>
-                    </div>
-                    <div class="card-body">
-                        <form method="POST">
-                            <input type="hidden" name="action" value="update_email">
-                            <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token); ?>">
-                            <div class="input-group">
-                                <input type="email" name="email" class="form-control" placeholder="Enter your email..." value="<?php echo htmlspecialchars($currentEmail); ?>" maxlength="100" required>
-                                <button class="btn btn-info text-white" type="submit">Save Email</button>
-                            </div>
-                            <div class="form-text">Used for "Forgot Password" recovery.</div>
-                        </form>
-                    </div>
+        <div class="col-md-6 mb-4">
+            <!-- EMAIL SETTINGS -->
+            <div class="card shadow mb-4">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0"><i class="bi bi-envelope-fill"></i> Recovery Email</h5>
                 </div>
-
-                <!-- BACKUP CODES SETTINGS -->
-                <div class="card shadow border-dark mb-4">
-                    <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
-                        <h5 class="mb-0"><i class="bi bi-file-earmark-lock"></i> Offline Recovery Codes</h5>
-                        <?php if ($hasCodes): ?>
-                            <span class="badge bg-success">Active</span>
-                        <?php else: ?>
-                            <span class="badge bg-danger">Not Set</span>
-                        <?php endif; ?>
-                    </div>
-                    <div class="card-body">
-                        <p class="small text-muted">Recovery codes allow you to securely recover your account if you forget your password. These are 100% offline and do not require SMS or Face ID.</p>
-
-                        <?php if (isset($_SESSION['new_recovery_codes'])): ?>
-                            <div class="alert alert-warning border-warning shadow-sm">
-                                <h6 class="fw-bold text-danger"><i class="bi bi-exclamation-triangle-fill"></i> Save these codes now!</h6>
-                                <p class="small mb-2">They will only be shown this one time. Print or copy them to a safe place. Each code can only be used once.</p>
-                                <div class="row text-center font-monospace fs-5 fw-bold">
-                                    <?php foreach ($_SESSION['new_recovery_codes'] as $c): ?>
-                                        <div class="col-6 mb-2"><span class="bg-white px-3 py-1 border rounded d-block"><?php echo $c; ?></span></div>
-                                    <?php endforeach; ?>
-                                </div>
-                            </div>
-                            <?php unset($_SESSION['new_recovery_codes']); ?>
-                        <?php endif; ?>
-
-                        <form method="POST" onsubmit="return confirm('Generate new codes? Any existing codes will immediately become invalid.');">
-                            <input type="hidden" name="action" value="generate_codes">
-                            <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token); ?>">
-                            <div class="d-grid">
-                                <button type="submit" class="btn btn-outline-dark fw-bold"><i class="bi bi-arrow-repeat"></i> Generate 6 New Codes</button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-
-                <!-- SECURITY QUESTION SETTINGS -->
-                <div class="card shadow mb-4">
-                    <div class="card-header bg-warning text-dark">
-                        <h5 class="mb-0"><i class="bi bi-patch-question-fill"></i> Security Question</h5>
-                    </div>
-                    <div class="card-body">
-                        <form method="POST">
-                            <input type="hidden" name="action" value="update_security_question">
-                            <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token); ?>">
-
-                            <div class="mb-3">
-                                <label class="form-label fw-bold">Select a Question</label>
-                                <select name="security_question" class="form-select" required>
-                                    <option value="" disabled <?php echo empty($currentQuestion) ? 'selected' : ''; ?>>-- Choose a question --</option>
-                                    <?php
-                                    $questions = [
-                                        "What was the name of your first pet?",
-                                        "What is your mother's maiden name?",
-                                        "What was the name of your elementary school?",
-                                        "What is the name of the town where you were born?",
-                                        "What is your favorite childhood movie?"
-                                    ];
-                                    $isCustom = !empty($currentQuestion) && !in_array($currentQuestion, $questions);
-                                    foreach ($questions as $q) {
-                                        $sel = ($currentQuestion === $q) ? 'selected' : '';
-                                        echo "<option value=\"" . htmlspecialchars($q) . "\" $sel>" . htmlspecialchars($q) . "</option>";
-                                    }
-                                    ?>
-                                    <option value="custom" <?php echo $isCustom ? 'selected' : ''; ?>>-- Custom Question --</option>
-                                </select>
-                            </div>
-
-                            <div class="mb-3" id="customQuestionDiv" style="<?php echo $isCustom ? 'display: block;' : 'display: none;'; ?>">
-                                <label class="form-label fw-bold">Custom Question</label>
-                                <input type="text" name="custom_question" id="customQuestionInput" class="form-control" placeholder="Type your own question..." maxlength="255" value="<?php echo $isCustom ? htmlspecialchars($currentQuestion) : ''; ?>" <?php echo $isCustom ? 'required' : ''; ?>>
-                            </div>
-
-                            <div class="mb-3">
-                                <label class="form-label fw-bold">Your Answer</label>
-                                <div class="input-group">
-                                    <input type="password" name="security_answer" id="secAnswer" class="form-control" placeholder="<?php echo !empty($currentQuestion) ? 'Enter new answer to update...' : 'Enter answer...'; ?>" required maxlength="255">
-                                    <button class="btn btn-outline-secondary" type="button" onclick="togglePass('secAnswer')"><i class="bi bi-eye"></i></button>
-                                </div>
-                                <div class="form-text">Answers are not case-sensitive, but spaces matter.</div>
-                            </div>
-
-                            <div class="d-grid">
-                                <button class="btn btn-warning fw-bold text-dark" type="submit">Save Security Question</button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-
-                <!-- GOOGLE AUTHENTICATOR SETTINGS -->
-                <div class="card shadow border-primary mb-4">
-                    <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
-                        <h5 class="mb-0"><i class="bi bi-phone"></i> Authenticator App (2FA)</h5>
-                        <?php if (!empty($currentTotpSecret)): ?>
-                            <span class="badge bg-success">Configured</span>
-                        <?php else: ?>
-                            <span class="badge bg-warning text-dark">Not Configured</span>
-                        <?php endif; ?>
-                    </div>
-                    <div class="card-body">
-                        <p class="small text-muted">Use an app like Google Authenticator or Authy to generate secure codes for login and account recovery.</p>
-
-                        <?php if (!empty($currentTotpSecret)): ?>
-                            <div class="text-center mb-3 d-flex flex-column align-items-center">
-                                <div id="qrcode" class="p-2 bg-white border rounded mb-2"><img src="https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=<?php echo urlencode($otpauthUrl); ?>" alt="QR Code"></div>
-                                <div class="mb-2">
-                                    <button type="button" class="btn btn-sm btn-outline-secondary" onclick="saveQRCode()"><i class="bi bi-download"></i> Save QR Code</button>
-                                </div>
-                                <div class="p-2 bg-light border rounded small mt-2 mb-3 text-center">
-                                    <strong>Manual Setup Key:</strong><br>
-                                    <span class="font-monospace fs-5 fw-bold text-primary"><?php echo htmlspecialchars($manualSecret); ?></span>
-                                </div>
-                                <p class="small text-danger fw-bold mb-0">Scan this QR Code with your Authenticator App.</p>
-                            </div>
-                        <?php endif; ?>
-
-                        <form method="POST" onsubmit="return confirm('Generate a new secret? Any existing Authenticator setup for this account will stop working.');">
-                            <input type="hidden" name="action" value="setup_2fa_app">
-                            <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token); ?>">
-                            <div class="d-grid">
-                                <button type="submit" class="btn btn-outline-primary fw-bold">
-                                    <i class="bi bi-qr-code-scan"></i> <?php echo empty($currentTotpSecret) ? 'Set Up Authenticator' : 'Reset Authenticator'; ?>
-                                </button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-
-                <!-- PASSWORD SETTINGS -->
-                <div class="card shadow">
-                    <div class="card-header bg-primary text-white">
-                        <h5 class="mb-0"><i class="bi bi-shield-lock"></i> Change Password</h5>
-                    </div>
-                    <div class="card-body">
-
-                        <form method="POST">
-                            <input type="hidden" name="action" value="change_pass">
-                            <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token); ?>">
-                            <div class="mb-3">
-                                <label class="form-label fw-bold">Current Password</label>
-                                <div class="input-group">
-                                    <input type="password" name="current_password" id="curPass" class="form-control" maxlength="128" required>
-                                    <button class="btn btn-outline-secondary" type="button" onclick="togglePass('curPass')"><i class="bi bi-eye"></i></button>
-                                </div>
-                            </div>
-                            <hr>
-                            <div class="mb-3">
-                                <label class="form-label fw-bold">New Password</label>
-                                <div class="input-group">
-                                    <input type="password" name="new_password" id="newPass" class="form-control" minlength="15" maxlength="128" required pattern="(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).{15,}" title="Must be at least 15 characters, contain Uppercase, Lowercase, Number, and Symbol.">
-                                    <button class="btn btn-outline-secondary" type="button" onclick="togglePass('newPass')"><i class="bi bi-eye"></i></button>
-                                </div>
-                                <div class="progress mt-1" style="height: 5px;">
-                                    <div id="strengthBar" class="progress-bar bg-danger" role="progressbar" style="width: 0%"></div>
-                                </div>
-                                <!-- Real-time Validation Checklist -->
-                                <div class="mt-2 ps-1 small">
-                                    <div id="rule-len" class="text-muted mb-1"><i class="bi bi-circle"></i> At least 15 characters</div>
-                                    <div id="rule-let" class="text-muted mb-1"><i class="bi bi-circle"></i> Contains a letter</div>
-                                    <div id="rule-num" class="text-muted mb-1"><i class="bi bi-circle"></i> Contains a number (0-9)</div>
-                                    <div id="rule-sym" class="text-muted mb-1"><i class="bi bi-circle"></i> Contains a symbol (!@#$)</div>
-                                </div>
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label fw-bold">Confirm New Password</label>
-                                <div class="input-group">
-                                    <input type="password" name="confirm_password" id="confPass" class="form-control" minlength="15" maxlength="128" required>
-                                    <button class="btn btn-outline-secondary" type="button" onclick="togglePass('confPass')"><i class="bi bi-eye"></i></button>
-                                </div>
-                                <div id="match-msg" class="small mt-1 fw-bold text-danger" style="display:none;">
-                                    <i class="bi bi-x-circle"></i> Passwords do not match
-                                </div>
-                            </div>
-
-                            <div class="d-grid gap-2">
-                                <button type="submit" id="updatePassBtn" class="btn btn-success" disabled>Update Password</button>
-                                <a href="index.php" class="btn btn-secondary">Cancel</a>
-                            </div>
-                        </form>
-
-                    </div>
-                </div>
-
-                <div class="text-center mt-3 text-muted">
-                    <small>Logged in as: <strong><?php echo htmlspecialchars($_SESSION['username']); ?></strong></small>
+                <div class="card-body">
+                    <form method="POST">
+                        <input type="hidden" name="action" value="update_email">
+                        <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token); ?>">
+                        <div class="input-group">
+                            <input type="email" name="email" class="form-control" placeholder="Enter your email..." value="<?php echo htmlspecialchars($currentEmail); ?>" maxlength="100" required>
+                            <button class="btn btn-info text-white" type="submit">Save Email</button>
+                        </div>
+                        <div class="form-text">Used for "Forgot Password" recovery.</div>
+                    </form>
                 </div>
             </div>
 
-            <div class="col-md-5">
-                <div class="card shadow-sm border-warning">
-                    <div class="card-header bg-warning text-dark">
-                        <h5 class="mb-0"><i class="bi bi-exclamation-triangle-fill"></i> Security Advice</h5>
-                    </div>
-                    <div class="card-body">
-                        <p class="mb-3">
-                            <strong>User passwords are securely hashed.</strong> If you forget your password, you must contact the Admin Manager to reset it.
-                        </p>
-                        <ul class="text-muted small mb-0">
-                            <li>Ensure your password is at least 15 characters long.</li>
-                            <li>Avoid using easily guessable words like "123456" or your name.</li>
-                            <li>Regularly updating your password helps protect the system.</li>
-                        </ul>
-                    </div>
+            <!-- BACKUP CODES SETTINGS -->
+            <div class="card shadow border-dark mb-4">
+                <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="bi bi-file-earmark-lock"></i> Offline Recovery Codes</h5>
+                    <?php if ($hasCodes): ?>
+                        <span class="badge bg-success">Active</span>
+                    <?php else: ?>
+                        <span class="badge bg-danger">Not Set</span>
+                    <?php endif; ?>
+                </div>
+                <div class="card-body">
+                    <p class="small text-muted">Recovery codes allow you to securely recover your account if you forget your password. These are 100% offline and do not require SMS or Face ID.</p>
+
+                    <?php if (isset($_SESSION['new_recovery_codes'])): ?>
+                        <div class="alert alert-warning border-warning shadow-sm">
+                            <h6 class="fw-bold text-danger"><i class="bi bi-exclamation-triangle-fill"></i> Save these codes now!</h6>
+                            <p class="small mb-2">They will only be shown this one time. Print or copy them to a safe place. Each code can only be used once.</p>
+                            <div class="row text-center font-monospace fs-5 fw-bold">
+                                <?php foreach ($_SESSION['new_recovery_codes'] as $c): ?>
+                                    <div class="col-6 mb-2"><span class="bg-white px-3 py-1 border rounded d-block"><?php echo $c; ?></span></div>
+                                <?php endforeach; ?>
+                            </div>
+                        </div>
+                        <?php unset($_SESSION['new_recovery_codes']); ?>
+                    <?php endif; ?>
+
+                    <form method="POST" onsubmit="return confirm('Generate new codes? Any existing codes will immediately become invalid.');">
+                        <input type="hidden" name="action" value="generate_codes">
+                        <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token); ?>">
+                        <div class="d-grid">
+                            <button type="submit" class="btn btn-outline-dark fw-bold"><i class="bi bi-arrow-repeat"></i> Generate 6 New Codes</button>
+                        </div>
+                    </form>
                 </div>
             </div>
 
-        </div>
+            <!-- SECURITY QUESTION SETTINGS -->
+            <div class="card shadow mb-4">
+                <div class="card-header bg-warning text-dark">
+                    <h5 class="mb-0"><i class="bi bi-patch-question-fill"></i> Security Question</h5>
+                </div>
+                <div class="card-body">
+                    <form method="POST">
+                        <input type="hidden" name="action" value="update_security_question">
+                        <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token); ?>">
 
-        <div class="row justify-content-center mt-2">
-            <div class="col-md-11">
-                <!-- BIOMETRICS SETTINGS -->
-                <div class="card shadow border-primary">
-                    <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
-                        <h5 class="mb-0"><i class="bi bi-person-bounding-box"></i> Biometric Devices (Face ID / Touch ID) (FOR FUTURE UPGRADE AND DEVELOPMENT)</h5>
-                        <button class="btn btn-light btn-sm fw-bold text-primary" onclick="registerBiometrics()"><i class="bi bi-plus-circle-fill"></i> Register This Device (FOR FUTURE UPGRADE AND DEVELOPMENT)</button>
-                    </div>
-                    <div class="card-body p-0 table-responsive">
-                        <table class="table table-hover mb-0">
-                            <thead class="table-light">
-                                <tr>
-                                    <th>Device Registration Date (FOR FUTURE UPGRADE AND DEVELOPMENT)</th>
-                                    <th class="text-end">Action</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <?php $registeredDevices = []; // TODO: Fetch from database when WebAuthn is implemented 
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Select a Question</label>
+                            <select name="security_question" class="form-select" required>
+                                <option value="" disabled <?php echo empty($currentQuestion) ? 'selected' : ''; ?>>-- Choose a question --</option>
+                                <?php
+                                $questions = [
+                                    "What was the name of your first pet?",
+                                    "What is your mother's maiden name?",
+                                    "What was the name of your elementary school?",
+                                    "What is the name of the town where you were born?",
+                                    "What is your favorite childhood movie?"
+                                ];
+                                $isCustom = !empty($currentQuestion) && !in_array($currentQuestion, $questions);
+                                foreach ($questions as $q) {
+                                    $sel = ($currentQuestion === $q) ? 'selected' : '';
+                                    echo "<option value=\"" . htmlspecialchars($q) . "\" $sel>" . htmlspecialchars($q) . "</option>";
+                                }
                                 ?>
-                                <?php if (empty($registeredDevices)): ?>
+                                <option value="custom" <?php echo $isCustom ? 'selected' : ''; ?>>-- Custom Question --</option>
+                            </select>
+                        </div>
+
+                        <div class="mb-3" id="customQuestionDiv" style="<?php echo $isCustom ? 'display: block;' : 'display: none;'; ?>">
+                            <label class="form-label fw-bold">Custom Question</label>
+                            <input type="text" name="custom_question" id="customQuestionInput" class="form-control" placeholder="Type your own question..." maxlength="255" value="<?php echo $isCustom ? htmlspecialchars($currentQuestion) : ''; ?>" <?php echo $isCustom ? 'required' : ''; ?>>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Your Answer</label>
+                            <div class="input-group">
+                                <input type="password" name="security_answer" id="secAnswer" class="form-control" placeholder="<?php echo !empty($currentQuestion) ? 'Enter new answer to update...' : 'Enter answer...'; ?>" required maxlength="255">
+                                <button class="btn btn-outline-secondary" type="button" onclick="togglePass('secAnswer')"><i class="bi bi-eye"></i></button>
+                            </div>
+                            <div class="form-text">Answers are not case-sensitive, but spaces matter.</div>
+                        </div>
+
+                        <div class="d-grid">
+                            <button class="btn btn-warning fw-bold text-dark" type="submit">Save Security Question</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- GOOGLE AUTHENTICATOR SETTINGS -->
+            <div class="card shadow border-primary mb-4">
+                <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="bi bi-phone"></i> Authenticator App (2FA)</h5>
+                    <?php if (!empty($currentTotpSecret)): ?>
+                        <span class="badge bg-success">Configured</span>
+                    <?php else: ?>
+                        <span class="badge bg-warning text-dark">Not Configured</span>
+                    <?php endif; ?>
+                </div>
+                <div class="card-body">
+                    <p class="small text-muted">Use an app like Google Authenticator or Authy to generate secure codes for login and account recovery.</p>
+
+                    <?php if (!empty($currentTotpSecret)): ?>
+                        <div class="text-center mb-3 d-flex flex-column align-items-center">
+                            <div id="qrcode" class="p-2 bg-white border rounded mb-2"><img src="https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=<?php echo urlencode($otpauthUrl); ?>" alt="QR Code"></div>
+                            <div class="mb-2">
+                                <button type="button" class="btn btn-sm btn-outline-secondary" onclick="saveQRCode()"><i class="bi bi-download"></i> Save QR Code</button>
+                            </div>
+                            <div class="p-2 bg-light border rounded small mt-2 mb-3 text-center">
+                                <strong>Manual Setup Key:</strong><br>
+                                <span class="font-monospace fs-5 fw-bold text-primary"><?php echo htmlspecialchars($manualSecret); ?></span>
+                            </div>
+                            <p class="small text-danger fw-bold mb-0">Scan this QR Code with your Authenticator App.</p>
+                        </div>
+                    <?php endif; ?>
+
+                    <form method="POST" onsubmit="return confirm('Generate a new secret? Any existing Authenticator setup for this account will stop working.');">
+                        <input type="hidden" name="action" value="setup_2fa_app">
+                        <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token); ?>">
+                        <div class="d-grid">
+                            <button type="submit" class="btn btn-outline-primary fw-bold">
+                                <i class="bi bi-qr-code-scan"></i> <?php echo empty($currentTotpSecret) ? 'Set Up Authenticator' : 'Reset Authenticator'; ?>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- PASSWORD SETTINGS -->
+            <div class="card shadow">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="bi bi-shield-lock"></i> Change Password</h5>
+                </div>
+                <div class="card-body">
+
+                    <form method="POST">
+                        <input type="hidden" name="action" value="change_pass">
+                        <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token); ?>">
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Current Password</label>
+                            <div class="input-group">
+                                <input type="password" name="current_password" id="curPass" class="form-control" maxlength="128" required>
+                                <button class="btn btn-outline-secondary" type="button" onclick="togglePass('curPass')"><i class="bi bi-eye"></i></button>
+                            </div>
+                        </div>
+                        <hr>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">New Password</label>
+                            <div class="input-group">
+                                <input type="password" name="new_password" id="newPass" class="form-control" minlength="15" maxlength="128" required pattern="(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).{15,}" title="Must be at least 15 characters, contain Uppercase, Lowercase, Number, and Symbol.">
+                                <button class="btn btn-outline-secondary" type="button" onclick="togglePass('newPass')"><i class="bi bi-eye"></i></button>
+                            </div>
+                            <div class="progress mt-1" style="height: 5px;">
+                                <div id="strengthBar" class="progress-bar bg-danger" role="progressbar" style="width: 0%"></div>
+                            </div>
+                            <!-- Real-time Validation Checklist -->
+                            <div class="mt-2 ps-1 small">
+                                <div id="rule-len" class="text-muted mb-1"><i class="bi bi-circle"></i> At least 15 characters</div>
+                                <div id="rule-let" class="text-muted mb-1"><i class="bi bi-circle"></i> Contains a letter</div>
+                                <div id="rule-num" class="text-muted mb-1"><i class="bi bi-circle"></i> Contains a number (0-9)</div>
+                                <div id="rule-sym" class="text-muted mb-1"><i class="bi bi-circle"></i> Contains a symbol (!@#$)</div>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Confirm New Password</label>
+                            <div class="input-group">
+                                <input type="password" name="confirm_password" id="confPass" class="form-control" minlength="15" maxlength="128" required>
+                                <button class="btn btn-outline-secondary" type="button" onclick="togglePass('confPass')"><i class="bi bi-eye"></i></button>
+                            </div>
+                            <div id="match-msg" class="small mt-1 fw-bold text-danger" style="display:none;">
+                                <i class="bi bi-x-circle"></i> Passwords do not match
+                            </div>
+                        </div>
+
+                        <div class="d-grid gap-2">
+                            <button type="submit" id="updatePassBtn" class="btn btn-success" disabled>Update Password</button>
+                            <a href="index.php" class="btn btn-secondary">Cancel</a>
+                        </div>
+                    </form>
+
+                </div>
+            </div>
+
+            <div class="text-center mt-3 text-muted">
+                <small>Logged in as: <strong><?php echo htmlspecialchars($_SESSION['username']); ?></strong></small>
+            </div>
+        </div>
+
+        <div class="col-md-5">
+            <div class="card shadow-sm border-warning">
+                <div class="card-header bg-warning text-dark">
+                    <h5 class="mb-0"><i class="bi bi-exclamation-triangle-fill"></i> Security Advice</h5>
+                </div>
+                <div class="card-body">
+                    <p class="mb-3">
+                        <strong>User passwords are securely hashed.</strong> If you forget your password, you must contact the Admin Manager to reset it.
+                    </p>
+                    <ul class="text-muted small mb-0">
+                        <li>Ensure your password is at least 15 characters long.</li>
+                        <li>Avoid using easily guessable words like "123456" or your name.</li>
+                        <li>Regularly updating your password helps protect the system.</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <div class="row justify-content-center mt-2">
+        <div class="col-md-11">
+            <!-- BIOMETRICS SETTINGS -->
+            <div class="card shadow border-primary">
+                <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="bi bi-person-bounding-box"></i> Biometric Devices (Face ID / Touch ID) (FOR FUTURE UPGRADE AND DEVELOPMENT)</h5>
+                    <button class="btn btn-light btn-sm fw-bold text-primary" onclick="registerBiometrics()"><i class="bi bi-plus-circle-fill"></i> Register This Device (FOR FUTURE UPGRADE AND DEVELOPMENT)</button>
+                </div>
+                <div class="card-body p-0 table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Device Registration Date (FOR FUTURE UPGRADE AND DEVELOPMENT)</th>
+                                <th class="text-end">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php $registeredDevices = []; // TODO: Fetch from database when WebAuthn is implemented 
+                            ?>
+                            <?php if (empty($registeredDevices)): ?>
+                                <tr>
+                                    <td colspan="2" class="text-center text-muted p-3">No biometric devices registered.</td>
+                                </tr>
+                                <?php else: foreach ($registeredDevices as $dev): ?>
                                     <tr>
-                                        <td colspan="2" class="text-center text-muted p-3">No biometric devices registered.</td>
+                                        <td class="align-middle">Registered on <?php echo date('M d, Y h:i A', strtotime($dev['created_at'])); ?></td>
+                                        <td class="text-end">
+                                            <form method="POST" onsubmit="return confirm('Remove this device?')">
+                                                <input type="hidden" name="action" value="remove_device">
+                                                <input type="hidden" name="device_id" value="<?php echo htmlspecialchars($dev['id']); ?>">
+                                                <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token); ?>">
+                                                <button type="submit" class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
+                                            </form>
+                                        </td>
                                     </tr>
-                                    <?php else: foreach ($registeredDevices as $dev): ?>
-                                        <tr>
-                                            <td class="align-middle">Registered on <?php echo date('M d, Y h:i A', strtotime($dev['created_at'])); ?></td>
-                                            <td class="text-end">
-                                                <form method="POST" onsubmit="return confirm('Remove this device?')">
-                                                    <input type="hidden" name="action" value="remove_device">
-                                                    <input type="hidden" name="device_id" value="<?php echo htmlspecialchars($dev['id']); ?>">
-                                                    <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token); ?>">
-                                                    <button type="submit" class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
-                                                </form>
-                                            </td>
-                                        </tr>
-                                <?php endforeach;
-                                endif; ?>
-                            </tbody>
-                        </table>
-                    </div>
+                            <?php endforeach;
+                            endif; ?>
+                        </tbody>
+                    </table>
                 </div>
             </div>
         </div>
     </div>
-    <script src="assets/bootstrap.bundle.min.js"></script>
+</div>
+<script src="assets/bootstrap.bundle.min.js"></script>
 
-    <form id="webauthnForm" method="POST" style="display:none;">
-        <input type="hidden" name="action" value="register_webauthn">
-        <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token); ?>">
-        <input type="hidden" name="credential_id" id="webauthn_cred_id">
-    </form>
+<form id="webauthnForm" method="POST" style="display:none;">
+    <input type="hidden" name="action" value="register_webauthn">
+    <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token); ?>">
+    <input type="hidden" name="credential_id" id="webauthn_cred_id">
+</form>
 
-    <script>
-        function togglePass(id) {
-            const input = document.getElementById(id);
-            const icon = input.nextElementSibling.querySelector('i');
-            if (input.type === 'password') {
-                input.type = 'text';
-                icon.classList.replace('bi-eye', 'bi-eye-slash');
+<script>
+    function togglePass(id) {
+        const input = document.getElementById(id);
+        const icon = input.nextElementSibling.querySelector('i');
+        if (input.type === 'password') {
+            input.type = 'text';
+            icon.classList.replace('bi-eye', 'bi-eye-slash');
+        } else {
+            input.type = 'password';
+            icon.classList.replace('bi-eye-slash', 'bi-eye');
+        }
+    }
+
+    const secQuestionSelect = document.querySelector('select[name="security_question"]');
+    const customQDiv = document.getElementById('customQuestionDiv');
+    const customQInput = document.getElementById('customQuestionInput');
+
+    if (secQuestionSelect) {
+        secQuestionSelect.addEventListener('change', function() {
+            if (this.value === 'custom') {
+                customQDiv.style.display = 'block';
+                customQInput.required = true;
             } else {
-                input.type = 'password';
-                icon.classList.replace('bi-eye-slash', 'bi-eye');
+                customQDiv.style.display = 'none';
+                customQInput.required = false;
             }
-        }
+        });
+    }
 
-        const secQuestionSelect = document.querySelector('select[name="security_question"]');
-        const customQDiv = document.getElementById('customQuestionDiv');
-        const customQInput = document.getElementById('customQuestionInput');
-
-        if (secQuestionSelect) {
-            secQuestionSelect.addEventListener('change', function() {
-                if (this.value === 'custom') {
-                    customQDiv.style.display = 'block';
-                    customQInput.required = true;
-                } else {
-                    customQDiv.style.display = 'none';
-                    customQInput.required = false;
-                }
-            });
-        }
-
-        <?php if ($alertMsg): ?>
-            Swal.fire({
-                icon: '<?php echo $alertType; ?>',
-                title: '<?php echo ucfirst($alertType === "error" ? "Failed" : "Success"); ?>',
-                text: <?php echo json_encode($alertMsg); ?>,
-                confirmButtonColor: '<?php echo $alertType === "error" ? "#dc3545" : "#198754"; ?>'
-            });
-        <?php endif; ?>
-
-        const p1 = document.getElementById('newPass');
-        const p2 = document.getElementById('confPass');
-        const btn = document.getElementById('updatePassBtn');
-        const matchMsg = document.getElementById('match-msg');
-        const strengthBar = document.getElementById('strengthBar');
-
-        if (p1 && p2) {
-            const rules = {
-                len: {
-                    el: document.getElementById('rule-len'),
-                    regex: /^.{15,128}$/
-                },
-                let: {
-                    el: document.getElementById('rule-let'),
-                    regex: /[a-zA-Z]/
-                },
-                num: {
-                    el: document.getElementById('rule-num'),
-                    regex: /[0-9]/
-                },
-                sym: {
-                    el: document.getElementById('rule-sym'),
-                    regex: /[\W_]/
-                }
-            };
-
-            function validate() {
-                const val = p1.value;
-                let allValid = true;
-                let score = 0;
-
-                // Check Complexity
-                for (const key in rules) {
-                    const rule = rules[key];
-                    const icon = rule.el.querySelector('i');
-                    if (rule.regex.test(val)) {
-                        rule.el.classList.add('text-success', 'fw-bold');
-                        rule.el.classList.remove('text-muted');
-                        icon.classList.replace('bi-circle', 'bi-check-circle-fill');
-                        score++;
-                    } else {
-                        rule.el.classList.remove('text-success', 'fw-bold');
-                        rule.el.classList.add('text-muted');
-                        icon.classList.replace('bi-check-circle-fill', 'bi-circle');
-                        allValid = false;
-                    }
-                }
-
-                // Update Strength Meter
-                let width = (score / 4) * 100;
-                let color = 'red';
-                if (score === 2) color = 'orange';
-                if (score === 3) color = '#ffc107'; // yellow
-                if (score === 4) color = '#198754'; // green
-
-                strengthBar.style.width = width + '%';
-                strengthBar.style.backgroundColor = color;
-
-                // Check Match
-                const match = p2.value && p1.value === p2.value;
-                if (p2.value && !match) {
-                    matchMsg.style.display = 'block';
-                    matchMsg.className = 'small mt-1 fw-bold text-danger';
-                    matchMsg.innerHTML = '<i class="bi bi-x-circle"></i> Passwords do not match';
-                } else if (match) {
-                    matchMsg.style.display = 'block';
-                    matchMsg.className = 'small mt-1 fw-bold text-success';
-                    matchMsg.innerHTML = '<i class="bi bi-check-circle"></i> Passwords match';
-                } else {
-                    matchMsg.style.display = 'none';
-                }
-
-                btn.disabled = !(allValid && match);
-            }
-
-            p1.addEventListener('input', validate);
-            p2.addEventListener('input', validate);
-        }
-
-        function registerBiometrics() {
-            Swal.fire({
-                icon: 'info',
-                title: 'Coming Soon',
-                text: 'Biometric registration is not yet available. This feature will be enabled in a future release.',
-                confirmButtonColor: '#0d6efd'
-            });
-        }
-
-        // [SECURITY] Auto-Logout Timer
-        const timeoutDuration = <?php echo $clientTimeout * 1000; ?>;
-        let timeLeft = timeoutDuration;
-
-        function updateTimer() {
-            timeLeft -= 1000;
-            if (timeLeft <= 0) window.location.href = 'logout.php';
-            const m = Math.floor(timeLeft / 60000);
-            const s = Math.floor((timeLeft % 60000) / 1000);
-            document.getElementById('sessionTimer').innerText = `${m}:${s.toString().padStart(2, '0')}`;
-        }
-        document.addEventListener('mousemove', () => timeLeft = timeoutDuration);
-        document.addEventListener('keydown', () => timeLeft = timeoutDuration);
-        setInterval(updateTimer, 1000);
-        updateTimer();
-    </script>
-
-    <?php if (!empty($currentTotpSecret)): ?>
-        <script src="assets/qrcode.min.js"></script>
-        <script>
-            var qrCodeDiv = document.getElementById("qrcode");
-            if (qrCodeDiv && typeof QRCode !== 'undefined') {
-                qrCodeDiv.innerHTML = ""; // Clear fallback image
-                new QRCode(qrCodeDiv, {
-                    text: "<?php echo $otpauthUrl; ?>",
-                    width: 160,
-                    height: 160,
-                    colorDark: "#000000",
-                    colorLight: "#ffffff",
-                    correctLevel: QRCode.CorrectLevel.M
-                });
-            }
-
-            function saveQRCode() {
-                var canvas = document.querySelector('#qrcode canvas');
-                if (canvas) {
-                    var link = document.createElement('a');
-                    link.download = '2FA_QRCode.png';
-                    link.href = canvas.toDataURL('image/png');
-                    link.click();
-                }
-            }
-        </script>
+    <?php if ($alertMsg): ?>
+        Swal.fire({
+            icon: '<?php echo $alertType; ?>',
+            title: '<?php echo ucfirst($alertType === "error" ? "Failed" : "Success"); ?>',
+            text: <?php echo json_encode($alertMsg); ?>,
+            confirmButtonColor: '<?php echo $alertType === "error" ? "#dc3545" : "#198754"; ?>'
+        });
     <?php endif; ?>
 
-    <script src="dark_mode.js"></script>
+    const p1 = document.getElementById('newPass');
+    const p2 = document.getElementById('confPass');
+    const btn = document.getElementById('updatePassBtn');
+    const matchMsg = document.getElementById('match-msg');
+    const strengthBar = document.getElementById('strengthBar');
+
+    if (p1 && p2) {
+        const rules = {
+            len: {
+                el: document.getElementById('rule-len'),
+                regex: /^.{15,128}$/
+            },
+            let: {
+                el: document.getElementById('rule-let'),
+                regex: /[a-zA-Z]/
+            },
+            num: {
+                el: document.getElementById('rule-num'),
+                regex: /[0-9]/
+            },
+            sym: {
+                el: document.getElementById('rule-sym'),
+                regex: /[\W_]/
+            }
+        };
+
+        function validate() {
+            const val = p1.value;
+            let allValid = true;
+            let score = 0;
+
+            // Check Complexity
+            for (const key in rules) {
+                const rule = rules[key];
+                const icon = rule.el.querySelector('i');
+                if (rule.regex.test(val)) {
+                    rule.el.classList.add('text-success', 'fw-bold');
+                    rule.el.classList.remove('text-muted');
+                    icon.classList.replace('bi-circle', 'bi-check-circle-fill');
+                    score++;
+                } else {
+                    rule.el.classList.remove('text-success', 'fw-bold');
+                    rule.el.classList.add('text-muted');
+                    icon.classList.replace('bi-check-circle-fill', 'bi-circle');
+                    allValid = false;
+                }
+            }
+
+            // Update Strength Meter
+            let width = (score / 4) * 100;
+            let color = 'red';
+            if (score === 2) color = 'orange';
+            if (score === 3) color = '#ffc107'; // yellow
+            if (score === 4) color = '#198754'; // green
+
+            strengthBar.style.width = width + '%';
+            strengthBar.style.backgroundColor = color;
+
+            // Check Match
+            const match = p2.value && p1.value === p2.value;
+            if (p2.value && !match) {
+                matchMsg.style.display = 'block';
+                matchMsg.className = 'small mt-1 fw-bold text-danger';
+                matchMsg.innerHTML = '<i class="bi bi-x-circle"></i> Passwords do not match';
+            } else if (match) {
+                matchMsg.style.display = 'block';
+                matchMsg.className = 'small mt-1 fw-bold text-success';
+                matchMsg.innerHTML = '<i class="bi bi-check-circle"></i> Passwords match';
+            } else {
+                matchMsg.style.display = 'none';
+            }
+
+            btn.disabled = !(allValid && match);
+        }
+
+        p1.addEventListener('input', validate);
+        p2.addEventListener('input', validate);
+    }
+
+    function registerBiometrics() {
+        Swal.fire({
+            icon: 'info',
+            title: 'Coming Soon',
+            text: 'Biometric registration is not yet available. This feature will be enabled in a future release.',
+            confirmButtonColor: '#0d6efd'
+        });
+    }
+
+    // [SECURITY] Auto-Logout Timer
+    const timeoutDuration = <?php echo $clientTimeout * 1000; ?>;
+    let timeLeft = timeoutDuration;
+
+    function updateTimer() {
+        timeLeft -= 1000;
+        if (timeLeft <= 0) window.location.href = 'logout.php';
+        const m = Math.floor(timeLeft / 60000);
+        const s = Math.floor((timeLeft % 60000) / 1000);
+        document.getElementById('sessionTimer').innerText = `${m}:${s.toString().padStart(2, '0')}`;
+    }
+    document.addEventListener('mousemove', () => timeLeft = timeoutDuration);
+    document.addEventListener('keydown', () => timeLeft = timeoutDuration);
+    setInterval(updateTimer, 1000);
+    updateTimer();
+</script>
+
+<?php if (!empty($currentTotpSecret)): ?>
+    <script src="assets/qrcode.min.js"></script>
+    <script>
+        var qrCodeDiv = document.getElementById("qrcode");
+        if (qrCodeDiv && typeof QRCode !== 'undefined') {
+            qrCodeDiv.innerHTML = ""; // Clear fallback image
+            new QRCode(qrCodeDiv, {
+                text: "<?php echo $otpauthUrl; ?>",
+                width: 160,
+                height: 160,
+                colorDark: "#000000",
+                colorLight: "#ffffff",
+                correctLevel: QRCode.CorrectLevel.M
+            });
+        }
+
+        function saveQRCode() {
+            var canvas = document.querySelector('#qrcode canvas');
+            if (canvas) {
+                var link = document.createElement('a');
+                link.download = '2FA_QRCode.png';
+                link.href = canvas.toDataURL('image/png');
+                link.click();
+            }
+        }
+    </script>
+<?php endif; ?>
+
 </body>
 
 </html>

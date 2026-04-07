@@ -127,7 +127,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate_emp'])) {
                 }
             }
             $pdo->commit();
-            $logger->log($_SESSION['user_id'], 'GENERATE_EMPLOYEES', "Generated $count test employees.");
+            if (isset($logger)) $logger->log($_SESSION['user_id'], 'GENERATE_EMPLOYEES', "Generated $count test employees.");
             $msg = "✅ Successfully generated $count random employees with documents!";
         } else {
             $error = "Count must be between 1 and 500.";
@@ -164,7 +164,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate_cand'])) {
                 ]);
             }
             $pdo->commit();
-            $logger->log($_SESSION['user_id'], 'GENERATE_CANDIDATES', "Generated $count test candidates.");
+            if (isset($logger)) $logger->log($_SESSION['user_id'], 'GENERATE_CANDIDATES', "Generated $count test candidates.");
             $msg = "✅ Successfully generated $count random candidates for the Recruitment ATS!";
         } else {
             $error = "Count must be between 1 and 500.";
@@ -219,7 +219,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['clear_data'])) {
             $candDeleted = $stmtCand->rowCount();
 
             $pdo->commit();
-            $logger->log($_SESSION['user_id'], 'CLEAR_TEST_DATA', "Cleared $empDeleted test employees and $candDeleted test candidates.");
+            if (isset($logger)) $logger->log($_SESSION['user_id'], 'CLEAR_TEST_DATA', "Cleared $empDeleted test employees and $candDeleted test candidates.");
             $msg = "🧹 Successfully cleared $empDeleted test employees, $docsDeleted documents, and $candDeleted test candidates!";
         } catch (Exception $e) {
             $pdo->rollBack();
@@ -228,84 +228,60 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['clear_data'])) {
     }
 }
 ?>
-<!DOCTYPE html>
-<html lang="en">
+<?php require 'header.php'; ?>
 
-<head>
-    <meta charset="UTF-8">
-    <title>Test Data Generator</title>
-    <link rel="icon" href="assets/tesp-logo.png?v=4" type="image/png">
-    <link href="assets/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="assets/icons/bootstrap-icons.css">
-</head>
+<div class="container" style="max-width: 800px;">
+    <?php if ($msg): ?><div class="alert alert-success shadow-sm fw-bold"><?php echo $msg; ?></div><?php endif; ?>
+    <?php if ($error): ?><div class="alert alert-danger shadow-sm fw-bold"><?php echo $error; ?></div><?php endif; ?>
 
-<body class="bg-body-tertiary">
+    <div class="alert alert-warning shadow-sm border-warning border-3 mb-4">
+        <h5 class="alert-heading fw-bold"><i class="bi bi-exclamation-triangle-fill"></i> Developer Tool</h5>
+        <p class="mb-0">This tool instantly populates the database with realistic dummy records so you can test the Analytics dashboard, bulk updates, and paginations without manually typing in data.</p>
+    </div>
 
-    <nav class="navbar navbar-dark bg-danger mb-4 shadow">
-        <div class="container">
-            <a class="navbar-brand" href="index.php">Back to Dashboard</a>
-            <div class="d-flex align-items-center gap-2">
-                <button id="darkModeToggle" class="btn btn-sm btn-outline-light border-0" title="Toggle Dark Mode">
-                    <i class="bi bi-moon-stars-fill"></i>
-                </button>
-                <span class="navbar-text text-white fw-bold"><i class="bi bi-cone-striped"></i> Test Data Generator</span>
-            </div>
-        </div>
-    </nav>
-
-    <div class="container" style="max-width: 800px;">
-        <?php if ($msg): ?><div class="alert alert-success shadow-sm fw-bold"><?php echo $msg; ?></div><?php endif; ?>
-        <?php if ($error): ?><div class="alert alert-danger shadow-sm fw-bold"><?php echo $error; ?></div><?php endif; ?>
-
-        <div class="alert alert-warning shadow-sm border-warning border-3 mb-4">
-            <h5 class="alert-heading fw-bold"><i class="bi bi-exclamation-triangle-fill"></i> Developer Tool</h5>
-            <p class="mb-0">This tool instantly populates the database with realistic dummy records so you can test the Analytics dashboard, bulk updates, and paginations without manually typing in data.</p>
+    <div class="row">
+        <!-- Employee Generator -->
+        <div class="col-md-6 mb-4">
+            <form method="POST" class="card shadow-sm h-100 border-primary">
+                <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
+                <div class="card-header bg-primary text-white fw-bold"><i class="bi bi-people-fill"></i> Employee Directory</div>
+                <div class="card-body">
+                    <p class="small text-muted">Generates employees with random ages, departments, agencies, and hire dates to populate the Workforce Analytics charts.</p>
+                    <label class="form-label fw-bold">Number to Generate (Max 500)</label>
+                    <input type="number" name="count" class="form-control mb-3" value="50" min="1" max="500" required>
+                    <button type="submit" name="generate_emp" class="btn btn-primary w-100 fw-bold"><i class="bi bi-lightning-charge-fill"></i> Generate Employees</button>
+                </div>
+            </form>
         </div>
 
-        <div class="row">
-            <!-- Employee Generator -->
-            <div class="col-md-6 mb-4">
-                <form method="POST" class="card shadow-sm h-100 border-primary">
-                    <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
-                    <div class="card-header bg-primary text-white fw-bold"><i class="bi bi-people-fill"></i> Employee Directory</div>
-                    <div class="card-body">
-                        <p class="small text-muted">Generates employees with random ages, departments, agencies, and hire dates to populate the Workforce Analytics charts.</p>
-                        <label class="form-label fw-bold">Number to Generate (Max 500)</label>
-                        <input type="number" name="count" class="form-control mb-3" value="50" min="1" max="500" required>
-                        <button type="submit" name="generate_emp" class="btn btn-primary w-100 fw-bold"><i class="bi bi-lightning-charge-fill"></i> Generate Employees</button>
-                    </div>
-                </form>
-            </div>
-
-            <!-- Recruitment ATS Generator -->
-            <div class="col-md-6 mb-4">
-                <form method="POST" class="card shadow-sm h-100 border-success">
-                    <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
-                    <div class="card-header bg-success text-white fw-bold"><i class="bi bi-person-lines-fill"></i> Recruitment ATS</div>
-                    <div class="card-body">
-                        <p class="small text-muted">Generates job applicants scattered across different pipeline phases (Screening, Interviewed, Rejected) to test the doughnut charts.</p>
-                        <label class="form-label fw-bold">Number to Generate (Max 500)</label>
-                        <input type="number" name="count" class="form-control mb-3" value="50" min="1" max="500" required>
-                        <button type="submit" name="generate_cand" class="btn btn-success w-100 fw-bold"><i class="bi bi-lightning-charge-fill"></i> Generate Candidates</button>
-                    </div>
-                </form>
-            </div>
-        </div>
-
-        <!-- Clear Test Data -->
-        <div class="card shadow-sm border-danger mt-1 mb-5">
-            <div class="card-header bg-danger text-white fw-bold"><i class="bi bi-trash-fill"></i> Cleanup Test Data</div>
-            <div class="card-body d-flex justify-content-between align-items-center">
-                <p class="small text-muted mb-0 me-3">Finished testing? Click here to instantly delete all dummy employees (IDs starting with <code>TST-</code>) and candidates (emails ending in <code>@test.com</code>) that this tool generated.</p>
-                <form method="POST" onsubmit="return confirm('Are you sure you want to permanently delete all test records?');" class="m-0">
-                    <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
-                    <button type="submit" name="clear_data" class="btn btn-danger fw-bold text-nowrap"><i class="bi bi-eraser-fill"></i> Clear Test Data</button>
-                </form>
-            </div>
+        <!-- Recruitment ATS Generator -->
+        <div class="col-md-6 mb-4">
+            <form method="POST" class="card shadow-sm h-100 border-success">
+                <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
+                <div class="card-header bg-success text-white fw-bold"><i class="bi bi-person-lines-fill"></i> Recruitment ATS</div>
+                <div class="card-body">
+                    <p class="small text-muted">Generates job applicants scattered across different pipeline phases (Screening, Interviewed, Rejected) to test the doughnut charts.</p>
+                    <label class="form-label fw-bold">Number to Generate (Max 500)</label>
+                    <input type="number" name="count" class="form-control mb-3" value="50" min="1" max="500" required>
+                    <button type="submit" name="generate_cand" class="btn btn-success w-100 fw-bold"><i class="bi bi-lightning-charge-fill"></i> Generate Candidates</button>
+                </div>
+            </form>
         </div>
     </div>
-    <script src="assets/bootstrap.bundle.min.js"></script>
-    <script src="dark_mode.js"></script>
+
+    <!-- Clear Test Data -->
+    <div class="card shadow-sm border-danger mt-1 mb-5">
+        <div class="card-header bg-danger text-white fw-bold"><i class="bi bi-trash-fill"></i> Cleanup Test Data</div>
+        <div class="card-body d-flex justify-content-between align-items-center">
+            <p class="small text-muted mb-0 me-3">Finished testing? Click here to instantly delete all dummy employees (IDs starting with <code>TST-</code>) and candidates (emails ending in <code>@test.com</code>) that this tool generated.</p>
+            <form method="POST" onsubmit="return confirm('Are you sure you want to permanently delete all test records?');" class="m-0">
+                <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
+                <button type="submit" name="clear_data" class="btn btn-danger fw-bold text-nowrap"><i class="bi bi-eraser-fill"></i> Clear Test Data</button>
+            </form>
+        </div>
+    </div>
+</div>
+<script src="assets/bootstrap.bundle.min.js"></script>
 </body>
 
 </html>

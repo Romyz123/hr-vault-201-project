@@ -99,18 +99,9 @@ $vaultLimitBytes = $vaultLimitGB * 1024 * 1024 * 1024;
 $vaultPercent = ($vaultLimitBytes > 0) ? min(100, round(($currentVaultBytes / $vaultLimitBytes) * 100)) : 0;
 $isVaultFull = ($vaultLimitBytes > 0 && $currentVaultBytes >= $vaultLimitBytes);
 ?>
-
-<!DOCTYPE html>
-<html lang="en">
+<?php require 'header.php'; ?>
 
 <head>
-    <meta charset="UTF-8">
-    <title>Upload Document</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <link rel="icon" href="assets/tesp-logo.png?v=4" type="image/png">
-    <link href="assets/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="assets/icons/bootstrap-icons.css">
-    <script src="assets/sweetalert2.all.min.js"></script>
     <style>
         .drop-zone {
             border: 2px dashed #ced4da;
@@ -156,23 +147,11 @@ $isVaultFull = ($vaultLimitBytes > 0 && $currentVaultBytes >= $vaultLimitBytes);
             box-shadow: 0 0 0 2000px rgba(0, 0, 0, 0.5);
         }
     </style>
-</head>
 
-<body class="bg-body-tertiary">
-
-    <div class="container mt-5">
+    <div class="container">
         <div class="row justify-content-center">
             <div class="col-md-8">
                 <div class="card shadow">
-                    <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
-                        <h4 class="mb-0 fs-5"><i class="bi bi-cloud-arrow-up-fill"></i> Upload Document</h4>
-                        <div class="d-flex align-items-center gap-2">
-                            <button id="darkModeToggle" class="btn btn-sm btn-outline-light border-0" title="Toggle Dark Mode">
-                                <i class="bi bi-moon-stars-fill"></i>
-                            </button>
-                            <a href="index.php" class="btn btn-sm btn-outline-light">Back to Dashboard</a>
-                        </div>
-                    </div>
                     <div class="card-body">
 
                         <?php if (isset($_GET['error'])): ?>
@@ -798,7 +777,6 @@ $isVaultFull = ($vaultLimitBytes > 0 && $currentVaultBytes >= $vaultLimitBytes);
         document.addEventListener('click', resetTimer);
         document.addEventListener('scroll', resetTimer);
     </script>
-    <script src="dark_mode.js"></script>
-</body>
+    </body>
 
-</html>
+    </html>

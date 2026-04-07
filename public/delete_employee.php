@@ -5,6 +5,7 @@ require '../src/Logger.php';
 require '../src/Security.php';
 session_start();
 
+
 // 1. SECURITY: Admin/HR Only
 if (!isset($_SESSION['role']) || !in_array($_SESSION['role'], ['ADMIN', 'MANAGER', 'HR'])) {
     die("ACCESS DENIED");
@@ -26,25 +27,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $emp = $stmt->fetch();
 
     if ($emp) {
-        // 3. DELETE FROM DATABASE
-        // Note: This might fail if you have documents linked (Error 1701). 
-        // We use a try-catch block to handle that gracefully.
         try {
-            $del = $pdo->prepare("DELETE FROM employees WHERE id = ?");
+            $pdo->beginTransaction(); // [SECURITY] Wrap in transaction
+
+            // [FIX] Soft Delete instead of Hard Delete to allow for accidental recovery.
+            // Physical files and document records are preserved in the vault and database.
+            // Associated documents are automatically hidden from the main directory via the deleted_at check.
+            $del = $pdo->prepare("UPDATE employees SET deleted_at = NOW() WHERE id = ?");
             $del->execute([$id]);
 
             // 4. LOG IT
             $logger = new Logger($pdo);
             // [IMPROVEMENT] Save full data snapshot for recovery
             $snapshot = json_encode($emp);
-            $logger->log($_SESSION['user_id'], 'DELETE_EMPLOYEE', "Deleted: " . $emp['emp_id'] . " | DATA: " . $snapshot);
+            $logger->log($_SESSION['user_id'], 'SOFT_DELETE_EMPLOYEE', "Moved to Recycle Bin: " . $emp['emp_id'] . " | DATA: " . $snapshot);
 
-            header("Location: index.php?msg=" . urlencode("✅ Employee Deleted Successfully"));
+            $pdo->commit();
+
+            header("Location: index.php?msg=" . urlencode("🗑️ Employee moved to Recovery Console (Soft-Deleted)"));
             exit;
-        } catch (PDOException $e) {
+        } catch (Exception $e) {
+            if ($pdo->inTransaction()) $pdo->rollBack();
             // If linked data exists (Foreign Key Error)
-            $error = "Cannot delete: This employee has linked documents/history. Remove those first.";
-            header("Location: edit_employee.php?id=$id&error=" . urlencode($error));
+            $errorMsg = "Failed to soft-delete: " . $e->getMessage();
+            header("Location: edit_employee.php?id=$id&error=" . urlencode($errorMsg));
             exit;
         }
     }

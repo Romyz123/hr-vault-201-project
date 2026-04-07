@@ -696,110 +696,100 @@ $offset = ($page - 1) * $perPage;
 $paginatedEmployees = array_slice($employees, $offset, $perPage);
 
 ?>
+<?php include 'header.php'; ?>
+<style>
+    body {
+        background: #f8f9fa;
+        font-size: 0.9rem;
+    }
 
-<!DOCTYPE html>
-<html lang="en">
+    .progress {
+        height: 20px;
+        border-radius: 10px;
+        background-color: #e9ecef;
+    }
 
-<head>
-    <meta charset="UTF-8">
-    <title>Document Tracker - TES HR</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <link rel="icon" href="uploads/tesp-logo.png" type="image/png">
-    <link href="assets/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="assets/icons/bootstrap-icons.css">
-    <style>
-        body {
-            background: #f8f9fa;
-            font-size: 0.9rem;
-        }
+    .icon-check {
+        color: #198754;
+        font-size: 1.2rem;
+    }
 
-        .progress {
-            height: 20px;
-            border-radius: 10px;
-            background-color: #e9ecef;
-        }
+    /* Green Check */
+    .icon-cross {
+        color: #dc3545;
+        font-size: 1.2rem;
+        opacity: 0.3;
+    }
 
-        .icon-check {
-            color: #198754;
-            font-size: 1.2rem;
-        }
+    /* Red X */
+    .card-header {
+        background: #2c3e50;
+        color: white;
+    }
 
-        /* Green Check */
-        .icon-cross {
-            color: #dc3545;
-            font-size: 1.2rem;
-            opacity: 0.3;
-        }
+    .table-hover tbody tr:hover {
+        background-color: #f1f1f1;
+    }
 
-        /* Red X */
-        .card-header {
-            background: #2c3e50;
-            color: white;
-        }
+    .cursor-pointer {
+        cursor: pointer;
+    }
 
-        .table-hover tbody tr:hover {
-            background-color: #f1f1f1;
-        }
+    .icon-cross:hover {
+        opacity: 1;
+    }
 
-        .cursor-pointer {
-            cursor: pointer;
-        }
+    /* [NEW] Tag Input Styles */
+    .tag-container {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 5px;
+        padding: 5px;
+        border: 1px solid #ced4da;
+        border-radius: 0.25rem;
+        background: #fff;
+        min-height: 38px;
+        align-items: center;
+    }
 
-        .icon-cross:hover {
-            opacity: 1;
-        }
+    .tag-container:focus-within {
+        border-color: #86b7fe;
+        box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+    }
 
-        /* [NEW] Tag Input Styles */
-        .tag-container {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 5px;
-            padding: 5px;
-            border: 1px solid #ced4da;
-            border-radius: 0.25rem;
-            background: #fff;
-            min-height: 38px;
-            align-items: center;
-        }
+    .tag-chip {
+        background: #e9ecef;
+        border: 1px solid #dee2e6;
+        border-radius: 3px;
+        padding: 2px 6px;
+        font-size: 0.85rem;
+        display: flex;
+        align-items: center;
+    }
 
-        .tag-container:focus-within {
-            border-color: #86b7fe;
-            box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
-        }
+    .tag-chip span {
+        margin-right: 5px;
+    }
 
-        .tag-chip {
-            background: #e9ecef;
-            border: 1px solid #dee2e6;
-            border-radius: 3px;
-            padding: 2px 6px;
-            font-size: 0.85rem;
-            display: flex;
-            align-items: center;
-        }
+    .tag-chip i {
+        cursor: pointer;
+        font-size: 0.8rem;
+        color: #6c757d;
+    }
 
-        .tag-chip span {
-            margin-right: 5px;
-        }
+    .tag-chip i:hover {
+        color: #dc3545;
+    }
 
-        .tag-chip i {
-            cursor: pointer;
-            font-size: 0.8rem;
-            color: #6c757d;
-        }
-
-        .tag-chip i:hover {
-            color: #dc3545;
-        }
-
-        .tag-input {
-            border: none;
-            outline: none;
-            flex-grow: 1;
-            min-width: 100px;
-            font-size: 0.9rem;
-            padding: 2px;
-        }
-    </style>
+    .tag-input {
+        border: none;
+        outline: none;
+        flex-grow: 1;
+        min-width: 100px;
+        font-size: 0.9rem;
+        padding: 2px;
+    }
+</style>
 </head>
 
 <body class="bg-body-tertiary">
@@ -807,7 +797,7 @@ $paginatedEmployees = array_slice($employees, $offset, $perPage);
     <nav class="navbar navbar-dark bg-dark mb-4">
         <div class="container-fluid px-4">
             <div class="d-flex align-items-center">
-                <a class="navbar-brand" href="index.php">⬅ Back to Dashboard</a>
+                <a class="navbar-brand" href="index.php"></a>
                 <span class="navbar-text text-white ms-3 border-start ps-3">Missing Document Tracker</span>
                 <span class="navbar-text text-white-50 ms-3 font-monospace small" title="Auto-Logout Timer"><i class="bi bi-clock"></i> <span id="sessionTimer"></span></span>
             </div>

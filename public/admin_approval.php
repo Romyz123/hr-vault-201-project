@@ -222,6 +222,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                         $pdo->prepare("UPDATE disciplinary_cases SET employee_id = ? WHERE employee_id = ?")->execute([$newEmpId, $oldStr]);
                         $pdo->prepare("UPDATE maintenance_logs SET employee_id = ? WHERE employee_id = ?")->execute([$newEmpId, $oldStr]);
                         $pdo->prepare("UPDATE document_exemptions SET employee_id = ? WHERE employee_id = ?")->execute([$newEmpId, $oldStr]);
+                        $pdo->prepare("UPDATE requests SET employee_id = ? WHERE employee_id = ?")->execute([$newEmpId, $oldStr]);
+                        $pdo->prepare("UPDATE performance_evaluations SET employee_id = ? WHERE employee_id = ?")->execute([$newEmpId, $oldStr]);
+                        $pdo->prepare("UPDATE activity_logs SET employee_id = ? WHERE employee_id = ?")->execute([$newEmpId, $oldStr]);
                     }
 
                     // NOTIFY SUCCESS
@@ -389,209 +392,183 @@ $docs     = in_array('docs', $enabledWidgets) ? $pdo->query("SELECT r.*, u.usern
 $doc_edits = in_array('doc-edits', $enabledWidgets) ? $pdo->query("SELECT r.*, u.username FROM requests r LEFT JOIN users u ON r.user_id = u.id WHERE request_type='EDIT_DOC' AND status='PENDING'")->fetchAll() : [];
 $tickets  = in_array('tickets', $enabledWidgets) ? $pdo->query("SELECT r.*, u.username FROM requests r LEFT JOIN users u ON r.user_id = u.id WHERE request_type='RESOLVE_ALERT' AND status='PENDING'")->fetchAll() : [];
 ?>
+<?php require 'header.php'; ?>
 
-<!DOCTYPE html>
-<html lang="en">
+<div class="container">
+    <?php if (isset($_GET['msg'])): ?>
+        <?php
+        // Auto-detect error messages to style them red
+        $msgClass = (stripos($_GET['msg'], 'Error') !== false || stripos($_GET['msg'], 'CANNOT') !== false) ? 'alert-danger' : 'alert-success';
+        ?>
+        <div class='alert <?php echo $msgClass; ?>'><?php echo htmlspecialchars($_GET['msg']); ?></div>
+        <script>
+            // Clear message on load
+            if (window.history.replaceState) {
+                const url = new URL(window.location.href);
+                url.searchParams.delete('msg');
+                window.history.replaceState(null, '', url);
+            }
+        </script>
+    <?php endif; ?>
 
-<head>
-    <meta charset="UTF-8">
-    <title>Approvals</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <link rel="icon" href="assets/tesp-logo.png?v=4" type="image/png">
-    <link href="assets/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="assets/icons/bootstrap-icons.css">
-    <script src="assets/sweetalert2.all.min.js"></script>
-</head>
-
-<body class="bg-body-tertiary">
-
-    <nav class="navbar navbar-dark bg-dark mb-4">
-        <div class="container">
-            <a class="navbar-brand" href="index.php">Back to Dashboard</a>
-            <div class="d-flex align-items-center gap-2">
-                <button id="darkModeToggle" class="btn btn-sm btn-outline-light border-0" title="Toggle Dark Mode">
-                    <i class="bi bi-moon-stars-fill"></i>
-                </button>
-                <span class="navbar-text text-white">Approval Center</span>
-            </div>
-        </div>
-    </nav>
-
-    <div class="container">
-        <?php if (isset($_GET['msg'])): ?>
-            <?php
-            // Auto-detect error messages to style them red
-            $msgClass = (stripos($_GET['msg'], 'Error') !== false || stripos($_GET['msg'], 'CANNOT') !== false) ? 'alert-danger' : 'alert-success';
-            ?>
-            <div class='alert <?php echo $msgClass; ?>'><?php echo htmlspecialchars($_GET['msg']); ?></div>
-            <script>
-                // Clear message on load
-                if (window.history.replaceState) {
-                    const url = new URL(window.location.href);
-                    url.searchParams.delete('msg');
-                    window.history.replaceState(null, '', url);
+    <div class="card shadow-sm">
+        <div class="card-header">
+            <ul class="nav nav-tabs card-header-tabs" id="approvalTabs" role="tablist">
+                <?php
+                $widgetConfig = [
+                    'hires' => ['label' => 'New Hires', 'count' => count($newHires), 'data' => $newHires],
+                    'edits' => ['label' => 'Profile Edits', 'count' => count($edits), 'data' => $edits],
+                    'docs' => ['label' => 'Documents', 'count' => count($docs), 'data' => $docs],
+                    'doc-edits' => ['label' => 'Doc Edits', 'count' => count($doc_edits), 'data' => $doc_edits],
+                    'tickets' => ['label' => 'Resolutions', 'count' => count($tickets), 'data' => $tickets],
+                ];
+                $isFirst = true;
+                foreach ($widgetConfig as $key => $widget) {
+                    if (in_array($key, $enabledWidgets)) {
+                        $activeClass = $isFirst ? 'active' : '';
+                        $ariaSelected = $isFirst ? 'true' : 'false';
+                        $isFirst = false;
+                        echo "<li class='nav-item' role='presentation'>";
+                        echo "<button class='nav-link $activeClass fw-bold' id='tab-btn-$key' data-bs-toggle='tab' data-bs-target='#tab-$key' type='button' role='tab' aria-controls='tab-$key' aria-selected='$ariaSelected'>{$widget['label']} <span class='badge bg-secondary rounded-pill ms-1'>{$widget['count']}</span></button></li>";
+                    }
                 }
-            </script>
-        <?php endif; ?>
+                ?>
+            </ul>
+        </div>
 
-        <div class="card shadow-sm">
-            <div class="card-header">
-                <ul class="nav nav-tabs card-header-tabs" id="approvalTabs" role="tablist">
-                    <?php
-                    $widgetConfig = [
-                        'hires' => ['label' => 'New Hires', 'count' => count($newHires), 'data' => $newHires],
-                        'edits' => ['label' => 'Profile Edits', 'count' => count($edits), 'data' => $edits],
-                        'docs' => ['label' => 'Documents', 'count' => count($docs), 'data' => $docs],
-                        'doc-edits' => ['label' => 'Doc Edits', 'count' => count($doc_edits), 'data' => $doc_edits],
-                        'tickets' => ['label' => 'Resolutions', 'count' => count($tickets), 'data' => $tickets],
-                    ];
-                    $isFirst = true;
-                    foreach ($widgetConfig as $key => $widget) {
-                        if (in_array($key, $enabledWidgets)) {
-                            $activeClass = $isFirst ? 'active' : '';
-                            $ariaSelected = $isFirst ? 'true' : 'false';
-                            $isFirst = false;
-                            echo "<li class='nav-item' role='presentation'>";
-                            echo "<button class='nav-link $activeClass fw-bold' id='tab-btn-$key' data-bs-toggle='tab' data-bs-target='#tab-$key' type='button' role='tab' aria-controls='tab-$key' aria-selected='$ariaSelected'>{$widget['label']} <span class='badge bg-secondary rounded-pill ms-1'>{$widget['count']}</span></button></li>";
-                        }
+        <div class="card-body p-0 table-responsive">
+            <div class="tab-content">
+                <?php
+                $isFirst = true;
+                foreach ($widgetConfig as $key => $widget) {
+                    if (in_array($key, $enabledWidgets)) {
+                        $activeClass = $isFirst ? 'show active' : '';
+                        $isFirst = false;
+                        $dataType = match ($key) {
+                            'hires' => 'hire',
+                            'edits' => 'edit',
+                            'docs' => 'doc',
+                            'doc-edits' => 'doc_edit',
+                            'tickets' => 'ticket',
+                        };
+                        echo "<div class='tab-pane fade $activeClass' id='tab-$key' role='tabpanel' aria-labelledby='tab-btn-$key'>";
+                        renderTable($widget['data'], $dataType);
+                        echo "</div>";
                     }
-                    ?>
-                </ul>
-            </div>
-
-            <div class="card-body p-0 table-responsive">
-                <div class="tab-content">
-                    <?php
-                    $isFirst = true;
-                    foreach ($widgetConfig as $key => $widget) {
-                        if (in_array($key, $enabledWidgets)) {
-                            $activeClass = $isFirst ? 'show active' : '';
-                            $isFirst = false;
-                            $dataType = match ($key) {
-                                'hires' => 'hire',
-                                'edits' => 'edit',
-                                'docs' => 'doc',
-                                'doc-edits' => 'doc_edit',
-                                'tickets' => 'ticket',
-                            };
-                            echo "<div class='tab-pane fade $activeClass' id='tab-$key' role='tabpanel' aria-labelledby='tab-btn-$key'>";
-                            renderTable($widget['data'], $dataType);
-                            echo "</div>";
-                        }
-                    }
-                    ?>
-                </div>
+                }
+                ?>
             </div>
         </div>
     </div>
+</div>
 
-    <div class="modal fade" id="previewModal" tabindex="-1">
-        <div class="modal-dialog modal-lg modal-dialog-scrollable">
-            <div class="modal-content">
-                <div class="modal-header bg-primary text-white">
-                    <h5 class="modal-title">Request Details</h5>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body" id="modalContent"></div>
-                <div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button></div>
+<div class="modal fade" id="previewModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title">Request Details</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
+            <div class="modal-body" id="modalContent"></div>
+            <div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button></div>
         </div>
     </div>
+</div>
 
-    <div class="modal fade" id="rejectModal" tabindex="-1">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header bg-danger text-white">
-                    <h5 class="modal-title">Reject Request</h5>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-                </div>
-                <form method="POST">
-                    <div class="modal-body">
-                        <input type="hidden" name="req_id" id="reject_req_id">
-                        <input type="hidden" name="tab_name" id="reject_tab_name">
-                        <input type="hidden" name="action" value="reject">
-                        <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
-
-                        <label class="form-label fw-bold">Reason for Rejection:</label>
-                        <textarea name="reject_reason" class="form-control" rows="3" placeholder="e.g. Photo is blurry, please retake." required maxlength="255" oninput="this.value = this.value.replace(/[<>]/g, '')"></textarea>
-                    </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                        <button type="submit" class="btn btn-danger">Confirm Rejection</button>
-                    </div>
-                </form>
+<div class="modal fade" id="rejectModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title">Reject Request</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
+            <form method="POST">
+                <div class="modal-body">
+                    <input type="hidden" name="req_id" id="reject_req_id">
+                    <input type="hidden" name="tab_name" id="reject_tab_name">
+                    <input type="hidden" name="action" value="reject">
+                    <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
+
+                    <label class="form-label fw-bold">Reason for Rejection:</label>
+                    <textarea name="reject_reason" class="form-control" rows="3" placeholder="e.g. Photo is blurry, please retake." required maxlength="255" oninput="this.value = this.value.replace(/[<>]/g, '')"></textarea>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-danger">Confirm Rejection</button>
+                </div>
+            </form>
         </div>
     </div>
+</div>
 
-    <!-- Hidden form used for single-row approve/reject actions -->
-    <form id="singleActionForm" method="POST" style="display:none;">
-        <input type="hidden" id="single_req_id" name="req_id" value="">
-        <input type="hidden" id="single_tab_name" name="tab_name" value="">
-        <input type="hidden" id="single_action" name="action" value="">
-        <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
-    </form>
+<!-- Hidden form used for single-row approve/reject actions -->
+<form id="singleActionForm" method="POST" style="display:none;">
+    <input type="hidden" id="single_req_id" name="req_id" value="">
+    <input type="hidden" id="single_tab_name" name="tab_name" value="">
+    <input type="hidden" id="single_action" name="action" value="">
+    <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
+</form>
 
-    <?php
-    // HELPER FUNCTION TO RENDER TABLES
-    function renderTable($requests, $type)
-    {
-        global $pdo; // Access DB for lookups
-        if (count($requests) == 0) {
-            echo "<div class='p-4 text-center text-muted'>No pending requests.</div>";
-            return;
+<?php
+// HELPER FUNCTION TO RENDER TABLES
+function renderTable($requests, $type)
+{
+    global $pdo; // Access DB for lookups
+    if (count($requests) == 0) {
+        echo "<div class='p-4 text-center text-muted'>No pending requests.</div>";
+        return;
+    }
+
+    // Map tab names
+    $tabName = match ($type) {
+        'hire' => 'hires',
+        'edit' => 'edits',
+        'doc' => 'docs',
+        'doc_edit' => 'doc-edits',
+        'ticket' => 'tickets'
+    };
+
+    echo '<form method="POST" id="bulkForm_' . $type . '">';
+    echo '<input type="hidden" name="csrf_token" value="' . htmlspecialchars($_SESSION['csrf_token']) . '">';
+    echo '<input type="hidden" name="tab_name" value="' . $tabName . '">';
+    echo '<input type="hidden" name="action" id="bulkAction_' . $type . '" value="">';
+    echo '<div class="p-3 border-bottom d-flex justify-content-between align-items-center bg-body-tertiary">';
+    echo '<div><button type="button" class="btn btn-sm btn-success me-2 fw-bold shadow-sm" onclick="submitBulk(\'' . $type . '\', \'bulk_approve\')"><i class="bi bi-check-all"></i> Approve Selected</button>';
+    echo '<button type="button" class="btn btn-sm btn-danger fw-bold shadow-sm" onclick="submitBulk(\'' . $type . '\', \'bulk_reject\')"><i class="bi bi-x-square"></i> Reject Selected</button></div>';
+    echo '</div>';
+    echo '<table class="table table-hover mb-0 align-middle">';
+    echo '<thead><tr><th style="width: 40px;" class="text-center"><input type="checkbox" class="form-check-input" onclick="toggleAll(this, \'' . $type . '\')"></th><th>Date</th><th>User</th><th>Summary</th><th class="text-end">Actions</th></tr></thead><tbody class="table-group-divider">';
+
+    foreach ($requests as $r) {
+        $data = json_decode($r['json_payload'], true);
+
+        if (!is_array($data)) {
+            // Skip corrupted data to prevent 500 error when accessing keys
+            continue;
         }
 
-        // Map tab names
-        $tabName = match ($type) {
-            'hire' => 'hires',
-            'edit' => 'edits',
-            'doc' => 'docs',
-            'doc_edit' => 'doc-edits',
-            'ticket' => 'tickets'
-        };
+        // [FIX] Ensure doc_name exists for old records (Ticket Resolutions)
+        if ($type == 'ticket' && empty($data['doc_name']) && isset($data['doc_id'])) {
+            $stmt = $pdo->prepare("SELECT original_name FROM documents WHERE id = ?");
+            $stmt->execute([$data['doc_id']]);
+            $data['doc_name'] = $stmt->fetchColumn() ?: 'Unknown File';
+        }
 
-        echo '<form method="POST" id="bulkForm_' . $type . '">';
-        echo '<input type="hidden" name="csrf_token" value="' . htmlspecialchars($_SESSION['csrf_token']) . '">';
-        echo '<input type="hidden" name="tab_name" value="' . $tabName . '">';
-        echo '<input type="hidden" name="action" id="bulkAction_' . $type . '" value="">';
-        echo '<div class="p-3 border-bottom d-flex justify-content-between align-items-center bg-body-tertiary">';
-        echo '<div><button type="button" class="btn btn-sm btn-success me-2 fw-bold shadow-sm" onclick="submitBulk(\'' . $type . '\', \'bulk_approve\')"><i class="bi bi-check-all"></i> Approve Selected</button>';
-        echo '<button type="button" class="btn btn-sm btn-danger fw-bold shadow-sm" onclick="submitBulk(\'' . $type . '\', \'bulk_reject\')"><i class="bi bi-x-square"></i> Reject Selected</button></div>';
-        echo '</div>';
-        echo '<table class="table table-hover mb-0 align-middle">';
-        echo '<thead><tr><th style="width: 40px;" class="text-center"><input type="checkbox" class="form-check-input" onclick="toggleAll(this, \'' . $type . '\')"></th><th>Date</th><th>User</th><th>Summary</th><th class="text-end">Actions</th></tr></thead><tbody class="table-group-divider">';
+        $jsonData = htmlspecialchars(json_encode($data), ENT_QUOTES, 'UTF-8');
 
-        foreach ($requests as $r) {
-            $data = json_decode($r['json_payload'], true);
+        // Dynamic Summary
+        if ($type == 'hire') $summary = "<strong>New Employee:</strong> " . htmlspecialchars($data['first_name'], ENT_QUOTES, 'UTF-8') . " " . htmlspecialchars($data['last_name'], ENT_QUOTES, 'UTF-8');
+        elseif ($type == 'edit') $summary = "<strong>Update Profile:</strong> ID " . intval($r['target_id']);
+        elseif ($type == 'doc') $summary = "<strong>File Upload:</strong> " . htmlspecialchars($data['original_name'], ENT_QUOTES, 'UTF-8');
+        elseif ($type == 'doc_edit') {
+            $orig = $data['original_details'] ?? [];
+            $summary = "<strong>Edit Document:</strong> " . htmlspecialchars($orig['original_name'] ?? 'Unknown', ENT_QUOTES, 'UTF-8');
+        } elseif ($type == 'ticket') {
+            $docLabel = isset($data['doc_name']) ? " (" . htmlspecialchars($data['doc_name'], ENT_QUOTES, 'UTF-8') . ")" : " (Doc #" . intval($data['doc_id'] ?? 0) . ")";
+            $summary = "<strong class='text-primary'><i class='bi bi-check2-circle'></i> Action Taken{$docLabel}:</strong> " . htmlspecialchars(substr($data['note'], 0, 100), ENT_QUOTES, 'UTF-8') . "...";
+        }
 
-            if (!is_array($data)) {
-                // Skip corrupted data to prevent 500 error when accessing keys
-                continue;
-            }
-
-            // [FIX] Ensure doc_name exists for old records (Ticket Resolutions)
-            if ($type == 'ticket' && empty($data['doc_name']) && isset($data['doc_id'])) {
-                $stmt = $pdo->prepare("SELECT original_name FROM documents WHERE id = ?");
-                $stmt->execute([$data['doc_id']]);
-                $data['doc_name'] = $stmt->fetchColumn() ?: 'Unknown File';
-            }
-
-            $jsonData = htmlspecialchars(json_encode($data), ENT_QUOTES, 'UTF-8');
-
-            // Dynamic Summary
-            if ($type == 'hire') $summary = "<strong>New Employee:</strong> " . htmlspecialchars($data['first_name'], ENT_QUOTES, 'UTF-8') . " " . htmlspecialchars($data['last_name'], ENT_QUOTES, 'UTF-8');
-            elseif ($type == 'edit') $summary = "<strong>Update Profile:</strong> ID " . intval($r['target_id']);
-            elseif ($type == 'doc') $summary = "<strong>File Upload:</strong> " . htmlspecialchars($data['original_name'], ENT_QUOTES, 'UTF-8');
-            elseif ($type == 'doc_edit') {
-                $orig = $data['original_details'] ?? [];
-                $summary = "<strong>Edit Document:</strong> " . htmlspecialchars($orig['original_name'] ?? 'Unknown', ENT_QUOTES, 'UTF-8');
-            } elseif ($type == 'ticket') {
-                $docLabel = isset($data['doc_name']) ? " (" . htmlspecialchars($data['doc_name'], ENT_QUOTES, 'UTF-8') . ")" : " (Doc #" . intval($data['doc_id'] ?? 0) . ")";
-                $summary = "<strong class='text-primary'><i class='bi bi-check2-circle'></i> Action Taken{$docLabel}:</strong> " . htmlspecialchars(substr($data['note'], 0, 100), ENT_QUOTES, 'UTF-8') . "...";
-            }
-
-            echo "<tr>
+        echo "<tr>
             <td><input type='checkbox' name='req_ids[]' value='{$r['id']}' class='form-check-input bulk-check-{$type}'></td>
             <td>" . date('M d, H:i', strtotime($r['created_at'])) . "</td>
             <td><span class='badge bg-secondary'>{$r['username']}</span></td>
@@ -602,191 +579,191 @@ $tickets  = in_array('tickets', $enabledWidgets) ? $pdo->query("SELECT r.*, u.us
                 <button type='button' class='btn btn-sm btn-danger' onclick='openRejectModal({$r['id']}, \"$tabName\")' title='Reject with Note'><i class='bi bi-x-lg'></i></button>
             </td>
         </tr>";
-        }
-        echo '</tbody></table></form>';
     }
-    ?>
+    echo '</tbody></table></form>';
+}
+?>
 
-    <script src="assets/bootstrap.bundle.min.js"></script>
-    <script src="dark_mode.js"></script>
-    <script>
-        document.addEventListener("DOMContentLoaded", function() {
-            const urlParams = new URLSearchParams(window.location.search);
-            const activeTab = urlParams.get('tab');
-            if (activeTab) {
-                let btnId = '';
-                if (activeTab === 'hires') btnId = 'tab-btn-hires';
-                if (activeTab === 'edits') btnId = 'tab-btn-edits';
-                if (activeTab === 'docs') btnId = 'tab-btn-docs';
-                if (activeTab === 'doc-edits') btnId = 'tab-btn-doc-edits';
-                if (activeTab === 'tickets') btnId = 'tab-btn-tickets';
+<script src="assets/bootstrap.bundle.min.js"></script>
+<script src="dark_mode.js"></script>
+<script>
+    document.addEventListener("DOMContentLoaded", function() {
+        const urlParams = new URLSearchParams(window.location.search);
+        const activeTab = urlParams.get('tab');
+        if (activeTab) {
+            let btnId = '';
+            if (activeTab === 'hires') btnId = 'tab-btn-hires';
+            if (activeTab === 'edits') btnId = 'tab-btn-edits';
+            if (activeTab === 'docs') btnId = 'tab-btn-docs';
+            if (activeTab === 'doc-edits') btnId = 'tab-btn-doc-edits';
+            if (activeTab === 'tickets') btnId = 'tab-btn-tickets';
 
-                const triggerEl = document.getElementById(btnId);
-                if (triggerEl) {
-                    new bootstrap.Tab(triggerEl).show();
+            const triggerEl = document.getElementById(btnId);
+            if (triggerEl) {
+                new bootstrap.Tab(triggerEl).show();
+            }
+        }
+    });
+
+    // --- SINGLE ACTIONS ---
+    function submitSingle(reqId, tabName, action) {
+        document.getElementById('single_req_id').value = reqId;
+        document.getElementById('single_tab_name').value = tabName;
+        document.getElementById('single_action').value = action;
+        document.getElementById('singleActionForm').submit();
+    }
+
+    function openRejectModal(reqId, tabName) {
+        document.getElementById('reject_req_id').value = reqId;
+        document.getElementById('reject_tab_name').value = tabName;
+        bootstrap.Modal.getOrCreateInstance(document.getElementById('rejectModal')).show();
+    }
+
+    // --- BULK ACTIONS ---
+    function toggleAll(source, type) {
+        const checkboxes = document.querySelectorAll('.bulk-check-' + type);
+        checkboxes.forEach(cb => cb.checked = source.checked);
+    }
+
+    function submitBulk(type, action) {
+        const form = document.getElementById('bulkForm_' + type);
+        const checkboxes = form.querySelectorAll('.bulk-check-' + type + ':checked');
+        if (checkboxes.length === 0) {
+            Swal.fire('No Selection', 'Please select at least one request by checking the boxes on the left.', 'warning');
+            return;
+        }
+
+        if (action === 'bulk_reject') {
+            Swal.fire({
+                title: 'Bulk Reject',
+                input: 'text',
+                inputLabel: 'Reason for Rejection (Optional)',
+                showCancelButton: true,
+                confirmButtonText: 'Reject All',
+                confirmButtonColor: '#dc3545'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    document.getElementById('bulkAction_' + type).value = action;
+                    const reasonInput = document.createElement('input');
+                    reasonInput.type = 'hidden';
+                    reasonInput.name = 'reject_reason';
+                    reasonInput.value = result.value || '';
+                    form.appendChild(reasonInput);
+                    form.submit();
                 }
-            }
-        });
+            });
+        } else {
+            Swal.fire({
+                title: 'Bulk Approve',
+                text: `Are you sure you want to approve ${checkboxes.length} request(s)?`,
+                icon: 'question',
+                showCancelButton: true,
+                confirmButtonText: 'Yes, Approve All',
+                confirmButtonColor: '#198754'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    document.getElementById('bulkAction_' + type).value = action;
+                    form.submit();
+                }
+            });
+        }
+    }
 
-        // --- SINGLE ACTIONS ---
-        function submitSingle(reqId, tabName, action) {
-            document.getElementById('single_req_id').value = reqId;
-            document.getElementById('single_tab_name').value = tabName;
-            document.getElementById('single_action').value = action;
-            document.getElementById('singleActionForm').submit();
+    function openPreview(data, type, reqId = null) {
+        let content = '';
+        const modalBody = document.getElementById('modalContent');
+
+        function escapeHtml(text) {
+            if (text == null) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
         }
 
-        function openRejectModal(reqId, tabName) {
-            document.getElementById('reject_req_id').value = reqId;
-            document.getElementById('reject_tab_name').value = tabName;
-            bootstrap.Modal.getOrCreateInstance(document.getElementById('rejectModal')).show();
-        }
-
-        // --- BULK ACTIONS ---
-        function toggleAll(source, type) {
-            const checkboxes = document.querySelectorAll('.bulk-check-' + type);
-            checkboxes.forEach(cb => cb.checked = source.checked);
-        }
-
-        function submitBulk(type, action) {
-            const form = document.getElementById('bulkForm_' + type);
-            const checkboxes = form.querySelectorAll('.bulk-check-' + type + ':checked');
-            if (checkboxes.length === 0) {
-                Swal.fire('No Selection', 'Please select at least one request by checking the boxes on the left.', 'warning');
-                return;
-            }
-
-            if (action === 'bulk_reject') {
-                Swal.fire({
-                    title: 'Bulk Reject',
-                    input: 'text',
-                    inputLabel: 'Reason for Rejection (Optional)',
-                    showCancelButton: true,
-                    confirmButtonText: 'Reject All',
-                    confirmButtonColor: '#dc3545'
-                }).then((result) => {
-                    if (result.isConfirmed) {
-                        document.getElementById('bulkAction_' + type).value = action;
-                        const reasonInput = document.createElement('input');
-                        reasonInput.type = 'hidden';
-                        reasonInput.name = 'reject_reason';
-                        reasonInput.value = result.value || '';
-                        form.appendChild(reasonInput);
-                        form.submit();
-                    }
-                });
-            } else {
-                Swal.fire({
-                    title: 'Bulk Approve',
-                    text: `Are you sure you want to approve ${checkboxes.length} request(s)?`,
-                    icon: 'question',
-                    showCancelButton: true,
-                    confirmButtonText: 'Yes, Approve All',
-                    confirmButtonColor: '#198754'
-                }).then((result) => {
-                    if (result.isConfirmed) {
-                        document.getElementById('bulkAction_' + type).value = action;
-                        form.submit();
-                    }
-                });
-            }
-        }
-
-        function openPreview(data, type, reqId = null) {
-            let content = '';
-            const modalBody = document.getElementById('modalContent');
-
-            function escapeHtml(text) {
-                if (text == null) return '';
-                const div = document.createElement('div');
-                div.textContent = text;
-                return div.innerHTML;
-            }
-
-            // 1. TICKET (RESOLUTION)
-            if (type === 'ticket') {
-                content += `<div class="alert alert-warning border-start border-5 border-warning shadow-sm">
+        // 1. TICKET (RESOLUTION)
+        if (type === 'ticket') {
+            content += `<div class="alert alert-warning border-start border-5 border-warning shadow-sm">
                         <h5 class="text-body"><i class="bi bi-clipboard-check"></i> Resolution Report</h5>
                         <hr>
                         <p class="mb-1 text-primary fw-bold small text-uppercase">Action Taken${data.doc_name ? ' for ' + escapeHtml(data.doc_name) : ''}:</p>
                         <p class="fs-5 fw-bold text-body">"${escapeHtml(data.note)}"</p>
                     </div>`;
-            }
-            // 2. DOCUMENT
-            else if (type === 'doc') {
-                let filePath = 'view_pending.php?id=' + reqId; // [FIX] Use Viewer Script
-                let fileExt = data.original_name.split('.').pop().toLowerCase();
+        }
+        // 2. DOCUMENT
+        else if (type === 'doc') {
+            let filePath = 'view_pending.php?id=' + reqId; // [FIX] Use Viewer Script
+            let fileExt = data.original_name.split('.').pop().toLowerCase();
 
-                content += `<h5>File: ${escapeHtml(data.original_name)}</h5>
+            content += `<h5>File: ${escapeHtml(data.original_name)}</h5>
                     <p>Category: <span class="badge bg-primary">${escapeHtml(data.category)}</span></p>
                     <div class="alert alert-info p-2 mb-3"><strong>Notes:</strong><br>${escapeHtml(data.description || 'None')}</div>`;
 
-                if (fileExt === 'pdf') {
-                    content += `<object data="${filePath}" type="application/pdf" width="100%" height="500px"><p>Unable to display PDF. <a href="${filePath}" target="_blank">Download File</a></p></object>`;
-                } else {
-                    content += `<img src="${filePath}" style="max-width:100%; max-height:400px; display:block; margin:0 auto;" onerror="this.onerror=null; this.outerHTML='<div class=\\'alert alert-secondary text-center my-3\\'><i class=\\'bi bi-image fs-1 text-muted\\'></i><br>Image preview unavailable.</div>';">`;
-                }
+            if (fileExt === 'pdf') {
+                content += `<object data="${filePath}" type="application/pdf" width="100%" height="500px"><p>Unable to display PDF. <a href="${filePath}" target="_blank">Download File</a></p></object>`;
+            } else {
+                content += `<img src="${filePath}" style="max-width:100%; max-height:400px; display:block; margin:0 auto;" onerror="this.onerror=null; this.outerHTML='<div class=\\'alert alert-secondary text-center my-3\\'><i class=\\'bi bi-image fs-1 text-muted\\'></i><br>Image preview unavailable.</div>';">`;
             }
-            // 4. DOCUMENT EDIT
-            else if (type === 'doc_edit') {
-                const orig = data.original_details || {};
-                let changesHtml = '<ul class="list-group">';
-                let hasChanges = false;
+        }
+        // 4. DOCUMENT EDIT
+        else if (type === 'doc_edit') {
+            const orig = data.original_details || {};
+            let changesHtml = '<ul class="list-group">';
+            let hasChanges = false;
 
-                if (data.new_name && data.new_name !== orig.original_name) {
-                    hasChanges = true;
-                    changesHtml += `<li class="list-group-item"><strong>Name:</strong><br><del class="text-danger">${escapeHtml(orig.original_name || '')}</del><br><ins class="text-success">${escapeHtml(data.new_name)}</ins></li>`;
-                }
-                if (data.new_category && data.new_category !== orig.category) {
-                    hasChanges = true;
-                    changesHtml += `<li class="list-group-item"><strong>Category:</strong><br><del class="text-danger">${escapeHtml(orig.category || '')}</del><br><ins class="text-success">${escapeHtml(data.new_category)}</ins></li>`;
-                }
-                if (data.new_expiry_date !== undefined && data.new_expiry_date !== orig.expiry_date) {
-                    hasChanges = true;
-                    changesHtml += `<li class="list-group-item"><strong>Expiration Date:</strong><br><del class="text-danger">${escapeHtml(orig.expiry_date || 'None')}</del><br><ins class="text-success">${escapeHtml(data.new_expiry_date || 'None')}</ins></li>`;
-                }
-                if (data.move_to_emp_id && data.move_to_emp_id !== orig.employee_id) {
-                    hasChanges = true;
-                    changesHtml += `<li class="list-group-item"><strong>Move To Employee:</strong><br><del class="text-danger">${escapeHtml(orig.employee_id || '')}</del><br><ins class="text-success">${escapeHtml(data.move_to_emp_id)}</ins></li>`;
-                }
-                changesHtml += '</ul>';
+            if (data.new_name && data.new_name !== orig.original_name) {
+                hasChanges = true;
+                changesHtml += `<li class="list-group-item"><strong>Name:</strong><br><del class="text-danger">${escapeHtml(orig.original_name || '')}</del><br><ins class="text-success">${escapeHtml(data.new_name)}</ins></li>`;
+            }
+            if (data.new_category && data.new_category !== orig.category) {
+                hasChanges = true;
+                changesHtml += `<li class="list-group-item"><strong>Category:</strong><br><del class="text-danger">${escapeHtml(orig.category || '')}</del><br><ins class="text-success">${escapeHtml(data.new_category)}</ins></li>`;
+            }
+            if (data.new_expiry_date !== undefined && data.new_expiry_date !== orig.expiry_date) {
+                hasChanges = true;
+                changesHtml += `<li class="list-group-item"><strong>Expiration Date:</strong><br><del class="text-danger">${escapeHtml(orig.expiry_date || 'None')}</del><br><ins class="text-success">${escapeHtml(data.new_expiry_date || 'None')}</ins></li>`;
+            }
+            if (data.move_to_emp_id && data.move_to_emp_id !== orig.employee_id) {
+                hasChanges = true;
+                changesHtml += `<li class="list-group-item"><strong>Move To Employee:</strong><br><del class="text-danger">${escapeHtml(orig.employee_id || '')}</del><br><ins class="text-success">${escapeHtml(data.move_to_emp_id)}</ins></li>`;
+            }
+            changesHtml += '</ul>';
 
-                if (!hasChanges) changesHtml = '<p class="text-muted">No changes were requested.</p>';
+            if (!hasChanges) changesHtml = '<p class="text-muted">No changes were requested.</p>';
 
-                content += `<h5>Document Edit Request</h5>
+            content += `<h5>Document Edit Request</h5>
                             <p class="mb-2">Original File: <strong>${escapeHtml(orig.original_name || 'N/A')}</strong></p>${changesHtml}`;
-            }
-            // 3. PROFILE ADD / EDIT
-            else {
-                // --- DEBUG MODE: ALWAYS SHOW NOTE STATUS ---
-                if (data.request_note && data.request_note.trim() !== "") {
-                    // Note Exists
-                    content += `<div class="alert alert-warning border-start border-5 border-warning shadow-sm mb-3">
+        }
+        // 3. PROFILE ADD / EDIT
+        else {
+            // --- DEBUG MODE: ALWAYS SHOW NOTE STATUS ---
+            if (data.request_note && data.request_note.trim() !== "") {
+                // Note Exists
+                content += `<div class="alert alert-warning border-start border-5 border-warning shadow-sm mb-3">
                             <h6 class="text-body fw-bold"><i class="bi bi-chat-left-text-fill me-2"></i> Note from Staff:</h6>
                             <p class="mb-0 text-body fs-6">"${escapeHtml(data.request_note)}"</p>
                         </div>`;
-                } else {
-                    // Note Missing 
-                    content += `<div class="alert alert-secondary border-start border-5 border-secondary shadow-sm mb-3">
+            } else {
+                // Note Missing 
+                content += `<div class="alert alert-secondary border-start border-5 border-secondary shadow-sm mb-3">
                             <h6 class="text-muted fw-bold"><i class="bi bi-chat-left-text me-2"></i> Note from Staff:</h6>
                             <p class="mb-0 text-muted small"><em>(No note was entered for this request)</em></p>
                         </div>`;
-                }
-
-                content += '<table class="table table-bordered table-sm">';
-                for (const [key, value] of Object.entries(data)) {
-                    if (value && key !== 'avatar_path' && key !== 'request_note') {
-                        let label = key.replace(/_/g, ' ').toUpperCase();
-                        content += `<tr><th class="table-active w-25">${escapeHtml(label)}</th><td>${escapeHtml(value.toString())}</td></tr>`;
-                    }
-                }
-                content += '</table>';
             }
 
-            modalBody.innerHTML = content;
-            bootstrap.Modal.getOrCreateInstance(document.getElementById('previewModal')).show();
+            content += '<table class="table table-bordered table-sm">';
+            for (const [key, value] of Object.entries(data)) {
+                if (value && key !== 'avatar_path' && key !== 'request_note') {
+                    let label = key.replace(/_/g, ' ').toUpperCase();
+                    content += `<tr><th class="table-active w-25">${escapeHtml(label)}</th><td>${escapeHtml(value.toString())}</td></tr>`;
+                }
+            }
+            content += '</table>';
         }
-    </script>
+
+        modalBody.innerHTML = content;
+        bootstrap.Modal.getOrCreateInstance(document.getElementById('previewModal')).show();
+    }
+</script>
 </body>
 
 </html>

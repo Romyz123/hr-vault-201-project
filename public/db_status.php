@@ -549,336 +549,314 @@ foreach ($indexSchema as $table => $indexes) {
     }
 }
 ?>
-<!DOCTYPE html>
-<html lang="en">
+<?php include 'header.php'; ?>
 
-<head>
-    <meta charset="UTF-8">
-    <title>Database Status</title>
-    <link rel="icon" href="assets/tesp-logo.png?v=4" type="image/png">
-    <link href="assets/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="assets/icons/bootstrap-icons.css">
-    <style>
-        /* =========================================
+<style>
+    /* =========================================
            PRINT STYLES FOR COMPLIANCE REPORT
            ========================================= */
-        @media print {
-            @page {
-                size: portrait;
-                margin: 0.5in;
-            }
-
-            nav,
-            .btn,
-            form,
-            .alert-info {
-                display: none !important;
-            }
-
-            body {
-                background: white !important;
-            }
-
-            .container {
-                width: 100% !important;
-                max-width: 100% !important;
-                padding: 0 !important;
-                margin: 0 !important;
-            }
-
-            .card {
-                border: none !important;
-                box-shadow: none !important;
-            }
-
-            body::before {
-                content: "Database Schema Compliance Report - v<?php echo $masterVersion; ?>";
-                display: block;
-                text-align: center;
-                font-size: 14pt;
-                font-weight: bold;
-                margin-bottom: 20px;
-                border-bottom: 2px solid #666;
-                padding-bottom: 10px;
-            }
-
-            * {
-                -webkit-print-color-adjust: exact !important;
-                print-color-adjust: exact !important;
-            }
+    @media print {
+        @page {
+            size: portrait;
+            margin: 0.5in;
         }
-    </style>
-</head>
 
-<body class="bg-body-tertiary">
-    <nav class="navbar navbar-dark bg-dark mb-4">
-        <div class="container">
-            <a class="navbar-brand" href="index.php">Back to Dashboard</a>
-            <div class="d-flex align-items-center gap-2">
-                <button id="darkModeToggle" class="btn btn-sm btn-outline-light border-0" title="Toggle Dark Mode">
-                    <i class="bi bi-moon-stars-fill"></i>
-                </button>
-                <span class="navbar-text text-white"><i class="bi bi-database-check"></i> Database Status</span>
-                <span class="navbar-text text-white-50 ms-3 font-monospace small"><i class="bi bi-clock"></i> <span id="sessionTimer"></span></span>
+        nav,
+        .btn,
+        form,
+        .alert-info {
+            display: none !important;
+        }
+
+        body {
+            background: white !important;
+        }
+
+        .container {
+            width: 100% !important;
+            max-width: 100% !important;
+            padding: 0 !important;
+            margin: 0 !important;
+        }
+
+        .card {
+            border: none !important;
+            box-shadow: none !important;
+        }
+
+        body::before {
+            content: "Database Schema Compliance Report - v<?php echo $masterVersion; ?>";
+            display: block;
+            text-align: center;
+            font-size: 14pt;
+            font-weight: bold;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #666;
+            padding-bottom: 10px;
+        }
+
+        * {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+        }
+    }
+</style>
+
+<div class="container">
+    <div class="mb-4 text-end">
+        <small class="text-muted">Master Schema Version: <strong><?php echo $masterVersion; ?></strong></small>
+    </div>
+
+    <?php if ($msg): ?>
+        <div class="alert alert-info"><?php echo $msg; ?></div>
+    <?php endif; ?>
+
+    <?php if ($issuesCount === 0): ?>
+        <div class="alert alert-success shadow-sm"><i class="bi bi-check-circle-fill"></i> <strong>System is Up-to-Date.</strong> Your database matches the master schema.</div>
+    <?php else: ?>
+        <div class="alert alert-warning shadow-sm"><i class="bi bi-exclamation-triangle-fill"></i> <strong>Updates Available.</strong> Found <?php echo $issuesCount; ?> missing items.</div>
+    <?php endif; ?>
+
+    <!-- DRY RUN RESULTS DISPLAY -->
+    <?php if (!empty($dryRunLogs)): ?>
+        <div class="alert alert-info border-info shadow-sm mb-4">
+            <h5 class="alert-heading"><i class="bi bi-terminal"></i> Simulation Results (Dry Run)</h5>
+            <p class="mb-2 text-dark">The following SQL changes <strong>would be applied</strong> if you run Auto-Fix. No data has been modified.</p>
+            <div class="bg-dark text-light p-3 rounded font-monospace small" style="max-height: 250px; overflow-y: auto;">
+                <?php foreach ($dryRunLogs as $log): ?>
+                    <div><?php echo htmlspecialchars($log); ?></div>
+                <?php endforeach; ?>
             </div>
         </div>
-    </nav>
+    <?php endif; ?>
 
-    <div class="container">
-        <div class="mb-4 text-end">
-            <small class="text-muted">Master Schema Version: <strong><?php echo $masterVersion; ?></strong></small>
+    <!-- PRODUCTION LAUNCH CHECKLIST -->
+    <div class="card shadow-sm mb-4 border-primary">
+        <div class="card-header bg-primary text-white fw-bold d-flex justify-content-between align-items-center">
+            <span><i class="bi bi-rocket-takeoff-fill"></i> Final Launch Checklist</span>
+            <span class="badge bg-light text-primary">Pre-Flight Checks</span>
         </div>
-
-        <?php if ($msg): ?>
-            <div class="alert alert-info"><?php echo $msg; ?></div>
-        <?php endif; ?>
-
-        <?php if ($issuesCount === 0): ?>
-            <div class="alert alert-success shadow-sm"><i class="bi bi-check-circle-fill"></i> <strong>System is Up-to-Date.</strong> Your database matches the master schema.</div>
-        <?php else: ?>
-            <div class="alert alert-warning shadow-sm"><i class="bi bi-exclamation-triangle-fill"></i> <strong>Updates Available.</strong> Found <?php echo $issuesCount; ?> missing items.</div>
-        <?php endif; ?>
-
-        <!-- DRY RUN RESULTS DISPLAY -->
-        <?php if (!empty($dryRunLogs)): ?>
-            <div class="alert alert-info border-info shadow-sm mb-4">
-                <h5 class="alert-heading"><i class="bi bi-terminal"></i> Simulation Results (Dry Run)</h5>
-                <p class="mb-2 text-dark">The following SQL changes <strong>would be applied</strong> if you run Auto-Fix. No data has been modified.</p>
-                <div class="bg-dark text-light p-3 rounded font-monospace small" style="max-height: 250px; overflow-y: auto;">
-                    <?php foreach ($dryRunLogs as $log): ?>
-                        <div><?php echo htmlspecialchars($log); ?></div>
-                    <?php endforeach; ?>
-                </div>
-            </div>
-        <?php endif; ?>
-
-        <!-- PRODUCTION LAUNCH CHECKLIST -->
-        <div class="card shadow-sm mb-4 border-primary">
-            <div class="card-header bg-primary text-white fw-bold d-flex justify-content-between align-items-center">
-                <span><i class="bi bi-rocket-takeoff-fill"></i> Final Launch Checklist</span>
-                <span class="badge bg-light text-primary">Pre-Flight Checks</span>
-            </div>
-            <div class="card-body p-0">
-                <ul class="list-group list-group-flush">
-                    <!-- 1. Dev Files -->
-                    <li class="list-group-item d-flex justify-content-between align-items-center">
-                        <div>
-                            <strong>1. Delete Development Files</strong><br>
-                            <small class="text-muted">Ensure installation and backdoor scripts are removed.</small>
+        <div class="card-body p-0">
+            <ul class="list-group list-group-flush">
+                <!-- 1. Dev Files -->
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                    <div>
+                        <strong>1. Delete Development Files</strong><br>
+                        <small class="text-muted">Ensure installation and backdoor scripts are removed.</small>
+                    </div>
+                    <?php if (!$devFilesExist): ?>
+                        <span class="badge bg-success rounded-pill px-3 py-2"><i class="bi bi-check-circle-fill"></i> Secure</span>
+                    <?php else: ?>
+                        <div class="d-flex align-items-center gap-2">
+                            <span class="badge bg-danger rounded-pill px-3 py-2"><i class="bi bi-x-circle-fill"></i> Files Found</span>
+                            <form method="POST" class="m-0" onsubmit="return confirm('Delete all development files permanently?');">
+                                <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token'], ENT_QUOTES, 'UTF-8'); ?>">
+                                <button type="submit" name="cleanup_dev_files" class="btn btn-sm btn-danger py-0"><i class="bi bi-trash"></i> Fix Now</button>
+                            </form>
                         </div>
-                        <?php if (!$devFilesExist): ?>
-                            <span class="badge bg-success rounded-pill px-3 py-2"><i class="bi bi-check-circle-fill"></i> Secure</span>
-                        <?php else: ?>
-                            <div class="d-flex align-items-center gap-2">
-                                <span class="badge bg-danger rounded-pill px-3 py-2"><i class="bi bi-x-circle-fill"></i> Files Found</span>
-                                <form method="POST" class="m-0" onsubmit="return confirm('Delete all development files permanently?');">
-                                    <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token'], ENT_QUOTES, 'UTF-8'); ?>">
-                                    <button type="submit" name="cleanup_dev_files" class="btn btn-sm btn-danger py-0"><i class="bi bi-trash"></i> Fix Now</button>
-                                </form>
-                            </div>
-                        <?php endif; ?>
-                    </li>
-                    <!-- 2. Error Reporting -->
-                    <li class="list-group-item d-flex justify-content-between align-items-center">
-                        <div>
-                            <strong>2. Lock Down config/db.php</strong><br>
-                            <small class="text-muted">Ensure <code>display_errors = 0</code> to prevent path leakage.</small>
-                        </div>
-                        <?php if ($errorsOff): ?>
-                            <span class="badge bg-success rounded-pill px-3 py-2"><i class="bi bi-check-circle-fill"></i> Hidden</span>
-                        <?php else: ?>
-                            <span class="badge bg-danger rounded-pill px-3 py-2"><i class="bi bi-x-circle-fill"></i> Exposed</span>
-                        <?php endif; ?>
-                    </li>
-                    <!-- 3. Vault Key -->
-                    <li class="list-group-item d-flex justify-content-between align-items-center">
-                        <div>
-                            <strong>3. Generate Final VAULT_KEY</strong><br>
-                            <small class="text-muted">Ensure AES-256 encryption key is set and not default.</small>
-                        </div>
-                        <?php if ($keySecure): ?>
-                            <span class="badge bg-success rounded-pill px-3 py-2"><i class="bi bi-check-circle-fill"></i> Secure</span>
-                        <?php else: ?>
-                            <span class="badge bg-danger rounded-pill px-3 py-2"><i class="bi bi-x-circle-fill"></i> Default Key</span>
-                        <?php endif; ?>
-                    </li>
-                    <!-- 4. Permissions -->
-                    <li class="list-group-item d-flex justify-content-between align-items-center">
-                        <div>
-                            <strong>4. Set Directory Permissions</strong><br>
-                            <small class="text-muted">Verify Write access for <code>vault/</code>, <code>uploads/</code>, and <code>backups/</code>.</small>
-                        </div>
-                        <?php if ($permsOk): ?>
-                            <span class="badge bg-success rounded-pill px-3 py-2"><i class="bi bi-check-circle-fill"></i> Writable</span>
-                        <?php else: ?>
-                            <span class="badge bg-danger rounded-pill px-3 py-2"><i class="bi bi-x-circle-fill"></i> Permission Denied</span>
-                        <?php endif; ?>
-                    </li>
-                    <!-- 5. HTTPS -->
-                    <li class="list-group-item d-flex justify-content-between align-items-center">
-                        <div>
-                            <strong>5. Enforce HTTPS (SSL)</strong><br>
-                            <small class="text-muted">Verify active SSL certificate to protect network traffic.</small>
-                        </div>
-                        <?php if ($isHttps): ?>
-                            <span class="badge bg-success rounded-pill px-3 py-2"><i class="bi bi-check-circle-fill"></i> Encrypted</span>
-                        <?php elseif ($isLocal): ?>
-                            <span class="badge bg-info text-dark rounded-pill px-3 py-2"><i class="bi bi-info-circle-fill"></i> Localhost</span>
-                        <?php else: ?>
-                            <span class="badge bg-warning text-dark rounded-pill px-3 py-2"><i class="bi bi-exclamation-triangle-fill"></i> Insecure (HTTP)</span>
-                        <?php endif; ?>
-                    </li>
-                    <!-- 6. Cron Jobs -->
-                    <li class="list-group-item d-flex justify-content-between align-items-center">
-                        <div>
-                            <strong>6. Activate Automated Backups</strong><br>
-                            <small class="text-muted">Configure Windows Task Scheduler to run <code>cron_backup.php</code></small>
-                        </div>
-                        <span class="badge bg-secondary rounded-pill px-3 py-2"><i class="bi bi-search"></i> Manual Check Req.</span>
-                    </li>
-                </ul>
-            </div>
-        </div>
-
-        <!-- SCHEMA VERIFICATION -->
-        <div class="card shadow-sm mb-4">
-            <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
-                <span>Schema Verification</span>
-                <div class="d-flex gap-2">
-                    <button onclick="window.print()" class="btn btn-sm btn-secondary"><i class="bi bi-printer"></i> Print Report</button>
-                    <a href="db_status.php" class="btn btn-sm btn-outline-light"><i class="bi bi-arrow-repeat"></i> Check for Updates</a>
-                    <?php if ($issuesCount > 0): ?>
-                        <form method="POST" class="d-inline">
-                            <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token'], ENT_QUOTES, 'UTF-8'); ?>">
-                            <button type="submit" name="dry_run" value="1" class="btn btn-sm btn-info text-white fw-bold me-1">
-                                <i class="bi bi-eye"></i> Simulate
-                            </button>
-                            <button type="submit" name="auto_fix" value="1" class="btn btn-sm btn-success fw-bold">
-                                <i class="bi bi-magic"></i> Auto-Fix All Issues
-                            </button>
-                        </form>
                     <?php endif; ?>
-                </div>
+                </li>
+                <!-- 2. Error Reporting -->
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                    <div>
+                        <strong>2. Lock Down config/db.php</strong><br>
+                        <small class="text-muted">Ensure <code>display_errors = 0</code> to prevent path leakage.</small>
+                    </div>
+                    <?php if ($errorsOff): ?>
+                        <span class="badge bg-success rounded-pill px-3 py-2"><i class="bi bi-check-circle-fill"></i> Hidden</span>
+                    <?php else: ?>
+                        <span class="badge bg-danger rounded-pill px-3 py-2"><i class="bi bi-x-circle-fill"></i> Exposed</span>
+                    <?php endif; ?>
+                </li>
+                <!-- 3. Vault Key -->
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                    <div>
+                        <strong>3. Generate Final VAULT_KEY</strong><br>
+                        <small class="text-muted">Ensure AES-256 encryption key is set and not default.</small>
+                    </div>
+                    <?php if ($keySecure): ?>
+                        <span class="badge bg-success rounded-pill px-3 py-2"><i class="bi bi-check-circle-fill"></i> Secure</span>
+                    <?php else: ?>
+                        <span class="badge bg-danger rounded-pill px-3 py-2"><i class="bi bi-x-circle-fill"></i> Default Key</span>
+                    <?php endif; ?>
+                </li>
+                <!-- 4. Permissions -->
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                    <div>
+                        <strong>4. Set Directory Permissions</strong><br>
+                        <small class="text-muted">Verify Write access for <code>vault/</code>, <code>uploads/</code>, and <code>backups/</code>.</small>
+                    </div>
+                    <?php if ($permsOk): ?>
+                        <span class="badge bg-success rounded-pill px-3 py-2"><i class="bi bi-check-circle-fill"></i> Writable</span>
+                    <?php else: ?>
+                        <span class="badge bg-danger rounded-pill px-3 py-2"><i class="bi bi-x-circle-fill"></i> Permission Denied</span>
+                    <?php endif; ?>
+                </li>
+                <!-- 5. HTTPS -->
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                    <div>
+                        <strong>5. Enforce HTTPS (SSL)</strong><br>
+                        <small class="text-muted">Verify active SSL certificate to protect network traffic.</small>
+                    </div>
+                    <?php if ($isHttps): ?>
+                        <span class="badge bg-success rounded-pill px-3 py-2"><i class="bi bi-check-circle-fill"></i> Encrypted</span>
+                    <?php elseif ($isLocal): ?>
+                        <span class="badge bg-info text-dark rounded-pill px-3 py-2"><i class="bi bi-info-circle-fill"></i> Localhost</span>
+                    <?php else: ?>
+                        <span class="badge bg-warning text-dark rounded-pill px-3 py-2"><i class="bi bi-exclamation-triangle-fill"></i> Insecure (HTTP)</span>
+                    <?php endif; ?>
+                </li>
+                <!-- 6. Cron Jobs -->
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                    <div>
+                        <strong>6. Activate Automated Backups</strong><br>
+                        <small class="text-muted">Configure Windows Task Scheduler to run <code>cron_backup.php</code></small>
+                    </div>
+                    <span class="badge bg-secondary rounded-pill px-3 py-2"><i class="bi bi-search"></i> Manual Check Req.</span>
+                </li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- SCHEMA VERIFICATION -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
+            <span>Schema Verification</span>
+            <div class="d-flex gap-2">
+                <button onclick="window.print()" class="btn btn-sm btn-secondary"><i class="bi bi-printer"></i> Print Report</button>
+                <a href="db_status.php" class="btn btn-sm btn-outline-light"><i class="bi bi-arrow-repeat"></i> Check for Updates</a>
+                <?php if ($issuesCount > 0): ?>
+                    <form method="POST" class="d-inline">
+                        <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token'], ENT_QUOTES, 'UTF-8'); ?>">
+                        <button type="submit" name="dry_run" value="1" class="btn btn-sm btn-info text-white fw-bold me-1">
+                            <i class="bi bi-eye"></i> Simulate
+                        </button>
+                        <button type="submit" name="auto_fix" value="1" class="btn btn-sm btn-success fw-bold">
+                            <i class="bi bi-magic"></i> Auto-Fix All Issues
+                        </button>
+                    </form>
+                <?php endif; ?>
             </div>
-            <div class="card-body p-0">
-                <table class="table table-hover mb-0 align-middle">
-                    <thead class="table-light">
+        </div>
+        <div class="card-body p-0">
+            <table class="table table-hover mb-0 align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th>Table / Column</th>
+                        <th>Status</th>
+                        <th>Action Required</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- CHECK TABLES -->
+                    <tr class="table-secondary">
+                        <td colspan="3" class="fw-bold">Tables</td>
+                    </tr>
+                    <?php foreach ($tableSchema as $table => $sql):
+                        $exists = false;
+                        try {
+                            $res = $pdo->query("SHOW TABLES LIKE '$table'");
+                            $exists = ($res->rowCount() > 0);
+                        } catch (Exception $e) {
+                        }
+                    ?>
                         <tr>
-                            <th>Table / Column</th>
-                            <th>Status</th>
-                            <th>Action Required</th>
+                            <td><?php echo htmlspecialchars($table); ?></td>
+                            <td>
+                                <?php if ($exists): ?>
+                                    <span class="badge bg-success">Exists</span>
+                                <?php else: ?>
+                                    <span class="badge bg-danger">Missing</span>
+                                <?php endif; ?>
+                            </td>
+                            <td><?php echo $exists ? 'None' : 'Click Auto-Fix'; ?></td>
                         </tr>
-                    </thead>
-                    <tbody>
-                        <!-- CHECK TABLES -->
-                        <tr class="table-secondary">
-                            <td colspan="3" class="fw-bold">Tables</td>
-                        </tr>
-                        <?php foreach ($tableSchema as $table => $sql):
-                            $exists = false;
+                    <?php endforeach; ?>
+
+                    <!-- CHECK COLUMNS -->
+                    <tr class="table-secondary">
+                        <td colspan="3" class="fw-bold">Columns</td>
+                    </tr>
+                    <?php foreach ($columnSchema as $table => $cols):
+                        foreach ($cols as $col => $def):
+                            $colExists = false;
+                            $tableExists = true;
                             try {
-                                $res = $pdo->query("SHOW TABLES LIKE '$table'");
-                                $exists = ($res->rowCount() > 0);
+                                $stmt = $pdo->query("SHOW COLUMNS FROM `$table` LIKE '$col'");
+                                $colExists = ($stmt->rowCount() > 0);
                             } catch (Exception $e) {
+                                $tableExists = false;
                             }
-                        ?>
+                    ?>
                             <tr>
-                                <td><?php echo htmlspecialchars($table); ?></td>
+                                <td><?php echo htmlspecialchars("$table.$col"); ?></td>
                                 <td>
-                                    <?php if ($exists): ?>
+                                    <?php if (!$tableExists): ?>
+                                        <span class="badge bg-secondary">Table Missing</span>
+                                    <?php elseif ($colExists): ?>
                                         <span class="badge bg-success">Exists</span>
                                     <?php else: ?>
                                         <span class="badge bg-danger">Missing</span>
                                     <?php endif; ?>
                                 </td>
-                                <td><?php echo $exists ? 'None' : 'Click Auto-Fix'; ?></td>
+                                <td><?php echo ($tableExists && !$colExists) ? 'Click Auto-Fix' : 'None'; ?></td>
                             </tr>
-                        <?php endforeach; ?>
+                    <?php endforeach;
+                    endforeach; ?>
 
-                        <!-- CHECK COLUMNS -->
-                        <tr class="table-secondary">
-                            <td colspan="3" class="fw-bold">Columns</td>
-                        </tr>
-                        <?php foreach ($columnSchema as $table => $cols):
-                            foreach ($cols as $col => $def):
-                                $colExists = false;
-                                $tableExists = true;
-                                try {
-                                    $stmt = $pdo->query("SHOW COLUMNS FROM `$table` LIKE '$col'");
-                                    $colExists = ($stmt->rowCount() > 0);
-                                } catch (Exception $e) {
-                                    $tableExists = false;
-                                }
-                        ?>
-                                <tr>
-                                    <td><?php echo htmlspecialchars("$table.$col"); ?></td>
-                                    <td>
-                                        <?php if (!$tableExists): ?>
-                                            <span class="badge bg-secondary">Table Missing</span>
-                                        <?php elseif ($colExists): ?>
-                                            <span class="badge bg-success">Exists</span>
-                                        <?php else: ?>
-                                            <span class="badge bg-danger">Missing</span>
-                                        <?php endif; ?>
-                                    </td>
-                                    <td><?php echo ($tableExists && !$colExists) ? 'Click Auto-Fix' : 'None'; ?></td>
-                                </tr>
-                        <?php endforeach;
-                        endforeach; ?>
-
-                        <!-- CHECK INDEXES -->
-                        <tr class="table-secondary">
-                            <td colspan="3" class="fw-bold"><i class="bi bi-lightning-charge-fill text-warning"></i> Indexes (Performance)</td>
-                        </tr>
-                        <?php foreach ($indexSchema as $table => $indexes):
-                            foreach ($indexes as $idxName => $def):
-                                $idxExists = false;
-                                $tableExists = true;
-                                try {
-                                    $stmt = $pdo->query("SHOW INDEX FROM `$table` WHERE Key_name = '$idxName'");
-                                    $idxExists = ($stmt->rowCount() > 0);
-                                } catch (Exception $e) {
-                                    $tableExists = false;
-                                }
-                        ?>
-                                <tr>
-                                    <td><?php echo htmlspecialchars("$table.$idxName"); ?></td>
-                                    <td>
-                                        <?php if (!$tableExists): ?>
-                                            <span class="badge bg-secondary">Table Missing</span>
-                                        <?php elseif ($idxExists): ?>
-                                            <span class="badge bg-success">Exists</span>
-                                        <?php else: ?>
-                                            <span class="badge bg-warning text-dark">Missing</span>
-                                        <?php endif; ?>
-                                    </td>
-                                    <td><?php echo ($tableExists && !$idxExists) ? 'Click Auto-Fix' : 'None'; ?></td>
-                                </tr>
-                        <?php endforeach;
-                        endforeach; ?>
-                    </tbody>
-                </table>
-            </div>
+                    <!-- CHECK INDEXES -->
+                    <tr class="table-secondary">
+                        <td colspan="3" class="fw-bold"><i class="bi bi-lightning-charge-fill text-warning"></i> Indexes (Performance)</td>
+                    </tr>
+                    <?php foreach ($indexSchema as $table => $indexes):
+                        foreach ($indexes as $idxName => $def):
+                            $idxExists = false;
+                            $tableExists = true;
+                            try {
+                                $stmt = $pdo->query("SHOW INDEX FROM `$table` WHERE Key_name = '$idxName'");
+                                $idxExists = ($stmt->rowCount() > 0);
+                            } catch (Exception $e) {
+                                $tableExists = false;
+                            }
+                    ?>
+                            <tr>
+                                <td><?php echo htmlspecialchars("$table.$idxName"); ?></td>
+                                <td>
+                                    <?php if (!$tableExists): ?>
+                                        <span class="badge bg-secondary">Table Missing</span>
+                                    <?php elseif ($idxExists): ?>
+                                        <span class="badge bg-success">Exists</span>
+                                    <?php else: ?>
+                                        <span class="badge bg-warning text-dark">Missing</span>
+                                    <?php endif; ?>
+                                </td>
+                                <td><?php echo ($tableExists && !$idxExists) ? 'Click Auto-Fix' : 'None'; ?></td>
+                            </tr>
+                    <?php endforeach;
+                    endforeach; ?>
+                </tbody>
+            </table>
         </div>
     </div>
-    <script>
-        // [SECURITY] Auto-Logout Timer
-        const timeoutDuration = <?php echo $clientTimeout * 1000; ?>;
-        let timeLeft = timeoutDuration;
+</div>
+<script>
+    // [SECURITY] Auto-Logout Timer
+    const timeoutDuration = <?php echo $clientTimeout * 1000; ?>;
+    let timeLeft = timeoutDuration;
 
-        function updateTimer() {
-            timeLeft -= 1000;
-            if (timeLeft <= 0) window.location.href = 'logout.php';
-            const m = Math.floor(timeLeft / 60000);
-            const s = Math.floor((timeLeft % 60000) / 1000);
-            document.getElementById('sessionTimer').innerText = `${m}:${s.toString().padStart(2, '0')}`;
-        }
-        document.addEventListener('mousemove', () => timeLeft = timeoutDuration);
-        document.addEventListener('keypress', () => timeLeft = timeoutDuration);
-        setInterval(updateTimer, 1000);
-        updateTimer();
-    </script>
-    <script src="dark_mode.js"></script>
+    function updateTimer() {
+        timeLeft -= 1000;
+        if (timeLeft <= 0) window.location.href = 'logout.php';
+        const m = Math.floor(timeLeft / 60000);
+        const s = Math.floor((timeLeft % 60000) / 1000);
+        document.getElementById('sessionTimer').innerText = `${m}:${s.toString().padStart(2, '0')}`;
+    }
+    document.addEventListener('mousemove', () => timeLeft = timeoutDuration);
+    document.addEventListener('keypress', () => timeLeft = timeoutDuration);
+    setInterval(updateTimer, 1000);
+    updateTimer();
+</script>
+<script src="dark_mode.js"></script>
 </body>
 
 </html>
