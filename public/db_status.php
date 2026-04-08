@@ -476,6 +476,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_POST['auto_fix']) || isset
                 'session_timeout_server' => '1800',
                 'session_timeout_client' => '900',
                 'auto_refresh_interval' => '60',
+                'company_president' => 'JUNJI FURUYA',
                 'vault_size_limit_gb' => '1',
                 'backup_day' => 'Fri',
                 'backup_time' => '00:00',

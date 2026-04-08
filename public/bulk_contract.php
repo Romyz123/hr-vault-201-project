@@ -69,6 +69,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate_bulk'])) {
 
     // [FIX] Initialize custom_duties to empty for bulk generation (Forces template to use Role-based duties)
     $custom_duties = '';
+    $companyPresident = $settings['company_president'] ?? 'JUNJI FURUYA';
 
     // Map Type to Template
     $templateMap = [

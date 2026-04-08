@@ -48,6 +48,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $updates[$cb] = isset($_POST['settings'][$cb]) ? '1' : '0';
         }
 
+        // [NEW] Handle Company Logo Upload
+        if (isset($_FILES['company_logo']) && $_FILES['company_logo']['error'] === UPLOAD_ERR_OK) {
+            $logoFile = $_FILES['company_logo'];
+            $allowedTypes = ['image/png', 'image/jpeg'];
+            $finfo = new finfo(FILEINFO_MIME_TYPE);
+            $mime = $finfo->file($logoFile['tmp_name']);
+
+            if (!in_array($mime, $allowedTypes)) {
+                $errors[] = "Logo must be a PNG or JPG image.";
+            } elseif ($logoFile['size'] > 2 * 1024 * 1024) {
+                $errors[] = "Logo file size must be less than 2MB.";
+            } else {
+                $destDir = dirname(__DIR__) . DIRECTORY_SEPARATOR . 'uploads';
+                if (!is_dir($destDir)) @mkdir($destDir, 0755, true);
+
+                $dest = $destDir . DIRECTORY_SEPARATOR . 'tesp-logo.png';
+                if (move_uploaded_file($logoFile['tmp_name'], $dest)) {
+                    // Also sync to public/uploads/ for pages that use that path directly
+                    $publicDest = __DIR__ . DIRECTORY_SEPARATOR . 'uploads' . DIRECTORY_SEPARATOR . 'tesp-logo.png';
+                    if (!is_dir(dirname($publicDest))) @mkdir(dirname($publicDest), 0755, true);
+                    @copy($dest, $publicDest);
+                    $logger->log($_SESSION['user_id'], 'LOGO_UPDATE', 'Company logo was updated.');
+                } else {
+                    $errors[] = "Failed to save the uploaded logo.";
+                }
+            }
+        }
+
         // [FIX] Ensure approval_widgets is saved as an empty array if all boxes are unchecked
         if (isset($_POST['settings']) && !isset($_POST['settings']['approval_widgets'])) {
             $_POST['settings']['approval_widgets'] = [];
@@ -248,6 +276,7 @@ try {
 $serverTimeout = $currentSettings['session_timeout_server'] ?? 1800;
 $clientTimeout = $currentSettings['session_timeout_client'] ?? 900;
 $refreshInterval = $currentSettings['auto_refresh_interval'] ?? 60;
+$companyPresident = $currentSettings['company_president'] ?? 'JUNJI FURUYA';
 $vaultLimitGB = $currentSettings['vault_size_limit_gb'] ?? '1';
 $maintMode = $currentSettings['maintenance_mode'] ?? '0';
 
@@ -310,7 +339,7 @@ include 'header.php';
         </script>
     <?php endif; ?>
 
-    <form method="POST">
+    <form method="POST" enctype="multipart/form-data">
         <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf_token) ?>">
 
         <div class="row">
@@ -342,6 +371,21 @@ include 'header.php';
                                 <div class="form-text">
                                     The time of user inactivity before automatic logout.<br>
                                     <span class="text-danger">Warning:</span> Must be less than Server Session Lifetime.
+                                </div>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Company Favicon (Tab Icon)</label>
+                            <div class="d-flex align-items-center gap-3">
+                                <?php
+                                $faviconUrl = 'uploads/favicon.png';
+                                if (!file_exists($faviconUrl)) $faviconUrl = '../uploads/favicon.png'; // Fallback to root
+                                if (!file_exists($faviconUrl)) $faviconUrl = 'uploads/tesp-logo.png'; // Fallback to logo
+                                ?>
+                                <img src="<?= $faviconUrl ?>?v=<?= time() ?>" id="faviconPreview" class="border rounded p-1" style="height: 32px; width: 32px; background: #f8f9fa;" alt="Current Favicon">
+                                <div class="flex-grow-1">
+                                    <input type="file" name="company_favicon" class="form-control" accept=".png,.ico,.jpg,.jpeg" onchange="previewFavicon(this)">
+                                    <div class="form-text">Recommended: 32x32 or 64x64 PNG. Max 512KB.</div>
                                 </div>
                             </div>
                         </div>
@@ -392,10 +436,36 @@ include 'header.php';
                 </div>
 
                 <div class="card shadow-sm mb-4">
+                    <div class="card-header bg-dark text-white">
+                        <h5 class="mb-0"><i class="bi bi-palette"></i> Company Branding</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Company Logo</label>
+                            <div class="d-flex align-items-center gap-3">
+                                <?php
+                                $logoUrl = 'uploads/tesp-logo.png';
+                                if (!file_exists($logoUrl)) $logoUrl = '../uploads/tesp-logo.png'; // Fallback to root
+                                ?>
+                                <img src="<?= $logoUrl ?>?v=<?= time() ?>" id="logoPreview" class="border rounded p-1" style="height: 80px; width: auto; background: #f8f9fa;" alt="Current Logo">
+                                <div class="flex-grow-1">
+                                    <input type="file" name="company_logo" class="form-control" accept=".png,.jpg,.jpeg" onchange="previewLogo(this)">
+                                    <div class="form-text">Recommended: PNG with transparent background. Max 2MB.</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card shadow-sm mb-4">
                     <div class="card-header bg-secondary text-white">
                         <h5 class="mb-0"><i class="bi bi-file-earmark-ruled"></i> Document Defaults</h5>
                     </div>
                     <div class="card-body">
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Company President</label>
+                            <input type="text" name="settings[company_president]" class="form-control" value="<?= htmlspecialchars($companyPresident) ?>" placeholder="e.g. JUNJI FURUYA" maxlength="100">
+                        </div>
                         <div class="mb-3">
                             <label class="form-label fw-bold">Default Project Name</label>
                             <input type="text" name="settings[default_project_name]" class="form-control" value="<?= htmlspecialchars($defProject) ?>" placeholder="e.g. MRT-3 Rehabilitation Project" maxlength="100" pattern="[a-zA-Z0-9\s\-\.\(\)]+" title="Allowed: Letters, Numbers, Spaces, - . ( )">
@@ -709,6 +779,26 @@ include 'header.php';
         if ((input.value.match(/\./g) || []).length > 1) input.value = input.value.replace(/\.$/, '');
         if (input.value.length > 4) input.value = input.value.slice(0, 4);
         if (parseFloat(input.value) > 24) input.value = '24';
+    }
+
+    function previewLogo(input) {
+        if (input.files && input.files[0]) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                document.getElementById('logoPreview').src = e.target.result;
+            }
+            reader.readAsDataURL(input.files[0]);
+        }
+    }
+
+    function previewFavicon(input) {
+        if (input.files && input.files[0]) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                document.getElementById('faviconPreview').src = e.target.result;
+            }
+            reader.readAsDataURL(input.files[0]);
+        }
     }
 
     document.addEventListener('DOMContentLoaded', updateAllPathStatus);

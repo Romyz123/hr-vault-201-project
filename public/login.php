@@ -215,9 +215,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
     <link href="assets/bootstrap.min.css?v=3" rel="stylesheet">
     <link rel="stylesheet" href="assets/icons/bootstrap-icons.css?v=3">
     <script src="assets/sweetalert2.all.min.js?v=3"></script>
-    <link rel="icon" type="image/png" href="../uploads/tesp-logo.png">
-    <link rel="shortcut icon" type="image/png" href="../uploads/tesp-logo.png">
-    <link rel="apple-touch-icon" href="../uploads/tesp-logo.png">
+    <?php
+    $fav = '../uploads/favicon.png';
+    if (!file_exists($fav)) $fav = '../uploads/tesp-logo.png';
+    ?>
+    <link rel="icon" type="image/png" href="<?= $fav ?>">
+    <link rel="shortcut icon" type="image/png" href="<?= $fav ?>">
+    <link rel="apple-touch-icon" href="<?= $fav ?>">
     <style>
         body {
             /* --- BACKGROUND THEMES (Uncomment the one you want to use) --- */
@@ -278,7 +282,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
 
     <div class="card login-card" style="width: 100%; max-width: 400px;">
         <div class="card-header bg-primary text-white text-center py-4">
-            <img src="../uploads/tesp-logo.png" alt="TESP Logo" style="height: 100px; width: auto;" class="mb-2">
+            <img src="../uploads/tesp-logo.png?v=<?= file_exists('../uploads/tesp-logo.png') ? filemtime('../uploads/tesp-logo.png') : time() ?>" alt="TESP Logo" style="height: 100px; width: auto;" class="mb-2">
             <h3 class="mt-2 fw-bold">HR 201 Vault</h3>
             <p class="mb-0 opacity-75">TES Philippines, Inc.</p>
         </div>

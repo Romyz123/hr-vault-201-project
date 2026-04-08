@@ -8,6 +8,35 @@ header('Content-Type: application/json');
 
 try {
     $userId = $_SESSION['user_id'] ?? 0;
+    $userRole = $_SESSION['role'] ?? '';
+
+    // [NEW] Fetch Dynamic Categories for consistency
+    $dynamicCats = [];
+    try {
+        $stmt = $pdo->query("SELECT DISTINCT name FROM document_requirements ORDER BY name ASC");
+        $dynamicCats = $stmt->fetchAll(PDO::FETCH_COLUMN);
+        $dynamicCats = array_filter($dynamicCats, function ($cat) {
+            return strcasecmp(trim($cat), 'Others') !== 0;
+        });
+    } catch (Exception $e) {
+        $dynamicCats = ['201 Files', 'Contract', 'Government IDs', 'Medical', 'Memo / DA', 'Evaluation', 'Certificate', 'Training Record'];
+    }
+
+    // [FIX] Fallback if table is empty but exists
+    if (empty($dynamicCats)) {
+        $dynamicCats = ['201 Files', 'Contract', 'Government IDs', 'Medical', 'Memo / DA', 'Evaluation', 'Certificate', 'Training Record'];
+    }
+
+    // Check for column existence
+    $hasDeletedAt = false;
+    $hasUploadedBy = false;
+    try {
+        $chk = $pdo->query("SHOW COLUMNS FROM documents LIKE 'deleted_at'");
+        if ($chk->rowCount() > 0) $hasDeletedAt = true;
+        $chk2 = $pdo->query("SHOW COLUMNS FROM documents LIKE 'uploaded_by'");
+        if ($chk2->rowCount() > 0) $hasUploadedBy = true;
+    } catch (Exception $e) {
+    }
 
     // ============================================================
     // PART 0: DB MESSAGES (Clearable) - Needed for "Clear Read" button
@@ -21,14 +50,6 @@ try {
     // PART 1: COMPLIANCE ALERTS (Your Original Code)
     // ============================================================
     $alertDate = date('Y-m-d', strtotime('+30 days'));
-
-    // [FIX] Check for deleted_at column to exclude deleted docs
-    $hasDeletedAt = false;
-    try {
-        $chk = $pdo->query("SHOW COLUMNS FROM documents LIKE 'deleted_at'");
-        if ($chk->rowCount() > 0) $hasDeletedAt = true;
-    } catch (Exception $e) {
-    }
 
     $docQuery = "
         SELECT d.id, d.category, d.original_name, d.expiry_date, e.first_name, e.last_name, e.emp_id 
@@ -146,14 +167,20 @@ try {
 
 
     // [FIX] Exclude deleted files from the count
-    $statsSql = "SELECT COALESCE(NULLIF(TRIM(category), ''), 'Documents for Employee'), COUNT(*) FROM documents WHERE 1=1";
-    if ($hasDeletedAt) {
-        $statsSql .= " AND deleted_at IS NULL";
+    $statsSql = "SELECT category, COUNT(*) as count FROM documents WHERE 1=1";
+    if ($hasDeletedAt) $statsSql .= " AND deleted_at IS NULL";
+    if ($hasUploadedBy && !in_array($userRole, ['ADMIN', 'MANAGER', 'HR'], true)) {
+        $statsSql .= " AND uploaded_by = " . (int)$userId;
     }
-    $statsSql .= " GROUP BY 1";
+    $statsSql .= " GROUP BY category";
 
-    $statsQuery = $pdo->query($statsSql);
-    $stats = $statsQuery->fetchAll(PDO::FETCH_KEY_PAIR);
+    $dbStats = $pdo->query($statsSql)->fetchAll(PDO::FETCH_KEY_PAIR) ?: [];
+
+    $chartStats = [];
+    foreach ($dynamicCats as $cat) {
+        $chartStats[$cat] = (int)($dbStats[$cat] ?? 0);
+    }
+    $chartStats['Documents for Employee'] = (int)($dbStats[''] ?? $dbStats[null] ?? 0);
 
     echo json_encode([
         'status' => 'success',
@@ -165,8 +192,8 @@ try {
         'headcount' => number_format((int)$activeHeadcount),
         'cases' => number_format((int)$pendingCases),
         // Chart Data
-        'chartLabels' => array_keys($stats),
-        'chartValues' => array_values($stats)
+        'chartLabels' => array_keys($chartStats),
+        'chartValues' => array_values($chartStats)
     ]);
 } catch (Exception $e) {
     echo json_encode(['status' => 'error', 'message' => $e->getMessage()]);

@@ -119,9 +119,14 @@ $csrf_token = $_SESSION['csrf_token'] ?? '';
     <meta charset="UTF-8">
     <title>TESP HR 201 System</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <link rel="icon" type="image/png" href="../uploads/tesp-logo.png">
-    <link rel="shortcut icon" type="image/png" href="../uploads/tesp-logo.png">
-    <link rel="apple-touch-icon" href="../uploads/tesp-logo.png">
+    <?php
+    $faviconPath = '../uploads/favicon.png';
+    if (!file_exists(__DIR__ . '/../uploads/favicon.png')) $faviconPath = '../uploads/tesp-logo.png';
+    $faviconUrl = $faviconPath . '?v=' . (file_exists(__DIR__ . '/' . $faviconPath) ? filemtime(__DIR__ . '/' . $faviconPath) : time());
+    ?>
+    <link rel="icon" type="image/png" href="<?= $faviconUrl ?>">
+    <link rel="shortcut icon" type="image/png" href="<?= $faviconUrl ?>">
+    <link rel="apple-touch-icon" href="<?= $faviconUrl ?>">
     <link href="assets/bootstrap.min.css?v=5" rel="stylesheet">
     <link href="assets/icons/bootstrap-icons.css?v=5" rel="stylesheet">
     <script src="assets/chart.min.js?v=3" defer></script>

@@ -474,7 +474,7 @@ $year_now  = date('Y');
                         <tr>
                             <td>
                                 <div class="sig-line"></div>
-                                <div class="sig-name">JUNJI FURUYA</div>
+                                <div class="sig-name"><?php echo htmlspecialchars($companyPresident ?? 'JUNJI FURUYA'); ?></div>
                                 <div>EMPLOYER</div>
                             </td>
 
