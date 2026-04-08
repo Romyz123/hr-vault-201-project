@@ -1647,7 +1647,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 </div>
 
 <script src="assets/bootstrap.bundle.min.js"></script>
-<script src="dark_mode.js"></script>
 <script>
     // Logic for Sections and Auto-Capitalize
     const sectionMap = <?php echo json_encode($sectionFriendlyMap); ?>;

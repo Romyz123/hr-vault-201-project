@@ -63,17 +63,6 @@ try {
 } catch (Exception $e) {
     error_log("print_employee.php (employment history) error: " . $e->getMessage());
 }
-
-// [NEW] Fetch Employment History
-$history = [];
-try {
-    $histStmt = $pdo->prepare("SELECT * FROM employment_history WHERE employee_id = ? ORDER BY event_date DESC");
-    $histStmt->execute([$id]);
-    $history = $histStmt->fetchAll(PDO::FETCH_ASSOC);
-} catch (Exception $e) {
-    error_log("print_employee.php (employment history) error: " . $e->getMessage());
-}
-
 // [NEW] Handle Word Export Logic
 $isWordExport = isset($_GET['export']) && $_GET['export'] === 'word';
 if ($isWordExport) {
@@ -133,6 +122,9 @@ if (empty($logo_src)) {
     <title>Print Profile - <?php echo htmlspecialchars($emp['last_name']); ?></title>
     <link rel="icon" href="assets/tesp-logo.png?v=4" type="image/png">
     <link href="assets/bootstrap.min.css" rel="stylesheet">
+    <link rel="icon" type="image/png" href="../uploads/tesp-logo.png">
+    <link rel="shortcut icon" type="image/png" href="../uploads/tesp-logo.png">
+    <link rel="apple-touch-icon" href="../uploads/tesp-logo.png">
     <style>
         /* 1. Force Browser to recognize A4 paper */
         @page {
@@ -497,6 +489,35 @@ if (empty($logo_src)) {
                     else: ?>
                         <tr>
                             <td colspan="4" class="text-center text-muted">No disciplinary records on file.</td>
+                        </tr>
+                    <?php endif; ?>
+                </tbody>
+            </table>
+        </div>
+
+        <div id="sec-history" class="avoid-break mt-4">
+            <div class="section-title">Employment History</div>
+            <table class="table table-sm table-bordered mt-2" style="font-size: 0.85rem;">
+                <thead class="table-light">
+                    <tr>
+                        <th>Event Date</th>
+                        <th>Title / Position</th>
+                        <th>Department</th>
+                        <th>Notes</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php if (!empty($history)): foreach ($history as $event): ?>
+                            <tr>
+                                <td><?php echo htmlspecialchars(date('M d, Y', strtotime($event['event_date']))); ?></td>
+                                <td><?php echo htmlspecialchars($event['event_title']); ?></td>
+                                <td><?php echo htmlspecialchars($event['department'] ?? ''); ?></td>
+                                <td><?php echo htmlspecialchars($event['notes'] ?? ''); ?></td>
+                            </tr>
+                        <?php endforeach;
+                    else: ?>
+                        <tr>
+                            <td colspan="4" class="text-center text-muted">No employment history records found.</td>
                         </tr>
                     <?php endif; ?>
                 </tbody>

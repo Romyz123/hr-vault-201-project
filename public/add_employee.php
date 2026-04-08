@@ -320,8 +320,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             error_log('Database Error in add_employee.php: ' . $e->getMessage() . '. Stack: ' . $e->getTraceAsString());
             // Show generic message to user
             $errors[] = "A database error occurred. Please contact support if the problem persists.";
-            // Propagate so calling context can handle unexpected fatal states if needed
-            throw $e;
         }
     }
 }
@@ -811,6 +809,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         // 6. ATTACH CAPITALIZATION
         document.addEventListener("DOMContentLoaded", function() {
+            // [FIX] Declare key at the start of block to prevent ReferenceError
+            const draftKey = 'hr_add_emp_draft';
+
             const fieldsToCap = ['first_name', 'middle_name', 'last_name', 'job_title', 'emergency_name'];
             fieldsToCap.forEach(name => {
                 const input = document.querySelector(`[name="${name}"]`);

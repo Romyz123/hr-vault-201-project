@@ -18,9 +18,31 @@ if (!isset($_SESSION['user_id']) || !in_array($_SESSION['role'] ?? '', ['ADMIN',
 // 2. FILTERS & PAGINATION
 $filter = $_GET['filter'] ?? 'ALL';
 $search = trim($_GET['search'] ?? '');
+$dateFrom = $_GET['date_from'] ?? '';
+$dateTo   = $_GET['date_to'] ?? '';
 $page   = max(1, (int)($_GET['page'] ?? 1));
 $perPage = 50;
 $offset = ($page - 1) * $perPage;
+
+function isValidDate($date)
+{
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
+        return false;
+    }
+    list($year, $month, $day) = explode('-', $date);
+    return checkdate((int)$month, (int)$day, (int)$year);
+}
+
+if (!isValidDate($dateFrom)) {
+    $dateFrom = '';
+}
+if (!isValidDate($dateTo)) {
+    $dateTo = '';
+}
+
+// [SECURITY] Sanitize search input and escape SQL LIKE wildcards
+$search = preg_replace('/[^a-zA-Z0-9\-_ ,]/', '', $search);
+$search = str_replace(['%', '_'], ['\\%', '\\_'], $search);
 
 $where = ['1=1'];
 $params = [];
@@ -33,6 +55,16 @@ if ($filter === 'SECURITY') {
     $where[] = "(a.action LIKE '%DOC%' OR a.action LIKE '%VAULT%' OR a.action LIKE '%FILE%')";
 } elseif ($filter === 'SYSTEM') {
     $where[] = "(a.action LIKE '%BACKUP%' OR a.action LIKE '%SETTINGS%')";
+}
+
+// [NEW] Date Range Filter logic
+if ($dateFrom) {
+    $where[] = "a.created_at >= ?";
+    $params[] = $dateFrom . ' 00:00:00';
+}
+if ($dateTo) {
+    $where[] = "a.created_at <= ?";
+    $params[] = $dateTo . ' 23:59:59';
 }
 
 if ($search !== '') {
@@ -71,10 +103,21 @@ $logs = $stmt->fetchAll(PDO::FETCH_ASSOC);
                         <option value="SYSTEM" <?php echo $filter === 'SYSTEM' ? 'selected' : ''; ?>>⚙️ System & Backups</option>
                     </select>
                 </div>
+                <div class="col-auto">
+                    <div class="input-group input-group-sm">
+                        <span class="input-group-text">From</span>
+                        <input type="date" name="date_from" class="form-control" value="<?php echo htmlspecialchars($dateFrom); ?>">
+                        <span class="input-group-text">To</span>
+                        <input type="date" name="date_to" class="form-control" value="<?php echo htmlspecialchars($dateTo); ?>">
+                    </div>
+                </div>
                 <div class="col-auto ms-auto">
                     <div class="input-group input-group-sm">
-                        <input type="text" name="search" class="form-control" placeholder="Search logs..." value="<?php echo htmlspecialchars($search); ?>">
+                        <input type="text" name="search" class="form-control" placeholder="Search logs..." value="<?php echo htmlspecialchars($search); ?>" maxlength="100" pattern="[a-zA-Z0-9\-_ ,]+" oninput="this.value = this.value.replace(/[^a-zA-Z0-9\-_ ,]/g, '')">
                         <button type="submit" class="btn btn-primary"><i class="bi bi-search"></i></button>
+                        <?php if ($search || $dateFrom || $dateTo || $filter !== 'ALL'): ?>
+                            <a href="activity_logs.php" class="btn btn-outline-secondary" title="Reset Filters"><i class="bi bi-x-lg"></i></a>
+                        <?php endif; ?>
                     </div>
                 </div>
             </form>
@@ -139,7 +182,6 @@ $logs = $stmt->fetchAll(PDO::FETCH_ASSOC);
     <?php endif; ?>
 </div>
 <script src="assets/bootstrap.bundle.min.js"></script>
-<script src="dark_mode.js"></script>
 </body>
 
 </html>

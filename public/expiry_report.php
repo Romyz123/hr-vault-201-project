@@ -23,7 +23,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     $cleanupStmt = $pdo->prepare("UPDATE documents SET expiry_date = NULL, is_resolved = 0, resolution_note = NULL WHERE is_resolved = 1 AND expiry_date < DATE_SUB(NOW(), INTERVAL 90 DAY)");
     $cleanupStmt->execute();
     $cleanedCount = $cleanupStmt->rowCount();
-    $logger->log($_SESSION['user_id'], 'CLEANUP_RESOLVED_EXPIRY', "Cleaned up $cleanedCount old resolved expiry alerts.");
+    if (isset($logger)) {
+        $logger->log($_SESSION['user_id'], 'CLEANUP_RESOLVED_EXPIRY', "Cleaned up $cleanedCount old resolved expiry alerts.");
+    }
     $msg = "✅ Cleaned up $cleanedCount old resolved expiry alerts.";
 }
 
@@ -69,9 +71,9 @@ $docs = $stmt->fetchAll(PDO::FETCH_ASSOC);
 <head>
     <meta charset="UTF-8">
     <title>Expiry Forecast | HR System</title>
-    <link rel="icon" href="assets/tesp-logo.png?v=4" type="image/png">
     <link href="assets/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="assets/icons/bootstrap-icons.css">
+    <link rel="icon" type="image/png" href="assets/tesp-logo.png?v=4">
     <style>
         /* Yellow for coming soon */
         @media print {

@@ -135,7 +135,9 @@ $columnSchema = [
         'locked_until' => "DATETIME NULL",
         'is_shared' => "TINYINT(1) DEFAULT 0",
         'account_owner' => "VARCHAR(100) NULL DEFAULT NULL",
-        'last_verified_at' => "DATETIME NULL"
+        'last_verified_at' => "DATETIME NULL",
+        'security_question' => "VARCHAR(255) NULL",
+        'security_answer' => "VARCHAR(255) NULL"
     ],
     'employees' => [
         'system_role' => "VARCHAR(50) DEFAULT 'Staff'",
@@ -152,6 +154,7 @@ $columnSchema = [
         'deleted_at' => "DATETIME NULL",
         'updated_at' => "DATETIME NULL",
         'updated_by' => "INT NULL",
+        'uploaded_by' => "INT NULL",
         'is_resolved' => "TINYINT(1) DEFAULT 0",
         'resolution_note' => "TEXT NULL"
     ],
@@ -839,24 +842,7 @@ foreach ($indexSchema as $table => $indexes) {
         </div>
     </div>
 </div>
-<script>
-    // [SECURITY] Auto-Logout Timer
-    const timeoutDuration = <?php echo $clientTimeout * 1000; ?>;
-    let timeLeft = timeoutDuration;
-
-    function updateTimer() {
-        timeLeft -= 1000;
-        if (timeLeft <= 0) window.location.href = 'logout.php';
-        const m = Math.floor(timeLeft / 60000);
-        const s = Math.floor((timeLeft % 60000) / 1000);
-        document.getElementById('sessionTimer').innerText = `${m}:${s.toString().padStart(2, '0')}`;
-    }
-    document.addEventListener('mousemove', () => timeLeft = timeoutDuration);
-    document.addEventListener('keypress', () => timeLeft = timeoutDuration);
-    setInterval(updateTimer, 1000);
-    updateTimer();
-</script>
-<script src="dark_mode.js"></script>
+<script src="assets/bootstrap.bundle.min.js"></script>
 </body>
 
 </html>

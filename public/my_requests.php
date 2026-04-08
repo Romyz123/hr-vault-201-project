@@ -96,7 +96,7 @@ $requests = $stmt->fetchAll(PDO::FETCH_ASSOC);
                     </select>
                 </div>
                 <div class="col-auto flex-grow-1">
-                    <input type="text" name="search" class="form-control" placeholder="Search by Type or Date (YYYY-MM-DD)..." value="<?php echo htmlspecialchars($search); ?>">
+                    <input type="text" name="search" class="form-control" placeholder="Search by Type or Date (YYYY-MM-DD)..." value="<?php echo htmlspecialchars($search); ?>" maxlength="100" pattern="[a-zA-Z0-9\-_ ,]+" oninput="this.value = this.value.replace(/[^a-zA-Z0-9\-_ ,]/g, '')">
                 </div>
                 <div class="col-auto">
                     <button type="submit" class="btn btn-primary"><i class="bi bi-search"></i> Search</button>

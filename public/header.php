@@ -19,38 +19,52 @@ if (isset($_SESSION['user_id'])) {
     $uid = (int)$_SESSION['user_id'];
     $userRole = $userRole ?? strtoupper($_SESSION['role'] ?? '');
 
+    // [FIX] Initialize variables to prevent 500 error on empty states
+    $db_notifs = [];
+    $doc_alerts = [];
+
     if (!isset($clientTimeout)) {
         try {
             $stmt = $pdo->query("SELECT setting_value FROM system_settings WHERE setting_key = 'session_timeout_client'");
             $clientTimeout = (int)$stmt->fetchColumn() ?: 900;
-        } catch (Exception $e) {
+        } catch (Throwable $e) {
             $clientTimeout = 900;
         }
     }
 
-    if (empty($db_notifs)) {
+    if (isset($_SESSION['user_id'])) {
         try {
             $notifStmt = $pdo->prepare("SELECT id, title, message, type, created_at, 'db_msg' as source, NULL as link_id FROM notifications WHERE user_id = ? ORDER BY created_at DESC");
             $notifStmt->execute([$uid]);
             $db_notifs = $notifStmt->fetchAll() ?: [];
-        } catch (Exception $e) {
+        } catch (Throwable $e) {
             $db_notifs = [];
         }
     }
 
-    if (empty($doc_alerts)) {
+    if (isset($_SESSION['user_id'])) {
         try {
             $alertDate = date('Y-m-d', strtotime('+30 days'));
-            $docQuery = "SELECT d.id, d.original_name, d.expiry_date, e.emp_id AS real_emp_id FROM documents d JOIN employees e ON d.employee_id = e.emp_id WHERE d.is_resolved = 0 AND d.expiry_date IS NOT NULL AND d.expiry_date <= ?";
+            $docQuery = "SELECT d.id, d.original_name, d.expiry_date, e.emp_id AS real_emp_id FROM documents d JOIN employees e ON d.employee_id = e.emp_id WHERE d.is_resolved = 0 AND d.expiry_date IS NOT NULL AND d.expiry_date <= :alertDate";
 
             // Check for deleted_at column
             $chk = $pdo->query("SHOW COLUMNS FROM documents LIKE 'deleted_at'");
             if ($chk->rowCount() > 0) $docQuery .= " AND d.deleted_at IS NULL";
 
-            if (!in_array($userRole, ['ADMIN', 'HR'])) $docQuery .= " AND d.uploaded_by = $uid";
+            // [SECURITY] Only filter by owner if not privileged AND the column exists
+            $isRestrictedUpload = false;
+            $chkUp = $pdo->query("SHOW COLUMNS FROM documents LIKE 'uploaded_by'");
+            if ($chkUp->rowCount() > 0 && !in_array($userRole, ['ADMIN', 'MANAGER', 'HR'])) {
+                $docQuery .= " AND d.uploaded_by = :uid";
+                $isRestrictedUpload = true;
+            }
 
             $notifyStmt = $pdo->prepare($docQuery);
-            $notifyStmt->execute([$alertDate]);
+            $bindParams = [':alertDate' => $alertDate];
+            if ($isRestrictedUpload) {
+                $bindParams[':uid'] = $uid;
+            }
+            $notifyStmt->execute($bindParams);
             $raw_alerts = $notifyStmt->fetchAll() ?: [];
 
             foreach ($raw_alerts as $d) {
@@ -83,17 +97,15 @@ if (isset($_SESSION['user_id'])) {
                     ];
                 }
             }
-        } catch (Exception $e) {
+        } catch (Throwable $e) {
             $doc_alerts = [];
         }
     }
 
-    if (!isset($all_notifications) || empty($all_notifications)) {
-        $all_notifications = array_merge($db_notifs ?: [], $doc_alerts ?: []);
-        usort($all_notifications, function ($a, $b) {
-            return strtotime($b['created_at']) <=> strtotime($a['created_at']);
-        });
-    }
+    $all_notifications = array_merge($db_notifs, $doc_alerts);
+    usort($all_notifications, function ($a, $b) {
+        return strtotime($b['created_at']) <=> strtotime($a['created_at']);
+    });
     $msgCount = count($db_notifs);
     $notifCount = $msgCount + count($doc_alerts);
 }
@@ -107,12 +119,14 @@ $csrf_token = $_SESSION['csrf_token'] ?? '';
     <meta charset="UTF-8">
     <title>TESP HR 201 System</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <link rel="icon" href="assets/tesp-logo.png?v=6" type="image/png">
+    <link rel="icon" type="image/png" href="../uploads/tesp-logo.png">
+    <link rel="shortcut icon" type="image/png" href="../uploads/tesp-logo.png">
+    <link rel="apple-touch-icon" href="../uploads/tesp-logo.png">
     <link href="assets/bootstrap.min.css?v=5" rel="stylesheet">
     <link href="assets/icons/bootstrap-icons.css?v=5" rel="stylesheet">
     <script src="assets/chart.min.js?v=3" defer></script>
     <script src="assets/sweetalert2.all.min.js?v=3"></script>
-    <script src="dark_mode.js?v=6"></script>
+    <script src="dark_mode.js?v=7"></script>
     <style>
         :root {
             --bg: #f4f6f9;
@@ -410,3 +424,39 @@ $csrf_token = $_SESSION['csrf_token'] ?? '';
             </div>
         </div>
     </nav>
+
+    <script>
+        // [SECURITY] Centralized Global Auto-Logout Timer (Client-Side)
+        document.addEventListener("DOMContentLoaded", function() {
+            const INACTIVITY_LIMIT_MS = <?php echo (int)($clientTimeout ?? 900) * 1000; ?>;
+            let remainingMs = INACTIVITY_LIMIT_MS;
+
+            function updateTimer() {
+                if (remainingMs > 0) remainingMs -= 1000;
+                if (remainingMs <= 0) {
+                    window.location.href = 'logout.php?msg=Session_Expired_Auto';
+                    return;
+                }
+                const totalSeconds = Math.floor(remainingMs / 1000);
+                const m = Math.floor(totalSeconds / 60);
+                const s = totalSeconds % 60;
+                const text = `${m}:${s.toString().padStart(2, '0')}`;
+                const timerEl = document.getElementById('sessionTimer');
+                if (timerEl) {
+                    timerEl.innerText = text;
+                    if (remainingMs < 120000) timerEl.classList.add('text-danger');
+                    else timerEl.classList.remove('text-danger');
+                }
+            }
+
+            function resetTimer() {
+                remainingMs = INACTIVITY_LIMIT_MS;
+            }
+
+            setInterval(updateTimer, 1000);
+            window.addEventListener('mousemove', resetTimer);
+            window.addEventListener('keydown', resetTimer);
+            window.addEventListener('click', resetTimer);
+            window.addEventListener('scroll', resetTimer);
+        });
+    </script>

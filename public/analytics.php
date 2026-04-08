@@ -83,6 +83,50 @@ if ($agencyFilter !== '') {
     }
 }
 
+// [NEW] Handle Overdue Export
+if (isset($_GET['export_overdue'])) {
+    header('Content-Type: text/csv; charset=utf-8');
+    header('Content-Disposition: attachment; filename="Overdue_Documents_' . date('Y-m-d') . '.csv"');
+    $output = fopen('php://output', 'w');
+    fwrite($output, "\xEF\xBB\xBF");
+    fputcsv($output, ['Expiry Date', 'Employee ID', 'Name', 'Category', 'Document Name', 'Department']);
+
+    // Re-use active filters for the export
+    $overdueSQL = "SELECT d.expiry_date, d.employee_id, e.first_name, e.last_name, d.category, d.original_name, e.dept 
+                   FROM documents d 
+                   JOIN employees e ON d.employee_id = e.emp_id 
+                   WHERE d.expiry_date < CURDATE() 
+                     AND d.deleted_at IS NULL 
+                     AND d.is_resolved = 0 
+                     AND e.status = 'Active'";
+
+    $exportParams = [];
+    if ($jobSearch !== '') {
+        $overdueSQL .= " AND e.job_title LIKE ? ";
+        $exportParams[] = "%$jobSearch%";
+    }
+    if ($deptFilter !== '') {
+        $overdueSQL .= " AND e.dept = ? ";
+        $exportParams[] = $deptFilter;
+    }
+    if ($agencyFilter !== '') {
+        if ($agencyFilter === 'TESP_DIRECT') {
+            $overdueSQL .= " AND (e.agency_name IS NULL OR e.agency_name = '' OR e.agency_name LIKE 'TESP%') ";
+        } else {
+            $overdueSQL .= " AND e.agency_name = ? ";
+            $exportParams[] = $agencyFilter;
+        }
+    }
+    $overdueSQL .= " ORDER BY d.expiry_date ASC";
+    $stmt = $pdo->prepare($overdueSQL);
+    $stmt->execute($exportParams);
+    while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+        fputcsv($output, [$row['expiry_date'], $row['employee_id'], $row['last_name'] . ', ' . $row['first_name'], $row['category'], $row['original_name'], $row['dept']]);
+    }
+    fclose($output);
+    exit;
+}
+
 // --- 3. AS-OF DATE for tenure bucketing ---
 $today       = new DateTime('today');
 $currentYear = (int)$today->format('Y');
@@ -395,42 +439,131 @@ try {
 $formattedExpLabels = [];
 $expiryDatasets = [];
 try {
-    $expStmt = $pdo->query("
-        SELECT DATE_FORMAT(d.expiry_date, '%Y-%m') as ym, d.category, COUNT(*) as count 
+    // [FIX] Pre-generate the next 6 months to ensure chart continuity (No missing months)
+    $expiryLabels = [];
+    for ($i = 0; $i <= 6; $i++) {
+        $expiryLabels[] = date('Y-m', strtotime("+$i months"));
+    }
+    $expSQL = "
+        SELECT 
+          CASE WHEN d.expiry_date < DATE_FORMAT(CURDATE(), '%Y-%m-01') THEN DATE_FORMAT(CURDATE(), '%Y-%m')
+          ELSE DATE_FORMAT(d.expiry_date, '%Y-%m') END as ym,
+          d.category, COUNT(*) as count 
         FROM documents d 
         JOIN employees e ON d.employee_id = e.emp_id 
-        WHERE d.expiry_date >= CURDATE() 
-          AND d.expiry_date <= DATE_ADD(CURDATE(), INTERVAL 6 MONTH)
+        WHERE d.expiry_date <= LAST_DAY(DATE_ADD(CURDATE(), INTERVAL 6 MONTH))
           AND d.deleted_at IS NULL 
           AND d.is_resolved = 0
-          AND e.status = 'Active'
+          AND e.status = 'Active'";
+
+    $expParams = [];
+    if ($jobSearch !== '') {
+        $expSQL .= " AND e.job_title LIKE ? ";
+        $expParams[] = "%$jobSearch%";
+    }
+    if ($deptFilter !== '') {
+        $expSQL .= " AND e.dept = ? ";
+        $expParams[] = $deptFilter;
+    }
+    if ($agencyFilter !== '') {
+        if ($agencyFilter === 'TESP_DIRECT') {
+            $expSQL .= " AND (e.agency_name IS NULL OR e.agency_name = '' OR e.agency_name LIKE 'TESP%') ";
+        } else {
+            $expSQL .= " AND e.agency_name = ? ";
+            $expParams[] = $agencyFilter;
+        }
+    }
+    $expSQL .= "
         GROUP BY ym, d.category
-        ORDER BY ym ASC
-    ");
+    ";
+    $expStmt = $pdo->prepare($expSQL);
+    $expStmt->execute($expParams);
+    $rawExp = $expStmt->fetchAll(PDO::FETCH_ASSOC);
+    $expParams = [];
+    if ($jobSearch !== '') {
+        $expSQL .= " AND e.job_title LIKE ? ";
+        $expParams[] = "%$jobSearch%";
+    }
+    if ($deptFilter !== '') {
+        $expSQL .= " AND e.dept = ? ";
+        $expParams[] = $deptFilter;
+    }
+    if ($agencyFilter !== '') {
+        if ($agencyFilter === 'TESP_DIRECT') {
+            $expSQL .= " AND (e.agency_name IS NULL OR e.agency_name = '' OR e.agency_name LIKE 'TESP%') ";
+        } else {
+            $expSQL .= " AND e.agency_name = ? ";
+            $expParams[] = $agencyFilter;
+        }
+    }
+    $expSQL .= "
+        GROUP BY ym, d.category
+    ";
+    $expStmt = $pdo->prepare($expSQL);
+    $expStmt->execute($expParams);
+    $rawExp = $expStmt->fetchAll(PDO::FETCH_ASSOC);
     $rawExp = $expStmt->fetchAll(PDO::FETCH_ASSOC);
     $monthsMap = [];
     $categoriesFound = [];
+
+    // Initialize Map with empty arrays for all 6 months to ensure continuity
+    foreach ($expiryLabels as $ym) $monthsMap[$ym] = [];
+
     foreach ($rawExp as $row) {
         $ym = $row['ym'];
         $cat = $row['category'] ?: 'Uncategorized';
-        if (!isset($monthsMap[$ym])) $monthsMap[$ym] = [];
         $monthsMap[$ym][$cat] = (int)$row['count'];
         $categoriesFound[$cat] = true;
     }
-    $expiryLabels = array_keys($monthsMap);
+
     $formattedExpLabels = array_map(function ($ym) {
         return date('M Y', strtotime($ym . '-01'));
     }, $expiryLabels);
+
+    // Determine if we have overdue documents to trigger the red border (Respecting current filters)
+    $overdueCheckSQL = "SELECT COUNT(*) FROM documents d JOIN employees e ON d.employee_id = e.emp_id 
+                        WHERE d.expiry_date < CURDATE() AND d.deleted_at IS NULL AND d.is_resolved = 0 AND e.status = 'Active'";
+    $checkParams = [];
+    if ($jobSearch !== '') {
+        $overdueCheckSQL .= " AND e.job_title LIKE ? ";
+        $checkParams[] = "%$jobSearch%";
+    }
+    if ($deptFilter !== '') {
+        $overdueCheckSQL .= " AND e.dept = ? ";
+        $checkParams[] = $deptFilter;
+    }
+    if ($agencyFilter !== '') {
+        if ($agencyFilter === 'TESP_DIRECT') $overdueCheckSQL .= " AND (e.agency_name IS NULL OR e.agency_name = '' OR e.agency_name LIKE 'TESP%') ";
+        else {
+            $overdueCheckSQL .= " AND e.agency_name = ? ";
+            $checkParams[] = $agencyFilter;
+        }
+    }
+    $chkStmt = $pdo->prepare($overdueCheckSQL);
+    $chkStmt->execute($checkParams);
+    $hasOverdue = $chkStmt->fetchColumn() > 0;
 
     $cats = array_keys($categoriesFound);
     $palette = ['#0dcaf0', '#ffc107', '#dc3545', '#198754', '#6610f2', '#fd7e14', '#20c997'];
     $cIdx = 0;
     foreach ($cats as $cat) {
         $data = [];
+        $borderColors = [];
+        $borderWidths = [];
+        $i = 0;
         foreach ($expiryLabels as $ym) {
-            $data[] = $monthsMap[$ym][$cat] ?? 0;
+            $val = $monthsMap[$ym][$cat] ?? 0;
+            $data[] = $val;
+            if ($i === 0 && $hasOverdue && $val > 0) {
+                $borderColors[] = '#ff0000'; // High-contrast Red
+                $borderWidths[] = 3;
+            } else {
+                $borderColors[] = 'rgba(0,0,0,0)';
+                $borderWidths[] = 0;
+            }
+            $i++;
         }
-        $expiryDatasets[] = ['label' => $cat, 'data' => $data, 'backgroundColor' => $palette[$cIdx % count($palette)], 'borderRadius' => 4];
+        $expiryDatasets[] = ['label' => $cat, 'data' => $data, 'backgroundColor' => $palette[$cIdx % count($palette)], 'borderColor' => $borderColors, 'borderWidth' => $borderWidths, 'borderRadius' => 4];
         $cIdx++;
     }
 } catch (Exception $e) {
@@ -597,6 +730,36 @@ if (isset($_GET['export_birthdays'])) {
     while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
         fputcsv($output, [
             date('M d', strtotime($row['birth_date'])),
+            $row['emp_id'],
+            $row['last_name'],
+            $row['first_name'],
+            $row['dept'],
+            $row['job_title']
+        ]);
+    }
+    fclose($output);
+    exit;
+}
+
+// Handle Anniversary Export
+if (isset($_GET['export_anniversaries'])) {
+    $m = (int)$_GET['export_anniversaries'];
+    $monthNameExport = date('F', mktime(0, 0, 0, $m, 10));
+    header('Content-Type: text/csv; charset=utf-8');
+    header('Content-Disposition: attachment; filename="Work_Anniversaries_' . $monthNameExport . '_' . date('Y') . '.csv"');
+    $output = fopen('php://output', 'w');
+    fwrite($output, "\xEF\xBB\xBF");
+    fputcsv($output, ['Hire Date', 'Years of Service', 'Employee ID', 'Last Name', 'First Name', 'Department', 'Job Title']);
+
+    $annivQueryExp = "SELECT emp_id, last_name, first_name, dept, job_title, hire_date, TIMESTAMPDIFF(YEAR, hire_date, CURDATE()) AS years_of_service FROM employees $activeSQL AND hire_date IS NOT NULL AND hire_date != '0000-00-00' AND MONTH(hire_date) = ? ORDER BY DAY(hire_date) ASC, last_name ASC";
+    $expParams = array_merge($params, [$m]);
+    $stmt = $pdo->prepare($annivQueryExp);
+    $stmt->execute($expParams);
+
+    while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+        fputcsv($output, [
+            date('M d, Y', strtotime($row['hire_date'])),
+            $row['years_of_service'],
             $row['emp_id'],
             $row['last_name'],
             $row['first_name'],
@@ -1053,6 +1216,9 @@ if ($debug) {
                     <div class="card-header border-bottom-0 d-flex justify-content-between align-items-center bg-warning text-dark">
                         <span><i class="bi bi-calendar-x-fill me-1"></i> Expiry Forecast (6 Months)</span>
                         <div>
+                            <a href="?<?php echo http_build_query(array_merge($_GET, ['export_overdue' => 1])); ?>" class="btn btn-sm btn-danger fw-bold no-print me-2" title="Download Overdue CSV">
+                                <i class="bi bi-file-earmark-spreadsheet"></i> Overdue List
+                            </a>
                             <button class="btn btn-sm btn-link text-dark p-0 me-1" onclick="downloadSpecificChart('expiryChart', 'Expiry_Forecast')" title="Download Image"><i class="bi bi-download"></i></button>
                             <button class="btn btn-sm btn-link text-dark p-0" onclick="openFullScreen('expiryChart', 'Contract & Document Expiries')"><i class="bi bi-arrows-fullscreen"></i></button>
                         </div>
@@ -1796,6 +1962,7 @@ if ($debug) {
                     data: ds.data || [],
                     backgroundColor: ds.backgroundColor || '#198754',
                     borderColor: ds.borderColor || ds.backgroundColor || '#198754',
+                    borderWidth: ds.borderWidth || 0,
                     borderRadius: ds.borderRadius || 0,
                     stack: ds.stack || 'stack1'
                 }));

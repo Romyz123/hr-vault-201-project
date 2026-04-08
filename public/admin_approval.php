@@ -86,8 +86,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 
     // Capture rejection reason if sent (trim but don't escape yet - escape at render time)
     $reject_reason = trim($_POST['reject_reason'] ?? '');
-    if (mb_strlen($reject_reason, 'UTF-8') > 255) {
-        die('Rejection reason too long (Max 255 chars)');
+    if (!empty($reject_reason)) {
+        if (mb_strlen($reject_reason, 'UTF-8') > 255) {
+            die('Rejection reason too long (Max 255 chars)');
+        }
+        if (preg_match('/[<>]/', $reject_reason)) {
+            die('Invalid characters detected in rejection reason.');
+        }
     }
 
     $logger = new Logger($pdo);
@@ -222,9 +227,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                         $pdo->prepare("UPDATE disciplinary_cases SET employee_id = ? WHERE employee_id = ?")->execute([$newEmpId, $oldStr]);
                         $pdo->prepare("UPDATE maintenance_logs SET employee_id = ? WHERE employee_id = ?")->execute([$newEmpId, $oldStr]);
                         $pdo->prepare("UPDATE document_exemptions SET employee_id = ? WHERE employee_id = ?")->execute([$newEmpId, $oldStr]);
-                        $pdo->prepare("UPDATE requests SET employee_id = ? WHERE employee_id = ?")->execute([$newEmpId, $oldStr]);
-                        $pdo->prepare("UPDATE performance_evaluations SET employee_id = ? WHERE employee_id = ?")->execute([$newEmpId, $oldStr]);
-                        $pdo->prepare("UPDATE activity_logs SET employee_id = ? WHERE employee_id = ?")->execute([$newEmpId, $oldStr]);
                     }
 
                     // NOTIFY SUCCESS
@@ -636,11 +638,19 @@ function renderTable($requests, $type)
         if (action === 'bulk_reject') {
             Swal.fire({
                 title: 'Bulk Reject',
-                input: 'text',
+                input: 'textarea',
                 inputLabel: 'Reason for Rejection (Optional)',
+                inputAttributes: {
+                    maxlength: 255
+                },
                 showCancelButton: true,
                 confirmButtonText: 'Reject All',
-                confirmButtonColor: '#dc3545'
+                confirmButtonColor: '#dc3545',
+                inputValidator: (value) => {
+                    if (value && /<|>/.test(value)) {
+                        return 'Characters < and > are not allowed.';
+                    }
+                }
             }).then((result) => {
                 if (result.isConfirmed) {
                     document.getElementById('bulkAction_' + type).value = action;

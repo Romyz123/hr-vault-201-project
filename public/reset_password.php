@@ -126,7 +126,9 @@ if ($step === 'reset' && empty($_SESSION['reset_csrf'])) {
 <head>
     <meta charset="UTF-8">
     <title>Reset Password</title>
-    <link rel="icon" href="assets/tesp-logo.png?v=4" type="image/png">
+    <link rel="icon" type="image/png" href="../uploads/tesp-logo.png">
+    <link rel="shortcut icon" type="image/png" href="../uploads/tesp-logo.png">
+    <link rel="apple-touch-icon" href="../uploads/tesp-logo.png">
     <link href="assets/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="assets/icons/bootstrap-icons.css">
     <style>

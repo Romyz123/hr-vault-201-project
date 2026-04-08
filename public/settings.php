@@ -16,6 +16,12 @@ $security = new Security($pdo);
 $logger = new Logger($pdo);
 $csrf_token = $security->generateCSRF();
 
+// [NEW] Dynamically calculate total drive space to use as a realistic cap
+$vaultPathForDisk = realpath(__DIR__ . '/../vault') ?: __DIR__;
+$diskTotalBytes = @disk_total_space($vaultPathForDisk);
+$diskTotalGB = $diskTotalBytes ? floor($diskTotalBytes / 1024 / 1024 / 1024) : 1000;
+if ($diskTotalGB < 1) $diskTotalGB = 1; // Fallback minimum
+
 // 2. HANDLE FORM SUBMISSION
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
@@ -237,12 +243,6 @@ try {
 } catch (Exception $e) {
     $error = "Could not load settings. Please run DB Status check from the Admin dashboard.";
 }
-
-// [NEW] Dynamically calculate total drive space to use as a realistic cap
-$vaultPathForDisk = realpath(__DIR__ . '/../vault') ?: __DIR__;
-$diskTotalBytes = @disk_total_space($vaultPathForDisk);
-$diskTotalGB = $diskTotalBytes ? floor($diskTotalBytes / 1024 / 1024 / 1024) : 1000;
-if ($diskTotalGB < 1) $diskTotalGB = 1; // Fallback minimum
 
 // Set defaults
 $serverTimeout = $currentSettings['session_timeout_server'] ?? 1800;
@@ -712,24 +712,7 @@ include 'header.php';
     }
 
     document.addEventListener('DOMContentLoaded', updateAllPathStatus);
-
-    // Session Timeout Timer
-    const timeoutDuration = <?php echo $clientTimeout * 1000; ?>;
-    let timeLeft = timeoutDuration;
-
-    function updateTimer() {
-        timeLeft -= 1000;
-        if (timeLeft <= 0) window.location.href = 'logout.php';
-        const m = Math.floor(timeLeft / 60000);
-        const s = Math.floor((timeLeft % 60000) / 1000);
-        document.getElementById('sessionTimer').innerText = `${m}:${s.toString().padStart(2, '0')}`;
-    }
-    document.addEventListener('mousemove', () => timeLeft = timeoutDuration);
-    document.addEventListener('keypress', () => timeLeft = timeoutDuration);
-    setInterval(updateTimer, 1000);
-    updateTimer();
 </script>
-<script src="assets/dark_mode.js"></script>
 </body>
 
 </html>

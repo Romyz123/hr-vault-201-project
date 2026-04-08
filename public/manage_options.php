@@ -421,6 +421,9 @@ if (isset($_GET['tab'])) $activeTab = $_GET['tab'];
     <link href="assets/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="assets/icons/bootstrap-icons.css">
     <script src="assets/sweetalert2.all.min.js"></script>
+    <link rel="icon" type="image/png" href="../uploads/tesp-logo.png">
+    <link rel="shortcut icon" type="image/png" href="../uploads/tesp-logo.png">
+    <link rel="apple-touch-icon" href="../uploads/tesp-logo.png">
 </head>
 
 <body class="bg-body-tertiary">

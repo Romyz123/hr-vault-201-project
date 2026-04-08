@@ -52,11 +52,15 @@ if ($isFirstTimeSetup) {
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // [SECURITY] Rate Limit IP (15 req/min) to slow down automated attacks
     if (!$security->checkRateLimit($_SERVER['REMOTE_ADDR'], 15, 60)) {
-        $error = "⚠️ Too many requests. Please wait a minute.";
+        $_SESSION['otp_error'] = "⚠️ Too many requests. Please wait a minute.";
+        header("Location: verify_otp.php");
+        exit;
     }
     // [SECURITY] CSRF Check
     elseif (empty($_POST['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'])) {
-        $error = "❌ Security Token Mismatch. Please refresh and try again.";
+        $_SESSION['otp_error'] = "❌ Security Token Mismatch. Please refresh and try again.";
+        header("Location: verify_otp.php");
+        exit;
     } elseif (isset($_POST['otp_code'])) {
         // [SECURITY] Max Attempts Check (Database-Backed Brute Force Protection)
         if ($user && ($user['failed_attempts'] ?? 0) >= 10) {
@@ -111,8 +115,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $user['failed_attempts'] = $attempts; // Update local state
 
             $remaining = 10 - $attempts;
-            $error = "❌ Invalid OTP or Backup Code. ($remaining attempts remaining before lockout)";
+            $_SESSION['otp_error'] = "❌ Invalid OTP or Backup Code. ($remaining attempts remaining before lockout)";
             $logger->log($userId, 'LOGIN_FAIL_2FA', "Failed 2FA attempt");
+            header("Location: verify_otp.php");
+            exit;
         } else {
             // [SECURITY] Enforce 45-Day Password Expiry here as well
             try {
@@ -174,7 +180,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <head>
     <meta charset="UTF-8">
     <title>Verify 2FA</title>
-    <link rel="icon" href="assets/tesp-logo.png?v=4" type="image/png">
+    <link rel="icon" type="image/png" href="../uploads/tesp-logo.png">
+    <link rel="shortcut icon" type="image/png" href="../uploads/tesp-logo.png">
+    <link rel="apple-touch-icon" href="../uploads/tesp-logo.png">
     <link href="assets/bootstrap.min.css" rel="stylesheet">
     <style>
         body {

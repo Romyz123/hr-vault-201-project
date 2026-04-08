@@ -286,12 +286,10 @@ if (isset($_POST['undo_batch'])) {
                 'company_name',
                 'previous_company',
                 'licenses',
-                'status',
                 'exit_date',
                 'exit_reason',
                 'updated_at'
             ];
-
             $restored_count = 0;
             foreach ($rollbacks as $rb) {
                 $old = json_decode($rb['old_data'], true);
@@ -704,8 +702,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['undo_batch'])) {
                                     $origStmt->execute([$existingId]);
                                     $originalRow = $origStmt->fetch(PDO::FETCH_ASSOC);
                                     if ($originalRow) { // $originalRow is an array
+                                        $backupData = null;
+                                        try {
+                                            $backupData = json_encode($originalRow, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE);
+                                        } catch (JsonException $je) {
+                                            array_walk_recursive($originalRow, function (&$value) {
+                                                if (is_string($value) && !mb_check_encoding($value, 'UTF-8')) {
+                                                    $value = mb_convert_encoding($value, 'UTF-8', 'UTF-8');
+                                                }
+                                            });
+                                            $backupData = json_encode($originalRow, JSON_UNESCAPED_UNICODE | JSON_PARTIAL_OUTPUT_ON_ERROR);
+                                            if ($backupData === false) {
+                                                error_log("Failed to encode backup data for emp_id $existingId during import: " . json_last_error_msg());
+                                                $backupData = json_encode(['fallback' => base64_encode(serialize($originalRow))], JSON_UNESCAPED_UNICODE);
+                                            }
+                                        }
                                         $backupStmt = $pdo->prepare("INSERT INTO import_rollbacks (employee_id, import_batch, old_data) VALUES (?, ?, ?)");
-                                        $backupStmt->execute([$existingId, $batch_id, json_encode($originalRow)]);
+                                        $backupStmt->execute([$existingId, $batch_id, $backupData]);
                                     }
 
                                     // UPDATE EXISTING RECORD, also tag with current batch
@@ -788,8 +801,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['undo_batch'])) {
                                         'avatar_path' => $photo,
                                         'request_note' => 'Bulk Import New Hire'
                                     ];
-                                    $payload = json_encode($insertData, JSON_UNESCAPED_UNICODE);
-                                    $pdo->prepare("INSERT INTO requests (user_id, request_type, target_id, json_payload) VALUES (?, 'ADD_EMPLOYEE', 0, ?)")->execute([$_SESSION['user_id'], json_encode($insertData, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE)]);
+                                    $payload = json_encode($insertData, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
+                                    if ($payload === false) {
+                                        error_log("Failed to encode ADD_EMPLOYEE request payload for emp_id $emp_id: " . json_last_error_msg());
+                                        continue;
+                                    }
+                                    $pdo->prepare("INSERT INTO requests (user_id, request_type, target_id, json_payload) VALUES (?, 'ADD_EMPLOYEE', 0, ?)")->execute([$_SESSION['user_id'], $payload]);
                                     $success_count++;
                                 } else {
                                     // INSERT NEW RECORD
@@ -881,6 +898,8 @@ $history = $pdo->query("SELECT import_batch, MAX(agency_name) as agency_name, CO
     <link href="assets/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="assets/icons/bootstrap-icons.css">
     <script src="assets/sweetalert2.all.min.js"></script>
+    <link rel="shortcut icon" type="image/png" href="uploads/tesp-logo.png">
+    <link rel="apple-touch-icon" href="uploads/tesp-logo.png">
     <style>
         .format-box {
             display: none;
@@ -1220,7 +1239,7 @@ $history = $pdo->query("SELECT import_batch, MAX(agency_name) as agency_name, CO
                                             <!-- ACTIVE BUTTON -->
                                             <form method="POST">
                                                 <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
-                                                <input type="hidden" name="undo_batch" value="<?php echo $h['import_batch']; ?>">
+                                                <input type="hidden" name="undo_batch" value="<?php echo htmlspecialchars($h['import_batch'], ENT_QUOTES, 'UTF-8'); ?>">
                                                 <button type="button" class="btn btn-sm btn-outline-danger" onclick="confirmUndo(this)">Undo</button>
                                             </form>
                                             <div class="text-success small fw-bold mt-1">

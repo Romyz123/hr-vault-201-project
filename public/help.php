@@ -210,42 +210,6 @@ try {
 </div>
 
 <script src="assets/bootstrap.bundle.min.js"></script>
-<script src="dark_mode.js"></script>
-<script>
-    // [SECURITY] Auto-Logout Timer (Client-Side)
-    const timeoutDuration = <?php echo $clientTimeout * 1000; ?>;
-    let timeLeft = timeoutDuration;
-
-    function updateTimer() {
-        timeLeft -= 1000;
-        if (timeLeft <= 0) {
-            window.location.href = 'logout.php?msg=Session_Expired_Auto';
-            return;
-        }
-        const m = Math.floor(timeLeft / 60000);
-        const s = Math.floor((timeLeft % 60000) / 1000);
-        const timerEl = document.getElementById('sessionTimer');
-        if (timerEl) {
-            timerEl.innerText = `${m}:${s.toString().padStart(2, '0')}`;
-            if (timeLeft < 120000) {
-                timerEl.classList.add('text-danger');
-            } else {
-                timerEl.classList.remove('text-danger');
-            }
-        }
-    }
-
-    function resetTimer() {
-        timeLeft = timeoutDuration;
-    }
-
-    document.addEventListener('mousemove', resetTimer);
-    document.addEventListener('keydown', resetTimer);
-    document.addEventListener('click', resetTimer);
-    document.addEventListener('scroll', resetTimer);
-    setInterval(updateTimer, 1000);
-    updateTimer();
-</script>
 </body>
 
 </html>

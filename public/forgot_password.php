@@ -1,9 +1,11 @@
 <?php
 require '../config/db.php';
 require '../src/Security.php';
+require_once '../src/Logger.php';
 session_start();
 
 $security = new Security($pdo);
+$logger = new Logger($pdo);
 $csrf_token = $security->generateCSRF();
 
 $error = '';
@@ -58,8 +60,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             $step = 2;
                         }
                     } else {
-                        // Log failed attempt to prevent account enumeration
-                        // Prevent account enumeration – do not reveal whether the account exists
+                        error_log('Forgot password lookup failed for identifier: ' . $username . ' from IP: ' . ($_SERVER['REMOTE_ADDR'] ?? 'unknown'));
                         $error = "If an account with that username or email exists, you will be prompted to verify your identity.";
                     }
                 } catch (PDOException $e) {
@@ -90,13 +91,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $stmt->execute([$_SESSION['forgot_user_id']]);
                     $hash = $stmt->fetchColumn();
 
-                    if ($hash && password_verify($answer, $hash)) {
+                    if ($hash && password_verify(strtolower($answer), $hash)) {
                         session_regenerate_id(true);
                         $_SESSION['forgot_step'] = 3;
                         $step = 3;
                     } else {
-                        // Log failed attempt
                         $_SESSION['forgot_answer_attempts']['count']++;
+                        error_log('Forgot password answer failed for user_id: ' . ($_SESSION['forgot_user_id'] ?? 'unknown') . ' from IP: ' . ($_SERVER['REMOTE_ADDR'] ?? 'unknown') . ' attempt_count=' . $_SESSION['forgot_answer_attempts']['count']);
                         $error = "❌ Incorrect answer.";
                         $step = 2;
                     }
@@ -220,7 +221,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <head>
     <meta charset="UTF-8">
     <title>Forgot Password</title>
-    <link rel="icon" href="uploads/tesp-logo.png?v=3" type="image/png">
+    <link rel="icon" type="image/png" href="../uploads/tesp-logo.png">
+    <link rel="shortcut icon" type="image/png" href="../uploads/tesp-logo.png">
+    <link rel="apple-touch-icon" href="../uploads/tesp-logo.png">
     <link href="assets/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="assets/icons/bootstrap-icons.css">
     <style>

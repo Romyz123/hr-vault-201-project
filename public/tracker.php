@@ -790,995 +790,969 @@ $paginatedEmployees = array_slice($employees, $offset, $perPage);
         padding: 2px;
     }
 </style>
-</head>
 
-<body class="bg-body-tertiary">
+<div class="container-fluid px-4">
 
-    <nav class="navbar navbar-dark bg-dark mb-4">
-        <div class="container-fluid px-4">
-            <div class="d-flex align-items-center">
-                <a class="navbar-brand" href="index.php"></a>
-                <span class="navbar-text text-white ms-3 border-start ps-3">Missing Document Tracker</span>
-                <span class="navbar-text text-white-50 ms-3 font-monospace small" title="Auto-Logout Timer"><i class="bi bi-clock"></i> <span id="sessionTimer"></span></span>
+    <div class="card shadow-sm mb-4">
+        <!-- FILTERS -->
+        <div class="card-body py-3">
+            <form class="row g-3 align-items-center">
+                <div class="col-12 col-md-auto">
+                    <label class="fw-bold">Filter Dept:</label>
+                </div>
+                <div class="col-12 col-md-auto">
+                    <select name="dept" class="form-select form-select-sm" onchange="this.form.submit()">
+                        <option value="">All Departments</option>
+                        <?php
+                        $depts = ['SQP', 'SIGCOM', 'PSS', 'OCS', 'ADMIN', 'HMS', 'RAS', 'TRS', 'LMS', 'DOS', 'CTS', 'BFS', 'WHS', 'GUNJIN'];
+                        foreach ($depts as $d) echo "<option value='$d' " . ($dept == $d ? 'selected' : '') . ">$d</option>";
+                        ?>
+                        <option disabled>──────────</option>
+                        <?php
+                        // Add dynamic departments found in DB if not in list
+                        ?>
+                    </select>
+                </div>
+                <div class="col-12 col-md-auto">
+                    <select name="type" class="form-select form-select-sm" onchange="this.form.submit()">
+                        <option value="">All Agencies</option>
+                        <?php
+                        foreach ($agencies as $val) {
+                            $sel = ($type === $val) ? 'selected' : '';
+                            echo "<option value='" . htmlspecialchars($val) . "' $sel>" . htmlspecialchars($val) . "</option>";
+                        }
+                        ?>
+                    </select>
+                </div>
+                <div class="col-12 col-md-auto">
+                    <select name="compliance" class="form-select form-select-sm" onchange="this.form.submit()">
+                        <option value="">All Statuses</option>
+                        <option value="complete" <?php echo ($compliance == 'complete' ? 'selected' : ''); ?>>✅ Complete (100%)</option>
+                        <option value="incomplete" <?php echo ($compliance == 'incomplete' ? 'selected' : ''); ?>>⚠️ Incomplete</option>
+                        <option value="in_progress" <?php echo ($compliance == 'in_progress' ? 'selected' : ''); ?>>🔄 In Progress (1-99%)</option>
+                        <option value="empty" <?php echo ($compliance == 'empty' ? 'selected' : ''); ?>>❌ No Documents (0%)</option>
+                    </select>
+                </div>
+                <div class="col-12 col-md-auto ms-auto">
+                    <div class="input-group input-group-sm">
+                        <input type="text" name="search" id="trackerSearch" class="form-control" placeholder="Search Name..." value="<?php echo htmlspecialchars($search); ?>" maxlength="50" pattern="[a-zA-Z0-9\-_ ,]+" title="Allowed: Letters, Numbers, Spaces, Dashes, Underscores, Comma" list="search_suggestions" oninput="this.value = this.value.replace(/[^a-zA-Z0-9\-_ ,]/g, '')">
+                        <?php if ($search): ?>
+                            <a href="tracker.php" class="btn btn-outline-secondary"><i class="bi bi-x-lg"></i></a>
+                        <?php endif; ?>
+                        <datalist id="search_suggestions">
+                            <?php foreach ($employees as $empSugg): ?>
+                                <option value="<?php echo htmlspecialchars($empSugg['last_name'] . ', ' . $empSugg['first_name'] . ' (' . $empSugg['emp_id'] . ')'); ?>">
+                                <?php endforeach; ?>
+                        </datalist>
+                    </div>
+                </div>
+                <div class="col-6 col-md-auto">
+                    <button type="submit" class="btn btn-primary btn-sm">Search</button>
+                </div>
+                <div class="col-6 col-md-auto">
+                    <button type="submit" formaction="print_tracker.php" formtarget="_blank" class="btn btn-dark btn-sm"><i class="bi bi-printer"></i> Print List</button>
+                </div>
+                <div class="col-12 col-md-auto">
+                    <button type="button" class="btn btn-outline-secondary btn-sm" onclick="document.getElementById('selectAll').click();"><i class="bi bi-check-all"></i> Select All</button>
+                </div>
+                <div class="col-12 col-md-auto">
+                    <button type="button" class="btn btn-outline-primary btn-sm" onclick="submitBulkReminders()"><i class="bi bi-clipboard-check"></i> Log Bulk Reminders</button>
+                </div>
+                <div class="col-12 col-md-auto">
+                    <button type="button" class="btn btn-outline-warning btn-sm" data-bs-toggle="modal" data-bs-target="#misclassifiedModal"><i class="bi bi-exclamation-triangle"></i> Misclassified Report</button>
+                </div>
+                <?php if (in_array($_SESSION['role'], ['ADMIN', 'MANAGER', 'HR'])): ?>
+                    <div class="col-12 col-md-auto ms-auto">
+                        <a href="tracker.php" class="btn btn-outline-secondary btn-sm">Reset Filters</a>
+                    </div>
+                    <div class="col-12 col-md-auto ms-2 border-start ps-3">
+                        <button type="button" class="btn btn-outline-dark btn-sm" data-bs-toggle="modal" data-bs-target="#manageReqModal"><i class="bi bi-gear-fill"></i> Manage Requirements</button>
+                    </div>
+                <?php endif; ?>
+            </form>
+        </div>
+    </div>
+
+    <?php if ($didYouMean): ?>
+        <div class="alert alert-info text-center shadow-sm mb-3">
+            <i class="bi bi-lightbulb-fill me-2"></i> Did you mean:
+            <a href="<?php echo $didYouMeanLink; ?>" class="fw-bold text-dark text-decoration-underline"><?php echo htmlspecialchars($didYouMean); ?></a>?
+        </div>
+    <?php endif; ?>
+
+    <div class="card shadow">
+        <div class="card-header d-flex justify-content-between">
+
+            <h6 class="mb-0 pt-1">Compliance Matrix</h6>
+            <span class="badge bg-light text-dark"><?php echo $totalRows; ?> Employees Found</span>
+        </div>
+        <form id="bulkForm" method="POST">
+            <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
+            <input type="hidden" name="action" value="bulk_reminders">
+            <div class="card-body p-0 table-responsive">
+                <table class="table table-bordered table-hover mb-0 text-center align-middle">
+                    <thead class="table-light">
+                        <tr>
+                            <th class="text-center" style="width: 40px;"><input type="checkbox" id="selectAll" class="form-check-input"></th>
+                            <th class="text-start ps-3">Employee <span id="selection-count" class="badge bg-primary ms-1" style="display:none">0</span></th>
+                            <th width="15%">Progress</th>
+                            <?php foreach ($REQUIRED_DOCS as $catName => $k): ?>
+                                <th><?php echo htmlspecialchars($catName); ?></th>
+                            <?php endforeach; ?>
+                            <th width="10%">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php foreach ($paginatedEmployees as $emp):
+                            $id = $emp['emp_id'];
+
+                            // Calculate Score
+                            $totalReq = count($REQUIRED_DOCS);
+                            $have = 0;
+                            $rowCells = [];
+                            $missingItems = []; // Track what is missing for the modal
+
+                            // Check each requirement
+                            foreach ($REQUIRED_DOCS as $reqKey => $keywords) {
+                                $isPresent = isset($docsMap[$id][$reqKey]);
+                                $isExempt  = isset($exemptMap[$id][$reqKey]);
+
+                                if ($isPresent || $isExempt) $have++;
+
+                                // Determine Cell Status
+                                if ($isPresent) $rowCells[$reqKey] = 'ok';
+                                elseif ($isExempt) $rowCells[$reqKey] = 'na';
+                                else {
+                                    $rowCells[$reqKey] = 'missing';
+                                    $missingItems[] = $reqKey;
+                                }
+                            }
+
+                            // [NEW] Check if 'Others' category has files (if 'Others' is a requirement)
+                            if (isset($REQUIRED_DOCS['Others']) && isset($docsMap[$id]['Others'])) {
+                                $rowCells['Others'] = 'ok';
+                            }
+
+                            $percent = ($totalReq > 0) ? ($have / $totalReq) * 100 : 0;
+
+                            // Color logic
+                            $barColor = 'bg-danger';
+                            if ($percent > 40) $barColor = 'bg-warning';
+                            if ($percent > 80) $barColor = 'bg-info';
+                            if ($percent == 100) $barColor = 'bg-success';
+
+                            // Encode missing items for JS
+                            $missingJson = htmlspecialchars(json_encode($missingItems), ENT_QUOTES, 'UTF-8');
+                        ?>
+                            <tr>
+                                <td><input type="checkbox" name="emp_ids[]" value="<?php echo htmlspecialchars($id); ?>" class="form-check-input emp-checkbox"></td>
+                                <td class="text-start ps-3">
+                                    <div class="fw-bold"><?php echo htmlspecialchars($emp['last_name'] . ', ' . $emp['first_name']); ?></div>
+                                    <div class="small text-muted"><?php echo htmlspecialchars($emp['dept']); ?> | <?php echo htmlspecialchars($emp['job_title']); ?></div>
+                                </td>
+                                <td>
+                                    <div class="progress">
+                                        <div class="progress-bar <?php echo $barColor; ?>" style="width: <?php echo $percent; ?>%">
+                                            <?php echo round($percent); ?>%
+                                        </div>
+                                    </div>
+                                </td>
+                                <?php foreach ($rowCells as $reqName => $status): ?>
+                                    <td class="align-middle">
+                                        <?php if ($status === 'ok'): ?>
+                                            <i class="bi bi-check-circle-fill icon-check" title="Submitted"></i>
+                                        <?php elseif ($status === 'na'): ?>
+                                            <span class="badge bg-secondary cursor-pointer" onclick="toggleExempt(<?php echo json_encode($id); ?>, <?php echo json_encode($reqName); ?>)" title="Click to mark as Required">N/A</span>
+                                        <?php else: ?>
+                                            <div class="d-flex justify-content-center align-items-center gap-1">
+                                                <i class="bi bi-x-circle-fill icon-cross cursor-pointer" onclick="toggleExempt(<?php echo json_encode($id); ?>, <?php echo json_encode($reqName); ?>)" title="Missing. Click to mark as Can't Comply (N/A)"></i>
+                                                <!-- [NEW] Quick Upload Button -->
+                                                <a href="upload_form.php?emp_id=<?php echo htmlspecialchars($id); ?>&category=<?php echo urlencode($reqName); ?>" class="btn btn-sm btn-light py-0 px-1 border" title="Upload <?php echo htmlspecialchars($reqName); ?>"><i class="bi bi-upload text-primary" style="font-size: 0.7rem;"></i></a>
+                                            </div>
+                                        <?php endif; ?>
+                                    </td>
+                                <?php endforeach; ?>
+                                <td>
+                                    <?php if ($percent == 100): ?>
+                                        <span class="badge bg-success">COMPLETE</span>
+                                    <?php elseif ($percent == 0): ?>
+                                        <span class="badge bg-danger">EMPTY</span>
+                                    <?php else: ?>
+                                        <span class="badge bg-warning text-dark">INCOMPLETE</span>
+                                    <?php endif; ?>
+
+                                    <?php if ($percent < 100 && in_array($_SESSION['role'], ['ADMIN', 'MANAGER', 'HR'])): ?>
+                                        <?php if (empty($emp['email'])): ?>
+                                            <span class="badge bg-light text-muted border ms-1" title="No Email Address">No Email</span>
+                                        <?php else: ?>
+                                            <button type="button" class="btn btn-sm btn-outline-primary py-0 px-1 ms-1"
+                                                onclick="openReminderModal('<?php echo htmlspecialchars($emp['emp_id']); ?>', '<?php echo htmlspecialchars($emp['first_name']); ?>', <?php echo $missingJson; ?>)"
+                                                title="Send Reminder">
+                                                <i class="bi bi-envelope"></i>
+                                            </button>
+                                            <?php if ($hasLastReminded && !empty($emp['last_reminded'])): ?>
+                                                <div style="font-size: 0.65rem;" class="text-muted mt-1">
+                                                    Sent: <?php echo date('M d', strtotime($emp['last_reminded'])); ?>
+                                                </div>
+                                            <?php endif; ?>
+                                        <?php endif; ?>
+                                    <?php endif; ?>
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
             </div>
-            <div class="d-flex align-items-center gap-2">
-                <button id="darkModeToggle" class="btn btn-sm btn-outline-light border-0" title="Toggle Dark Mode">
-                    <i class="bi bi-moon-stars-fill"></i>
-                </button>
-                <?php if (($_SESSION['role'] ?? '') === 'ADMIN'): ?>
-                    <a href="settings.php" class="btn btn-outline-light btn-sm"><i class="bi bi-gear-fill"></i> Settings</a>
+        </form>
+    </div>
+
+    <!-- [NEW] Pagination Controls -->
+    <?php if ($totalPages > 1): ?>
+        <nav class="mt-4" aria-label="Tracker pagination">
+            <ul class="pagination justify-content-center">
+                <?php
+                $qs = $_GET; // Preserve current filters
+
+                // Previous Button
+                $qs['page'] = max(1, $page - 1);
+                $prevUrl = '?' . http_build_query($qs);
+                echo '<li class="page-item ' . ($page <= 1 ? 'disabled' : '') . '"><a class="page-link" href="' . $prevUrl . '">&laquo; Prev</a></li>';
+
+                // Page Numbers (Windowed)
+                $start = max(1, $page - 2);
+                $end = min($totalPages, $page + 2);
+                for ($i = $start; $i <= $end; $i++) {
+                    $qs['page'] = $i;
+                    $url = '?' . http_build_query($qs);
+                    $active = ($page == $i) ? 'active' : '';
+                    echo '<li class="page-item ' . $active . '"><a class="page-link" href="' . $url . '">' . $i . '</a></li>';
+                }
+
+                // Next Button
+                $qs['page'] = min($totalPages, $page + 1);
+                $nextUrl = '?' . http_build_query($qs);
+                echo '<li class="page-item ' . ($page >= $totalPages ? 'disabled' : '') . '"><a class="page-link" href="' . $nextUrl . '">Next &raquo;</a></li>';
+                ?>
+            </ul>
+        </nav>
+    <?php endif; ?>
+</div>
+
+<!-- MANAGE REQUIREMENTS MODAL -->
+<div class="modal fade" id="manageReqModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-dark text-white">
+                <h5 class="modal-title"><i class="bi bi-gear-fill"></i> Manage Requirements</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-info small">
+                    <strong>How it works:</strong> Add a category name and tags (keywords). This will also appear as a category in the <strong>Upload Form</strong>. If an employee has a document matching ANY of the tags (in category or filename), it counts as "Submitted".
+                </div>
+
+                <!-- LIST -->
+                <table class="table table-sm table-bordered">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Requirement Name</th>
+                            <th>Tags / Keywords (Comma Separated)</th>
+                            <th width="100">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php foreach ($reqList as $r): ?>
+                            <tr>
+                                <td><input type="text" id="name_<?php echo $r['id']; ?>" class="form-control form-control-sm" value="<?php echo htmlspecialchars($r['name']); ?>" required maxlength="100" pattern="[a-zA-Z0-9\s\-\(\)\.]+" title="Alphanumeric, spaces, dots, parens, dashes"></td>
+                                <td>
+                                    <!-- [NEW] Visual Tag Editor for Edit Row -->
+                                    <div class="tag-container" id="tags_<?php echo $r['id']; ?>" onclick="focusTagInput(this)">
+                                        <!-- Tags injected by JS -->
+                                        <input type="text" class="tag-input" placeholder="Add tag..." onkeydown="handleTagKey(event, this)">
+                                    </div>
+                                    <input type="hidden" id="keys_<?php echo $r['id']; ?>" value="<?php echo htmlspecialchars($r['keywords']); ?>">
+                                </td>
+                                <td>
+                                    <button type="button" class="btn btn-sm btn-primary" onclick="editReq(<?php echo $r['id']; ?>)" title="Save Changes"><i class="bi bi-save"></i></button>
+                                    <button type="button" class="btn btn-sm btn-danger" onclick="deleteReq(<?php echo $r['id']; ?>)" title="Delete Requirement"><i class="bi bi-trash"></i></button>
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
+                        <?php if (empty($reqList)): ?>
+                            <tr>
+                                <td colspan="3" class="text-center text-muted">No custom requirements found. Add one below.</td>
+                            </tr>
+                        <?php endif; ?>
+                        <!-- ADD NEW ROW -->
+                        <tr class="table-warning">
+                            <td>
+                                <input type="text" id="new_req_name" class="form-control form-control-sm" placeholder="New Requirement" list="req_suggestions" required maxlength="100" pattern="[a-zA-Z0-9\s\-\(\)\.]+" title="Alphanumeric, spaces, dots, parens, dashes">
+                                <datalist id="req_suggestions">
+                                    <option value="Tor / Diploma">
+                                    <option value="Certificate of Employment">
+                                    <option value="Marriage Contract">
+                                    <option value="Birth Certificate">
+                                    <option value="Health Card">
+                                </datalist>
+                            </td>
+                            <td>
+                                <!-- [NEW] Visual Tag Editor for Add Row -->
+                                <div class="tag-container" id="new_tags_container" onclick="focusTagInput(this)">
+                                    <input type="text" class="tag-input" id="new_tag_input" placeholder="Type & Enter..." onkeydown="handleTagKey(event, this)">
+                                </div>
+                                <input type="hidden" id="new_req_keywords">
+                            </td>
+                            <td><button type="button" class="btn btn-sm btn-success w-100" onclick="addReq()"><i class="bi bi-plus-lg"></i> Add</button></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<form id="delReqForm" method="POST" style="display:none;">
+    <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
+    <input type="hidden" name="action" value="delete_req">
+    <input type="hidden" name="req_id" id="delReqId">
+</form>
+
+<form id="editReqForm" method="POST" style="display:none;">
+    <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
+    <input type="hidden" name="action" value="edit_req">
+    <input type="hidden" name="req_id" id="editReqId">
+    <input type="hidden" name="req_name" id="editReqName">
+    <input type="hidden" name="req_keywords" id="editReqKeys">
+</form>
+
+<form id="addReqForm" method="POST" style="display:none;">
+    <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
+    <input type="hidden" name="action" value="add_req">
+    <input type="hidden" name="req_name" id="addReqName">
+    <input type="hidden" name="req_keywords" id="addReqKeys">
+</form>
+
+<form id="exemptForm" method="POST" style="display:none;">
+    <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
+    <input type="hidden" name="action" value="toggle_exempt">
+    <input type="hidden" name="emp_id" id="exemptEmpId">
+    <input type="hidden" name="req_name" id="exemptReqName">
+</form>
+
+<!-- REMINDER MODAL -->
+<div class="modal fade" id="reminderModal" tabindex="-1">
+    <div class="modal-dialog">
+        <form method="POST" class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title"><i class="bi bi-envelope-paper"></i> Send Reminder</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
+                <input type="hidden" name="action" value="send_reminder">
+                <input type="hidden" name="emp_id" id="remindEmpId">
+                <p>Select the missing documents to remind <strong><span id="remindEmpName"></span></strong> about:</p>
+                <div id="missingListContainer" class="list-group"></div>
+
+                <div class="mt-4">
+                    <label class="fw-bold text-primary small">Message Template to Copy:</label>
+                    <div class="input-group">
+                        <textarea id="copyMessageText" class="form-control" rows="5" readonly></textarea>
+                        <button type="button" class="btn btn-outline-primary" onclick="copyReminderText()"><i class="bi bi-clipboard"></i> Copy</button>
+                    </div>
+                    <div class="form-text text-warning small mt-1"><i class="bi bi-info-circle-fill"></i> Email system disabled (MHI Policy). Copy this text and send it manually via Teams, Viber, or SMS.</div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="submit" class="btn btn-success">Mark as Reminded</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- MISCLASSIFIED REPORT MODAL -->
+<div class="modal fade" id="misclassifiedModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header bg-warning text-dark">
+                <h5 class="modal-title"><i class="bi bi-exclamation-triangle-fill"></i> Potential Misclassified Files</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-light small border">
+                    This report lists files where:
+                    <ul class="mb-0 ps-3">
+                        <li>The <strong>Filename</strong> does not contain any of the <strong>Keywords</strong> for its assigned Category.</li>
+                        <li>Files in <strong>Others/Custom</strong> categories that match a known requirement keyword.</li>
+                    </ul>
+                </div>
+                <div class="d-grid mb-3">
+                    <a href="tracker.php?report=misclassified" class="btn btn-primary btn-sm">Run Scan Now</a>
+                </div>
+
+                <?php if (isset($_GET['report']) && $_GET['report'] === 'misclassified'): ?>
+                    <?php if (empty($misclassifiedDocs)): ?>
+                        <div class="alert alert-success text-center">✅ No misclassified files found!</div>
+                    <?php else: ?>
+                        <form method="POST" id="bulkMoveForm">
+                            <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
+                            <input type="hidden" name="action" value="bulk_move">
+
+                            <div class="row g-2 align-items-end mb-3 p-2 border rounded bg-light">
+                                <div class="col-md-5">
+                                    <label class="form-label small fw-bold mb-1">1. New Category (Required)</label>
+                                    <select name="new_category" class="form-select form-select-sm" required>
+                                        <option value="">-- Select Category --</option>
+                                        <?php foreach ($REQUIRED_DOCS as $cat => $k): ?>
+                                            <option value="<?php echo htmlspecialchars($cat); ?>"><?php echo htmlspecialchars($cat); ?></option>
+                                        <?php endforeach; ?>
+                                        <option value="Others">Others</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-5">
+                                    <label class="form-label small fw-bold mb-1">2. Transfer Owner (Optional)</label>
+                                    <div class="position-relative">
+                                        <input type="hidden" name="target_emp_id" id="bulkMoveTargetId">
+                                        <input type="text" id="bulkMoveSearch" class="form-control form-control-sm"
+                                            placeholder="Search Employee..." autocomplete="off"
+                                            maxlength="50" pattern="[a-zA-Z0-9\-_ \.\']+"
+                                            oninput="this.value = this.value.replace(/[^a-zA-Z0-9\-_ \.\']/g, '')">
+                                        <div id="bulkMoveSuggestions" class="list-group position-absolute w-100 shadow" style="z-index: 1050; display: none; max-height: 200px; overflow-y: auto;"></div>
+                                    </div>
+                                </div>
+                                <div class="col-md-2">
+                                    <button type="button" class="btn btn-sm btn-primary w-100" onclick="confirmBulkMove()">Move Selected</button>
+                                </div>
+                            </div>
+
+                            <div class="mb-2 d-flex justify-content-end">
+                                <button type="button" class="btn btn-xs btn-outline-secondary" onclick="selectAllDocs()" title="Select All Listed"><i class="bi bi-check-all"></i> Select All</button>
+                            </div>
+
+                            <table class="table table-sm table-hover small align-middle">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th style="width:30px;"><input type="checkbox" class="form-check-input" onclick="toggleBulk(this)"></th>
+                                        <th>Employee</th>
+                                        <th>File Name</th>
+                                        <th>Current Category</th>
+                                        <th>Issue</th>
+                                        <th>Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php foreach ($misclassifiedDocs as $doc): ?>
+                                        <tr onclick="toggleRowCheck(event, this)" style="cursor: pointer;">
+                                            <td><input type="checkbox" name="doc_ids[]" value="<?php echo $doc['id']; ?>" class="form-check-input bulk-check"></td>
+                                            <td>
+                                                <?php echo htmlspecialchars($doc['last_name'] . ', ' . $doc['first_name']); ?>
+                                                <br><span class="text-muted" style="font-size:0.7em"><?php echo htmlspecialchars($doc['emp_id']); ?></span>
+                                            </td>
+                                            <td class="text-danger fw-bold"><?php echo htmlspecialchars($doc['original_name']); ?></td>
+                                            <td><?php echo htmlspecialchars($doc['category']); ?></td>
+                                            <td>
+                                                <?php if (isset($doc['suggested'])): ?>
+                                                    <span class="badge bg-warning text-dark">Matches: <?php echo htmlspecialchars($doc['suggested']); ?></span>
+                                                <?php else: ?>
+                                                    <span class="badge bg-secondary">Keyword Mismatch</span>
+                                                <?php endif; ?>
+                                            </td>
+                                            <td>
+                                                <a href="view_doc.php?id=<?php echo $doc['file_uuid']; ?>&embed=1" target="_blank" class="btn btn-sm btn-info text-white py-0 px-1" title="Preview"><i class="bi bi-eye"></i></a>
+                                                <button type="button" class="btn btn-xs btn-outline-primary" onclick="renameFile(<?php echo $doc['id']; ?>, <?php echo json_encode($doc['original_name']); ?>)">Rename</button>
+                                                <button type="button" class="btn btn-xs btn-outline-dark" onclick="prepareMove(event, '<?php echo $doc['id']; ?>')">Select</button>
+                                            </td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                </tbody>
+                            </table>
+                        </form>
+                    <?php endif; ?>
                 <?php endif; ?>
             </div>
         </div>
-    </nav>
-
-    <div class="container-fluid px-4">
-
-        <div class="card shadow-sm mb-4">
-            <!-- FILTERS -->
-            <div class="card-body py-3">
-                <form class="row g-3 align-items-center">
-                    <div class="col-12 col-md-auto">
-                        <label class="fw-bold">Filter Dept:</label>
-                    </div>
-                    <div class="col-12 col-md-auto">
-                        <select name="dept" class="form-select form-select-sm" onchange="this.form.submit()">
-                            <option value="">All Departments</option>
-                            <?php
-                            $depts = ['SQP', 'SIGCOM', 'PSS', 'OCS', 'ADMIN', 'HMS', 'RAS', 'TRS', 'LMS', 'DOS', 'CTS', 'BFS', 'WHS', 'GUNJIN'];
-                            foreach ($depts as $d) echo "<option value='$d' " . ($dept == $d ? 'selected' : '') . ">$d</option>";
-                            ?>
-                            <option disabled>──────────</option>
-                            <?php
-                            // Add dynamic departments found in DB if not in list
-                            ?>
-                        </select>
-                    </div>
-                    <div class="col-12 col-md-auto">
-                        <select name="type" class="form-select form-select-sm" onchange="this.form.submit()">
-                            <option value="">All Agencies</option>
-                            <?php
-                            foreach ($agencies as $val) {
-                                $sel = ($type === $val) ? 'selected' : '';
-                                echo "<option value='" . htmlspecialchars($val) . "' $sel>" . htmlspecialchars($val) . "</option>";
-                            }
-                            ?>
-                        </select>
-                    </div>
-                    <div class="col-12 col-md-auto">
-                        <select name="compliance" class="form-select form-select-sm" onchange="this.form.submit()">
-                            <option value="">All Statuses</option>
-                            <option value="complete" <?php echo ($compliance == 'complete' ? 'selected' : ''); ?>>✅ Complete (100%)</option>
-                            <option value="incomplete" <?php echo ($compliance == 'incomplete' ? 'selected' : ''); ?>>⚠️ Incomplete</option>
-                            <option value="in_progress" <?php echo ($compliance == 'in_progress' ? 'selected' : ''); ?>>🔄 In Progress (1-99%)</option>
-                            <option value="empty" <?php echo ($compliance == 'empty' ? 'selected' : ''); ?>>❌ No Documents (0%)</option>
-                        </select>
-                    </div>
-                    <div class="col-12 col-md-auto ms-auto">
-                        <div class="input-group input-group-sm">
-                            <input type="text" name="search" id="trackerSearch" class="form-control" placeholder="Search Name..." value="<?php echo htmlspecialchars($search); ?>" maxlength="50" pattern="[a-zA-Z0-9\-_ ,]+" title="Allowed: Letters, Numbers, Spaces, Dashes, Underscores, Comma" list="search_suggestions" oninput="this.value = this.value.replace(/[^a-zA-Z0-9\-_ ,]/g, '')">
-                            <?php if ($search): ?>
-                                <a href="tracker.php" class="btn btn-outline-secondary"><i class="bi bi-x-lg"></i></a>
-                            <?php endif; ?>
-                            <datalist id="search_suggestions">
-                                <?php foreach ($employees as $empSugg): ?>
-                                    <option value="<?php echo htmlspecialchars($empSugg['last_name'] . ', ' . $empSugg['first_name'] . ' (' . $empSugg['emp_id'] . ')'); ?>">
-                                    <?php endforeach; ?>
-                            </datalist>
-                        </div>
-                    </div>
-                    <div class="col-6 col-md-auto">
-                        <button type="submit" class="btn btn-primary btn-sm">Search</button>
-                    </div>
-                    <div class="col-6 col-md-auto">
-                        <button type="submit" formaction="print_tracker.php" formtarget="_blank" class="btn btn-dark btn-sm"><i class="bi bi-printer"></i> Print List</button>
-                    </div>
-                    <div class="col-12 col-md-auto">
-                        <button type="button" class="btn btn-outline-secondary btn-sm" onclick="document.getElementById('selectAll').click();"><i class="bi bi-check-all"></i> Select All</button>
-                    </div>
-                    <div class="col-12 col-md-auto">
-                        <button type="button" class="btn btn-outline-primary btn-sm" onclick="submitBulkReminders()"><i class="bi bi-clipboard-check"></i> Log Bulk Reminders</button>
-                    </div>
-                    <div class="col-12 col-md-auto">
-                        <button type="button" class="btn btn-outline-warning btn-sm" data-bs-toggle="modal" data-bs-target="#misclassifiedModal"><i class="bi bi-exclamation-triangle"></i> Misclassified Report</button>
-                    </div>
-                    <?php if (in_array($_SESSION['role'], ['ADMIN', 'MANAGER', 'HR'])): ?>
-                        <div class="col-12 col-md-auto ms-auto">
-                            <a href="tracker.php" class="btn btn-outline-secondary btn-sm">Reset Filters</a>
-                        </div>
-                        <div class="col-12 col-md-auto ms-2 border-start ps-3">
-                            <button type="button" class="btn btn-outline-dark btn-sm" data-bs-toggle="modal" data-bs-target="#manageReqModal"><i class="bi bi-gear-fill"></i> Manage Requirements</button>
-                        </div>
-                    <?php endif; ?>
-                </form>
-            </div>
-        </div>
-
-        <?php if ($didYouMean): ?>
-            <div class="alert alert-info text-center shadow-sm mb-3">
-                <i class="bi bi-lightbulb-fill me-2"></i> Did you mean:
-                <a href="<?php echo $didYouMeanLink; ?>" class="fw-bold text-dark text-decoration-underline"><?php echo htmlspecialchars($didYouMean); ?></a>?
-            </div>
-        <?php endif; ?>
-
-        <div class="card shadow">
-            <div class="card-header d-flex justify-content-between">
-
-                <h6 class="mb-0 pt-1">Compliance Matrix</h6>
-                <span class="badge bg-light text-dark"><?php echo $totalRows; ?> Employees Found</span>
-            </div>
-            <form id="bulkForm" method="POST">
-                <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
-                <input type="hidden" name="action" value="bulk_reminders">
-                <div class="card-body p-0 table-responsive">
-                    <table class="table table-bordered table-hover mb-0 text-center align-middle">
-                        <thead class="table-light">
-                            <tr>
-                                <th class="text-center" style="width: 40px;"><input type="checkbox" id="selectAll" class="form-check-input"></th>
-                                <th class="text-start ps-3">Employee <span id="selection-count" class="badge bg-primary ms-1" style="display:none">0</span></th>
-                                <th width="15%">Progress</th>
-                                <?php foreach ($REQUIRED_DOCS as $catName => $k): ?>
-                                    <th><?php echo htmlspecialchars($catName); ?></th>
-                                <?php endforeach; ?>
-                                <th width="10%">Status</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php foreach ($paginatedEmployees as $emp):
-                                $id = $emp['emp_id'];
-
-                                // Calculate Score
-                                $totalReq = count($REQUIRED_DOCS);
-                                $have = 0;
-                                $rowCells = [];
-                                $missingItems = []; // Track what is missing for the modal
-
-                                // Check each requirement
-                                foreach ($REQUIRED_DOCS as $reqKey => $keywords) {
-                                    $isPresent = isset($docsMap[$id][$reqKey]);
-                                    $isExempt  = isset($exemptMap[$id][$reqKey]);
-
-                                    if ($isPresent || $isExempt) $have++;
-
-                                    // Determine Cell Status
-                                    if ($isPresent) $rowCells[$reqKey] = 'ok';
-                                    elseif ($isExempt) $rowCells[$reqKey] = 'na';
-                                    else {
-                                        $rowCells[$reqKey] = 'missing';
-                                        $missingItems[] = $reqKey;
-                                    }
-                                }
-
-                                // [NEW] Check if 'Others' category has files (if 'Others' is a requirement)
-                                if (isset($REQUIRED_DOCS['Others']) && isset($docsMap[$id]['Others'])) {
-                                    $rowCells['Others'] = 'ok';
-                                }
-
-                                $percent = ($totalReq > 0) ? ($have / $totalReq) * 100 : 0;
-
-                                // Color logic
-                                $barColor = 'bg-danger';
-                                if ($percent > 40) $barColor = 'bg-warning';
-                                if ($percent > 80) $barColor = 'bg-info';
-                                if ($percent == 100) $barColor = 'bg-success';
-
-                                // Encode missing items for JS
-                                $missingJson = htmlspecialchars(json_encode($missingItems), ENT_QUOTES, 'UTF-8');
-                            ?>
-                                <tr>
-                                    <td><input type="checkbox" name="emp_ids[]" value="<?php echo htmlspecialchars($id); ?>" class="form-check-input emp-checkbox"></td>
-                                    <td class="text-start ps-3">
-                                        <div class="fw-bold"><?php echo htmlspecialchars($emp['last_name'] . ', ' . $emp['first_name']); ?></div>
-                                        <div class="small text-muted"><?php echo htmlspecialchars($emp['dept']); ?> | <?php echo htmlspecialchars($emp['job_title']); ?></div>
-                                    </td>
-                                    <td>
-                                        <div class="progress">
-                                            <div class="progress-bar <?php echo $barColor; ?>" style="width: <?php echo $percent; ?>%">
-                                                <?php echo round($percent); ?>%
-                                            </div>
-                                        </div>
-                                    </td>
-                                    <?php foreach ($rowCells as $reqName => $status): ?>
-                                        <td class="align-middle">
-                                            <?php if ($status === 'ok'): ?>
-                                                <i class="bi bi-check-circle-fill icon-check" title="Submitted"></i>
-                                            <?php elseif ($status === 'na'): ?>
-                                                <span class="badge bg-secondary cursor-pointer" onclick="toggleExempt('<?php echo $id; ?>', '<?php echo htmlspecialchars($reqName); ?>')" title="Click to mark as Required">N/A</span>
-                                            <?php else: ?>
-                                                <div class="d-flex justify-content-center align-items-center gap-1">
-                                                    <i class="bi bi-x-circle-fill icon-cross cursor-pointer" onclick="toggleExempt('<?php echo $id; ?>', '<?php echo htmlspecialchars($reqName); ?>')" title="Missing. Click to mark as Can't Comply (N/A)"></i>
-                                                    <!-- [NEW] Quick Upload Button -->
-                                                    <a href="upload_form.php?emp_id=<?php echo htmlspecialchars($id); ?>&category=<?php echo urlencode($reqName); ?>" class="btn btn-sm btn-light py-0 px-1 border" title="Upload <?php echo htmlspecialchars($reqName); ?>"><i class="bi bi-upload text-primary" style="font-size: 0.7rem;"></i></a>
-                                                </div>
-                                            <?php endif; ?>
-                                        </td>
-                                    <?php endforeach; ?>
-                                    <td>
-                                        <?php if ($percent == 100): ?>
-                                            <span class="badge bg-success">COMPLETE</span>
-                                        <?php elseif ($percent == 0): ?>
-                                            <span class="badge bg-danger">EMPTY</span>
-                                        <?php else: ?>
-                                            <span class="badge bg-warning text-dark">INCOMPLETE</span>
-                                        <?php endif; ?>
-
-                                        <?php if ($percent < 100 && in_array($_SESSION['role'], ['ADMIN', 'MANAGER', 'HR'])): ?>
-                                            <?php if (empty($emp['email'])): ?>
-                                                <span class="badge bg-light text-muted border ms-1" title="No Email Address">No Email</span>
-                                            <?php else: ?>
-                                                <button type="button" class="btn btn-sm btn-outline-primary py-0 px-1 ms-1"
-                                                    onclick="openReminderModal('<?php echo htmlspecialchars($emp['emp_id']); ?>', '<?php echo htmlspecialchars($emp['first_name']); ?>', <?php echo $missingJson; ?>)"
-                                                    title="Send Reminder">
-                                                    <i class="bi bi-envelope"></i>
-                                                </button>
-                                                <?php if ($hasLastReminded && !empty($emp['last_reminded'])): ?>
-                                                    <div style="font-size: 0.65rem;" class="text-muted mt-1">
-                                                        Sent: <?php echo date('M d', strtotime($emp['last_reminded'])); ?>
-                                                    </div>
-                                                <?php endif; ?>
-                                            <?php endif; ?>
-                                        <?php endif; ?>
-                                    </td>
-                                </tr>
-                            <?php endforeach; ?>
-                        </tbody>
-                    </table>
-                </div>
-            </form>
-        </div>
-
-        <!-- [NEW] Pagination Controls -->
-        <?php if ($totalPages > 1): ?>
-            <nav class="mt-4" aria-label="Tracker pagination">
-                <ul class="pagination justify-content-center">
-                    <?php
-                    $qs = $_GET; // Preserve current filters
-
-                    // Previous Button
-                    $qs['page'] = max(1, $page - 1);
-                    $prevUrl = '?' . http_build_query($qs);
-                    echo '<li class="page-item ' . ($page <= 1 ? 'disabled' : '') . '"><a class="page-link" href="' . $prevUrl . '">&laquo; Prev</a></li>';
-
-                    // Page Numbers (Windowed)
-                    $start = max(1, $page - 2);
-                    $end = min($totalPages, $page + 2);
-                    for ($i = $start; $i <= $end; $i++) {
-                        $qs['page'] = $i;
-                        $url = '?' . http_build_query($qs);
-                        $active = ($page == $i) ? 'active' : '';
-                        echo '<li class="page-item ' . $active . '"><a class="page-link" href="' . $url . '">' . $i . '</a></li>';
-                    }
-
-                    // Next Button
-                    $qs['page'] = min($totalPages, $page + 1);
-                    $nextUrl = '?' . http_build_query($qs);
-                    echo '<li class="page-item ' . ($page >= $totalPages ? 'disabled' : '') . '"><a class="page-link" href="' . $nextUrl . '">Next &raquo;</a></li>';
-                    ?>
-                </ul>
-            </nav>
-        <?php endif; ?>
     </div>
+</div>
 
-    <!-- MANAGE REQUIREMENTS MODAL -->
-    <div class="modal fade" id="manageReqModal" tabindex="-1">
-        <div class="modal-dialog modal-lg">
-            <div class="modal-content">
-                <div class="modal-header bg-dark text-white">
-                    <h5 class="modal-title"><i class="bi bi-gear-fill"></i> Manage Requirements</h5>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body">
-                    <div class="alert alert-info small">
-                        <strong>How it works:</strong> Add a category name and tags (keywords). This will also appear as a category in the <strong>Upload Form</strong>. If an employee has a document matching ANY of the tags (in category or filename), it counts as "Submitted".
-                    </div>
+<!-- RENAME FORM (Hidden) -->
+<form id="renameForm" method="POST" style="display:none;">
+    <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
+    <input type="hidden" name="action" value="rename_file">
+    <input type="hidden" name="doc_id" id="renameDocId">
+    <input type="hidden" name="new_name" id="renameNewName">
+</form>
 
-                    <!-- LIST -->
-                    <table class="table table-sm table-bordered">
-                        <thead class="table-light">
-                            <tr>
-                                <th>Requirement Name</th>
-                                <th>Tags / Keywords (Comma Separated)</th>
-                                <th width="100">Action</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php foreach ($reqList as $r): ?>
-                                <tr>
-                                    <td><input type="text" id="name_<?php echo $r['id']; ?>" class="form-control form-control-sm" value="<?php echo htmlspecialchars($r['name']); ?>" required maxlength="100" pattern="[a-zA-Z0-9\s\-\(\)\.]+" title="Alphanumeric, spaces, dots, parens, dashes"></td>
-                                    <td>
-                                        <!-- [NEW] Visual Tag Editor for Edit Row -->
-                                        <div class="tag-container" id="tags_<?php echo $r['id']; ?>" onclick="focusTagInput(this)">
-                                            <!-- Tags injected by JS -->
-                                            <input type="text" class="tag-input" placeholder="Add tag..." onkeydown="handleTagKey(event, this)">
-                                        </div>
-                                        <input type="hidden" id="keys_<?php echo $r['id']; ?>" value="<?php echo htmlspecialchars($r['keywords']); ?>">
-                                    </td>
-                                    <td>
-                                        <button type="button" class="btn btn-sm btn-primary" onclick="editReq(<?php echo $r['id']; ?>)" title="Save Changes"><i class="bi bi-save"></i></button>
-                                        <button type="button" class="btn btn-sm btn-danger" onclick="deleteReq(<?php echo $r['id']; ?>)" title="Delete Requirement"><i class="bi bi-trash"></i></button>
-                                    </td>
-                                </tr>
-                            <?php endforeach; ?>
-                            <?php if (empty($reqList)): ?>
-                                <tr>
-                                    <td colspan="3" class="text-center text-muted">No custom requirements found. Add one below.</td>
-                                </tr>
-                            <?php endif; ?>
-                            <!-- ADD NEW ROW -->
-                            <tr class="table-warning">
-                                <td>
-                                    <input type="text" id="new_req_name" class="form-control form-control-sm" placeholder="New Requirement" list="req_suggestions" required maxlength="100" pattern="[a-zA-Z0-9\s\-\(\)\.]+" title="Alphanumeric, spaces, dots, parens, dashes">
-                                    <datalist id="req_suggestions">
-                                        <option value="Tor / Diploma">
-                                        <option value="Certificate of Employment">
-                                        <option value="Marriage Contract">
-                                        <option value="Birth Certificate">
-                                        <option value="Health Card">
-                                    </datalist>
-                                </td>
-                                <td>
-                                    <!-- [NEW] Visual Tag Editor for Add Row -->
-                                    <div class="tag-container" id="new_tags_container" onclick="focusTagInput(this)">
-                                        <input type="text" class="tag-input" id="new_tag_input" placeholder="Type & Enter..." onkeydown="handleTagKey(event, this)">
-                                    </div>
-                                    <input type="hidden" id="new_req_keywords">
-                                </td>
-                                <td><button type="button" class="btn btn-sm btn-success w-100" onclick="addReq()"><i class="bi bi-plus-lg"></i> Add</button></td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-    </div>
+<script src="assets/bootstrap.bundle.min.js"></script>
+<script src="assets/sweetalert2.all.min.js"></script>
+<script src="dark_mode.js"></script>
+<script>
+    // [NEW] Tag Logic
+    function initTags(containerId, hiddenInputId) {
+        const container = document.getElementById(containerId);
+        const hiddenInput = document.getElementById(hiddenInputId);
+        if (!container || !hiddenInput) return;
 
-    <form id="delReqForm" method="POST" style="display:none;">
-        <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
-        <input type="hidden" name="action" value="delete_req">
-        <input type="hidden" name="req_id" id="delReqId">
-    </form>
+        const input = container.querySelector('.tag-input');
+        const initialVal = hiddenInput.value;
 
-    <form id="editReqForm" method="POST" style="display:none;">
-        <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
-        <input type="hidden" name="action" value="edit_req">
-        <input type="hidden" name="req_id" id="editReqId">
-        <input type="hidden" name="req_name" id="editReqName">
-        <input type="hidden" name="req_keywords" id="editReqKeys">
-    </form>
+        // Clear existing chips (keep input)
+        Array.from(container.querySelectorAll('.tag-chip')).forEach(el => el.remove());
 
-    <form id="addReqForm" method="POST" style="display:none;">
-        <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
-        <input type="hidden" name="action" value="add_req">
-        <input type="hidden" name="req_name" id="addReqName">
-        <input type="hidden" name="req_keywords" id="addReqKeys">
-    </form>
+        if (initialVal) {
+            initialVal.split(',').map(s => s.trim()).filter(s => s).forEach(tag => {
+                addChip(container, tag);
+            });
+        }
+    }
 
-    <form id="exemptForm" method="POST" style="display:none;">
-        <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
-        <input type="hidden" name="action" value="toggle_exempt">
-        <input type="hidden" name="emp_id" id="exemptEmpId">
-        <input type="hidden" name="req_name" id="exemptReqName">
-    </form>
+    function addChip(container, text) {
+        const input = container.querySelector('.tag-input');
+        const chip = document.createElement('div');
+        chip.className = 'tag-chip';
 
-    <!-- REMINDER MODAL -->
-    <div class="modal fade" id="reminderModal" tabindex="-1">
-        <div class="modal-dialog">
-            <form method="POST" class="modal-content">
-                <div class="modal-header bg-primary text-white">
-                    <h5 class="modal-title"><i class="bi bi-envelope-paper"></i> Send Reminder</h5>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body">
-                    <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
-                    <input type="hidden" name="action" value="send_reminder">
-                    <input type="hidden" name="emp_id" id="remindEmpId">
-                    <p>Select the missing documents to remind <strong><span id="remindEmpName"></span></strong> about:</p>
-                    <div id="missingListContainer" class="list-group"></div>
+        const label = document.createElement('span');
+        label.textContent = text;
 
-                    <div class="mt-4">
-                        <label class="fw-bold text-primary small">Message Template to Copy:</label>
-                        <div class="input-group">
-                            <textarea id="copyMessageText" class="form-control" rows="5" readonly></textarea>
-                            <button type="button" class="btn btn-outline-primary" onclick="copyReminderText()"><i class="bi bi-clipboard"></i> Copy</button>
-                        </div>
-                        <div class="form-text text-warning small mt-1"><i class="bi bi-info-circle-fill"></i> Email system disabled (MHI Policy). Copy this text and send it manually via Teams, Viber, or SMS.</div>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-success">Mark as Reminded</button>
-                </div>
-            </form>
-        </div>
-    </div>
+        const closeIcon = document.createElement('i');
+        closeIcon.className = 'bi bi-x';
+        closeIcon.setAttribute('role', 'button');
+        closeIcon.setAttribute('aria-label', 'Remove tag');
+        closeIcon.addEventListener('click', () => removeChip(closeIcon));
 
-    <!-- MISCLASSIFIED REPORT MODAL -->
-    <div class="modal fade" id="misclassifiedModal" tabindex="-1">
-        <div class="modal-dialog modal-lg modal-dialog-scrollable">
-            <div class="modal-content">
-                <div class="modal-header bg-warning text-dark">
-                    <h5 class="modal-title"><i class="bi bi-exclamation-triangle-fill"></i> Potential Misclassified Files</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body">
-                    <div class="alert alert-light small border">
-                        This report lists files where:
-                        <ul class="mb-0 ps-3">
-                            <li>The <strong>Filename</strong> does not contain any of the <strong>Keywords</strong> for its assigned Category.</li>
-                            <li>Files in <strong>Others/Custom</strong> categories that match a known requirement keyword.</li>
-                        </ul>
-                    </div>
-                    <div class="d-grid mb-3">
-                        <a href="tracker.php?report=misclassified" class="btn btn-primary btn-sm">Run Scan Now</a>
-                    </div>
+        chip.appendChild(label);
+        chip.appendChild(closeIcon);
+        container.insertBefore(chip, input);
+    }
 
-                    <?php if (isset($_GET['report']) && $_GET['report'] === 'misclassified'): ?>
-                        <?php if (empty($misclassifiedDocs)): ?>
-                            <div class="alert alert-success text-center">✅ No misclassified files found!</div>
-                        <?php else: ?>
-                            <form method="POST" id="bulkMoveForm">
-                                <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
-                                <input type="hidden" name="action" value="bulk_move">
+    function removeChip(icon) {
+        const chip = icon.parentElement;
+        const container = chip.parentElement;
+        chip.remove();
+        updateHiddenInput(container);
+    }
 
-                                <div class="row g-2 align-items-end mb-3 p-2 border rounded bg-light">
-                                    <div class="col-md-5">
-                                        <label class="form-label small fw-bold mb-1">1. New Category (Required)</label>
-                                        <select name="new_category" class="form-select form-select-sm" required>
-                                            <option value="">-- Select Category --</option>
-                                            <?php foreach ($REQUIRED_DOCS as $cat => $k): ?>
-                                                <option value="<?php echo htmlspecialchars($cat); ?>"><?php echo htmlspecialchars($cat); ?></option>
-                                            <?php endforeach; ?>
-                                            <option value="Others">Others</option>
-                                        </select>
-                                    </div>
-                                    <div class="col-md-5">
-                                        <label class="form-label small fw-bold mb-1">2. Transfer Owner (Optional)</label>
-                                        <div class="position-relative">
-                                            <input type="hidden" name="target_emp_id" id="bulkMoveTargetId">
-                                            <input type="text" id="bulkMoveSearch" class="form-control form-control-sm"
-                                                placeholder="Search Employee..." autocomplete="off"
-                                                maxlength="50" pattern="[a-zA-Z0-9\-_ \.\']+"
-                                                oninput="this.value = this.value.replace(/[^a-zA-Z0-9\-_ \.\']/g, '')">
-                                            <div id="bulkMoveSuggestions" class="list-group position-absolute w-100 shadow" style="z-index: 1050; display: none; max-height: 200px; overflow-y: auto;"></div>
-                                        </div>
-                                    </div>
-                                    <div class="col-md-2">
-                                        <button type="button" class="btn btn-sm btn-primary w-100" onclick="confirmBulkMove()">Move Selected</button>
-                                    </div>
-                                </div>
+    function handleTagKey(e, input) {
+        if (e.key === 'Enter' || e.key === ',') {
+            e.preventDefault();
+            const val = input.value.trim().replace(/,/g, '');
+            if (val) {
+                addChip(input.parentElement, val);
+                input.value = '';
+                updateHiddenInput(input.parentElement);
+            }
+        } else if (e.key === 'Backspace' && !input.value) {
+            const chips = input.parentElement.querySelectorAll('.tag-chip');
+            if (chips.length > 0) {
+                chips[chips.length - 1].remove();
+                updateHiddenInput(input.parentElement);
+            }
+        }
+    }
 
-                                <div class="mb-2 d-flex justify-content-end">
-                                    <button type="button" class="btn btn-xs btn-outline-secondary" onclick="selectAllDocs()" title="Select All Listed"><i class="bi bi-check-all"></i> Select All</button>
-                                </div>
+    function focusTagInput(container) {
+        if (event.target === container) {
+            container.querySelector('.tag-input').focus();
+        }
+    }
 
-                                <table class="table table-sm table-hover small align-middle">
-                                    <thead class="table-light">
-                                        <tr>
-                                            <th style="width:30px;"><input type="checkbox" class="form-check-input" onclick="toggleBulk(this)"></th>
-                                            <th>Employee</th>
-                                            <th>File Name</th>
-                                            <th>Current Category</th>
-                                            <th>Issue</th>
-                                            <th>Action</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        <?php foreach ($misclassifiedDocs as $doc): ?>
-                                            <tr onclick="toggleRowCheck(event, this)" style="cursor: pointer;">
-                                                <td><input type="checkbox" name="doc_ids[]" value="<?php echo $doc['id']; ?>" class="form-check-input bulk-check"></td>
-                                                <td>
-                                                    <?php echo htmlspecialchars($doc['last_name'] . ', ' . $doc['first_name']); ?>
-                                                    <br><span class="text-muted" style="font-size:0.7em"><?php echo htmlspecialchars($doc['emp_id']); ?></span>
-                                                </td>
-                                                <td class="text-danger fw-bold"><?php echo htmlspecialchars($doc['original_name']); ?></td>
-                                                <td><?php echo htmlspecialchars($doc['category']); ?></td>
-                                                <td>
-                                                    <?php if (isset($doc['suggested'])): ?>
-                                                        <span class="badge bg-warning text-dark">Matches: <?php echo htmlspecialchars($doc['suggested']); ?></span>
-                                                    <?php else: ?>
-                                                        <span class="badge bg-secondary">Keyword Mismatch</span>
-                                                    <?php endif; ?>
-                                                </td>
-                                                <td>
-                                                    <a href="view_doc.php?id=<?php echo $doc['file_uuid']; ?>&embed=1" target="_blank" class="btn btn-sm btn-info text-white py-0 px-1" title="Preview"><i class="bi bi-eye"></i></a>
-                                                    <button type="button" class="btn btn-xs btn-outline-primary" onclick="renameFile(<?php echo $doc['id']; ?>, '<?php echo htmlspecialchars($doc['original_name'], ENT_QUOTES); ?>')">Rename</button>
-                                                    <button type="button" class="btn btn-xs btn-outline-dark" onclick="prepareMove(event, '<?php echo $doc['id']; ?>')">Select</button>
-                                                </td>
-                                            </tr>
-                                        <?php endforeach; ?>
-                                    </tbody>
-                                </table>
-                            </form>
-                        <?php endif; ?>
-                    <?php endif; ?>
-                </div>
-            </div>
-        </div>
-    </div>
+    function updateHiddenInput(container) {
+        const chips = container.querySelectorAll('.tag-chip span');
+        const values = Array.from(chips).map(c => c.innerText);
+        // Find the hidden input associated with this container
+        // For edit rows: container id is tags_123, hidden is keys_123
+        // For add row: container is new_tags_container, hidden is new_req_keywords
+        let hiddenId;
+        if (container.id === 'new_tags_container') hiddenId = 'new_req_keywords';
+        else hiddenId = container.id.replace('tags_', 'keys_');
 
-    <!-- RENAME FORM (Hidden) -->
-    <form id="renameForm" method="POST" style="display:none;">
-        <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
-        <input type="hidden" name="action" value="rename_file">
-        <input type="hidden" name="doc_id" id="renameDocId">
-        <input type="hidden" name="new_name" id="renameNewName">
-    </form>
+        const hidden = document.getElementById(hiddenId);
+        if (hidden) hidden.value = values.join(', ');
+    }
 
-    <script src="assets/bootstrap.bundle.min.js"></script>
-    <script src="assets/sweetalert2.all.min.js"></script>
-    <script src="dark_mode.js"></script>
-    <script>
-        // [NEW] Tag Logic
-        function initTags(containerId, hiddenInputId) {
-            const container = document.getElementById(containerId);
-            const hiddenInput = document.getElementById(hiddenInputId);
-            if (!container || !hiddenInput) return;
+    // Initialize all tags on load
+    document.addEventListener('DOMContentLoaded', () => {
+        <?php foreach ($reqList as $r): ?>
+            initTags('tags_<?php echo $r['id']; ?>', 'keys_<?php echo $r['id']; ?>');
+        <?php endforeach; ?>
+        // Init new row
+        initTags('new_tags_container', 'new_req_keywords');
+    });
 
-            const input = container.querySelector('.tag-input');
-            const initialVal = hiddenInput.value;
+    function deleteReq(id) {
+        if (confirm('Remove this requirement?')) {
+            document.getElementById('delReqId').value = id;
+            document.getElementById('delReqForm').submit();
+        }
+    }
 
-            // Clear existing chips (keep input)
-            Array.from(container.querySelectorAll('.tag-chip')).forEach(el => el.remove());
+    function editReq(id) {
+        const name = document.getElementById('name_' + id).value;
+        // Value is already updated in hidden input by JS
+        const keys = document.getElementById('keys_' + id).value;
+        document.getElementById('editReqId').value = id;
+        document.getElementById('editReqName').value = name;
+        document.getElementById('editReqKeys').value = keys;
+        document.getElementById('editReqForm').submit();
+    }
 
-            if (initialVal) {
-                initialVal.split(',').map(s => s.trim()).filter(s => s).forEach(tag => {
-                    addChip(container, tag);
+    function addReq() {
+        const name = document.getElementById('new_req_name').value.trim();
+        // Value is already updated in hidden input by JS
+        const keys = document.getElementById('new_req_keywords').value.trim();
+        if (name && keys) {
+            document.getElementById('addReqName').value = name;
+            document.getElementById('addReqKeys').value = keys;
+            document.getElementById('addReqForm').submit();
+        } else {
+            Swal.fire('Error', 'Please fill in both Name and Tags/Keywords.', 'warning');
+        }
+    }
+
+    function toggleExempt(empId, reqName) {
+        // Simple toggle without confirmation for speed, or add confirm if preferred
+        document.getElementById('exemptEmpId').value = empId;
+        document.getElementById('exemptReqName').value = reqName;
+        document.getElementById('exemptForm').submit();
+    }
+
+    function openReminderModal(empId, name, missingItems) {
+        document.getElementById('remindEmpId').value = empId;
+        document.getElementById('remindEmpName').innerText = name;
+
+        const container = document.getElementById('missingListContainer');
+        container.innerHTML = '';
+
+        if (missingItems.length === 0) {
+            container.innerHTML = '<div class="alert alert-success">No missing documents!</div>';
+        } else {
+            missingItems.forEach(item => {
+                const label = document.createElement('label');
+                label.className = 'list-group-item';
+                label.innerHTML = `<input class="form-check-input me-2" type="checkbox" name="reqs[]" value="${item}" checked> ${item}`;
+                container.appendChild(label);
+            });
+        }
+
+        const copyText = `Hi ${name},\n\nThis is a gentle reminder from HR regarding your 201 File. Please submit the following missing documents as soon as possible:\n\n- ` + missingItems.join('\n- ') + `\n\nThank you!`;
+        document.getElementById('copyMessageText').value = copyText;
+
+        new bootstrap.Modal(document.getElementById('reminderModal')).show();
+    }
+
+    function copyReminderText() {
+        const copyText = document.getElementById('copyMessageText');
+        copyText.select();
+        copyText.setSelectionRange(0, 99999);
+        navigator.clipboard.writeText(copyText.value);
+        Swal.fire({
+            toast: true,
+            position: 'top-end',
+            icon: 'success',
+            title: 'Message copied to clipboard!',
+            showConfirmButton: false,
+            timer: 2000
+        });
+    }
+
+    // [NEW] Show Error Alerts (e.g. Duplicates)
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.has('error')) {
+        Swal.fire({
+            icon: 'error',
+            title: 'Error',
+            text: urlParams.get('error')
+        });
+        window.history.replaceState({}, document.title, window.location.pathname);
+    }
+
+    // [NEW] Handle URL Messages for Reminders
+    if (urlParams.has('msg')) {
+        Swal.fire({
+            icon: 'success',
+            title: 'Success',
+            text: urlParams.get('msg'),
+            timer: 2000,
+            showConfirmButton: false
+        });
+        window.history.replaceState({}, document.title, window.location.pathname);
+    }
+
+    // [NEW] Auto-submit when selecting from datalist
+    document.getElementById('trackerSearch').addEventListener('input', function() {
+        var val = this.value;
+        var opts = document.getElementById('search_suggestions').options;
+        for (var i = 0; i < opts.length; i++) {
+            if (opts[i].value === val) {
+                this.form.submit();
+                break;
+            }
+        }
+    });
+
+    function updateCount() {
+        const count = document.querySelectorAll('.emp-checkbox:checked').length;
+        const badge = document.getElementById('selection-count');
+        if (badge) {
+            badge.innerText = count;
+            badge.style.display = count > 0 ? 'inline-block' : 'none';
+        }
+    }
+
+    // [NEW] Select All Logic
+    document.getElementById('selectAll').addEventListener('change', function(e) {
+        document.querySelectorAll('.emp-checkbox').forEach(checkbox => {
+            // [FIX] Only select visible rows
+            if (checkbox.offsetParent !== null) {
+                checkbox.checked = e.target.checked;
+            }
+        });
+        updateCount();
+    });
+    document.querySelectorAll('.emp-checkbox').forEach(cb => {
+        cb.addEventListener('change', updateCount);
+    });
+
+    // [NEW] Bulk Reminder with Progress Bar
+    async function submitBulkReminders() {
+        const checkboxes = document.querySelectorAll('.emp-checkbox:checked');
+        if (checkboxes.length === 0) {
+            Swal.fire('No Selection', 'Please select at least one employee.', 'warning');
+            return;
+        }
+
+        const result = await Swal.fire({
+            title: 'Log Bulk Reminders?',
+            text: `This will mark ${checkboxes.length} employees as reminded today. (Actual messages must be sent manually via Teams/Viber).`,
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonText: 'Yes, Log Reminders'
+        });
+
+        if (!result.isConfirmed) return;
+
+        let sent = 0;
+        let skipped = 0;
+        let total = checkboxes.length;
+
+        Swal.fire({
+            title: 'Sending Emails...',
+            html: `<div class="progress mb-2"><div id="email-progress" class="progress-bar progress-bar-striped progress-bar-animated" style="width: 0%"></div></div><span id="email-status">Initializing...</span>`,
+            allowOutsideClick: false,
+            didOpen: () => Swal.showLoading()
+        });
+
+        for (let i = 0; i < total; i++) {
+            const empId = checkboxes[i].value;
+            const formData = new FormData();
+            formData.append('action', 'ajax_send_reminder');
+            formData.append('csrf_token', '<?php echo $_SESSION['csrf_token']; ?>');
+            formData.append('emp_id', empId);
+
+            try {
+                const res = await fetch('tracker.php', {
+                    method: 'POST',
+                    body: formData
                 });
+                const data = await res.json();
+                if (data.status === 'success') sent++;
+                else skipped++;
+            } catch (e) {
+                skipped++;
             }
+
+            // Update Progress
+            const pct = Math.round(((i + 1) / total) * 100);
+            const bar = document.getElementById('email-progress');
+            const stat = document.getElementById('email-status');
+            if (bar) bar.style.width = `${pct}%`;
+            if (stat) stat.innerText = `Processed ${i + 1} of ${total} (Sent: ${sent})`;
         }
 
-        function addChip(container, text) {
-            const input = container.querySelector('.tag-input');
-            const chip = document.createElement('div');
-            chip.className = 'tag-chip';
-            chip.innerHTML = `<span>${text}</span><i class="bi bi-x" onclick="removeChip(this)"></i>`;
-            container.insertBefore(chip, input);
-        }
+        Swal.fire('Completed', `Sent: ${sent}, Skipped: ${skipped}`, 'success').then(() => {
+            window.location.reload();
+        });
+    }
 
-        function removeChip(icon) {
-            const chip = icon.parentElement;
-            const container = chip.parentElement;
-            chip.remove();
-            updateHiddenInput(container);
-        }
-
-        function handleTagKey(e, input) {
-            if (e.key === 'Enter' || e.key === ',') {
-                e.preventDefault();
-                const val = input.value.trim().replace(/,/g, '');
-                if (val) {
-                    addChip(input.parentElement, val);
-                    input.value = '';
-                    updateHiddenInput(input.parentElement);
-                }
-            } else if (e.key === 'Backspace' && !input.value) {
-                const chips = input.parentElement.querySelectorAll('.tag-chip');
-                if (chips.length > 0) {
-                    chips[chips.length - 1].remove();
-                    updateHiddenInput(input.parentElement);
-                }
+    // [NEW] Rename Logic
+    function renameFile(id, oldName) {
+        Swal.fire({
+            title: 'Rename File',
+            input: 'text',
+            inputValue: oldName,
+            showCancelButton: true,
+            inputValidator: (value) => {
+                if (!value) return 'You need to write something!'
             }
-        }
-
-        function focusTagInput(container) {
-            if (event.target === container) {
-                container.querySelector('.tag-input').focus();
+        }).then((result) => {
+            if (result.isConfirmed) {
+                document.getElementById('renameDocId').value = id;
+                document.getElementById('renameNewName').value = result.value;
+                document.getElementById('renameForm').submit();
             }
-        }
+        });
+    }
 
-        function updateHiddenInput(container) {
-            const chips = container.querySelectorAll('.tag-chip span');
-            const values = Array.from(chips).map(c => c.innerText);
-            // Find the hidden input associated with this container
-            // For edit rows: container id is tags_123, hidden is keys_123
-            // For add row: container is new_tags_container, hidden is new_req_keywords
-            let hiddenId;
-            if (container.id === 'new_tags_container') hiddenId = 'new_req_keywords';
-            else hiddenId = container.id.replace('tags_', 'keys_');
+    function toggleBulk(source) {
+        document.querySelectorAll('.bulk-check').forEach(cb => cb.checked = source.checked);
+    }
 
-            const hidden = document.getElementById(hiddenId);
-            if (hidden) hidden.value = values.join(', ');
-        }
-
-        // Initialize all tags on load
+    // [NEW] Auto-open report modal if query param exists
+    <?php if (isset($_GET['report']) && $_GET['report'] === 'misclassified'): ?>
         document.addEventListener('DOMContentLoaded', () => {
-            <?php foreach ($reqList as $r): ?>
-                initTags('tags_<?php echo $r['id']; ?>', 'keys_<?php echo $r['id']; ?>');
-            <?php endforeach; ?>
-            // Init new row
-            initTags('new_tags_container', 'new_req_keywords');
+            new bootstrap.Modal(document.getElementById('misclassifiedModal')).show();
         });
+    <?php endif; ?>
 
-        function deleteReq(id) {
-            if (confirm('Remove this requirement?')) {
-                document.getElementById('delReqId').value = id;
-                document.getElementById('delReqForm').submit();
-            }
-        }
+    // [NEW] Bulk Move Search Logic
+    const bulkSearch = document.getElementById('bulkMoveSearch');
+    const bulkSuggestions = document.getElementById('bulkMoveSuggestions');
+    const bulkTargetId = document.getElementById('bulkMoveTargetId');
 
-        function editReq(id) {
-            const name = document.getElementById('name_' + id).value;
-            // Value is already updated in hidden input by JS
-            const keys = document.getElementById('keys_' + id).value;
-            document.getElementById('editReqId').value = id;
-            document.getElementById('editReqName').value = name;
-            document.getElementById('editReqKeys').value = keys;
-            document.getElementById('editReqForm').submit();
-        }
+    if (bulkSearch) {
+        let debounce = null;
+        bulkSearch.addEventListener('input', function() {
+            const q = this.value.trim();
+            bulkTargetId.value = ''; // Clear ID if typing
 
-        function addReq() {
-            const name = document.getElementById('new_req_name').value.trim();
-            // Value is already updated in hidden input by JS
-            const keys = document.getElementById('new_req_keywords').value.trim();
-            if (name && keys) {
-                document.getElementById('addReqName').value = name;
-                document.getElementById('addReqKeys').value = keys;
-                document.getElementById('addReqForm').submit();
-            } else {
-                Swal.fire('Error', 'Please fill in both Name and Tags/Keywords.', 'warning');
-            }
-        }
-
-        function toggleExempt(empId, reqName) {
-            // Simple toggle without confirmation for speed, or add confirm if preferred
-            document.getElementById('exemptEmpId').value = empId;
-            document.getElementById('exemptReqName').value = reqName;
-            document.getElementById('exemptForm').submit();
-        }
-
-        function openReminderModal(empId, name, missingItems) {
-            document.getElementById('remindEmpId').value = empId;
-            document.getElementById('remindEmpName').innerText = name;
-
-            const container = document.getElementById('missingListContainer');
-            container.innerHTML = '';
-
-            if (missingItems.length === 0) {
-                container.innerHTML = '<div class="alert alert-success">No missing documents!</div>';
-            } else {
-                missingItems.forEach(item => {
-                    const label = document.createElement('label');
-                    label.className = 'list-group-item';
-                    label.innerHTML = `<input class="form-check-input me-2" type="checkbox" name="reqs[]" value="${item}" checked> ${item}`;
-                    container.appendChild(label);
-                });
-            }
-
-            const copyText = `Hi ${name},\n\nThis is a gentle reminder from HR regarding your 201 File. Please submit the following missing documents as soon as possible:\n\n- ` + missingItems.join('\n- ') + `\n\nThank you!`;
-            document.getElementById('copyMessageText').value = copyText;
-
-            new bootstrap.Modal(document.getElementById('reminderModal')).show();
-        }
-
-        function copyReminderText() {
-            const copyText = document.getElementById('copyMessageText');
-            copyText.select();
-            copyText.setSelectionRange(0, 99999);
-            navigator.clipboard.writeText(copyText.value);
-            Swal.fire({
-                toast: true,
-                position: 'top-end',
-                icon: 'success',
-                title: 'Message copied to clipboard!',
-                showConfirmButton: false,
-                timer: 2000
-            });
-        }
-
-        // [NEW] Show Error Alerts (e.g. Duplicates)
-        const urlParams = new URLSearchParams(window.location.search);
-        if (urlParams.has('error')) {
-            Swal.fire({
-                icon: 'error',
-                title: 'Error',
-                text: urlParams.get('error')
-            });
-            window.history.replaceState({}, document.title, window.location.pathname);
-        }
-
-        // [NEW] Handle URL Messages for Reminders
-        if (urlParams.has('msg')) {
-            Swal.fire({
-                icon: 'success',
-                title: 'Success',
-                text: urlParams.get('msg'),
-                timer: 2000,
-                showConfirmButton: false
-            });
-            window.history.replaceState({}, document.title, window.location.pathname);
-        }
-        if (urlParams.has('error')) {
-            Swal.fire({
-                icon: 'error',
-                title: 'Error',
-                text: urlParams.get('error')
-            });
-            window.history.replaceState({}, document.title, window.location.pathname);
-        }
-
-        // [NEW] Auto-submit when selecting from datalist
-        document.getElementById('trackerSearch').addEventListener('input', function() {
-            var val = this.value;
-            var opts = document.getElementById('search_suggestions').options;
-            for (var i = 0; i < opts.length; i++) {
-                if (opts[i].value === val) {
-                    this.form.submit();
-                    break;
-                }
-            }
-        });
-
-        function updateCount() {
-            const count = document.querySelectorAll('.emp-checkbox:checked').length;
-            const badge = document.getElementById('selection-count');
-            if (badge) {
-                badge.innerText = count;
-                badge.style.display = count > 0 ? 'inline-block' : 'none';
-            }
-        }
-
-        // [NEW] Select All Logic
-        document.getElementById('selectAll').addEventListener('change', function(e) {
-            document.querySelectorAll('.emp-checkbox').forEach(checkbox => {
-                // [FIX] Only select visible rows
-                if (checkbox.offsetParent !== null) {
-                    checkbox.checked = e.target.checked;
-                }
-            });
-            updateCount();
-        });
-        document.querySelectorAll('.emp-checkbox').forEach(cb => {
-            cb.addEventListener('change', updateCount);
-        });
-
-        // [NEW] Bulk Reminder with Progress Bar
-        async function submitBulkReminders() {
-            const checkboxes = document.querySelectorAll('.emp-checkbox:checked');
-            if (checkboxes.length === 0) {
-                Swal.fire('No Selection', 'Please select at least one employee.', 'warning');
+            if (q.length < 2) {
+                bulkSuggestions.style.display = 'none';
                 return;
             }
 
-            const result = await Swal.fire({
-                title: 'Log Bulk Reminders?',
-                text: `This will mark ${checkboxes.length} employees as reminded today. (Actual messages must be sent manually via Teams/Viber).`,
-                icon: 'question',
-                showCancelButton: true,
-                confirmButtonText: 'Yes, Log Reminders'
-            });
+            clearTimeout(debounce);
+            debounce = setTimeout(() => {
+                fetch(`api/search_suggestions.php?q=${encodeURIComponent(q)}`)
+                    .then(r => r.json())
+                    .then(data => {
+                        bulkSuggestions.innerHTML = '';
+                        if (Array.isArray(data) && data.length > 0) {
+                            bulkSuggestions.style.display = 'block';
+                            data.slice(0, 5).forEach(emp => {
+                                const item = document.createElement('a');
+                                item.className = 'list-group-item list-group-item-action cursor-pointer small';
 
-            if (!result.isConfirmed) return;
+                                const nameStrong = document.createElement('strong');
+                                nameStrong.textContent = `${emp.first_name} ${emp.last_name}`;
 
-            let sent = 0;
-            let skipped = 0;
-            let total = checkboxes.length;
+                                const idSpan = document.createElement('span');
+                                idSpan.className = 'text-muted';
+                                idSpan.textContent = ` (${emp.emp_id})`;
 
-            Swal.fire({
-                title: 'Sending Emails...',
-                html: `<div class="progress mb-2"><div id="email-progress" class="progress-bar progress-bar-striped progress-bar-animated" style="width: 0%"></div></div><span id="email-status">Initializing...</span>`,
-                allowOutsideClick: false,
-                didOpen: () => Swal.showLoading()
-            });
-
-            for (let i = 0; i < total; i++) {
-                const empId = checkboxes[i].value;
-                const formData = new FormData();
-                formData.append('action', 'ajax_send_reminder');
-                formData.append('csrf_token', '<?php echo $_SESSION['csrf_token']; ?>');
-                formData.append('emp_id', empId);
-
-                try {
-                    const res = await fetch('tracker.php', {
-                        method: 'POST',
-                        body: formData
+                                item.appendChild(nameStrong);
+                                item.appendChild(idSpan);
+                                item.onclick = () => {
+                                    bulkSearch.value = `${emp.first_name} ${emp.last_name} - ${emp.emp_id}`;
+                                    bulkTargetId.value = emp.emp_id;
+                                    bulkSuggestions.style.display = 'none';
+                                };
+                                bulkSuggestions.appendChild(item);
+                            });
+                        } else {
+                            bulkSuggestions.style.display = 'none';
+                        }
                     });
-                    const data = await res.json();
-                    if (data.status === 'success') sent++;
-                    else skipped++;
-                } catch (e) {
-                    skipped++;
-                }
+            }, 250);
+        });
 
-                // Update Progress
-                const pct = Math.round(((i + 1) / total) * 100);
-                const bar = document.getElementById('email-progress');
-                const stat = document.getElementById('email-status');
-                if (bar) bar.style.width = `${pct}%`;
-                if (stat) stat.innerText = `Processed ${i + 1} of ${total} (Sent: ${sent})`;
+        // Hide suggestions on click outside
+        document.addEventListener('click', function(e) {
+            if (!bulkSearch.contains(e.target) && !bulkSuggestions.contains(e.target)) {
+                bulkSuggestions.style.display = 'none';
             }
+        });
+    }
 
-            Swal.fire('Completed', `Sent: ${sent}, Skipped: ${skipped}`, 'success').then(() => {
-                window.location.reload();
-            });
+    // [NEW] SweetAlert Confirmation for Bulk Move
+    function confirmBulkMove() {
+        const form = document.getElementById('bulkMoveForm');
+        const count = form.querySelectorAll('input[name="doc_ids[]"]:checked').length;
+        const cat = form.querySelector('select[name="new_category"]').value;
+        const searchVal = document.getElementById('bulkMoveSearch').value;
+        const targetId = document.getElementById('bulkMoveTargetId').value;
+
+        if (count === 0) {
+            Swal.fire('No Selection', 'Please select at least one document.', 'warning');
+            return;
+        }
+        if (!cat) {
+            Swal.fire('No Category', 'Please select a new category.', 'warning');
+            return;
+        }
+        // [FIX] Validate Owner Search
+        if (searchVal.trim() !== "" && targetId === "") {
+            Swal.fire('Invalid Owner', 'You typed a name but didn\'t select from the list. Please click a name from the suggestions or clear the search box.', 'warning');
+            return;
         }
 
-        // [NEW] Rename Logic
-        function renameFile(id, oldName) {
-            Swal.fire({
-                title: 'Rename File',
-                input: 'text',
-                inputValue: oldName,
-                showCancelButton: true,
-                inputValidator: (value) => {
-                    if (!value) return 'You need to write something!'
-                }
-            }).then((result) => {
-                if (result.isConfirmed) {
-                    document.getElementById('renameDocId').value = id;
-                    document.getElementById('renameNewName').value = result.value;
-                    document.getElementById('renameForm').submit();
-                }
-            });
+        let msg = `Update ${count} document(s) to category "${cat}"?`;
+        if (targetId) {
+            msg += `<br><br><span class="text-danger fw-bold">Note: Ownership will be transferred to the selected employee.</span>`;
         }
 
-        function toggleBulk(source) {
-            document.querySelectorAll('.bulk-check').forEach(cb => cb.checked = source.checked);
-        }
-
-        // [NEW] Auto-open report modal if query param exists
-        <?php if (isset($_GET['report']) && $_GET['report'] === 'misclassified'): ?>
-            document.addEventListener('DOMContentLoaded', () => {
-                new bootstrap.Modal(document.getElementById('misclassifiedModal')).show();
-            });
-        <?php endif; ?>
-
-        // [NEW] Bulk Move Search Logic
-        const bulkSearch = document.getElementById('bulkMoveSearch');
-        const bulkSuggestions = document.getElementById('bulkMoveSuggestions');
-        const bulkTargetId = document.getElementById('bulkMoveTargetId');
-
-        if (bulkSearch) {
-            let debounce = null;
-            bulkSearch.addEventListener('input', function() {
-                const q = this.value.trim();
-                bulkTargetId.value = ''; // Clear ID if typing
-
-                if (q.length < 2) {
-                    bulkSuggestions.style.display = 'none';
-                    return;
-                }
-
-                clearTimeout(debounce);
-                debounce = setTimeout(() => {
-                    fetch(`api/search_suggestions.php?q=${encodeURIComponent(q)}`)
-                        .then(r => r.json())
-                        .then(data => {
-                            bulkSuggestions.innerHTML = '';
-                            if (Array.isArray(data) && data.length > 0) {
-                                bulkSuggestions.style.display = 'block';
-                                data.slice(0, 5).forEach(emp => {
-                                    const item = document.createElement('a');
-                                    item.className = 'list-group-item list-group-item-action cursor-pointer small';
-                                    // [FIX] Consistent formatting with upload_form.php
-                                    item.innerHTML = `<strong>${emp.first_name} ${emp.last_name}</strong> <span class="text-muted">(${emp.emp_id})</span>`;
-                                    item.onclick = () => {
-                                        bulkSearch.value = `${emp.first_name} ${emp.last_name} - ${emp.emp_id}`;
-                                        bulkTargetId.value = emp.emp_id;
-                                        bulkSuggestions.style.display = 'none';
-                                    };
-                                    bulkSuggestions.appendChild(item);
-                                });
-                            } else {
-                                bulkSuggestions.style.display = 'none';
-                            }
-                        });
-                }, 250);
-            });
-
-            // Hide suggestions on click outside
-            document.addEventListener('click', function(e) {
-                if (!bulkSearch.contains(e.target) && !bulkSuggestions.contains(e.target)) {
-                    bulkSuggestions.style.display = 'none';
-                }
-            });
-        }
-
-        // [NEW] SweetAlert Confirmation for Bulk Move
-        function confirmBulkMove() {
-            const form = document.getElementById('bulkMoveForm');
-            const count = form.querySelectorAll('input[name="doc_ids[]"]:checked').length;
-            const cat = form.querySelector('select[name="new_category"]').value;
-            const searchVal = document.getElementById('bulkMoveSearch').value;
-            const targetId = document.getElementById('bulkMoveTargetId').value;
-
-            if (count === 0) {
-                Swal.fire('No Selection', 'Please select at least one document.', 'warning');
-                return;
+        Swal.fire({
+            title: 'Confirm Update?',
+            html: msg,
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonColor: '#198754',
+            confirmButtonText: 'Yes, Apply Changes'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                form.submit();
             }
-            if (!cat) {
-                Swal.fire('No Category', 'Please select a new category.', 'warning');
-                return;
-            }
-            // [FIX] Validate Owner Search
-            if (searchVal.trim() !== "" && targetId === "") {
-                Swal.fire('Invalid Owner', 'You typed a name but didn\'t select from the list. Please click a name from the suggestions or clear the search box.', 'warning');
-                return;
-            }
+        });
+    }
 
-            let msg = `Update ${count} document(s) to category "${cat}"?`;
-            if (targetId) {
-                msg += `<br><br><span class="text-danger fw-bold">Note: Ownership will be transferred to the selected employee.</span>`;
-            }
+    // [NEW] Helper to select all in the report
+    function selectAllDocs() {
+        const checks = document.querySelectorAll('.bulk-check');
+        const allChecked = Array.from(checks).every(c => c.checked);
+        checks.forEach(c => c.checked = !allChecked);
+    }
 
-            Swal.fire({
-                title: 'Confirm Update?',
-                html: msg,
-                icon: 'question',
-                showCancelButton: true,
-                confirmButtonColor: '#198754',
-                confirmButtonText: 'Yes, Apply Changes'
-            }).then((result) => {
-                if (result.isConfirmed) {
-                    form.submit();
-                }
-            });
-        }
+    // [NEW] Row click to toggle checkbox
+    function toggleRowCheck(e, tr) {
+        // Ignore clicks on buttons, links, inputs
+        if (e.target.tagName === 'BUTTON' || e.target.tagName === 'A' || e.target.tagName === 'I' || e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+        const cb = tr.querySelector('.bulk-check');
+        if (cb) cb.checked = !cb.checked;
+    }
 
-        // [NEW] Helper to select all in the report
-        function selectAllDocs() {
-            const checks = document.querySelectorAll('.bulk-check');
-            const allChecked = Array.from(checks).every(c => c.checked);
-            checks.forEach(c => c.checked = !allChecked);
-        }
+    // [NEW] Prepare single move
+    function prepareMove(e, id) {
+        e.stopPropagation();
+        // Uncheck all others
+        document.querySelectorAll('.bulk-check').forEach(cb => cb.checked = false);
+        // Check this one
+        // [FIX] Use robust selector for ID (handle string/int mismatch)
+        const cb = document.querySelector(`input.bulk-check[value="${id}"]`);
+        if (cb) cb.checked = true;
 
-        // [NEW] Row click to toggle checkbox
-        function toggleRowCheck(e, tr) {
-            // Ignore clicks on buttons, links, inputs
-            if (e.target.tagName === 'BUTTON' || e.target.tagName === 'A' || e.target.tagName === 'I' || e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
-            const cb = tr.querySelector('.bulk-check');
-            if (cb) cb.checked = !cb.checked;
-        }
+        // [FIX] Scroll to top form and highlight it
+        const topForm = document.getElementById('bulkMoveForm');
+        topForm.scrollIntoView({
+            behavior: 'smooth',
+            block: 'center'
+        });
 
-        // [NEW] Prepare single move
-        function prepareMove(e, id) {
-            e.stopPropagation();
-            // Uncheck all others
-            document.querySelectorAll('.bulk-check').forEach(cb => cb.checked = false);
-            // Check this one
-            // [FIX] Use robust selector for ID (handle string/int mismatch)
-            const cb = document.querySelector(`input.bulk-check[value="${id}"]`);
-            if (cb) cb.checked = true;
+        // Focus category
+        const catSelect = document.querySelector('select[name="new_category"]');
+        catSelect.focus();
+        catSelect.classList.add('border-primary', 'shadow');
+        setTimeout(() => catSelect.classList.remove('border-primary', 'shadow'), 2000);
 
-            // [FIX] Scroll to top form and highlight it
-            const topForm = document.getElementById('bulkMoveForm');
-            topForm.scrollIntoView({
-                behavior: 'smooth',
-                block: 'center'
-            });
-
-            // Focus category
-            const catSelect = document.querySelector('select[name="new_category"]');
-            catSelect.focus();
-            catSelect.classList.add('border-primary', 'shadow');
-            setTimeout(() => catSelect.classList.remove('border-primary', 'shadow'), 2000);
-
-            Swal.fire({
-                toast: true,
-                position: 'top',
-                icon: 'info',
-                title: '1. Document Selected',
-                text: '2. Select Category above -> 3. Click "Move Selected"',
-                timer: 3000,
-                showConfirmButton: false
-            });
-        }
-
-        // [SECURITY] Auto-Logout Timer
-        const timeoutDuration = <?php echo $clientTimeout * 1000; ?>;
-        let timeLeft = timeoutDuration;
-
-        function updateTimer() {
-            timeLeft -= 1000;
-            if (timeLeft <= 0) window.location.href = 'logout.php';
-            const m = Math.floor(timeLeft / 60000);
-            const s = Math.floor((timeLeft % 60000) / 1000);
-            document.getElementById('sessionTimer').innerText = `${m}:${s.toString().padStart(2, '0')}`;
-        }
-        document.addEventListener('mousemove', () => timeLeft = timeoutDuration);
-        document.addEventListener('keypress', () => timeLeft = timeoutDuration);
-        setInterval(updateTimer, 1000);
-        updateTimer();
-    </script>
+        Swal.fire({
+            toast: true,
+            position: 'top',
+            icon: 'info',
+            title: '1. Document Selected',
+            text: '2. Select Category above -> 3. Click "Move Selected"',
+            timer: 3000,
+            showConfirmButton: false
+        });
+    }
+</script>
 </body>
 
 </html>

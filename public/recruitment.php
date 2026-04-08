@@ -943,6 +943,53 @@ include 'header.php';
 
 <script src="assets/bootstrap.bundle.min.js"></script>
 <script>
+    // [NEW] 100% Offline Custom DataLabels Plugin
+    const offlineDataLabels = {
+        id: 'offlineDataLabels',
+        afterDatasetsDraw(chart, args, options) {
+            const {
+                ctx
+            } = chart;
+            ctx.save();
+            ctx.font = 'bold 12px Helvetica, Arial, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+
+            chart.data.datasets.forEach((dataset, i) => {
+                const meta = chart.getDatasetMeta(i);
+                if (meta.hidden) return;
+
+                meta.data.forEach((element, index) => {
+                    let dataVal = dataset.data[index];
+                    if (dataVal === undefined || dataVal === null || Number(dataVal) === 0) return;
+
+                    let text = dataVal.toString();
+                    if (chart.config.type === 'pie' || chart.config.type === 'doughnut') {
+                        let total = dataset.data.reduce((a, b) => Number(a) + Number(b), 0);
+                        let percent = Math.round((dataVal / total) * 100);
+                        if (percent < 5) return;
+                        text = `${dataVal} (${percent}%)`;
+                    }
+
+                    if (typeof element.tooltipPosition !== 'function') return;
+                    let pos = element.tooltipPosition();
+                    let x = pos.x;
+                    let y = pos.y;
+                    if ((chart.config.type === 'bar' || meta.type === 'bar') && element.base !== undefined) {
+                        y = (element.base + pos.y) / 2;
+                    }
+                    ctx.strokeStyle = 'rgba(0, 0, 0, 0.75)';
+                    ctx.lineWidth = 3;
+                    ctx.strokeText(text, x, y);
+                    ctx.fillStyle = '#ffffff';
+                    ctx.fillText(text, x, y);
+                });
+            });
+            ctx.restore();
+        }
+    };
+    Chart.register(offlineDataLabels);
+
     // Initialize the Pie Chart
     const ctx = document.getElementById('pipelineChart');
     let pipelineChart = null;

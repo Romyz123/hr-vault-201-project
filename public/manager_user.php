@@ -1428,28 +1428,6 @@ $isBackupWritable = is_writable($actualBackupPath);
         <script src="assets/bootstrap.bundle.min.js"></script>
         <script src="dark_mode.js"></script>
         <script>
-            // ==========================================
-            // [SECURITY] AUTO-LOGOUT (Client-Side)
-            // ==========================================
-            const INACTIVITY_LIMIT = <?php echo $clientTimeout * 1000; ?>; // Dynamic value in milliseconds
-            let autoLogoutTimer;
-
-            function resetTimer() {
-                clearTimeout(autoLogoutTimer);
-                autoLogoutTimer = setTimeout(doLogout, INACTIVITY_LIMIT);
-            }
-
-            function doLogout() {
-                window.location.href = 'logout.php?msg=Session_Expired_Auto';
-            }
-
-            window.onload = resetTimer;
-            document.addEventListener('mousemove', resetTimer);
-            document.addEventListener('keydown', resetTimer);
-            document.addEventListener('click', resetTimer);
-            document.addEventListener('scroll', resetTimer);
-        </script>
-        <script>
             <?php if ($alertMsg): ?>
                 Swal.fire({
                     icon: '<?php echo $alertType; ?>',

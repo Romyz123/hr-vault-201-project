@@ -363,42 +363,25 @@ $notifStmt = $pdo->prepare("
 $notifStmt->execute([$_SESSION['user_id']]);
 $db_notifs = $notifStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
-// (Source 2) Expiring docs within next 30 days (unresolved)
-$alertDate = date('Y-m-d', strtotime('+30 days'));
-$docQuery  = "
-    SELECT d.id, d.original_name, d.expiry_date, e.emp_id AS real_emp_id
-    FROM documents d
-    JOIN employees e ON d.employee_id = e.emp_id
-    WHERE d.is_resolved = 0
-      AND d.expiry_date IS NOT NULL
-      AND d.expiry_date <= ?
-";
-if ($hasDeletedAtColumn) {
-    $docQuery .= " AND d.deleted_at IS NULL";
-}
-if (!in_array($userRole, ['ADMIN', 'HR'], true)) {
-    // scope to files uploaded by current user
-    $docQuery .= " AND d.uploaded_by = " . (int)$_SESSION['user_id'];
-}
-$notifyStmt = $pdo->prepare($docQuery);
-$notifyStmt->execute([$alertDate]);
-$raw_alerts = $notifyStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
-
 $doc_alerts = [];
-foreach ($raw_alerts as $d) {
-    $daysLeft = (int)floor((strtotime($d['expiry_date']) - time()) / 86400);
-    $status   = ($daysLeft < 0) ? 'EXPIRED' : ($daysLeft . ' days left');
-    $doc_alerts[] = [
-        'id'         => 'doc_' . $d['id'],
-        'title'      => "Document Expiring: {$status}",
-        'message'    => 'File: ' . $d['original_name'],
-        'type'       => 'warning',
-        'created_at' => date('Y-m-d H:i:s'),
-        'source'     => 'expiry',
-        'link_id'    => $d['id'],
-        'doc_name'   => $d['original_name'],
-        'emp_search' => $d['real_emp_id']
-    ];
+try {
+    // (Source 2) Expiring docs within next 30 days (unresolved)
+    $alertDate = date('Y-m-d', strtotime('+30 days'));
+    $docQuery  = "SELECT d.id, d.original_name, d.expiry_date, e.emp_id AS real_emp_id FROM documents d JOIN employees e ON d.employee_id = e.emp_id WHERE d.is_resolved = 0 AND d.expiry_date IS NOT NULL AND d.expiry_date <= ?";
+    if ($hasDeletedAtColumn) $docQuery .= " AND d.deleted_at IS NULL";
+    if (!in_array($userRole, ['ADMIN', 'MANAGER', 'HR'], true)) $docQuery .= " AND d.uploaded_by = " . (int)$_SESSION['user_id'];
+
+    $notifyStmt = $pdo->prepare($docQuery);
+    $notifyStmt->execute([$alertDate]);
+    $raw_alerts = $notifyStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+    foreach ($raw_alerts as $d) {
+        $daysLeft = (int)floor((strtotime($d['expiry_date']) - time()) / 86400);
+        $status   = ($daysLeft < 0) ? 'EXPIRED' : ($daysLeft . ' days left');
+        $doc_alerts[] = ['id' => 'doc_' . $d['id'], 'title' => "Document Expiring: {$status}", 'message' => 'File: ' . $d['original_name'], 'type' => 'warning', 'created_at' => date('Y-m-d H:i:s'), 'source' => 'expiry', 'link_id' => $d['id'], 'doc_name' => $d['original_name'], 'emp_search' => $d['real_emp_id']];
+    }
+} catch (Throwable $e) {
+    error_log("Dashboard notification error: " . $e->getMessage());
 }
 
 // (Source 3) Pending Requests (For ADMIN/HR only)
@@ -806,6 +789,8 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
 
                     <?php if ($userRole === 'STAFF'): ?>
                         <a href="my_requests.php" class="btn btn-outline-primary"><i class="bi bi-clock-history"></i> My Requests</a>
+                        <a href="profile_settings.php" class="btn btn-outline-secondary btn-sm"><i class="bi bi-shield-lock"></i> Change Password</a>
+                        <a href="help.php" class="btn btn-outline-info btn-sm"><i class="bi bi-question-circle"></i> User Manual</a>
                     <?php endif; ?>
 
                     <?php if (in_array($userRole, ['ADMIN', 'MANAGER', 'HR'], true)): ?>
@@ -1439,11 +1424,57 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
 
 <!-- SINGLE Bootstrap bundle include -->
 <script src="assets/bootstrap.bundle.min.js?v=3"></script>
-<script src="dark_mode.js?v=3"></script>
 
 <script>
     // ---------- Chart ----------
     document.addEventListener('DOMContentLoaded', () => {
+        // [NEW] 100% Offline Custom DataLabels Plugin
+        const offlineDataLabels = {
+            id: 'offlineDataLabels',
+            afterDatasetsDraw(chart, args, options) {
+                const {
+                    ctx
+                } = chart;
+                ctx.save();
+                ctx.font = 'bold 12px Helvetica, Arial, sans-serif';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+
+                chart.data.datasets.forEach((dataset, i) => {
+                    const meta = chart.getDatasetMeta(i);
+                    if (meta.hidden) return;
+
+                    meta.data.forEach((element, index) => {
+                        let dataVal = dataset.data[index];
+                        if (dataVal === undefined || dataVal === null || Number(dataVal) === 0) return;
+
+                        let text = dataVal.toString();
+                        if (chart.config.type === 'pie' || chart.config.type === 'doughnut') {
+                            let total = dataset.data.reduce((a, b) => Number(a) + Number(b), 0);
+                            let percent = Math.round((dataVal / total) * 100);
+                            if (percent < 5) return;
+                            text = `${dataVal} (${percent}%)`;
+                        }
+
+                        if (typeof element.tooltipPosition !== 'function') return;
+                        let pos = element.tooltipPosition();
+                        let x = pos.x;
+                        let y = pos.y;
+                        if ((chart.config.type === 'bar' || meta.type === 'bar') && element.base !== undefined) {
+                            y = (element.base + pos.y) / 2;
+                        }
+                        ctx.strokeStyle = 'rgba(0, 0, 0, 0.75)';
+                        ctx.lineWidth = 3;
+                        ctx.strokeText(text, x, y);
+                        ctx.fillStyle = '#ffffff';
+                        ctx.fillText(text, x, y);
+                    });
+                });
+                ctx.restore();
+            }
+        };
+        Chart.register(offlineDataLabels);
+
         const ctx = document.getElementById('hrChart');
         if (!ctx) return;
 
@@ -1852,148 +1883,76 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
         }
     });
 
-    // ---------- [SECURITY] AUTO-LOGOUT (Client-Side) ----------
-    const INACTIVITY_LIMIT_MS = <?php echo $clientTimeout * 1000; ?>;
-    let remainingMs = INACTIVITY_LIMIT_MS; // Dynamic value in milliseconds
 
-    function updateTimer() {
-        remainingMs -= 1000;
+    // --- AUTO-REFRESH SYSTEM ---
+    let isPaused = false;
 
-        if (remainingMs <= 0) {
-            window.location.href = 'logout.php?msg=Session_Expired_Auto';
-            return;
-        }
+    function refreshSystem() {
+        if (isPaused) return;
+        const spinner = document.getElementById('sync-spinner');
+        if (spinner) spinner.style.display = 'inline-block';
 
-        // Format MM:SS
-        const totalSeconds = Math.floor(remainingMs / 1000);
-        const m = Math.floor(totalSeconds / 60);
-        const s = totalSeconds % 60;
-        const text = `${m}:${s.toString().padStart(2, '0')}`;
-
-        const timerEl = document.getElementById('sessionTimer');
-        if (timerEl) {
-            timerEl.innerText = text;
-            // Turn red if < 2 mins
-            if (remainingMs < 120000) timerEl.classList.add('text-danger');
-            else timerEl.classList.remove('text-danger');
-        }
+        fetch('api/get_updates.php?_=' + new Date().getTime())
+            .then(response => response.json())
+            .then(data => {
+                const notifBadge = document.getElementById('notifyBadge');
+                const notifList = document.getElementById('notifyList');
+                if (notifBadge) {
+                    notifBadge.innerText = data.count;
+                    const badgeClass = (data.msgCount > 0) ? 'bg-danger' : 'bg-warning text-dark';
+                    notifBadge.className = `position-absolute top-0 start-100 translate-middle badge rounded-pill ${badgeClass}`;
+                    notifBadge.style.display = (data.count > 0) ? '' : 'none';
+                }
+                if (notifList && data.html) notifList.innerHTML = data.html;
+                if (window.hrChartInstance && data.chartLabels && data.chartValues) {
+                    window.hrChartInstance.data.labels = data.chartLabels;
+                    window.hrChartInstance.data.datasets[0].data = data.chartValues;
+                    window.hrChartInstance.update();
+                }
+            })
+            .catch(() => {})
+            .finally(() => {
+                if (spinner) spinner.style.display = 'none';
+            });
     }
 
-    function resetTimer() {
-        remainingMs = INACTIVITY_LIMIT_MS;
-    }
+    document.addEventListener("DOMContentLoaded", function() {
+        const toggleBtn = document.getElementById('refreshToggle');
+        if (toggleBtn) {
+            toggleBtn.addEventListener('click', function() {
+                isPaused = !isPaused;
+                this.innerHTML = isPaused ? '<i class="bi bi-play-circle-fill text-warning"></i>' : '<i class="bi bi-pause-circle"></i>';
+                this.title = isPaused ? "Resume Dashboard Updates" : "Pause Dashboard Updates";
+                if (!isPaused) refreshSystem();
+            });
+        }
+        setInterval(refreshSystem, <?php echo (int)$refreshInterval * 1000; ?>);
 
-    // Start loop & Listeners
-    setInterval(updateTimer, 1000);
-    window.onload = resetTimer;
-    document.addEventListener('mousemove', resetTimer);
-    document.addEventListener('keydown', resetTimer);
-    document.addEventListener('click', resetTimer);
-    document.addEventListener('scroll', resetTimer);
-</script>
+        refreshSystem(); // Run once on load
+    });
 
-<!-- SweetAlert2 for PHP Session Messages -->
-<script>
+    // --- SweetAlert2 for PHP Session Messages ---
     <?php if (!empty($_SESSION['backup_msg'])): ?>
         Swal.fire({
             icon: 'success',
             title: 'System Update',
-            text: <?php echo json_encode($_SESSION['backup_msg']); ?>,
+            text: <?= json_encode($_SESSION['backup_msg']) ?>,
             timer: 3000,
             showConfirmButton: false
-        }); // Clean URL
-        if (window.history.replaceState) {
-            const url = new URL(window.location.href);
-            url.searchParams.delete('backup_msg'); // Assuming session param mapped to url sometimes
-            // If using pure session, this might be redundant but safe
-        }
+        });
         <?php unset($_SESSION['backup_msg']); ?>
     <?php endif; ?>
-
     <?php if (!empty($_SESSION['error'])): ?>
         Swal.fire({
             icon: 'error',
             title: 'Action Failed',
-            text: '<?php echo h($_SESSION['error']); ?>'
+            text: <?= json_encode($_SESSION['error']) ?>
         });
-        // Clean URL
-        if (window.history.replaceState) {
-            // Session error usually doesn't need URL clean, but if it did:
-        }
         <?php unset($_SESSION['error']); ?>
     <?php endif; ?>
 </script>
 
 
-<!-- ---------- AUTO-REFRESH SYSTEM (Notifications + Dashboard Numbers) ---------- -->
-
-<script>
-    document.addEventListener("DOMContentLoaded", function() {
-        let isPaused = false;
-        const toggleBtn = document.getElementById('refreshToggle');
-
-        function refreshSystem() {
-            if (isPaused) return;
-
-            // Show spinner
-            const spinner = document.getElementById('sync-spinner');
-            if (spinner) spinner.style.display = 'inline-block';
-
-            // [FIX] Add timestamp to prevent browser caching of old numbers
-            fetch('api/get_updates.php?_=' + new Date().getTime())
-                .then(response => response.json())
-                .then(data => {
-                    // 1. Update Notifications (Your Existing Feature)
-                    const notifBadge = document.getElementById('notifyBadge');
-                    const notifList = document.getElementById('notifyList');
-
-                    if (notifBadge) {
-                        notifBadge.innerText = data.count;
-                        // [UX] Update Badge Color: Red if messages exist, Yellow if only actions
-                        const badgeClass = (data.msgCount > 0) ? 'bg-danger' : 'bg-warning text-dark';
-                        notifBadge.className = `position-absolute top-0 start-100 translate-middle badge rounded-pill ${badgeClass}`;
-                        notifBadge.style.display = (data.count > 0) ? '' : 'none';
-                    }
-
-                    // [FIX] Update the dropdown list content (This makes the 'Clear Read' button appear dynamically)
-                    if (notifList && data.html) {
-                        notifList.innerHTML = data.html;
-                    }
-
-                    // 2. Update Chart (Live Animation)
-                    if (window.hrChartInstance && data.chartLabels && data.chartValues) {
-                        window.hrChartInstance.data.labels = data.chartLabels;
-                        window.hrChartInstance.data.datasets[0].data = data.chartValues;
-                        window.hrChartInstance.update();
-                    }
-                })
-                .catch(err => console.log('Syncing...'))
-                .finally(() => {
-                    // Hide spinner
-                    if (spinner) spinner.style.display = 'none';
-                });
-        }
-
-        // Toggle Logic
-        if (toggleBtn) {
-            toggleBtn.addEventListener('click', function() {
-                isPaused = !isPaused;
-                if (isPaused) {
-                    this.innerHTML = '<i class="bi bi-play-circle-fill text-warning"></i>';
-                    this.title = "Resume Dashboard Updates";
-                } else {
-                    this.innerHTML = '<i class="bi bi-pause-circle"></i>';
-                    this.title = "Pause Dashboard Updates";
-                    refreshSystem(); // Trigger immediately
-                }
-            });
-        }
-
-        // Run based on settings (Default 60s)
-        setInterval(refreshSystem, <?php echo $refreshInterval * 1000; ?>);
-        refreshSystem(); // Run once on load
-    });
-</script>
 </body>
 
 </html>

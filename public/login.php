@@ -6,6 +6,8 @@ session_start();
 
 $alertType = '';
 $alertMsg = '';
+$lockoutSeconds = 0;
+$showAttempts = false;
 
 // Capture success messages (e.g. from Reset Password)
 if (isset($_GET['msg'])) {
@@ -18,47 +20,59 @@ if (isset($_GET['error'])) {
     $alertMsg = htmlspecialchars($_GET['error'], ENT_QUOTES, 'UTF-8');
 }
 
+// [FIX] Capture session alert (Post-Redirect-Get support)
+if (isset($_SESSION['login_error'])) {
+    $alertType = $_SESSION['login_alert_type'] ?? 'error';
+    $alertMsg = $_SESSION['login_error'];
+    unset($_SESSION['login_error'], $_SESSION['login_alert_type']);
+}
+
+// [FIX] Calculate lockout state on every load so timers remain accurate after redirects
+if (isset($_SESSION['login_attempts']) && $_SESSION['login_attempts'] >= 5) {
+    $lockout_time = 15 * 60; // 15 minutes
+    $time_since_last = time() - ($_SESSION['last_login_attempt'] ?? 0);
+    if ($time_since_last < $lockout_time) {
+        $lockoutSeconds = $lockout_time - $time_since_last;
+    }
+}
+
 // [SECURITY] Init Security & Generate CSRF Token for Login Form
 $security = new Security($pdo);
 $csrf_token = $security->generateCSRF();
 
 // 2. Handle Login Request
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
-
-    // [SECURITY] Session-based Rate Limiting (Brute Force Protection)
-    if (isset($_SESSION['login_attempts']) && $_SESSION['login_attempts'] >= 5) {
-        $lockout_time = 15 * 60; // 15 minutes
-        $time_since_last = time() - ($_SESSION['last_login_attempt'] ?? 0);
-        if ($time_since_last < $lockout_time) {
-            $remaining = ceil(($lockout_time - $time_since_last) / 60);
-            die("Security Error: Too many failed login attempts. Access blocked for $remaining minute(s).");
-        } else {
-            // Lockout period has passed
-            $_SESSION['login_attempts'] = 0;
-        }
-    }
-
-    $username = trim($_POST['username']);
+    $username = isset($_POST['username']) ? trim($_POST['username']) : '';
     $password = $_POST['password'] ?? ''; // DON'T trim password - users might have trailing spaces intentionally
 
     // [SECURITY] Input Validation & Character Limits
-    if (strlen($username) > 50) {
-        $alertType = 'error';
-        $alertMsg = "❌ Username exceeds 50 characters.";
+    if ($lockoutSeconds > 0) {
+        $_SESSION['login_error'] = "⛔ <strong>Too Many Attempts</strong><br>Your access is temporarily blocked for security.";
+        header("Location: login.php");
+        exit;
+    } elseif (strlen($username) > 50) {
+        $_SESSION['login_error'] = "❌ Username exceeds 50 characters.";
+        header("Location: login.php");
+        exit;
     } elseif (strlen($password) > 128) {
-        $alertType = 'error';
-        $alertMsg = "❌ Password exceeds 128 characters.";
+        $_SESSION['login_error'] = "❌ Password exceeds 128 characters.";
+        header("Location: login.php");
+        exit;
     } elseif (!isset($_POST['terms_agreed'])) {
-        $alertType = 'warning';
-        $alertMsg = "⚠️ You must agree to the Confidentiality Pledge to login.";
+        $_SESSION['login_alert_type'] = 'warning';
+        $_SESSION['login_error'] = "⚠️ You must agree to the Confidentiality Pledge to login.";
+        header("Location: login.php");
+        exit;
     } elseif (empty($_POST['csrf_token']) || empty($_SESSION['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'])) {
-        $alertType = 'error';
-        $alertMsg = "❌ Security Token Mismatch. Please refresh and try again.";
+        $_SESSION['login_error'] = "❌ Security Token Mismatch. Please refresh and try again.";
+        header("Location: login.php");
+        exit;
     } else {
         // Check Rate Limit
         if (!$security->checkRateLimit($_SERVER['REMOTE_ADDR'], 10, 60)) { // [SECURITY] Strict limit: 10 req/min
-            $alertType = 'error';
-            $alertMsg = "<strong>⛔ Too Many Requests!</strong><br>You are temporarily locked out. Please try again in a minute.";
+            $_SESSION['login_error'] = "<strong>⛔ Too Many Requests!</strong><br>You are temporarily locked out. Please try again in a minute.";
+            header("Location: login.php");
+            exit;
         } else {
             // Normal Login Logic
             $stmt = $pdo->prepare("SELECT * FROM users WHERE username = ?");
@@ -175,13 +189,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
                 $_SESSION['login_attempts'] = ($_SESSION['login_attempts'] ?? 0) + 1;
                 $_SESSION['last_login_attempt'] = time();
 
+                $chancesLeft = max(0, 5 - $_SESSION['login_attempts']);
+
                 // If user exists (wrong password), log ID. If not (wrong username), log 0.
                 $failedId = $user ? $user['id'] : 0;
                 $failDetails = $user ? "Failed login (Wrong Password)" : "Failed login (Unknown User: $username)";
                 $logger->log($failedId, 'LOGIN_FAILED', $failDetails);
 
-                $alertType = 'error';
-                $alertMsg = "❌ Invalid Username or Password. No record found in the system.";
+                $_SESSION['login_error'] = "❌ Invalid Username or Password.<br>You have <strong>$chancesLeft</strong> chances remaining before a 15-minute security lockout.";
+                header("Location: login.php");
+                exit;
             }
         }
     }
@@ -198,7 +215,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
     <link href="assets/bootstrap.min.css?v=3" rel="stylesheet">
     <link rel="stylesheet" href="assets/icons/bootstrap-icons.css?v=3">
     <script src="assets/sweetalert2.all.min.js?v=3"></script>
-    <link rel="icon" href="assets/tesp-logo.png?v=4" type="image/png">
+    <link rel="icon" type="image/png" href="../uploads/tesp-logo.png">
+    <link rel="shortcut icon" type="image/png" href="../uploads/tesp-logo.png">
+    <link rel="apple-touch-icon" href="../uploads/tesp-logo.png">
     <style>
         body {
             /* --- BACKGROUND THEMES (Uncomment the one you want to use) --- */
@@ -259,7 +278,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
 
     <div class="card login-card" style="width: 100%; max-width: 400px;">
         <div class="card-header bg-primary text-white text-center py-4">
-            <i class="bi bi-building-lock display-1"></i>
+            <img src="../uploads/tesp-logo.png" alt="TESP Logo" style="height: 100px; width: auto;" class="mb-2">
             <h3 class="mt-2 fw-bold">HR 201 Vault</h3>
             <p class="mb-0 opacity-75">TES Philippines, Inc.</p>
         </div>
@@ -356,12 +375,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
 
         // [SCRIPT] SweetAlert2 Trigger
         <?php if ($alertMsg): ?>
-            Swal.fire({
-                icon: '<?php echo $alertType; ?>',
-                title: '<?php echo ucfirst($alertType); ?>',
-                html: <?php echo json_encode($alertMsg); ?>,
-                confirmButtonColor: '#198754'
-            });
+            <?php if ($lockoutSeconds > 0): ?>
+                let timerInterval;
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Access Blocked',
+                    html: <?= json_encode($alertMsg) ?> + '<br><br>Please wait <strong></strong> before trying again.',
+                    timer: <?= $lockoutSeconds * 1000 ?>,
+                    timerProgressBar: true,
+                    allowOutsideClick: false,
+                    showConfirmButton: false,
+                    didOpen: () => {
+                        const b = Swal.getHtmlContainer().querySelector('strong');
+                        timerInterval = setInterval(() => {
+                            const remaining = Math.ceil(Swal.getTimerLeft() / 1000);
+                            const mins = Math.floor(remaining / 60);
+                            const secs = remaining % 60;
+                            b.textContent = `${mins}:${secs < 10 ? '0' : ''}${secs}`;
+                        }, 100);
+                    },
+                    willClose: () => {
+                        clearInterval(timerInterval);
+                    }
+                });
+            <?php else: ?>
+                Swal.fire({
+                    icon: '<?php echo $alertType; ?>',
+                    title: '<?php echo ucfirst($alertType); ?>',
+                    html: <?php echo json_encode($alertMsg); ?>,
+                    confirmButtonColor: '#198754'
+                });
+            <?php endif; ?>
         <?php endif; ?>
     </script>
 

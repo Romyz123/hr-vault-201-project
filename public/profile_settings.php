@@ -657,22 +657,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             confirmButtonColor: '#0d6efd'
         });
     }
-
-    // [SECURITY] Auto-Logout Timer
-    const timeoutDuration = <?php echo $clientTimeout * 1000; ?>;
-    let timeLeft = timeoutDuration;
-
-    function updateTimer() {
-        timeLeft -= 1000;
-        if (timeLeft <= 0) window.location.href = 'logout.php';
-        const m = Math.floor(timeLeft / 60000);
-        const s = Math.floor((timeLeft % 60000) / 1000);
-        document.getElementById('sessionTimer').innerText = `${m}:${s.toString().padStart(2, '0')}`;
-    }
-    document.addEventListener('mousemove', () => timeLeft = timeoutDuration);
-    document.addEventListener('keydown', () => timeLeft = timeoutDuration);
-    setInterval(updateTimer, 1000);
-    updateTimer();
 </script>
 
 <?php if (!empty($currentTotpSecret)): ?>

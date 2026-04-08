@@ -14,7 +14,7 @@ session_start();
 checkSessionTimeout($pdo); // [SECURITY] Enforce Timeout
 
 // 1. SECURITY
-if (!isset($_SESSION['user_id']) || !in_array($_SESSION['role'], ['ADMIN', 'HR'])) {
+if (!isset($_SESSION['user_id']) || !in_array($_SESSION['role'], ['ADMIN', 'MANAGER', 'HR'])) {
     $_SESSION['error'] = "Access Denied.";
     header("Location: index.php");
     exit;
@@ -442,6 +442,9 @@ if (isset($_GET['msg'])) {
     <link href="assets/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="assets/icons/bootstrap-icons.css">
     <script src="assets/sweetalert2.all.min.js"></script>
+    <link rel="icon" type="image/png" href="../uploads/tesp-logo.png">
+    <link rel="shortcut icon" type="image/png" href="../uploads/tesp-logo.png">
+    <link rel="apple-touch-icon" href="../uploads/tesp-logo.png">
     <style>
         .status-Open {
             background-color: #ffeeba;

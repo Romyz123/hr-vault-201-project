@@ -65,6 +65,9 @@ foreach ($logo_paths as $p) {
     <meta charset="UTF-8">
     <title>Performance Evaluation - <?php echo htmlspecialchars($data['last_name']); ?></title>
     <link rel="icon" href="assets/tesp-logo.png?v=4" type="image/png">
+    <link rel="icon" type="image/png" href="../uploads/tesp-logo.png">
+    <link rel="shortcut icon" type="image/png" href="../uploads/tesp-logo.png">
+    <link rel="apple-touch-icon" href="../uploads/tesp-logo.png">
     <style>
         @page {
             size: A4 landscape;
