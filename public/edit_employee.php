@@ -27,6 +27,24 @@ if (($_SESSION['role'] ?? '') !== 'ADMIN') {
 $security = new Security($pdo);
 $logger   = new Logger($pdo);
 
+// [NEW] Fetch dynamic requirements for document categorization check
+$REQUIRED_DOCS = [];
+try {
+    $reqStmt = $pdo->query("SELECT name, keywords FROM document_requirements ORDER BY id ASC");
+    $reqList = $reqStmt->fetchAll(PDO::FETCH_ASSOC);
+    foreach ($reqList as $r) {
+        $REQUIRED_DOCS[$r['name']] = array_map('trim', explode(',', $r['keywords']));
+    }
+} catch (Exception $e) {
+    $REQUIRED_DOCS = [
+        '201 Files' => ['201', 'PDS', 'Data Sheet', 'Resume'],
+        'Valid ID'  => ['ID', 'Passport', 'License', 'SSS', 'PhilHealth'],
+        'Contract'  => ['Contract', 'Appointment', 'Offer'],
+        'Medical'   => ['Medical', 'Fit to Work', 'Exam'],
+        'Clearance' => ['NBI', 'Police', 'Barangay']
+    ];
+}
+
 // 2. FETCH EMPLOYEE
 $id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
 if ($id <= 0) {
@@ -1072,12 +1090,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <?php else: ?>
                         <div class="list-group">
                             <?php foreach ($myDocs as $d): ?>
+                                <?php
+                                // [NEW] Check if this specific file is uncategorized
+                                $isThisDocUncategorized = true;
+                                $fCat = trim($d['category'] ?? '');
+                                $fName = $d['original_name'];
+                                foreach ($REQUIRED_DOCS as $reqName => $keywords) {
+                                    if (strcasecmp($fCat, $reqName) === 0) {
+                                        $isThisDocUncategorized = false;
+                                        break;
+                                    }
+                                    foreach ($keywords as $k) {
+                                        if ($k !== '' && (stripos($fName, $k) !== false || stripos($fCat, $k) !== false)) {
+                                            $isThisDocUncategorized = false;
+                                            break 2;
+                                        }
+                                    }
+                                }
+                                ?>
                                 <div class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
                                     <div>
                                         <div class="fw-bold text-dark">
                                             <i class="bi bi-file-earmark-text me-2 text-secondary"></i>
                                             <a href="view_doc.php?id=<?php echo $d['file_uuid']; ?>" target="_blank" class="text-decoration-none text-dark stretched-link">
                                                 <?php echo h($d['original_name']); ?>
+                                                <?php if ($isThisDocUncategorized): ?>
+                                                    <span class="badge bg-danger-subtle text-danger border border-danger-subtle ms-1" style="font-size: 0.65rem;"><i class="bi bi-tag-fill"></i> Needs Categorization</span>
+                                                <?php endif; ?>
                                             </a>
                                         </div>
                                         <small class="text-muted">
@@ -1824,6 +1863,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         {
             val: 'confidentiality',
             text: '🔒 Confidentiality Agreement (NDA)'
+        },
+        {
+            val: 'coe',
+            text: '📜 Certificate of Employment (COE)'
         },
         {
             val: 'project',

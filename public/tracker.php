@@ -102,9 +102,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($_SESSION['role'], ['ADMIN
             }
             try {
                 $id = $_POST['req_id'];
+
+                // Fetch name before deleting so we can clean up exemptions
+                $oldNameStmt = $pdo->prepare("SELECT name FROM document_requirements WHERE id = ?");
+                $oldNameStmt->execute([$id]);
+                $oldName = $oldNameStmt->fetchColumn();
+
+                // Delete the requirement
                 $pdo->prepare("DELETE FROM document_requirements WHERE id = ?")->execute([$id]);
+
+                // Clean up any N/A exemptions linked to this deleted requirement
+                if ($oldName) {
+                    $pdo->prepare("DELETE FROM document_exemptions WHERE requirement_name = ?")->execute([$oldName]);
+                }
+
                 $logger->log($_SESSION['user_id'], 'DELETE_REQUIREMENT', "Deleted document requirement ID: $id");
+                header("Location: tracker.php?msg=" . urlencode("✅ Requirement deleted successfully."));
+                exit;
             } catch (PDOException $e) {
+                header("Location: tracker.php?error=" . urlencode("❌ Error deleting requirement."));
+                exit;
             }
         } elseif ($_POST['action'] === 'edit_req') {
             // [SECURITY] Staff cannot manage requirements
@@ -117,22 +134,91 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($_SESSION['role'], ['ADMIN
                 $name = trim($_POST['req_name']);
                 $keys = trim($_POST['req_keywords']);
 
-                // [SECURITY] Validation
                 if (strlen($name) > 100 || !preg_match('/^[a-zA-Z0-9\s\-\(\)\.]+$/', $name)) {
                     header("Location: tracker.php?error=" . urlencode("Invalid Requirement Name."));
                     exit;
                 }
-                if (strlen($keys) > 255 || !preg_match('/^[a-zA-Z0-9\s\-\,\.]+$/', $keys)) {
-                    header("Location: tracker.php?error=" . urlencode("Invalid Keywords."));
-                    exit;
-                }
 
                 if ($name && $keys) {
-                    $logger->log($_SESSION['user_id'], 'EDIT_REQUIREMENT', "Edited document requirement ID: $id to $name ($keys)");
+                    // Fetch old name to update exemptions if the name changed
+                    $oldNameStmt = $pdo->prepare("SELECT name FROM document_requirements WHERE id = ?");
+                    $oldNameStmt->execute([$id]);
+                    $oldName = $oldNameStmt->fetchColumn();
+
                     $pdo->prepare("UPDATE document_requirements SET name = ?, keywords = ? WHERE id = ?")->execute([$name, $keys, $id]);
+
+                    // Keep exemptions synced with the new name
+                    if ($oldName && $oldName !== $name) {
+                        $pdo->prepare("UPDATE document_exemptions SET requirement_name = ? WHERE requirement_name = ?")->execute([$name, $oldName]);
+                    }
+
+                    $logger->log($_SESSION['user_id'], 'EDIT_REQUIREMENT', "Edited document requirement ID: $id to $name");
+                    header("Location: tracker.php?msg=" . urlencode("✅ Requirement updated successfully."));
+                    exit;
                 }
             } catch (PDOException $e) {
             }
+        } elseif ($_POST['action'] === 'apply_quick_fix') {
+            // [SECURITY] Staff cannot manage requirements
+            if ($_SESSION['role'] === 'STAFF') {
+                header("Location: tracker.php?error=" . urlencode("Access Denied."));
+                exit;
+            }
+
+            $fixDocs = $_POST['fix_docs'] ?? []; // Array of doc_id => selected_category
+
+            if (empty($fixDocs)) {
+                header("Location: tracker.php?error=" . urlencode("No documents selected for quick fix."));
+                exit;
+            }
+
+            $allowedCategories = array_keys($REQUIRED_DOCS);
+            try {
+                $catStmt = $pdo->query("SELECT name FROM document_requirements");
+                while ($r = $catStmt->fetch(PDO::FETCH_ASSOC)) {
+                    $allowedCategories[] = $r['name'];
+                }
+            } catch (Exception $e) {
+                // Use default categories if table is unavailable
+            }
+            $allowedCategories = array_unique($allowedCategories);
+
+            $updatedCount = 0;
+            $updatedIds = [];
+            $skippedIds = [];
+            try {
+                $pdo->beginTransaction();
+                $stmt = $pdo->prepare("UPDATE documents SET category = ?, updated_at = NOW() WHERE id = ?");
+                foreach ($fixDocs as $docId => $newCategory) {
+                    $docId = (int)$docId;
+                    $newCategory = trim($newCategory);
+                    if ($docId <= 0 || $newCategory === '') {
+                        continue;
+                    }
+                    if (!in_array($newCategory, $allowedCategories, true)) {
+                        $skippedIds[] = $docId;
+                        continue;
+                    }
+
+                    $stmt->execute([$newCategory, $docId]);
+                    if ($stmt->rowCount() > 0) {
+                        $updatedCount++;
+                        $updatedIds[] = $docId;
+                    }
+                }
+                $pdo->commit();
+                $updatedIdsCsv = $updatedIds ? implode(',', $updatedIds) : 'none';
+                $logger->log($_SESSION['user_id'], 'QUICK_FIX_DOCUMENTS', "Applied quick fix to $updatedCount documents. IDs: $updatedIdsCsv.");
+                $redirectMsg = "✅ Successfully re-categorized $updatedCount documents.";
+                if (!empty($skippedIds)) {
+                    $redirectMsg .= " Skipped invalid category updates for IDs: " . implode(',', array_unique($skippedIds)) . ".";
+                }
+                header("Location: tracker.php?msg=" . urlencode($redirectMsg));
+            } catch (Exception $e) {
+                if ($pdo->inTransaction()) $pdo->rollBack();
+                header("Location: tracker.php?error=" . urlencode("❌ Error: " . $e->getMessage()));
+            }
+            exit;
         } elseif ($_POST['action'] === 'send_reminder') {
             // [NEW] Handle Email Reminder Logic
             $empId = $_POST['emp_id'];
@@ -456,20 +542,6 @@ try {
     foreach ($reqList as $r) {
         $REQUIRED_DOCS[$r['name']] = array_map('trim', explode(',', $r['keywords']));
     }
-
-    // [NEW] Automatically add "Drug Test" and "NBI Clearance" if missing
-    $newDefaults = [
-        'Drug Test'     => 'Drug Test, Methamphetamine, THC',
-        'NBI Clearance' => 'NBI'
-    ];
-    foreach ($newDefaults as $defName => $defKeys) {
-        if (!isset($REQUIRED_DOCS[$defName])) {
-            $pdo->prepare("INSERT INTO document_requirements (name, keywords) VALUES (?, ?)")->execute([$defName, $defKeys]);
-            // Update runtime arrays so they show up immediately
-            $REQUIRED_DOCS[$defName] = array_map('trim', explode(',', $defKeys));
-            $reqList[] = ['id' => $pdo->lastInsertId(), 'name' => $defName, 'keywords' => $defKeys];
-        }
-    }
 } catch (Exception $e) {
     // [AUTO-FIX] Table missing? Create it and seed defaults immediately.
     $pdo->exec("CREATE TABLE IF NOT EXISTS document_requirements (
@@ -478,7 +550,7 @@ try {
         keywords TEXT NOT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )");
-    $pdo->exec("INSERT INTO document_requirements (name, keywords) VALUES ('201 Files', '201, PDS, Data Sheet, Resume'),('Valid ID', 'ID, Passport, License, SSS, PhilHealth'),('Contract', 'Contract, Appointment, Offer'),('Medical', 'Medical, Fit to Work, Exam'),('Clearance', 'NBI, Police, Barangay'),('Drug Test', 'Drug Test, Methamphetamine, THC'),('NBI Clearance', 'NBI')");
+    $pdo->exec("INSERT INTO document_requirements (name, keywords) VALUES ('201 Files', '201, PDS, Data Sheet, Resume'),('Valid ID', 'ID, Passport, License, SSS, PhilHealth'),('Contract', 'Contract, Appointment, Offer'),('Medical', 'Medical, Fit to Work, Exam'),('Clearance', 'NBI, Police, Barangay')");
 
     // Retry fetch
     $stmt = $pdo->query("SELECT * FROM document_requirements ORDER BY id ASC");
@@ -862,6 +934,11 @@ $paginatedEmployees = array_slice($employees, $offset, $perPage);
                     <button type="button" class="btn btn-outline-warning btn-sm" data-bs-toggle="modal" data-bs-target="#misclassifiedModal"><i class="bi bi-exclamation-triangle"></i> Misclassified Report</button>
                 </div>
                 <?php if (in_array($_SESSION['role'], ['ADMIN', 'MANAGER', 'HR'])): ?>
+                    <div class="col-12 col-md-auto">
+                        <button type="button" class="btn btn-outline-info btn-sm" data-bs-toggle="modal" data-bs-target="#quickFixOthersModal"><i class="bi bi-magic"></i> Quick Fix 'Others'</button>
+                    </div>
+                <?php endif; ?>
+                <?php if (in_array($_SESSION['role'], ['ADMIN', 'MANAGER', 'HR'])): ?>
                     <div class="col-12 col-md-auto ms-auto">
                         <a href="tracker.php" class="btn btn-outline-secondary btn-sm">Reset Filters</a>
                     </div>
@@ -1074,7 +1151,7 @@ $paginatedEmployees = array_slice($employees, $offset, $perPage);
                                 </td>
                                 <td>
                                     <button type="button" class="btn btn-sm btn-primary" onclick="editReq(<?php echo $r['id']; ?>)" title="Save Changes"><i class="bi bi-save"></i></button>
-                                    <button type="button" class="btn btn-sm btn-danger" onclick="deleteReq(<?php echo $r['id']; ?>)" title="Delete Requirement"><i class="bi bi-trash"></i></button>
+                                    <button type="button" class="btn btn-sm btn-danger delete-req-btn" data-id="<?php echo $r['id']; ?>" title="Delete Requirement"><i class="bi bi-trash"></i></button>
                                 </td>
                             </tr>
                         <?php endforeach; ?>
@@ -1111,10 +1188,10 @@ $paginatedEmployees = array_slice($employees, $offset, $perPage);
     </div>
 </div>
 
-<form id="delReqForm" method="POST" style="display:none;">
+<form id="deleteReqForm" method="POST" style="display:none;">
     <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
     <input type="hidden" name="action" value="delete_req">
-    <input type="hidden" name="req_id" id="delReqId">
+    <input type="hidden" name="req_id" id="deleteReqId">
 </form>
 
 <form id="editReqForm" method="POST" style="display:none;">
@@ -1379,12 +1456,109 @@ $paginatedEmployees = array_slice($employees, $offset, $perPage);
         initTags('new_tags_container', 'new_req_keywords');
     });
 
-    function deleteReq(id) {
-        if (confirm('Remove this requirement?')) {
-            document.getElementById('delReqId').value = id;
-            document.getElementById('delReqForm').submit();
+    // [NEW] Quick Fix Modal Initialization
+    document.addEventListener('DOMContentLoaded', function() {
+        const quickFixModal = document.getElementById('quickFixOthersModal');
+        if (quickFixModal) {
+            quickFixModal.addEventListener('show.bs.modal', function() {
+                const contentDiv = document.getElementById('quickFixContent');
+                const applyBtn = document.getElementById('applyQuickFixBtn');
+                contentDiv.innerHTML = '<div class="text-center p-5 text-muted"><div class="spinner-border text-info mb-3"></div><p>Scanning documents...</p></div>';
+                applyBtn.disabled = true;
+
+                fetch('api/quick_fix_others.php')
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.status === 'success') {
+                            if (data.suggestions.length === 0) {
+                                contentDiv.innerHTML = '<div class="alert alert-success text-center">No "Others" documents found that can be re-categorized.</div>';
+                            } else {
+                                let tableHtml = `
+                                    <table class="table table-sm table-hover align-middle small">
+                                        <thead>
+                                            <tr>
+                                                <th style="width: 30px;"><input type="checkbox" class="form-check-input" id="selectAllQuickFix"></th>
+                                                <th>Document</th>
+                                                <th>Employee</th>
+                                                <th>New Category</th>
+                                                <th>Matched Keywords</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>`;
+                                // HTML escape helper
+                                function escapeHtml(str) {
+                                    if (!str) return '';
+                                    const div = document.createElement('div');
+                                    div.textContent = str;
+                                    return div.innerHTML;
+                                }
+
+                                data.suggestions.forEach(s => {
+                                    let optionsHtml = `<option value="">-- Select Category --</option>`;
+                                    data.categories.forEach(cat => {
+                                        const selected = (s.suggested_category === cat) ? 'selected' : '';
+                                        optionsHtml += `<option value="${cat}" ${selected}>${cat}</option>`;
+                                    });
+                                    optionsHtml += `<option value="Others" ${s.suggested_category === null ? 'selected' : ''}>Others</option>`;
+
+                                    tableHtml += `
+                                        <tr>
+                                            <td><input type="checkbox" class="form-check-input quick-fix-checkbox" onchange="toggleRowInput(this)"></td>
+                                            <td>${escapeHtml(s.original_name)}</td>
+                                            <td>${escapeHtml(s.employee_name)}</td>
+                                            <td>
+                                                <select name="fix_docs[${s.doc_id}]" class="form-select form-select-sm category-select" disabled>
+                                                    ${optionsHtml}
+                                                </select>
+                                            </td>
+                                            <td><small class="text-muted">${escapeHtml(s.matched_keywords || 'None')}</small></td>
+                                        </tr>`;
+                                });
+                                tableHtml += `</tbody></table>`;
+                                contentDiv.innerHTML = tableHtml;
+                                applyBtn.disabled = false;
+
+                                document.getElementById('selectAllQuickFix').addEventListener('change', function() {
+                                    document.querySelectorAll('.quick-fix-checkbox').forEach(cb => {
+                                        cb.checked = this.checked;
+                                        toggleRowInput(cb);
+                                    });
+                                });
+                            }
+                        }
+                    });
+            });
         }
+    });
+
+    function toggleRowInput(checkbox) {
+        const row = checkbox.closest('tr');
+        const select = row.querySelector('.category-select');
+        if (select) select.disabled = !checkbox.checked;
     }
+
+    // [FIX] Delegated Event Listener for Delete Buttons in Modal
+    document.addEventListener('click', function(e) {
+        if (e.target.closest('.delete-req-btn')) {
+            const btn = e.target.closest('.delete-req-btn');
+            const reqId = btn.getAttribute('data-id');
+
+            Swal.fire({
+                title: 'Are you sure?',
+                text: "This will permanently delete this requirement!",
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#dc3545',
+                cancelButtonColor: '#6c757d',
+                confirmButtonText: 'Yes, delete it!'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    document.getElementById('deleteReqId').value = reqId;
+                    document.getElementById('deleteReqForm').submit();
+                }
+            });
+        }
+    });
 
     function editReq(id) {
         const name = document.getElementById('name_' + id).value;
@@ -1601,6 +1775,14 @@ $paginatedEmployees = array_slice($employees, $offset, $perPage);
     <?php if (isset($_GET['report']) && $_GET['report'] === 'misclassified'): ?>
         document.addEventListener('DOMContentLoaded', () => {
             new bootstrap.Modal(document.getElementById('misclassifiedModal')).show();
+        });
+    <?php endif; ?>
+
+    // [NEW] Auto-open Quick Fix modal if query param exists (for Dashboard link)
+    <?php if (isset($_GET['report']) && $_GET['report'] === 'quick_fix'): ?>
+        document.addEventListener('DOMContentLoaded', () => {
+            const qfModal = document.getElementById('quickFixOthersModal');
+            if (qfModal) new bootstrap.Modal(qfModal).show();
         });
     <?php endif; ?>
 

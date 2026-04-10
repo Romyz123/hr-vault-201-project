@@ -353,6 +353,75 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['cleanup_dev_files']) 
     exit;
 }
 
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'bulk_move_dept') {
+    if (!in_array(strtoupper($_SESSION['role'] ?? ''), ['ADMIN', 'MANAGER', 'HR'], true)) {
+        if (isset($logger)) {
+            $logger->log($_SESSION['user_id'] ?? 0, 'AUTH_FAIL', 'Unauthorized bulk_move_dept attempt.');
+        }
+        http_response_code(403);
+        header('Location: index.php?error=' . urlencode('Access denied.'));
+        exit;
+    }
+
+    $formToken = $_POST['csrf_token'] ?? '';
+    if (!hash_equals($_SESSION['csrf_token'], $formToken)) {
+        die('Invalid CSRF token');
+    }
+
+    $selectedIds = $_POST['selected_ids'] ?? [];
+    if (!is_array($selectedIds)) {
+        $selectedIds = [];
+    }
+    $selectedIds = array_values(array_filter(array_map('intval', $selectedIds), function ($id) {
+        return $id > 0;
+    }));
+
+    $targetDept = trim($_POST['target_dept'] ?? '');
+    $targetSection = trim($_POST['target_section'] ?? '');
+    $targetStatus = trim($_POST['target_status'] ?? '');
+    $redirectQuery = trim($_POST['redirect_query'] ?? '');
+
+    $redirectUrl = 'index.php';
+    if ($redirectQuery !== '') {
+        $redirectUrl = 'index.php?' . ltrim($redirectQuery, '?&');
+    }
+
+    $separator = (strpos($redirectUrl, '?') === false) ? '?' : '&';
+    if (empty($selectedIds)) {
+        header('Location: ' . $redirectUrl . $separator . 'error=' . urlencode('No employees were selected.'));
+        exit;
+    }
+
+    $updates = [];
+    $params = [];
+    if ($targetDept !== '') {
+        $updates[] = 'dept = ?';
+        $params[] = $targetDept;
+    }
+    if ($targetSection !== '') {
+        $updates[] = 'section = ?';
+        $params[] = $targetSection;
+    }
+    if ($targetStatus !== '') {
+        $updates[] = 'status = ?';
+        $params[] = $targetStatus;
+    }
+
+    if (!empty($updates)) {
+        $placeholders = implode(',', array_fill(0, count($selectedIds), '?'));
+        $sql = 'UPDATE employees SET ' . implode(', ', $updates) . ' WHERE id IN (' . $placeholders . ')';
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute(array_merge($params, $selectedIds));
+        $count = $stmt->rowCount();
+        $logger->log($_SESSION['user_id'], 'BULK_EMP_UPDATE', "Updated $count employee(s) using bulk action.");
+        header('Location: ' . $redirectUrl . $separator . 'msg=' . urlencode("Bulk update applied to $count employee(s)."));
+        exit;
+    }
+
+    header('Location: ' . $redirectUrl . $separator . 'msg=' . urlencode('No changes were applied. Select at least one update option.'));
+    exit;
+}
+
 // (Source 1) User-specific DB notifications
 $notifStmt = $pdo->prepare("
     SELECT id, title, message, type, created_at, 'db_msg' as source, NULL as link_id
@@ -409,6 +478,25 @@ $msgCount = count($db_notifs);
 $actionCount = count($doc_alerts);
 $notifCount = $msgCount + $actionCount;
 
+// ---------- 5.5) FETCH DYNAMIC REQUIREMENTS FOR ANALYTICS AND FILTERS ----------
+$REQUIRED_DOCS = [];
+try {
+    $reqStmt = $pdo->query("SELECT name, keywords FROM document_requirements ORDER BY id ASC");
+    $reqList = $reqStmt->fetchAll(PDO::FETCH_ASSOC);
+    foreach ($reqList as $r) {
+        $REQUIRED_DOCS[$r['name']] = array_map('trim', explode(',', $r['keywords']));
+    }
+} catch (Exception $e) {
+    // Failsafe fallback if the database table is suddenly missing
+    $REQUIRED_DOCS = [
+        '201 Files' => ['201', 'PDS', 'Data Sheet', 'Resume'],
+        'Valid ID'  => ['ID', 'Passport', 'License', 'SSS', 'PhilHealth'],
+        'Contract'  => ['Contract', 'Appointment', 'Offer'],
+        'Medical'   => ['Medical', 'Fit to Work', 'Exam'],
+        'Clearance' => ['NBI', 'Police', 'Barangay']
+    ];
+}
+
 // ---------- 6) BUILD FILTER SQL ----------
 $where  = ['1=1'];
 $params = [];
@@ -445,11 +533,27 @@ if ($filter_section !== '') {
 
 // Document Category filter (from Chart click)
 if ($filter_doc_cat !== '') {
-    if ($filter_doc_cat === 'Documents for Employee') {
-        $where[] = 'emp_id IN (SELECT employee_id FROM documents WHERE category IS NULL OR TRIM(category) = \'\')';
+    if ($filter_doc_cat === 'Uncategorized' || $filter_doc_cat === 'Documents for Employee') {
+        // Subquery: Find employees where at least one document doesn't match any known requirements
+        $subConditions = ["(category = 'Others' OR category IS NULL OR category = '')"];
+        foreach ($REQUIRED_DOCS as $name => $keys) {
+            $subConditions[] = "original_name NOT LIKE " . $pdo->quote("%$name%");
+            foreach ($keys as $k) if ($k !== '') $subConditions[] = "original_name NOT LIKE " . $pdo->quote("%$k%");
+        }
+        // [FIX] Apply the full keyword check logic to the subquery for accurate filtering
+        $where[] = 'emp_id IN (SELECT employee_id FROM documents WHERE ' . implode(' AND ', $subConditions) . ')';
     } else {
-        $where[] = 'emp_id IN (SELECT employee_id FROM documents WHERE category = ?)';
-        $params[] = $filter_doc_cat;
+        // Filter for a specific requirement: Match category name OR keywords in original_name
+        $subConditions = ["category = ?"];
+        $subParams = [$filter_doc_cat];
+        $keywords = $REQUIRED_DOCS[$filter_doc_cat] ?? [];
+        foreach ($keywords as $k) {
+            if ($k === '') continue;
+            $subConditions[] = "original_name LIKE ?";
+            $subParams[] = "%$k%";
+        }
+        $where[] = 'emp_id IN (SELECT employee_id FROM documents WHERE ' . implode(' OR ', $subConditions) . ')';
+        $params = array_merge($params, $subParams);
     }
 }
 
@@ -536,15 +640,40 @@ try {
 }
 
 // ---------- 10) CHART DATA (simple counts by category) ----------
-$statsSql = "
-    SELECT COALESCE(NULLIF(TRIM(category), ''), 'Documents for Employee'), COUNT(*) 
-    FROM documents";
-if ($hasDeletedAtColumn) {
-    $statsSql .= " WHERE deleted_at IS NULL";
+// Fetch all active documents for active employees
+$docsForStatsSql = "SELECT d.category, d.original_name FROM documents d 
+                    INNER JOIN employees e ON d.employee_id = e.emp_id 
+                    WHERE 1=1";
+if ($hasEmpDeletedAt) $docsForStatsSql .= " AND e.deleted_at IS NULL";
+if ($hasDeletedAtColumn) $docsForStatsSql .= " AND d.deleted_at IS NULL";
+$docsForStats = $pdo->query($docsForStatsSql)->fetchAll(PDO::FETCH_ASSOC);
+// Process categorization in PHP to support keyword matching (Sync with Tracker)
+$stats = array_fill_keys(array_keys($REQUIRED_DOCS), 0);
+$stats['Uncategorized'] = 0;
+
+foreach ($docsForStats as $doc) {
+    $matched = false;
+    $cat = trim($doc['category'] ?? '');
+    $name = $doc['original_name'];
+
+    foreach ($REQUIRED_DOCS as $reqName => $keywords) {
+        if (strcasecmp($cat, $reqName) === 0) {
+            $matched = true;
+        } else {
+            foreach ($keywords as $k) {
+                if ($k !== '' && (stripos($name, $k) !== false || stripos($cat, $k) !== false)) {
+                    $matched = true;
+                    break;
+                }
+            }
+        }
+        if ($matched) {
+            $stats[$reqName]++;
+            break;
+        }
+    }
+    if (!$matched) $stats['Uncategorized']++;
 }
-$statsSql .= " GROUP BY 1";
-$statsQuery = $pdo->query($statsSql);
-$stats = $statsQuery->fetchAll(PDO::FETCH_KEY_PAIR) ?: [];
 $labels = json_encode(array_values(array_keys($stats)), JSON_UNESCAPED_UNICODE);
 $data   = json_encode(array_values($stats),            JSON_UNESCAPED_UNICODE);
 
@@ -947,6 +1076,28 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
                     </select>
                 </div>
 
+                <div class="col-md-auto d-flex align-items-center">
+                    <button type="button" id="selectAllBtn" class="btn btn-sm btn-outline-secondary fw-bold shadow-sm" onclick="toggleSelectAllEmployees()">
+                        <i class="bi bi-check-all"></i> Select All
+                    </button>
+                </div>
+
+                <!-- [NEW] Filter for employees with uncategorized files -->
+                <div class="col-md-auto d-flex align-items-center">
+                    <?php $isUncatActive = ($filter_doc_cat === 'Uncategorized'); ?>
+                    <a href="index.php<?php echo $isUncatActive ? h(keepQuery(['doc_cat' => null, 'page' => 1])) : h(keepQuery(['doc_cat' => 'Uncategorized', 'page' => 1])); ?>"
+                        class="btn btn-sm <?php echo $isUncatActive ? 'btn-danger' : 'btn-outline-danger'; ?> fw-bold shadow-sm" title="Show only employees with unclassified documents">
+                        <i class="bi bi-tag-fill me-1"></i> <?php echo $isUncatActive ? 'Showing Uncategorized' : 'Filter Uncategorized'; ?>
+                    </a>
+                </div>
+
+                <!-- [NEW] Bulk Actions Button -->
+                <div class="col-md-auto d-flex align-items-center">
+                    <button type="button" id="bulkActionBtn" class="btn btn-sm btn-dark fw-bold shadow-sm d-none" data-bs-toggle="modal" data-bs-target="#bulkActionModal">
+                        <i class="bi bi-layers-half me-1"></i> Bulk Actions(<span id="selectedCount">0</span>)
+                    </button>
+                </div>
+
                 <!-- Search box (with maxlength for UX) -->
                 <div class="col-md-3 position-relative">
                     <div class="input-group input-group-sm">
@@ -1057,6 +1208,29 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
             $modalId    = 'viewModal' . (int)$emp['id'];
             $previewBoxId = 'preview-' . (int)$emp['id'];
 
+            // [NEW] Identify Employees with Uncategorized Files for the label
+            $hasUncategorized = false;
+            foreach ($files as $f) {
+                $matched = false;
+                $cat = trim($f['category'] ?? '');
+                foreach ($REQUIRED_DOCS as $reqName => $keywords) {
+                    if (strcasecmp($cat, $reqName) === 0) {
+                        $matched = true;
+                        break;
+                    }
+                    foreach ($keywords as $k) {
+                        if ($k !== '' && (stripos($f['original_name'], $k) !== false || stripos($cat, $k) !== false)) {
+                            $matched = true;
+                            break 2;
+                        }
+                    }
+                }
+                if (!$matched) {
+                    $hasUncategorized = true;
+                    break;
+                }
+            }
+
             // [NEW] Check Completeness & Recency
             $missingFields = [];
             $requiredFields = ['sss_no', 'tin_no', 'philhealth_no', 'pagibig_no', 'contact_number', 'present_address', 'emergency_name', 'emergency_contact'];
@@ -1080,6 +1254,11 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
                     data-bs-toggle="modal"
                     data-bs-target="#<?php echo h($modalId); ?>"
                     data-emp-id-str="<?php echo h($emp['emp_id']); ?>">
+                    <!-- [NEW] Selection Checkbox -->
+                    <div class="position-absolute top-0 start-0 p-2" style="z-index: 10;">
+                        <input type="checkbox" class="form-check-input emp-select-check" value="<?php echo (int)$emp['id']; ?>" onclick="event.stopPropagation(); setEmployeeSelected(this.value, this.checked);">
+                    </div>
+
                     <div class="card-body">
                         <div class="d-flex justify-content-between align-items-start mb-3">
                             <div class="me-3">
@@ -1091,6 +1270,9 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
                             <div class="flex-grow-1">
                                 <h5 class="card-title mb-1 fw-bold"><?php echo h($emp['first_name'] . ' ' . $emp['last_name']); ?></h5>
                                 <small class="text-muted d-block mb-1"><?php echo $deptDisplay; ?></small>
+                                <?php if ($hasUncategorized): ?>
+                                    <div class="mb-1"><span class="badge bg-danger-subtle text-danger border border-danger-subtle extra-small"><i class="bi bi-exclamation-triangle-fill"></i> Uncategorized Files</span></div>
+                                <?php endif; ?>
                                 <span class="badge <?php echo $statusBadge; ?> rounded-pill"><?php echo h($emp['status']); ?></span>
                                 <span class="badge <?php echo $roleBadge; ?> rounded-pill ms-1" title="System Role"><i class="bi bi-person-badge"></i> <?php echo h($sysRole); ?></span>
                             </div>
@@ -1192,6 +1374,23 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
                                                             $previewTarget  = 'preview-' . (int)$emp['id'];
                                                             $isTarget       = ($targetDocId !== '' && (string)$targetDocId === (string)$file['id']);
                                                             $rowClass       = $isTarget ? 'highlight-target' : '';
+
+                                                            // [NEW] Check if this specific file is uncategorized
+                                                            $isThisDocUncategorized = true;
+                                                            $fCat = trim($file['category'] ?? '');
+                                                            $fName = $file['original_name'];
+                                                            foreach ($REQUIRED_DOCS as $reqName => $keywords) {
+                                                                if (strcasecmp($fCat, $reqName) === 0) {
+                                                                    $isThisDocUncategorized = false;
+                                                                    break;
+                                                                }
+                                                                foreach ($keywords as $k) {
+                                                                    if ($k !== '' && (stripos($fName, $k) !== false || stripos($fCat, $k) !== false)) {
+                                                                        $isThisDocUncategorized = false;
+                                                                        break 2;
+                                                                    }
+                                                                }
+                                                            }
                                                         ?>
                                                             <div class="list-group-item list-group-item-action d-flex justify-content-between align-items-center p-2 <?php echo $rowClass; ?>">
                                                                 <a href="javascript:void(0);" class="text-decoration-none text-body text-truncate w-75"
@@ -1199,7 +1398,11 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
                                                                     <?php if ($isTarget): ?>
                                                                         <span class="badge bg-danger me-1"><i class="bi bi-exclamation-triangle-fill"></i> ACTION REQUIRED</span>
                                                                     <?php endif; ?>
-                                                                    <strong><?php echo h($file['original_name']); ?></strong><br>
+                                                                    <strong><?php echo h($file['original_name']); ?></strong>
+                                                                    <?php if ($isThisDocUncategorized): ?>
+                                                                        <span class="badge bg-danger-subtle text-danger border border-danger-subtle ms-1" style="font-size: 0.65rem;"><i class="bi bi-tag-fill"></i> Needs Categorization</span>
+                                                                    <?php endif; ?>
+                                                                    <br>
                                                                     <small class="text-secondary"><?php echo h($file['category']); ?></small>
                                                                     <?php if (!empty($file['is_resolved']) && !empty($file['resolution_note'])): ?>
                                                                         <br><span class="badge bg-success mt-1" style="font-size: 0.70rem; white-space: normal; cursor: pointer;" title="Edit Resolution Note" onclick="event.stopPropagation(); openResolveModal(<?php echo (int)$file['id']; ?>, <?php echo htmlspecialchars(json_encode($file['original_name']), ENT_QUOTES, 'UTF-8'); ?>, <?php echo htmlspecialchars(json_encode($file['resolution_note']), ENT_QUOTES, 'UTF-8'); ?>)"><i class="bi bi-check-circle-fill"></i> Resolved: <?php echo h($file['resolution_note']); ?> <i class="bi bi-pencil ms-1"></i></span>
@@ -1422,6 +1625,56 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
     </div>
 </div>
 
+<!-- [FIX] UNIFIED BULK ACTION MODAL -->
+<div class="modal fade" id="bulkActionModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <form method="POST" class="modal-content" id="bulkActionForm">
+            <input type="hidden" name="action" value="bulk_move_dept">
+            <input type="hidden" name="csrf_token" value="<?php echo h($_SESSION['csrf_token']); ?>">
+            <input type="hidden" name="redirect_query" value="<?php echo h($_SERVER['QUERY_STRING']); ?>">
+            <div id="bulkMoveIdsContainer"></div>
+
+            <div class="modal-header bg-dark text-white">
+                <h5 class="modal-title"><i class="bi bi-layers-half"></i> Bulk Actions</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>Update <strong id="modalSelectedCount">0</strong> selected employees:</p>
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Change Department</label>
+                    <select name="target_dept" id="bulkTargetDept" class="form-select" onchange="updateBulkSections()">
+                        <option value="">-- No Change --</option>
+                        <?php foreach (array_keys($deptMap) as $d): ?>
+                            <option value="<?php echo h($d); ?>"><?php echo h($d); ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Change Section</label>
+                    <select name="target_section" id="bulkTargetSection" class="form-select">
+                        <option value="">-- All Sections --</option>
+                    </select>
+                </div>
+                <hr>
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Update Status</label>
+                    <select name="target_status" class="form-select">
+                        <option value="">-- No Change --</option>
+                        <option value="Active">Active</option>
+                        <option value="Resigned">Resigned</option>
+                        <option value="Terminated">Terminated</option>
+                        <option value="AWOL">AWOL</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-primary fw-bold" onclick="submitBulkCOE()"><i class="bi bi-file-earmark-pdf"></i> Generate COE</button>
+                <button type="submit" class="btn btn-success fw-bold">Apply Changes</button>
+            </div>
+        </form>
+    </div>
+</div>
+
 <!-- SINGLE Bootstrap bundle include -->
 <script src="assets/bootstrap.bundle.min.js?v=3"></script>
 
@@ -1481,6 +1734,17 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
         const labels = <?php echo $labels ?: '[]'; ?>;
         const values = <?php echo $data   ?: '[]'; ?>;
 
+        // [NEW] Custom Color Palette Mapping - Edit hex codes here to customize colors
+        const categoryColorMap = {
+            '201 Files': '#4BC0C0',
+            'Contract': '#36A2EB',
+            'Valid ID': '#FFCE56',
+            'Medical': '#9966FF',
+            'Clearance': '#FF9F40',
+            'Uncategorized': '#dc3545' // Keep Red for attention or change to any Hex
+        };
+        const defaultPalette = ['#4BC0C0', '#36A2EB', '#FFCE56', '#9966FF', '#FF9F40', '#FF6384'];
+
         window.hrChartInstance = new Chart(ctx, {
             type: 'bar',
             data: {
@@ -1489,12 +1753,9 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
                     label: 'Documents',
                     data: values,
                     backgroundColor: (ctx) => {
-                        const palette = ['#4BC0C0', '#36A2EB', '#FFCE56', '#9966FF', '#FF9F40', '#FF6384'];
                         if (ctx.dataIndex != null) {
-                            // Access current labels dynamically to support live updates
                             const lbl = ctx.chart.data.labels[ctx.dataIndex];
-                            if (lbl === 'Documents for Employee') return '#dc3545'; // Distinct Red
-                            return palette[ctx.dataIndex % palette.length];
+                            return categoryColorMap[lbl] || defaultPalette[ctx.dataIndex % defaultPalette.length];
                         }
                         return '#36A2EB';
                     },
@@ -1532,7 +1793,12 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
                     if (elements.length > 0) {
                         const index = elements[0].index;
                         const label = window.hrChartInstance.data.labels[index];
-                        window.location.href = `index.php?doc_cat=${encodeURIComponent(label)}`;
+                        // [NEW] Redirect Uncategorized clicks directly to the Quick Fix tool in the tracker
+                        if (label === 'Uncategorized' || label === 'Documents for Employee') {
+                            window.location.href = 'tracker.php?report=quick_fix';
+                        } else {
+                            window.location.href = `index.php?doc_cat=${encodeURIComponent(label)}`;
+                        }
                     }
                 },
                 onHover: (event, chartElement) => {
@@ -1830,6 +2096,114 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
             }
         }, 1000);
     }
+
+    // ---------- Bulk Selection Helpers ----------
+    const selectionStorageKey = 'hr201_selected_employees';
+    let selectedEmployeeIds = new Set();
+
+    function loadSelectedEmployees() {
+        const stored = localStorage.getItem(selectionStorageKey);
+        if (!stored) return;
+        try {
+            const ids = JSON.parse(stored);
+            if (Array.isArray(ids)) {
+                selectedEmployeeIds = new Set(ids.map(id => String(id)).filter(id => id !== ''));
+            }
+        } catch (e) {
+            selectedEmployeeIds = new Set();
+        }
+    }
+
+    function saveSelectedEmployees() {
+        localStorage.setItem(selectionStorageKey, JSON.stringify(Array.from(selectedEmployeeIds)));
+    }
+
+    function updateSelectionCount() {
+        const selectedCount = document.getElementById('selectedCount');
+        const bulkBtn = document.getElementById('bulkActionBtn');
+        const count = selectedEmployeeIds.size;
+        if (selectedCount) selectedCount.innerText = count;
+        if (bulkBtn) bulkBtn.classList.toggle('d-none', count === 0);
+        buildBulkIdsInputs();
+    }
+
+    function setEmployeeSelected(id, selected) {
+        if (!id) return;
+        if (selected) {
+            selectedEmployeeIds.add(String(id));
+        } else {
+            selectedEmployeeIds.delete(String(id));
+        }
+        saveSelectedEmployees();
+        updateSelectionCount();
+    }
+
+    function syncSelectionCheckboxes() {
+        document.querySelectorAll('.emp-select-check').forEach(cb => {
+            cb.checked = selectedEmployeeIds.has(String(cb.value));
+        });
+        updateSelectionCount();
+    }
+
+    function toggleSelectAllEmployees() {
+        const checkboxes = Array.from(document.querySelectorAll('.emp-select-check'));
+        if (checkboxes.length === 0) return;
+        const allChecked = checkboxes.every(cb => cb.checked);
+        checkboxes.forEach(cb => {
+            cb.checked = !allChecked;
+            if (!cb.disabled) {
+                if (!allChecked) {
+                    selectedEmployeeIds.add(String(cb.value));
+                } else {
+                    selectedEmployeeIds.delete(String(cb.value));
+                }
+            }
+        });
+        saveSelectedEmployees();
+        updateSelectionCount();
+    }
+
+    function collectSelectedEmployeeIds() {
+        return Array.from(selectedEmployeeIds);
+    }
+
+    function buildBulkIdsInputs() {
+        const container = document.getElementById('bulkMoveIdsContainer');
+        if (!container) return;
+        container.innerHTML = '';
+        collectSelectedEmployeeIds().forEach(id => {
+            const input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = 'selected_ids[]';
+            input.value = id;
+            container.appendChild(input);
+        });
+        const modalCount = document.getElementById('modalSelectedCount');
+        if (modalCount) modalCount.innerText = collectSelectedEmployeeIds().length;
+    }
+
+    function submitBulkCOE() {
+        const ids = collectSelectedEmployeeIds();
+        if (ids.length === 0) {
+            Swal.fire('No selection', 'Please select one employee to generate a COE.', 'warning');
+            return;
+        }
+        if (ids.length > 1) {
+            Swal.fire('Multiple employees selected', 'Please select only one employee to generate a COE at this time.', 'info');
+            return;
+        }
+        const id = encodeURIComponent(ids[0]);
+        window.open(`generate_document.php?id=${id}&type=coe`, '_blank');
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        loadSelectedEmployees();
+        syncSelectionCheckboxes();
+        const bulkModal = document.getElementById('bulkActionModal');
+        if (bulkModal) {
+            bulkModal.addEventListener('show.bs.modal', buildBulkIdsInputs);
+        }
+    });
 
     // ---------- Prevent "stuck" screen with nested modals ----------
     document.addEventListener('hidden.bs.modal', function() {

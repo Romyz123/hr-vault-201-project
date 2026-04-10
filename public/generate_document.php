@@ -188,6 +188,8 @@ if ($type === 'probationary') {
     $templateFile = __DIR__ . '/templates/confidentiality_agreement.php';
 } elseif ($type === 'project') {
     $templateFile = __DIR__ . '/templates/contract_project.php';
+} elseif ($type === 'coe') {
+    $templateFile = __DIR__ . '/templates/coe.php';
 } elseif ($type === 'notice_to_explain') {
     $templateFile = __DIR__ . '/templates/notice_to_explain.php';
 } elseif ($type === 'notice_of_decision') {
@@ -320,7 +322,7 @@ if ($format === 'word') {
         </div>
 
         <div class="page">
-            <?php if ($type !== 'probationary' && $type !== 'probationary_lms' && $type !== 'confidentiality' && $type !== 'project' && $type !== 'consultant' && $type !== 'notice_to_explain' && $type !== 'notice_of_decision' && $type !== 'employee_pledge' && $type !== 'whistleblowing' && $type !== 'regular' && $type !== 'data_consent'): ?>
+            <?php if ($type !== 'probationary' && $type !== 'probationary_lms' && $type !== 'confidentiality' && $type !== 'project' && $type !== 'consultant' && $type !== 'notice_to_explain' && $type !== 'notice_of_decision' && $type !== 'employee_pledge' && $type !== 'whistleblowing' && $type !== 'regular' && $type !== 'data_consent' && $type !== 'coe'): ?>
                 <table style="width: 100%; margin-bottom: 10px;">
                     <tr>
                         <td style="width: 130px; text-align: right; vertical-align: middle; padding-right: 15px;">

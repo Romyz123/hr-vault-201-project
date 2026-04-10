@@ -367,9 +367,9 @@ $complianceData = [
     'by_dept_data' => '[]',
 ];
 try {
-    // A. Fetch Requirements
     $REQUIRED_DOCS = [];
-    $reqStmt = $pdo->query("SELECT name, keywords FROM document_requirements ORDER BY name ASC");
+    // [SYNC] Fetch dynamic requirements from database ordered by ID
+    $reqStmt = $pdo->query("SELECT name, keywords FROM document_requirements ORDER BY id ASC");
     while ($row = $reqStmt->fetch(PDO::FETCH_ASSOC)) {
         $REQUIRED_DOCS[$row['name']] = array_map('trim', explode(',', $row['keywords']));
     }
@@ -390,11 +390,13 @@ try {
         foreach ($allDocs as $d) {
             $empId = $d['employee_id'];
             foreach ($REQUIRED_DOCS as $reqKey => $keywords) {
-                if (stripos($d['category'], $reqKey) !== false) {
+                if (strcasecmp(trim($d['category']), $reqKey) === 0) {
                     $docsMap[$empId][$reqKey] = true;
                     continue;
                 }
                 foreach ($keywords as $k) {
+                    $k = trim($k);
+                    if ($k === '') continue;
                     if (stripos($d['original_name'], $k) !== false) {
                         $docsMap[$empId][$reqKey] = true;
                         break;
@@ -478,30 +480,6 @@ try {
     ";
     $expStmt = $pdo->prepare($expSQL);
     $expStmt->execute($expParams);
-    $rawExp = $expStmt->fetchAll(PDO::FETCH_ASSOC);
-    $expParams = [];
-    if ($jobSearch !== '') {
-        $expSQL .= " AND e.job_title LIKE ? ";
-        $expParams[] = "%$jobSearch%";
-    }
-    if ($deptFilter !== '') {
-        $expSQL .= " AND e.dept = ? ";
-        $expParams[] = $deptFilter;
-    }
-    if ($agencyFilter !== '') {
-        if ($agencyFilter === 'TESP_DIRECT') {
-            $expSQL .= " AND (e.agency_name IS NULL OR e.agency_name = '' OR e.agency_name LIKE 'TESP%') ";
-        } else {
-            $expSQL .= " AND e.agency_name = ? ";
-            $expParams[] = $agencyFilter;
-        }
-    }
-    $expSQL .= "
-        GROUP BY ym, d.category
-    ";
-    $expStmt = $pdo->prepare($expSQL);
-    $expStmt->execute($expParams);
-    $rawExp = $expStmt->fetchAll(PDO::FETCH_ASSOC);
     $rawExp = $expStmt->fetchAll(PDO::FETCH_ASSOC);
     $monthsMap = [];
     $categoriesFound = [];

@@ -206,8 +206,11 @@ $ageCounts = json_encode(array_values($ageBands));
         <!-- AGE DEMOGRAPHICS WIDGET -->
         <div class="col-lg-4">
             <div class="card shadow-sm h-100">
-                <div class="card-header fw-bold text-dark">
-                    <i class="bi bi-pie-chart-fill text-warning"></i> Age Demographics
+                <div class="card-header d-flex align-items-center justify-content-between fw-bold text-dark">
+                    <div>
+                        <i class="bi bi-pie-chart-fill text-warning"></i> Age Demographics
+                    </div>
+                    <button class="btn btn-sm btn-outline-primary fw-bold" onclick="downloadAgeData()" title="Download Data as CSV"><i class="bi bi-download"></i> Download Data</button>
                 </div>
                 <div class="card-body position-relative d-flex align-items-center justify-content-center" style="min-height: 250px;">
                     <canvas id="ageChart"></canvas>
@@ -235,6 +238,30 @@ $ageCounts = json_encode(array_values($ageBands));
 <script src="assets/chart.min.js"></script>
 <script src="assets/bootstrap.bundle.min.js"></script>
 <script>
+    /**
+     * [NEW] Exports current Age Demographics chart data to a CSV file.
+     */
+    function downloadAgeData() {
+        if (!window.ageChartInstance) return;
+        const labels = window.ageChartInstance.data.labels;
+        const values = window.ageChartInstance.data.datasets[0].data;
+        let csv = "\uFEFFAge Bracket,Count\n"; // Added BOM for Excel UTF-8
+        labels.forEach((label, i) => {
+            const cleanLabel = label.includes(',') ? `"${label}"` : label;
+            csv += `${cleanLabel},${values[i]}\n`;
+        });
+        const blob = new Blob([csv], {
+            type: 'text/csv;charset=utf-8;'
+        });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `Age_Demographics_Stats_${new Date().toISOString().split('T')[0]}.csv`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    }
+
     document.addEventListener('DOMContentLoaded', function() {
         // [NEW] 100% Offline Custom DataLabels Plugin
         const offlineDataLabels = {

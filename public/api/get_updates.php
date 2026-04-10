@@ -10,6 +10,8 @@ try {
     $userId = $_SESSION['user_id'] ?? 0;
     $userRole = $_SESSION['role'] ?? '';
 
+    $hideZeros = $_SESSION['hide_chart_zeros'] ?? false;
+
     // [NEW] Fetch Dynamic Categories for consistency
     $dynamicCats = [];
     try {
@@ -167,20 +169,63 @@ try {
 
 
     // [FIX] Exclude deleted files from the count
-    $statsSql = "SELECT category, COUNT(*) as count FROM documents WHERE 1=1";
-    if ($hasDeletedAt) $statsSql .= " AND deleted_at IS NULL";
+    // [SYNC] Fetch dynamic requirements from database to match Tracker and Dashboard logic
+    $reqStmt = $pdo->query("SELECT name, keywords FROM document_requirements ORDER BY id ASC");
+    $reqList = $reqStmt->fetchAll(PDO::FETCH_ASSOC);
+    $REQUIRED_DOCS = [];
+    foreach ($reqList as $r) {
+        $REQUIRED_DOCS[$r['name']] = array_map('trim', explode(',', $r['keywords']));
+    }
+
+    // Fetch all active documents for active employees (matching index.php logic)
+    $hasEmployeeDeletedAt = false;
+    try {
+        $chk = $pdo->query("SHOW COLUMNS FROM employees LIKE 'deleted_at'");
+        if ($chk->rowCount() > 0) $hasEmployeeDeletedAt = true;
+    } catch (Exception $e) {
+    }
+
+    $docsForStatsSql = "SELECT d.category, d.original_name FROM documents d 
+                        INNER JOIN employees e ON d.employee_id = e.emp_id
+                        WHERE 1=1";
+    if ($hasEmployeeDeletedAt) $docsForStatsSql .= " AND e.deleted_at IS NULL";
+    if ($hasDeletedAt) $docsForStatsSql .= " AND d.deleted_at IS NULL";
     if ($hasUploadedBy && !in_array($userRole, ['ADMIN', 'MANAGER', 'HR'], true)) {
-        $statsSql .= " AND uploaded_by = " . (int)$userId;
+        $docsForStatsSql .= " AND d.uploaded_by = " . (int)$userId;
     }
-    $statsSql .= " GROUP BY category";
+    $docsForStats = $pdo->query($docsForStatsSql)->fetchAll(PDO::FETCH_ASSOC);
+    $chartStats = array_fill_keys(array_keys($REQUIRED_DOCS), 0);
+    $unCatCount = 0;
 
-    $dbStats = $pdo->query($statsSql)->fetchAll(PDO::FETCH_KEY_PAIR) ?: [];
-
-    $chartStats = [];
-    foreach ($dynamicCats as $cat) {
-        $chartStats[$cat] = (int)($dbStats[$cat] ?? 0);
+    foreach ($docsForStats as $doc) {
+        $matched = false;
+        $cat = trim($doc['category'] ?? '');
+        $name = $doc['original_name'];
+        foreach ($REQUIRED_DOCS as $reqName => $keywords) {
+            if (strcasecmp($cat, $reqName) === 0) {
+                $matched = true;
+            } else {
+                foreach ($keywords as $k) {
+                    if ($k !== '' && (stripos($name, $k) !== false || stripos($cat, $k) !== false)) {
+                        $matched = true;
+                        break;
+                    }
+                }
+            }
+            if ($matched) {
+                $chartStats[$reqName]++;
+                break;
+            }
+        }
+        if (!$matched) $unCatCount++;
     }
-    $chartStats['Documents for Employee'] = (int)($dbStats[''] ?? $dbStats[null] ?? 0);
+
+    if ($unCatCount > 0) $chartStats['Uncategorized'] = $unCatCount;
+
+    // Remove zeros from chart if setting is active
+    if ($hideZeros) {
+        $chartStats = array_filter($chartStats, fn($v) => $v > 0);
+    }
 
     echo json_encode([
         'status' => 'success',

@@ -341,13 +341,19 @@ try {
     $alarmStmt->execute();
     $upcomingAlarms = $alarmStmt->fetchAll(PDO::FETCH_ASSOC);
 
-    // 7. Chart Data (Count by Status)
-    $chartData = $pdo->query("SELECT status, COUNT(*) as count FROM candidates GROUP BY status")->fetchAll(PDO::FETCH_ASSOC);
+    // [FIX] Apply 'Hide Zero' logic with consistent ordering for the pipeline chart
+    $stmt = $pdo->query("SELECT status, COUNT(*) as count FROM candidates GROUP BY status");
+    $dbRecruit = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
+
+    $recruitOrder = ['New Applicant', 'Screening', 'Interviewed', 'Hired', 'Rejected'];
     $labels = [];
     $data = [];
-    foreach ($chartData as $row) {
-        $labels[] = $row['status'];
-        $data[] = $row['count'];
+    foreach ($recruitOrder as $s) {
+        $count = (int)($dbRecruit[$s] ?? 0);
+        if ($count > 0) {
+            $labels[] = $s;
+            $data[] = $count;
+        }
     }
 
     // --- FETCH TABLE DATA ---
@@ -723,7 +729,13 @@ include 'header.php';
 <!-- PIPELINE BREAKDOWN (MOVED DOWN) -->
 <div class="col-lg-6 mb-4">
     <div class="card shadow border-0 h-100">
-        <div class="card-header bg-dark text-white fw-bold"><i class="bi bi-pie-chart-fill me-2"></i> Pipeline Breakdown</div>
+        <div class="card-header d-flex align-items-center justify-content-between bg-dark text-white fw-bold">
+            <span><i class="bi bi-pie-chart-fill me-2"></i> Pipeline Breakdown</span>
+            <div class="d-flex gap-2">
+                <button class="btn btn-sm btn-outline-light fw-bold" onclick="downloadSpecificChart('pipelineChart', 'Recruitment_Pipeline')" title="Download Image"><i class="bi bi-image"></i> Download Image</button>
+                <button class="btn btn-sm btn-outline-light fw-bold" onclick="downloadPipelineData()" title="Download Data as CSV"><i class="bi bi-download"></i> Download Data</button>
+            </div>
+        </div>
         <div class="card-body" style="min-height: 300px;">
             <canvas id="pipelineChart"></canvas>
         </div>
@@ -943,6 +955,53 @@ include 'header.php';
 
 <script src="assets/bootstrap.bundle.min.js"></script>
 <script>
+    /**
+     * [NEW] Exports a chart canvas to a PNG image with a white background.
+     */
+    function downloadSpecificChart(canvasId, filename) {
+        const canvas = document.getElementById(canvasId);
+        if (canvas) {
+            const chartInst = Chart.getChart(canvas);
+            if (chartInst) chartInst.update('none');
+
+            const destinationCanvas = document.createElement("canvas");
+            destinationCanvas.width = canvas.width;
+            destinationCanvas.height = canvas.height;
+            const destCtx = destinationCanvas.getContext('2d');
+            destCtx.fillStyle = '#FFFFFF';
+            destCtx.fillRect(0, 0, canvas.width, canvas.height);
+            destCtx.drawImage(canvas, 0, 0);
+
+            const link = document.createElement('a');
+            link.download = filename + '_' + new Date().toISOString().split('T')[0] + '.png';
+            link.href = destinationCanvas.toDataURL('image/png');
+            link.click();
+        }
+    }
+    /**
+     * [NEW] Exports current Recruitment Pipeline chart data to a CSV file.
+     */
+    function downloadPipelineData() {
+        if (!pipelineChart) return;
+        const labels = pipelineChart.data.labels;
+        const values = pipelineChart.data.datasets[0].data;
+        let csv = "\uFEFFPhase,Total Candidates\n"; // Added BOM for Excel UTF-8
+        labels.forEach((label, i) => {
+            const cleanLabel = label.includes(',') ? `"${label}"` : label;
+            csv += `${cleanLabel},${values[i]}\n`;
+        });
+        const blob = new Blob([csv], {
+            type: 'text/csv;charset=utf-8;'
+        });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `Recruitment_Pipeline_Stats_${new Date().toISOString().split('T')[0]}.csv`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    }
+
     // [NEW] 100% Offline Custom DataLabels Plugin
     const offlineDataLabels = {
         id: 'offlineDataLabels',

@@ -68,10 +68,12 @@ $docsMap = [];
 foreach ($allDocs as $d) {
     $empId = $d['employee_id'];
     foreach ($REQUIRED_DOCS as $reqKey => $keywords) {
-        if (stripos($d['category'], $reqKey) !== false) {
+        if (strcasecmp(trim($d['category']), trim($reqKey)) === 0) {
             $docsMap[$empId][$reqKey] = true;
         } else {
             foreach ($keywords as $k) {
+                $k = trim($k);
+                if ($k === '') continue;
                 if (stripos($d['original_name'], $k) !== false || stripos($d['category'], $k) !== false) {
                     $docsMap[$empId][$reqKey] = true;
                     break;
