@@ -8469,3 +8469,71 @@ Stack trace:
 [10-Apr-2026 15:10:09 Asia/Manila] PHP Warning:  Undefined variable $companyPresident in C:\xampp\htdocs\hr 201\public\templates\coe.php on line 48
 [10-Apr-2026 15:10:09 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\genB25F.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_document.php on line 400
 [10-Apr-2026 15:12:15 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\gen9CDB.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_document.php on line 400
+[10-Apr-2026 15:38:58 Asia/Manila] PHP Fatal error:  Uncaught Error: Call to undefined function h() in C:\xampp\htdocs\hr 201\public\expiry_report.php:171
+Stack trace:
+#0 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\expiry_report.php on line 171
+[10-Apr-2026 15:39:04 Asia/Manila] PHP Fatal error:  Uncaught Error: Call to undefined function h() in C:\xampp\htdocs\hr 201\public\expiry_report.php:171
+Stack trace:
+#0 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\expiry_report.php on line 171
+[10-Apr-2026 15:55:09 Asia/Manila] PHP Warning:  Undefined variable $error in C:\xampp\htdocs\hr 201\public\settings.php on line 326
+[10-Apr-2026 15:55:16 Asia/Manila] PHP Warning:  Undefined variable $error in C:\xampp\htdocs\hr 201\public\settings.php on line 326
+[10-Apr-2026 15:55:51 Asia/Manila] PHP Warning:  Undefined variable $error in C:\xampp\htdocs\hr 201\public\settings.php on line 326
+[10-Apr-2026 16:00:47 Asia/Manila] PHP Warning:  Undefined variable $error in C:\xampp\htdocs\hr 201\public\settings.php on line 326
+[10-Apr-2026 16:01:00 Asia/Manila] PHP Warning:  Undefined variable $error in C:\xampp\htdocs\hr 201\public\settings.php on line 326
+[10-Apr-2026 17:20:41 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\gen3385.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_document.php on line 400
+[10-Apr-2026 18:16:06 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\genEDE9.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_document.php on line 400
+[10-Apr-2026 18:16:10 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\genFE75.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_document.php on line 400
+[10-Apr-2026 18:20:16 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\genC08F.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_document.php on line 400
+[10-Apr-2026 18:24:06 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\gen42E0.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_document.php on line 400
+[10-Apr-2026 18:26:09 Asia/Manila] PHP Warning:  Undefined variable $employmentEnd in C:\xampp\htdocs\hr 201\public\generate_document.php on line 204
+[10-Apr-2026 18:26:10 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\gen23D6.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_document.php on line 392
+[10-Apr-2026 18:26:53 Asia/Manila] PHP Warning:  Undefined variable $employmentEnd in C:\xampp\htdocs\hr 201\public\generate_document.php on line 204
+[10-Apr-2026 18:27:02 Asia/Manila] PHP Warning:  Undefined variable $employmentEnd in C:\xampp\htdocs\hr 201\public\generate_document.php on line 204
+[10-Apr-2026 18:34:39 Asia/Manila] PHP Warning:  Undefined variable $employmentEnd in C:\xampp\htdocs\hr 201\public\generate_document.php on line 204
+[10-Apr-2026 18:34:39 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\genEA81.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_document.php on line 392
+[10-Apr-2026 18:56:14 Asia/Manila] PHP Warning:  Undefined variable $emp in C:\xampp\htdocs\hr 201\public\generate_document.php on line 61
+[10-Apr-2026 18:56:14 Asia/Manila] PHP Warning:  Trying to access array offset on value of type null in C:\xampp\htdocs\hr 201\public\generate_document.php on line 61
+[10-Apr-2026 18:56:14 Asia/Manila] PHP Warning:  Undefined variable $emp in C:\xampp\htdocs\hr 201\public\generate_document.php on line 61
+[10-Apr-2026 18:56:14 Asia/Manila] PHP Warning:  Trying to access array offset on value of type null in C:\xampp\htdocs\hr 201\public\generate_document.php on line 61
+[10-Apr-2026 18:56:14 Asia/Manila] PHP Warning:  Undefined variable $emp in C:\xampp\htdocs\hr 201\public\generate_document.php on line 62
+[10-Apr-2026 18:56:14 Asia/Manila] PHP Warning:  Trying to access array offset on value of type null in C:\xampp\htdocs\hr 201\public\generate_document.php on line 62
+[10-Apr-2026 18:56:14 Asia/Manila] PHP Warning:  Undefined variable $emp in C:\xampp\htdocs\hr 201\public\generate_document.php on line 63
+[10-Apr-2026 18:56:14 Asia/Manila] PHP Warning:  Trying to access array offset on value of type null in C:\xampp\htdocs\hr 201\public\generate_document.php on line 63
+[10-Apr-2026 18:56:14 Asia/Manila] PHP Warning:  Undefined variable $emp in C:\xampp\htdocs\hr 201\public\generate_document.php on line 64
+[10-Apr-2026 18:56:14 Asia/Manila] PHP Warning:  Trying to access array offset on value of type null in C:\xampp\htdocs\hr 201\public\generate_document.php on line 64
+[10-Apr-2026 18:56:14 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\genAC7E.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_document.php on line 386
+[10-Apr-2026 18:56:21 Asia/Manila] PHP Warning:  Undefined variable $emp in C:\xampp\htdocs\hr 201\public\generate_document.php on line 61
+[10-Apr-2026 18:56:21 Asia/Manila] PHP Warning:  Trying to access array offset on value of type null in C:\xampp\htdocs\hr 201\public\generate_document.php on line 61
+[10-Apr-2026 18:56:21 Asia/Manila] PHP Warning:  Undefined variable $emp in C:\xampp\htdocs\hr 201\public\generate_document.php on line 61
+[10-Apr-2026 18:56:21 Asia/Manila] PHP Warning:  Trying to access array offset on value of type null in C:\xampp\htdocs\hr 201\public\generate_document.php on line 61
+[10-Apr-2026 18:56:21 Asia/Manila] PHP Warning:  Undefined variable $emp in C:\xampp\htdocs\hr 201\public\generate_document.php on line 62
+[10-Apr-2026 18:56:21 Asia/Manila] PHP Warning:  Trying to access array offset on value of type null in C:\xampp\htdocs\hr 201\public\generate_document.php on line 62
+[10-Apr-2026 18:56:21 Asia/Manila] PHP Warning:  Undefined variable $emp in C:\xampp\htdocs\hr 201\public\generate_document.php on line 63
+[10-Apr-2026 18:56:21 Asia/Manila] PHP Warning:  Trying to access array offset on value of type null in C:\xampp\htdocs\hr 201\public\generate_document.php on line 63
+[10-Apr-2026 18:56:21 Asia/Manila] PHP Warning:  Undefined variable $emp in C:\xampp\htdocs\hr 201\public\generate_document.php on line 64
+[10-Apr-2026 18:56:21 Asia/Manila] PHP Warning:  Trying to access array offset on value of type null in C:\xampp\htdocs\hr 201\public\generate_document.php on line 64
+[10-Apr-2026 18:56:21 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\genC6DD.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_document.php on line 386
+[10-Apr-2026 18:56:31 Asia/Manila] PHP Warning:  Undefined variable $emp in C:\xampp\htdocs\hr 201\public\generate_document.php on line 61
+[10-Apr-2026 18:56:31 Asia/Manila] PHP Warning:  Trying to access array offset on value of type null in C:\xampp\htdocs\hr 201\public\generate_document.php on line 61
+[10-Apr-2026 18:56:31 Asia/Manila] PHP Warning:  Undefined variable $emp in C:\xampp\htdocs\hr 201\public\generate_document.php on line 61
+[10-Apr-2026 18:56:31 Asia/Manila] PHP Warning:  Trying to access array offset on value of type null in C:\xampp\htdocs\hr 201\public\generate_document.php on line 61
+[10-Apr-2026 18:56:31 Asia/Manila] PHP Warning:  Undefined variable $emp in C:\xampp\htdocs\hr 201\public\generate_document.php on line 62
+[10-Apr-2026 18:56:31 Asia/Manila] PHP Warning:  Trying to access array offset on value of type null in C:\xampp\htdocs\hr 201\public\generate_document.php on line 62
+[10-Apr-2026 18:56:31 Asia/Manila] PHP Warning:  Undefined variable $emp in C:\xampp\htdocs\hr 201\public\generate_document.php on line 63
+[10-Apr-2026 18:56:31 Asia/Manila] PHP Warning:  Trying to access array offset on value of type null in C:\xampp\htdocs\hr 201\public\generate_document.php on line 63
+[10-Apr-2026 18:56:31 Asia/Manila] PHP Warning:  Undefined variable $emp in C:\xampp\htdocs\hr 201\public\generate_document.php on line 64
+[10-Apr-2026 18:56:31 Asia/Manila] PHP Warning:  Trying to access array offset on value of type null in C:\xampp\htdocs\hr 201\public\generate_document.php on line 64
+[10-Apr-2026 18:56:31 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\genEE4B.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_document.php on line 386
+[10-Apr-2026 18:56:37 Asia/Manila] PHP Warning:  Undefined variable $emp in C:\xampp\htdocs\hr 201\public\generate_document.php on line 61
+[10-Apr-2026 18:56:37 Asia/Manila] PHP Warning:  Trying to access array offset on value of type null in C:\xampp\htdocs\hr 201\public\generate_document.php on line 61
+[10-Apr-2026 18:56:37 Asia/Manila] PHP Warning:  Undefined variable $emp in C:\xampp\htdocs\hr 201\public\generate_document.php on line 61
+[10-Apr-2026 18:56:37 Asia/Manila] PHP Warning:  Trying to access array offset on value of type null in C:\xampp\htdocs\hr 201\public\generate_document.php on line 61
+[10-Apr-2026 18:56:37 Asia/Manila] PHP Warning:  Undefined variable $emp in C:\xampp\htdocs\hr 201\public\generate_document.php on line 62
+[10-Apr-2026 18:56:37 Asia/Manila] PHP Warning:  Trying to access array offset on value of type null in C:\xampp\htdocs\hr 201\public\generate_document.php on line 62
+[10-Apr-2026 18:56:37 Asia/Manila] PHP Warning:  Undefined variable $emp in C:\xampp\htdocs\hr 201\public\generate_document.php on line 63
+[10-Apr-2026 18:56:37 Asia/Manila] PHP Warning:  Trying to access array offset on value of type null in C:\xampp\htdocs\hr 201\public\generate_document.php on line 63
+[10-Apr-2026 18:56:37 Asia/Manila] PHP Warning:  Undefined variable $emp in C:\xampp\htdocs\hr 201\public\generate_document.php on line 64
+[10-Apr-2026 18:56:37 Asia/Manila] PHP Warning:  Trying to access array offset on value of type null in C:\xampp\htdocs\hr 201\public\generate_document.php on line 64
+[10-Apr-2026 18:56:37 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\gen639.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_document.php on line 386

@@ -197,6 +197,11 @@ if ($userRole === 'ADMIN') {
 }
 
 // ---------- 3) HELPERS ----------
+function h($v)
+{
+    return htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
+}
+
 /**
  * Get and sanitize GET param with a max length (prevents oversized values)
  */
@@ -1666,6 +1671,16 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
                         <option value="AWOL">AWOL</option>
                     </select>
                 </div>
+                <hr>
+                <!-- [NEW] COE Specific Fields for Bulk -->
+                <div id="bulkCoeFields" class="mb-3 p-3 bg-light border rounded">
+                    <h6 class="text-primary fw-bold"><i class="bi bi-calendar-event"></i> COE Employment Period Options</h6>
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" type="checkbox" id="bulkManualEndDateOverride">
+                        <label class="form-check-label small fw-bold" for="bulkManualEndDateOverride">Override End Date (Default: Present)</label>
+                    </div>
+                    <input type="date" id="bulkManualEndDateValue" class="form-control form-control-sm" style="display:none;">
+                </div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-outline-primary fw-bold" onclick="submitBulkCOE()"><i class="bi bi-file-earmark-pdf"></i> Generate COE</button>
@@ -2182,18 +2197,23 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
         if (modalCount) modalCount.innerText = collectSelectedEmployeeIds().length;
     }
 
+    // [NEW] Toggle listener for Bulk Modal
+    document.getElementById('bulkManualEndDateOverride')?.addEventListener('change', function() {
+        document.getElementById('bulkManualEndDateValue').style.display = this.checked ? 'block' : 'none';
+    });
+
     function submitBulkCOE() {
         const ids = collectSelectedEmployeeIds();
         if (ids.length === 0) {
-            Swal.fire('No selection', 'Please select one employee to generate a COE.', 'warning');
+            Swal.fire('No selection', 'Please select at least one employee to generate COEs.', 'warning');
             return;
         }
-        if (ids.length > 1) {
-            Swal.fire('Multiple employees selected', 'Please select only one employee to generate a COE at this time.', 'info');
-            return;
-        }
-        const id = encodeURIComponent(ids[0]);
-        window.open(`generate_document.php?id=${id}&type=coe`, '_blank');
+
+        const override = document.getElementById('bulkManualEndDateOverride').checked ? 'on' : 'off';
+        const dateVal = document.getElementById('bulkManualEndDateValue').value;
+        const idParam = ids.join(',');
+
+        window.open(`generate_document.php?ids=${idParam}&type=coe&manual_end_date_override=${override}&manual_end_date_value=${dateVal}`, '_blank');
     }
 
     document.addEventListener('DOMContentLoaded', function() {

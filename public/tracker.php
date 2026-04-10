@@ -363,7 +363,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($_SESSION['role'], ['ADMIN
                 $pdo->prepare("INSERT INTO document_exemptions (employee_id, requirement_name) VALUES (?, ?)")->execute([$empId, $reqName]);
                 $logger->log($_SESSION['user_id'], 'TOGGLE_EXEMPTION', "Added exemption for employee ID: $empId, requirement: $reqName");
             }
-            header("Location: tracker.php");
+            $redirectTo = !empty($_POST['redirect_query']) ? "tracker.php?" . $_POST['redirect_query'] : "tracker.php";
+            header("Location: " . $redirectTo);
             exit;
         } elseif ($_POST['action'] === 'bulk_reminders') {
             // [NEW] Bulk Reminder Handler
@@ -790,7 +791,7 @@ $paginatedEmployees = array_slice($employees, $offset, $perPage);
     .icon-cross {
         color: #dc3545;
         font-size: 1.2rem;
-        opacity: 0.3;
+        opacity: 0.6;
     }
 
     /* Red X */
@@ -1039,10 +1040,12 @@ $paginatedEmployees = array_slice($employees, $offset, $perPage);
                                         <?php if ($status === 'ok'): ?>
                                             <i class="bi bi-check-circle-fill icon-check" title="Submitted"></i>
                                         <?php elseif ($status === 'na'): ?>
-                                            <span class="badge bg-secondary cursor-pointer" onclick="toggleExempt(<?php echo json_encode($id); ?>, <?php echo json_encode($reqName); ?>)" title="Click to mark as Required">N/A</span>
+                                            <span class="badge bg-secondary cursor-pointer" onclick="toggleExempt(<?php echo htmlspecialchars(json_encode($id), ENT_QUOTES, 'UTF-8'); ?>, <?php echo htmlspecialchars(json_encode($reqName), ENT_QUOTES, 'UTF-8'); ?>)" title="Click to mark as Required">N/A</span>
                                         <?php else: ?>
                                             <div class="d-flex justify-content-center align-items-center gap-1">
-                                                <i class="bi bi-x-circle-fill icon-cross cursor-pointer" onclick="toggleExempt(<?php echo json_encode($id); ?>, <?php echo json_encode($reqName); ?>)" title="Missing. Click to mark as Can't Comply (N/A)"></i>
+                                                <button type="button" class="btn btn-link p-0 border-0" onclick="toggleExempt(<?php echo htmlspecialchars(json_encode($id), ENT_QUOTES, 'UTF-8'); ?>, <?php echo htmlspecialchars(json_encode($reqName), ENT_QUOTES, 'UTF-8'); ?>)" title="Missing. Click to mark as Can't Comply (N/A)">
+                                                    <i class="bi bi-x-circle-fill icon-cross cursor-pointer"></i>
+                                                </button>
                                                 <!-- [NEW] Quick Upload Button -->
                                                 <a href="upload_form.php?emp_id=<?php echo htmlspecialchars($id); ?>&category=<?php echo urlencode($reqName); ?>" class="btn btn-sm btn-light py-0 px-1 border" title="Upload <?php echo htmlspecialchars($reqName); ?>"><i class="bi bi-upload text-primary" style="font-size: 0.7rem;"></i></a>
                                             </div>
@@ -1063,7 +1066,7 @@ $paginatedEmployees = array_slice($employees, $offset, $perPage);
                                             <span class="badge bg-light text-muted border ms-1" title="No Email Address">No Email</span>
                                         <?php else: ?>
                                             <button type="button" class="btn btn-sm btn-outline-primary py-0 px-1 ms-1"
-                                                onclick="openReminderModal('<?php echo htmlspecialchars($emp['emp_id']); ?>', '<?php echo htmlspecialchars($emp['first_name']); ?>', <?php echo $missingJson; ?>)"
+                                                onclick="openReminderModal(<?php echo htmlspecialchars(json_encode($emp['emp_id']), ENT_QUOTES, 'UTF-8'); ?>, <?php echo htmlspecialchars(json_encode($emp['first_name']), ENT_QUOTES, 'UTF-8'); ?>, <?php echo htmlspecialchars($missingJson, ENT_QUOTES, 'UTF-8'); ?>)"
                                                 title="Send Reminder">
                                                 <i class="bi bi-envelope"></i>
                                             </button>
@@ -1214,6 +1217,7 @@ $paginatedEmployees = array_slice($employees, $offset, $perPage);
     <input type="hidden" name="action" value="toggle_exempt">
     <input type="hidden" name="emp_id" id="exemptEmpId">
     <input type="hidden" name="req_name" id="exemptReqName">
+    <input type="hidden" name="redirect_query" value="<?php echo h($_SERVER['QUERY_STRING']); ?>">
 </form>
 
 <!-- REMINDER MODAL -->
@@ -1337,7 +1341,7 @@ $paginatedEmployees = array_slice($employees, $offset, $perPage);
                                             </td>
                                             <td>
                                                 <a href="view_doc.php?id=<?php echo $doc['file_uuid']; ?>&embed=1" target="_blank" class="btn btn-sm btn-info text-white py-0 px-1" title="Preview"><i class="bi bi-eye"></i></a>
-                                                <button type="button" class="btn btn-xs btn-outline-primary" onclick="renameFile(<?php echo $doc['id']; ?>, <?php echo json_encode($doc['original_name']); ?>)">Rename</button>
+                                                <button type="button" class="btn btn-xs btn-outline-primary" onclick="renameFile(<?php echo (int)$doc['id']; ?>, <?php echo htmlspecialchars(json_encode($doc['original_name']), ENT_QUOTES, 'UTF-8'); ?>)">Rename</button>
                                                 <button type="button" class="btn btn-xs btn-outline-dark" onclick="prepareMove(event, '<?php echo $doc['id']; ?>')">Select</button>
                                             </td>
                                         </tr>

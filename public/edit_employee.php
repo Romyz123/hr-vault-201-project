@@ -15,6 +15,8 @@ if (!isset($_SESSION['user_id'])) {
     exit;
 }
 
+
+
 // [SECURITY] Check Maintenance Mode
 if (($_SESSION['role'] ?? '') !== 'ADMIN') {
     $chkMaint = $pdo->query("SELECT setting_value FROM system_settings WHERE setting_key = 'maintenance_mode'")->fetchColumn();
@@ -26,6 +28,11 @@ if (($_SESSION['role'] ?? '') !== 'ADMIN') {
 
 $security = new Security($pdo);
 $logger   = new Logger($pdo);
+
+// [FIX] Initialize $dynamicCats early so it always exists for rendering.
+// This prevents "Undefined variable" warnings in the HTML dropdowns if the later DB query fails.
+$dynamicCats = [];
+
 
 // [NEW] Fetch dynamic requirements for document categorization check
 $REQUIRED_DOCS = [];
@@ -657,7 +664,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             } else {
                 // Staff: Include the note in the request payload
                 $updateData['request_note'] = post('request_note');
-                $payload = json_encode($updateData, JSON_UNESCAPED_UNICODE);
+                $payload = json_encode([
+                    'new_data' => $updateData,
+                    'old_data' => $emp // Snapshot of current state
+                ], JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
                 $pdo->prepare("INSERT INTO requests (user_id, request_type, target_id, json_payload) VALUES (?, 'EDIT_PROFILE', ?, ?)")
                     ->execute([$_SESSION['user_id'], $id, $payload]);
 
@@ -1520,6 +1530,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <div class="form-text text-muted" id="docHelp"></div>
                     </div>
 
+                    <!-- [NEW] COE Specific Fields -->
+                    <div id="coeFields" style="display:none;" class="mb-3 p-3 bg-light border rounded">
+                        <h6 class="text-primary fw-bold"><i class="bi bi-calendar-event"></i> Employment Period Options</h6>
+                        <div class="form-check mb-2">
+                            <input class="form-check-input" type="checkbox" name="manual_end_date_override" id="manualEndDateOverride">
+                            <label class="form-check-label small fw-bold" for="manualEndDateOverride">Override End Date (Default: Present)</label>
+                        </div>
+                        <input type="date" name="manual_end_date_value" id="manualEndDateValue" class="form-control form-control-sm" style="display:none;">
+                        <div class="form-text extra-small">If "Override" is checked and date is empty, it will still show "Present".</div>
+                    </div>
+
                     <!-- [NEW] NTE Fields -->
                     <div id="nteFields" style="display:none;" class="mb-3 p-3 bg-danger-subtle border border-danger rounded">
                         <h6 class="text-danger fw-bold"><i class="bi bi-exclamation-triangle"></i> Incident Details</h6>
@@ -1944,6 +1965,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         const dutiesDiv = document.getElementById('customDutiesField');
         const nteDiv = document.getElementById('nteFields');
         const nodDiv = document.getElementById('nodFields');
+        const coeDiv = document.getElementById('coeFields');
+        const manualEndDateValue = document.getElementById('manualEndDateValue');
         const projectDiv = document.getElementById('projectFields');
         const help = document.getElementById('docHelp');
         const btn = document.getElementById('generateBtn');
@@ -1959,11 +1982,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (nteDiv) nteDiv.style.display = 'none';
         if (nodDiv) nodDiv.style.display = 'none';
         if (dutiesDiv) dutiesDiv.style.display = 'none';
+        if (coeDiv) coeDiv.style.display = 'none';
+        if (manualEndDateValue) manualEndDateValue.style.display = 'none';
         if (projectDiv) projectDiv.style.display = 'none';
 
         // Disable hidden inputs to avoid conflicts
         setInputsDisabled('nteFields', true);
         setInputsDisabled('nodFields', true);
+        setInputsDisabled('coeFields', true);
         help.innerText = "";
 
         if (type === 'notice_to_explain') {
@@ -1986,6 +2012,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (nodDiv) nodDiv.style.display = 'block';
             setInputsDisabled('nodFields', false);
             help.innerText = "Generates a formal Notice of Decision / Sanction.";
+        } else if (type === 'coe') {
+            if (coeDiv) coeDiv.style.display = 'block';
+            setInputsDisabled('coeFields', false);
+            help.innerText = "Generate a Certificate of Employment. You can override the end date.";
+            document.getElementById('manualEndDateOverride').addEventListener('change', function() {
+                manualEndDateValue.style.display = this.checked ? 'block' : 'none';
+                manualEndDateValue.required = this.checked;
+            });
+            manualEndDateValue.required = document.getElementById('manualEndDateOverride').checked;
         } else {
             // Reset to default state if hidden
             document.getElementById('durationInput').readOnly = true;

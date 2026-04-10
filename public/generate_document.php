@@ -19,17 +19,20 @@ if (!in_array($userRole, ['ADMIN', 'MANAGER', 'HR', 'STAFF'])) {
 $logger = new Logger($pdo);
 
 // 2. FETCH EMPLOYEE
-$id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
+$ids_raw = $_GET['ids'] ?? ($_GET['id'] ?? '');
+$ids = array_filter(explode(',', $ids_raw), 'is_numeric');
 $type = isset($_GET['type']) ? $_GET['type'] : '';
 $format = isset($_GET['format']) ? $_GET['format'] : 'html'; // 'html' or 'word'
 
-if ($id <= 0 || empty($type)) die("Invalid Request");
+if (empty($ids) || empty($type)) die("Invalid Request");
 
-$stmt = $pdo->prepare("SELECT * FROM employees WHERE id = ?");
-$stmt->execute([$id]);
-$emp = $stmt->fetch(PDO::FETCH_ASSOC);
+// Fetch all requested employees
+$placeholders = implode(',', array_fill(0, count($ids), '?'));
+$stmt = $pdo->prepare("SELECT * FROM employees WHERE id IN ($placeholders)");
+$stmt->execute($ids);
+$all_employees = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-if (!$emp) die("Employee not found.");
+if (empty($all_employees)) die("Employees not found.");
 
 // 2.5 FETCH SETTINGS
 $settings = [];
@@ -67,6 +70,9 @@ $custom_duties = isset($_GET['custom_duties']) ? trim($_GET['custom_duties']) : 
 $start_input = $_GET['start_date'] ?? $emp['hire_date'];
 $end_input   = $_GET['end_date'] ?? '';
 
+$manual_end_date_override = isset($_GET['manual_end_date_override']) && $_GET['manual_end_date_override'] === 'on';
+$manual_end_date_value = $_GET['manual_end_date_value'] ?? '';
+
 // [FIX] Safe Date Parsing to prevent Fatal Error crashes on missing hire dates
 try {
     $start_date_obj = new DateTime($start_input ?: 'now');
@@ -74,26 +80,6 @@ try {
 } catch (Exception $e) {
     $start_date_obj = new DateTime('now');
     $start_date_str = $start_date_obj->format('F j, Y');
-}
-
-if (!empty($end_input)) {
-    try {
-        $end_date_obj = new DateTime($end_input);
-        $end_date_str = $end_date_obj->format('F j, Y');
-        $contract_period = "$start_date_str up to $end_date_str"; // Default format
-    } catch (Exception $e) {
-        // Fallback if end date is garbage
-        $end_date_obj = clone $start_date_obj;
-        $end_date_obj->modify('+6 months');
-        $end_date_str = $end_date_obj->format('F j, Y');
-        $contract_period = "$start_date_str up to $end_date_str";
-    }
-} else {
-    // Fallback if no end date provided (Default 6 months)
-    $end_date_obj = clone $start_date_obj;
-    $end_date_obj->modify('+6 months');
-    $end_date_str = $end_date_obj->format('F j, Y');
-    $contract_period = "$start_date_str up to $end_date_str";
 }
 
 // Current Date for Signatures
@@ -177,9 +163,6 @@ foreach ($logo_paths as $p) {
     }
 }
 
-// [LOGGING] Record document generation
-$logger->log($_SESSION['user_id'], 'GENERATE_DOC', "Generated $type for {$emp['first_name']} {$emp['last_name']} ({$emp['emp_id']})");
-
 // [NEW] Move Template Selection Logic Up
 $templateFile = '';
 if ($type === 'probationary') {
@@ -190,6 +173,7 @@ if ($type === 'probationary') {
     $templateFile = __DIR__ . '/templates/contract_project.php';
 } elseif ($type === 'coe') {
     $templateFile = __DIR__ . '/templates/coe.php';
+    $_GET['employment_end_display'] = $employmentEnd; // Pass to COE template
 } elseif ($type === 'notice_to_explain') {
     $templateFile = __DIR__ . '/templates/notice_to_explain.php';
 } elseif ($type === 'notice_of_decision') {
@@ -239,6 +223,7 @@ if ($format === 'word') {
             .page {
                 background: white;
                 width: 8in;
+                page-break-after: always;
                 min-height: 11in;
                 padding: 0.5in;
                 /* [PREVIEW CONTROL] Keep this same as print margin */
@@ -322,38 +307,39 @@ if ($format === 'word') {
         </div>
 
         <div class="page">
-            <?php if ($type !== 'probationary' && $type !== 'probationary_lms' && $type !== 'confidentiality' && $type !== 'project' && $type !== 'consultant' && $type !== 'notice_to_explain' && $type !== 'notice_of_decision' && $type !== 'employee_pledge' && $type !== 'whistleblowing' && $type !== 'regular' && $type !== 'data_consent' && $type !== 'coe'): ?>
-                <table style="width: 100%; margin-bottom: 10px;">
-                    <tr>
-                        <td style="width: 130px; text-align: right; vertical-align: middle; padding-right: 15px;">
-                            <img src="<?php echo $global_logo_src ?: 'https://via.placeholder.com/80?text=LOGO'; ?>"
-                                alt="TESP Logo"
-                                style="width: 80px; height: 80px; border-radius: 50%; object-fit: cover;"
-                                onerror="this.onerror=null; this.src='https://via.placeholder.com/80?text=LOGO';">
-                        </td>
-                        <td style="text-align: center; vertical-align: middle;">
-                            <div style="font-weight: bold; font-size: 15pt !important; line-height: 1.2; white-space: nowrap;">TES PHILIPPINES, INC.</div>
-                            <div style="font-weight: bold; font-size: 11pt !important; line-height: 1.2; white-space: nowrap;">METRO RAIL TRANSIT LINE 3 REHABILITATION PROJECT</div>
-                            <div style="font-size: 11pt !important; line-height: 1.2;">Meriton One Building, 1668 Quezon Avenue, Quezon City</div>
-                            <div style="font-size: 11pt !important; line-height: 1.2;">Telephone Number: 8929-5347 local 4404</div>
-                        </td>
-                        <td style="width: 70px;"></td> <!-- Spacer for shifting text right -->
-                    </tr>
-                </table>
-            <?php endif; ?>
+            <?php foreach ($all_employees as $emp): ?>
+                <?php
+                // Re-initialize per-employee variables
+                $full_name = strtoupper($emp['first_name'] . ' ' . (empty($emp['middle_name']) ? '' : $emp['middle_name'][0] . '.') . ' ' . $emp['last_name']);
+                $position  = strtoupper($emp['job_title']);
+                $address   = strtoupper($emp['present_address']);
 
-            <?php
-            if ($templateFile && file_exists($templateFile)) {
-                include $templateFile;
-            } else {
-                echo "<div style='color: red; border: 2px solid red; padding: 20px; background: #ffe6e6;'>
-                <h3>❌ Template Error</h3>
-                <p>Could not find the template file.</p>
-                <p><strong>Expected Path:</strong> " . htmlspecialchars($templateFile) . "</p>
-                <p>Please ensure the file exists inside the <code>public/templates/</code> folder.</p>
-              </div>";
-            }
-            ?>
+                // Re-calculate Employment Period per employee
+                if ($type === 'coe' && $manual_end_date_override) {
+                    $employmentEnd = !empty($manual_end_date_value) ? date('F j, Y', strtotime($manual_end_date_value)) : 'Present';
+                } else {
+                    $currentStatus = strtolower(trim($emp['status'] ?? ''));
+                    if (in_array($currentStatus, ['resigned', 'inactive', 'terminated'])) {
+                        $employmentEnd = !empty($end_input) ? date('F j, Y', strtotime($end_input)) : 'Present';
+                    } else {
+                        $employmentEnd = 'Present';
+                    }
+                }
+                $_GET['employment_end_display'] = $employmentEnd;
+
+                // [LOGGING] Record document generation for each
+                $logger->log($_SESSION['user_id'], 'GENERATE_DOC', "Generated $type for {$emp['first_name']} {$emp['last_name']} ({$emp['emp_id']})");
+                ?>
+                <div class="document-container">
+                    <?php
+                    if ($templateFile && file_exists($templateFile)) {
+                        include $templateFile;
+                    } else {
+                        echo "Template Error";
+                    }
+                    ?>
+                </div>
+            <?php endforeach; ?>
         </div>
 
     </body>

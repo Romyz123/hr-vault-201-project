@@ -7,6 +7,11 @@ session_start();
 // Load Config for Vault Path
 $config = require '../config/config.php';
 
+function h($v)
+{
+    return htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
+}
+
 // Generate CSRF token if not present
 if (empty($_SESSION['csrf_token'])) {
     $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
@@ -188,7 +193,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 // 2. EDIT PROFILE
                 elseif ($req['request_type'] === 'EDIT_PROFILE') {
                     $targetId = $req['target_id'];
-                    $newEmpId = $data['emp_id'] ?? null;
+                    // [FIX] Support nested payload for new comparison feature
+                    $profileData = isset($data['new_data']) ? $data['new_data'] : $data;
+                    $newEmpId = $profileData['emp_id'] ?? null;
 
                     // CRITICAL: Fetch the current emp_id before updating
                     $oldIdStmt = $pdo->prepare("SELECT emp_id FROM employees WHERE id = ?");
@@ -205,10 +212,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                     }
 
                     // SAFETY: Remove the note so it doesn't break the SQL UPDATE
-                    unset($data['request_note']);
+                    unset($profileData['request_note']);
 
                     $allowedColumns = ['emp_id', 'first_name', 'middle_name', 'last_name', 'job_title', 'system_role', 'dept', 'section', 'employment_type', 'agency_name', 'company_name', 'previous_company', 'hire_date', 'gender', 'birth_date', 'contact_number', 'email', 'present_address', 'permanent_address', 'sss_no', 'tin_no', 'pagibig_no', 'philhealth_no', 'emergency_name', 'emergency_contact', 'emergency_address', 'education', 'experience', 'skills', 'licenses', 'status', 'exit_date', 'exit_reason', 'avatar_path'];
-                    $filteredData = array_intersect_key($data, array_flip($allowedColumns));
+                    $filteredData = array_intersect_key($profileData, array_flip($allowedColumns));
                     if (!empty($filteredData)) {
                         $setParts = [];
                         $updateValues = [];
@@ -329,9 +336,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 
                 // [LOGICAL FIX] Cleanup physical files to prevent orphans on rejection
                 if ($req['request_type'] === 'UPLOAD_DOC') {
-                    $vaultPath = $config['VAULT_PATH'] ?? dirname(__DIR__) . DIRECTORY_SEPARATOR . 'vault' . DIRECTORY_SEPARATOR;
+                    $vPath = $config['VAULT_PATH'] ?? dirname(__DIR__) . DIRECTORY_SEPARATOR . 'vault' . DIRECTORY_SEPARATOR;
+                    $vaultPath = realpath($vPath) . DIRECTORY_SEPARATOR;
                     $filePath = $vaultPath . basename($data['file_path'] ?? '');
-                    if (!empty($data['file_path']) && file_exists($filePath)) {
+                    if (!empty($data['file_path']) && $vaultPath && file_exists($filePath)) {
                         @unlink($filePath);
                     }
                 } elseif ($req['request_type'] === 'ADD_EMPLOYEE') {
@@ -343,9 +351,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                     $oldIdStmt = $pdo->prepare("SELECT avatar_path FROM employees WHERE id = ?");
                     $oldIdStmt->execute([$req['target_id']]);
                     $oldEmp = $oldIdStmt->fetch();
+                    $profileData = isset($data['new_data']) ? $data['new_data'] : $data;
                     // Only delete if they actually uploaded a NEW avatar
-                    if (!empty($data['avatar_path']) && $data['avatar_path'] !== 'default.png' && (!$oldEmp || $oldEmp['avatar_path'] !== $data['avatar_path'])) {
-                        $avatarPath = dirname(__DIR__) . '/uploads/avatars/' . basename($data['avatar_path']);
+                    if (!empty($profileData['avatar_path']) && $profileData['avatar_path'] !== 'default.png' && (!$oldEmp || $oldEmp['avatar_path'] !== $profileData['avatar_path'])) {
+                        $avatarPath = dirname(__DIR__) . '/uploads/avatars/' . basename($profileData['avatar_path']);
                         if (file_exists($avatarPath)) @unlink($avatarPath);
                     }
                 }
@@ -516,7 +525,7 @@ $tickets  = in_array('tickets', $enabledWidgets) ? $pdo->query("SELECT r.*, u.us
 function renderTable($requests, $type)
 {
     global $pdo; // Access DB for lookups
-    if (count($requests) == 0) {
+    if (empty($requests)) {
         echo "<div class='p-4 text-center text-muted'>No pending requests.</div>";
         return;
     }
@@ -760,14 +769,101 @@ function renderTable($requests, $type)
                         </div>`;
             }
 
-            content += '<table class="table table-bordered table-sm">';
-            for (const [key, value] of Object.entries(data)) {
-                if (value && key !== 'avatar_path' && key !== 'request_note') {
-                    let label = key.replace(/_/g, ' ').toUpperCase();
-                    content += `<tr><th class="table-active w-25">${escapeHtml(label)}</th><td>${escapeHtml(value.toString())}</td></tr>`;
+            // --- REVISED: DIFF/COMPARISON VIEW FOR EDITS ---
+            if (type === 'edit') {
+                const newData = data.new_data || data;
+                const oldData = data.old_data || null;
+                const reqNote = data.request_note || newData.request_note || "";
+
+                content += `<div class="mb-3">
+                                <span class="badge bg-info text-dark mb-2">Comparison View</span>
+                                <table class="table table-bordered table-sm small">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th style="width: 20%;">Field</th>
+                                            <th>Proposed Changes (Old vs New)</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>`;
+
+                // List of keys to ignore or handle specially
+                const skipKeys = ['id', 'avatar_path', 'updated_at', 'created_at', 'request_note', 'import_batch'];
+
+                // [FIX] Loop through newData keys to identify changes
+                for (const [key, newVal] of Object.entries(newData)) {
+                    if (skipKeys.includes(key)) continue;
+
+                    const oldVal = oldData ? (oldData[key] ?? '') : '';
+                    const hasChanged = String(newVal).trim() !== String(oldVal).trim();
+
+                    if (hasChanged || !oldData) {
+                        const label = key.replace(/_/g, ' ').toUpperCase();
+                        const rowClass = hasChanged ? 'table-warning' : '';
+
+                        content += `<tr class="${rowClass}">
+                                        <td class="fw-bold">${escapeHtml(label)}</td>
+                                        <td>`;
+
+                        if (oldData && hasChanged) {
+                            content += `<del class="text-danger d-block mb-1">${escapeHtml(String(oldVal) || '(Empty)')}</del>
+                                        <ins class="text-success fw-bold d-block text-decoration-none"><i class="bi bi-arrow-right-short"></i> ${escapeHtml(String(newVal) || '(Empty)')}</ins>`;
+                        } else {
+                            content += `<span>${escapeHtml(String(newVal))}</span>`;
+                        }
+
+                        content += `</td></tr>`;
+                    }
                 }
+
+                // Check for Avatar Change
+                const newAv = newData.avatar_path || '';
+                const oldAv = oldData ? (oldData.avatar_path || 'default.png') : 'default.png';
+                if (newAv && newAv !== oldAv && newAv !== 'default.png') {
+                    content += `<tr class="table-warning">
+                                    <td class="fw-bold">PROFILE PHOTO</td>
+                                    <td>
+                                        <div class="d-flex gap-3 align-items-center">
+                                            <div class="text-center">
+                                                <small class="text-muted d-block">Old</small>
+                                                <img src="uploads/avatars/${oldAv}" class="rounded-circle border" style="width:50px; height:50px; object-fit:cover;">
+                                            </div>
+                                            <i class="bi bi-arrow-right fs-4"></i>
+                                            <div class="text-center">
+                                                <small class="text-success fw-bold d-block">New</small>
+                                                <img src="uploads/avatars/${newAv}" class="rounded-circle border border-success" style="width:50px; height:50px; object-fit:cover;">
+                                            </div>
+                                        </div>
+                                    </td>
+                                </tr>`;
+                }
+
+                content += `</tbody></table></div>`;
+
+                // Add secondary table for unchanged fields (optional, collapsed)
+                content += `<details class="mt-2">
+                                <summary class="text-muted small cursor-pointer" style="cursor:pointer">View unchanged fields...</summary>
+                                <table class="table table-bordered table-sm small mt-2 opacity-75">
+                                    <tbody>`;
+                for (const [key, newVal] of Object.entries(newData)) {
+                    if (skipKeys.includes(key)) continue;
+                    const oldVal = oldData ? (oldData[key] ?? '') : '';
+                    if (String(newVal).trim() === String(oldVal).trim()) {
+                        content += `<tr><td class="w-25">${key.replace(/_/g, ' ').toUpperCase()}</td><td>${escapeHtml(String(newVal))}</td></tr>`;
+                    }
+                }
+                content += `</tbody></table></details>`;
             }
-            content += '</table>';
+            // 3b. HIRE PREVIEW (Flat List)
+            else {
+                content += '<table class="table table-bordered table-sm">';
+                for (const [key, value] of Object.entries(data)) {
+                    if (value && key !== 'avatar_path' && key !== 'request_note') {
+                        let label = key.replace(/_/g, ' ').toUpperCase();
+                        content += `<tr><th class="table-active w-25">${escapeHtml(label)}</th><td>${escapeHtml(value.toString())}</td></tr>`;
+                    }
+                }
+                content += '</table>';
+            }
         }
 
         modalBody.innerHTML = content;

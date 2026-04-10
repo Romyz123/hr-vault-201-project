@@ -92,7 +92,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 // [FIX] Handle array inputs (like approval_widgets) correctly to prevent conversion warnings
                 if (is_array($value)) {
-                    $value = array_map(fn($v) => trim((string)$v), $value);
+                    $value = json_encode(array_map(fn($v) => trim((string)$v), $value));
+                    // Skip the trim/string cast below for arrays
+                    $updates[$key] = $value;
+                    continue;
                 } else {
                     $value = trim((string)$value);
                 }

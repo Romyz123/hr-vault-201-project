@@ -376,7 +376,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
                     <?php if (!empty($currentTotpSecret)): ?>
                         <div class="text-center mb-3 d-flex flex-column align-items-center">
-                            <div id="qrcode" class="p-2 bg-white border rounded mb-2"><img src="https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=<?php echo urlencode($otpauthUrl); ?>" alt="QR Code"></div>
+                            <div id="qrcode" class="p-2 bg-white border rounded mb-2" style="min-width: 160px; min-height: 160px;">
+                                <img src="https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=<?php echo urlencode($otpauthUrl); ?>" alt="QR Code" style="width: 160px; height: 160px;">
+                            </div>
                             <div class="mb-2">
                                 <button type="button" class="btn btn-sm btn-outline-secondary" onclick="saveQRCode()"><i class="bi bi-download"></i> Save QR Code</button>
                             </div>
@@ -662,18 +664,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 <?php if (!empty($currentTotpSecret)): ?>
     <script src="assets/qrcode.min.js"></script>
     <script>
-        var qrCodeDiv = document.getElementById("qrcode");
-        if (qrCodeDiv && typeof QRCode !== 'undefined') {
-            qrCodeDiv.innerHTML = ""; // Clear fallback image
-            new QRCode(qrCodeDiv, {
-                text: "<?php echo $otpauthUrl; ?>",
-                width: 160,
-                height: 160,
-                colorDark: "#000000",
-                colorLight: "#ffffff",
-                correctLevel: QRCode.CorrectLevel.M
-            });
-        }
+        document.addEventListener('DOMContentLoaded', function() {
+            var qrCodeDiv = document.getElementById("qrcode");
+            var otpUrl = <?php echo json_encode($otpauthUrl); ?>;
+
+            if (qrCodeDiv && otpUrl && typeof QRCode !== 'undefined') {
+                try {
+                    // Create a temporary element to render the new QR
+                    var temp = document.createElement('div');
+                    new QRCode(temp, {
+                        text: otpUrl,
+                        width: 160,
+                        height: 160,
+                        colorDark: "#000000",
+                        colorLight: "#ffffff",
+                        correctLevel: QRCode.CorrectLevel.M
+                    });
+                    // Only replace the fallback if rendering was successful
+                    qrCodeDiv.innerHTML = "";
+                    qrCodeDiv.appendChild(temp.firstChild);
+                    while (temp.firstChild) qrCodeDiv.appendChild(temp.firstChild);
+                } catch (e) {
+                    console.error("Local QR Render failed, keeping fallback.");
+                }
+            }
+        });
 
         function saveQRCode() {
             var canvas = document.querySelector('#qrcode canvas');

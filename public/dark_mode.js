@@ -11,6 +11,14 @@
 
   const setTheme = (theme) => {
     document.documentElement.setAttribute("data-bs-theme", theme);
+    // Add a smooth transition class to the body
+    document.body.style.transition =
+      "background-color 0.3s ease, color 0.3s ease";
+    // Apply to all cards and navbars for a uniform look
+    document.querySelectorAll(".card, .navbar, .alert").forEach((el) => {
+      el.style.transition =
+        "background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease";
+    });
   };
 
   setTheme(getPreferredTheme());

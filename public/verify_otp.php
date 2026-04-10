@@ -225,11 +225,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <div class="text-center mb-4">
             <h4 class="fw-bold text-primary"><i class="bi bi-phone"></i> Authenticator App</h4>
             <?php if ($isFirstTimeSetup): ?>
-                <p class="text-muted small"><strong>First Time Setup:</strong> Scan this QR code using Google Authenticator, Authy, or Microsoft Authenticator.</p>
-                <p class="text-muted small"><strong>First Time Setup:</strong> Scan this QR code using an Authenticator app.</p>
+                <p class="text-muted small"><strong>First Time Setup:</strong> Scan this QR code using an Authenticator app (Google Authenticator, Authy, or Microsoft Authenticator).</p>
                 <div class="mb-3 d-flex flex-column align-items-center">
-                    <div id="qrcode" class="p-2 bg-white border rounded"><img src="https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=<?php echo urlencode($otpauthUrl); ?>" alt="QR Code"></div>
-                    <div id="qrcode" class="p-2 bg-white border rounded"></div>
+                    <div id="qrcode" class="p-2 bg-white border rounded" style="min-width: 160px; min-height: 160px;">
+                        <img src="https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=<?php echo urlencode($otpauthUrl); ?>" alt="QR Code" style="width: 160px; height: 160px;">
+                    </div>
                     <div class="mt-2">
                         <button type="button" class="btn btn-sm btn-outline-secondary" onclick="saveQRCode()"><i class="bi bi-download"></i> Save QR Code</button>
                     </div>
@@ -271,22 +271,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </div>
 
     <?php if ($isFirstTimeSetup): ?>
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
         <script src="assets/qrcode.min.js"></script>
         <script>
-            // Generate QR Code Offline
-            var qrCodeDiv = document.getElementById("qrcode");
-            if (qrCodeDiv && typeof QRCode !== 'undefined') {
-                qrCodeDiv.innerHTML = ""; // Clear fallback image
-                new QRCode(qrCodeDiv, {
-                    text: "<?php echo $otpauthUrl; ?>",
-                    width: 160,
-                    height: 160,
-                    colorDark: "#000000",
-                    colorLight: "#ffffff",
-                    correctLevel: QRCode.CorrectLevel.M
-                });
-            }
+            document.addEventListener('DOMContentLoaded', function() {
+                // Generate QR Code Offline
+                var qrCodeDiv = document.getElementById("qrcode");
+                var otpUrl = <?php echo json_encode($otpauthUrl); ?>;
+
+                if (qrCodeDiv && otpUrl && typeof QRCode !== 'undefined') {
+                    try {
+                        // Create a temporary element to render the new QR
+                        var temp = document.createElement('div');
+                        new QRCode(temp, {
+                            text: otpUrl,
+                            width: 160,
+                            height: 160,
+                            colorDark: "#000000",
+                            colorLight: "#ffffff",
+                            correctLevel: QRCode.CorrectLevel.M
+                        });
+                        // Only replace the fallback if rendering was successful
+                        qrCodeDiv.innerHTML = "";
+                        qrCodeDiv.appendChild(temp.firstChild);
+                        while (temp.firstChild) qrCodeDiv.appendChild(temp.firstChild);
+                    } catch (e) {
+                        console.error("Local QR Render failed, keeping fallback.");
+                    }
+                }
+            });
 
             function saveQRCode() {
                 var canvas = document.querySelector('#qrcode canvas');

@@ -16,7 +16,8 @@ if (!empty($emp['hire_date'])) {
 }
 
 $employmentStart = $hired ? $hired->format('F j, Y') : 'N/A';
-$employmentEnd = (!empty($end_input) && $end_input !== $start_input) ? $end_date_str : 'Present';
+// Use the employmentEnd value already determined by generate_document.php
+$employmentEnd = $_GET['employment_end_display'] ?? 'Present';
 
 $salaryLabel = '';
 if (!empty($emp['monthly_rate'])) {
@@ -27,10 +28,30 @@ if (!empty($emp['monthly_rate'])) {
 
 $jobDescription = trim($custom_duties ?: ($emp['job_description'] ?? ''));
 ?>
-<div style="text-align: center; margin-bottom: 50px;">
-    <div style="font-size: 18pt; font-weight: bold;"><?php echo htmlspecialchars($companyName); ?></div>
-    <div style="font-size: 10pt; color: #555;"><?php echo htmlspecialchars($companyAddress); ?></div>
-    <div style="font-size: 10pt; color: #555; margin-top: 10px;">Human Resources Department</div>
+<div style="text-align: center; margin-bottom: 30px;">
+    <table style="width: 100%; margin-bottom: 10px;">
+        <tr>
+            <td style="width: 130px; text-align: right; vertical-align: middle; padding-right: 15px;">
+                <?php $safe_logo_src = !empty($global_logo_src) ? htmlspecialchars($global_logo_src, ENT_QUOTES, 'UTF-8') : 'assets/images/tesp-logo-1.png'; ?>
+                <img src="<?php echo $safe_logo_src; ?>" style="width: 80px; height: 80px; border-radius: 50%; object-fit: cover;" alt="TESP Logo">
+            </td>
+            <td style="text-align: center; vertical-align: middle;">
+                <div style="font-weight: bold; font-size: 15pt !important; line-height: 1.2; white-space: nowrap;">
+                    <?php echo htmlspecialchars($companyName); ?>
+                </div>
+                <div style="font-weight: bold; font-size: 11pt !important; line-height: 1.2; white-space: nowrap;">
+                    <?php echo htmlspecialchars($settings['default_project_name'] ?? 'METRO RAIL TRANSIT LINE 3 REHABILITATION PROJECT'); ?>
+                </div>
+                <div style="font-size: 11pt !important; line-height: 1.2;">
+                    <?php echo htmlspecialchars($companyAddress); ?>
+                </div>
+                <div style="font-size: 11pt !important; line-height: 1.2;">
+                    Telephone Number: 8929-5347 local 4404
+                </div>
+            </td>
+            <td style="width: 70px;"></td> <!-- Spacer for shifting text right -->
+        </tr>
+    </table>
 </div>
 
 <div style="text-align: center; margin-bottom: 60px;">
@@ -88,9 +109,9 @@ $jobDescription = trim($custom_duties ?: ($emp['job_description'] ?? ''));
     </div>
     <div style="width: 250px; text-align: center;">
         <div style="border-top: 2px solid #000; padding-top: 10px; font-weight: bold; text-transform: uppercase;">
-            <?php echo htmlspecialchars($settings['company_president'] ?? 'JUNJI FURUYA'); ?>
+
         </div>
-        <div>President / General Manager</div>
+        <div>Senior / General Manager / Manager</div>
     </div>
 </div>
 

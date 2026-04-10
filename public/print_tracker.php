@@ -68,7 +68,7 @@ $docsMap = [];
 foreach ($allDocs as $d) {
     $empId = $d['employee_id'];
     foreach ($REQUIRED_DOCS as $reqKey => $keywords) {
-        if (strcasecmp(trim($d['category']), trim($reqKey)) === 0) {
+        if (stripos(trim($d['category'] ?? ''), trim($reqKey)) !== false) {
             $docsMap[$empId][$reqKey] = true;
         } else {
             foreach ($keywords as $k) {
@@ -213,6 +213,7 @@ foreach ($logo_paths as $p) {
             <tr>
                 <th class="text-left">Employee</th>
                 <th>Dept</th>
+                <th>Status</th>
                 <th>Progress</th>
                 <?php foreach ($REQUIRED_DOCS as $cat => $k): ?>
                     <th><?php echo htmlspecialchars($cat); ?></th>
@@ -244,6 +245,7 @@ foreach ($logo_paths as $p) {
                         <small><?php echo htmlspecialchars($emp['emp_id']); ?></small>
                     </td>
                     <td><?php echo htmlspecialchars($emp['dept']); ?></td>
+                    <td><small><?php echo htmlspecialchars($emp['status']); ?></small></td>
                     <td><?php echo htmlspecialchars($percent); ?>%</td>
                     <?php foreach ($rowCells as $cell): ?>
                         <td><?php echo $cell; ?></td>
