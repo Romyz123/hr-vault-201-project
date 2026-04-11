@@ -2238,6 +2238,23 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
     // ---------- Auto-open target modal from notification & restore list on cancel ----------
     document.addEventListener('DOMContentLoaded', function() {
 
+        // [UX STABILIZATION] Scroll Memory Helper
+        // Prevents the page from jumping to the top after an action redirect (e.g. status change, save)
+        const scrollKey = 'hr201_scroll_pos_' + window.location.pathname;
+
+        window.addEventListener('beforeunload', () => {
+            sessionStorage.setItem(scrollKey, window.scrollY);
+        });
+
+        const urlParamsForScroll = new URLSearchParams(window.location.search);
+        // Restore scroll if we have a message, error, or specific view params
+        if (urlParamsForScroll.has('msg') || urlParamsForScroll.has('error') || urlParamsForScroll.has('page') || urlParamsForScroll.has('doc_cat')) {
+            const savedPos = sessionStorage.getItem(scrollKey);
+            if (savedPos) {
+                window.scrollTo(0, parseInt(savedPos));
+            }
+        }
+
         // [NEW] Prevent page from jumping to top when filtering
         if (window.location.search && !window.location.hash && !window.location.search.includes('msg=')) {
             const searchBar = document.getElementById('directory-search-bar');
@@ -2344,6 +2361,37 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
         });
         <?php unset($_SESSION['error']); ?>
     <?php endif; ?>
+
+    // [NEW] Handle URL Messages (Success/Error) on Page Load
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.has('msg')) {
+        const msgText = urlParams.get('msg');
+        const isError = msgText.toLowerCase().includes('error') || msgText.toLowerCase().includes('failed');
+        Swal.fire({
+            icon: isError ? 'error' : 'success',
+            title: isError ? 'Action Failed' : 'Success',
+            text: msgText,
+            timer: isError ? undefined : 3000,
+            showConfirmButton: isError
+        });
+        if (window.history.replaceState) {
+            const url = new URL(window.location.href);
+            url.searchParams.delete('msg');
+            window.history.replaceState(null, null, url.toString());
+        }
+    }
+    if (urlParams.has('error')) {
+        Swal.fire({
+            icon: 'error',
+            title: 'Error',
+            text: urlParams.get('error')
+        });
+        if (window.history.replaceState) {
+            const url = new URL(window.location.href);
+            url.searchParams.delete('error');
+            window.history.replaceState(null, null, url.toString());
+        }
+    }
 </script>
 
 

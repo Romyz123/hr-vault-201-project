@@ -153,10 +153,6 @@ $isVaultFull = ($vaultLimitBytes > 0 && $currentVaultBytes >= $vaultLimitBytes);
             <div class="card shadow">
                 <div class="card-body">
 
-                    <?php if (isset($_GET['error'])): ?>
-                        <div class="alert alert-danger"><?php echo htmlspecialchars($_GET['error']); ?></div>
-                    <?php endif; ?>
-
                     <form id="uploadForm" action="process_upload.php" method="POST" enctype="multipart/form-data" onsubmit="return validateAndConfirm()">
                         <!-- [FIX] Dynamically set max file size from PHP configuration -->
                         <input type="hidden" name="MAX_FILE_SIZE" value="<?php echo $maxUploadBytes; ?>">
@@ -348,6 +344,35 @@ $isVaultFull = ($vaultLimitBytes > 0 && $currentVaultBytes >= $vaultLimitBytes);
 
     // --- B. EMPLOYEE SEARCH LOGIC ---
     document.addEventListener('DOMContentLoaded', () => {
+        // [NEW] Handle URL Messages (Success/Error) on Page Load for Uploads
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.has('msg')) {
+            Swal.fire({
+                icon: 'success',
+                title: 'Upload Successful',
+                text: urlParams.get('msg'),
+                timer: 3000,
+                showConfirmButton: false
+            });
+            if (window.history.replaceState) {
+                const url = new URL(window.location.href);
+                url.searchParams.delete('msg');
+                window.history.replaceState(null, null, url.toString());
+            }
+        }
+        if (urlParams.has('error')) {
+            Swal.fire({
+                icon: 'error',
+                title: 'Upload Failed',
+                text: urlParams.get('error')
+            });
+            if (window.history.replaceState) {
+                const url = new URL(window.location.href);
+                url.searchParams.delete('error');
+                window.history.replaceState(null, null, url.toString());
+            }
+        }
+
         // [FIX] Handle pre-filled "Others" category
         toggleOtherInput();
 

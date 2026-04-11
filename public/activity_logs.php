@@ -55,6 +55,8 @@ if ($filter === 'SECURITY') {
     $where[] = "(a.action LIKE '%DOC%' OR a.action LIKE '%VAULT%' OR a.action LIKE '%FILE%')";
 } elseif ($filter === 'SYSTEM') {
     $where[] = "(a.action LIKE '%BACKUP%' OR a.action LIKE '%SETTINGS%')";
+} elseif ($filter === 'GENERATED') {
+    $where[] = "a.action IN ('AUTO_SAVE_COPY', 'GENERATE_DOC', 'BULK_PRINT', 'AUTO_CASE_FILE')";
 }
 
 // [NEW] Date Range Filter logic
@@ -89,34 +91,42 @@ $logs = $stmt->fetchAll(PDO::FETCH_ASSOC);
 ?>
 <?php require 'header.php'; ?>
 
-<div class="container-fluid px-4">
-    <div class="card shadow-sm mb-4">
-        <div class="card-body py-3">
-            <form class="row g-2 align-items-center" method="GET">
-                <div class="col-auto fw-bold">Filter By:</div>
-                <div class="col-auto">
-                    <select name="filter" class="form-select form-select-sm" onchange="this.form.submit()">
+<div class="container-fluid px-4 py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h4 class="mb-0 text-dark fw-bold"><i class="bi bi-shield-check text-primary me-2"></i>System Activity Logs</h4>
+    </div>
+
+    <div class="card shadow-sm border-0 rounded-3 mb-4">
+        <div class="card-body bg-light rounded-3 py-3">
+            <form class="row g-3 align-items-center" method="GET">
+                <div class="col-md-auto fw-bold text-muted">
+                    Filter Logs:
+                </div>
+                <div class="col-md-3">
+                    <select name="filter" class="form-select border-0 shadow-sm" onchange="this.form.submit()">
                         <option value="ALL" <?php echo $filter === 'ALL' ? 'selected' : ''; ?>>All Activity</option>
                         <option value="SECURITY" <?php echo $filter === 'SECURITY' ? 'selected' : ''; ?>>🛡️ Security & Access Events</option>
                         <option value="LOGINS" <?php echo $filter === 'LOGINS' ? 'selected' : ''; ?>>🔑 Logins & Logouts</option>
                         <option value="DOCUMENTS" <?php echo $filter === 'DOCUMENTS' ? 'selected' : ''; ?>>📄 Document Edits</option>
                         <option value="SYSTEM" <?php echo $filter === 'SYSTEM' ? 'selected' : ''; ?>>⚙️ System & Backups</option>
+                        <option value="GENERATED" <?php echo $filter === 'GENERATED' ? 'selected' : ''; ?>>📂 View Saved Copies</option>
                     </select>
                 </div>
-                <div class="col-auto">
-                    <div class="input-group input-group-sm">
-                        <span class="input-group-text">From</span>
-                        <input type="date" name="date_from" class="form-control" value="<?php echo htmlspecialchars($dateFrom); ?>">
-                        <span class="input-group-text">To</span>
-                        <input type="date" name="date_to" class="form-control" value="<?php echo htmlspecialchars($dateTo); ?>">
+                <div class="col-md-4">
+                    <div class="input-group input-group-sm shadow-sm rounded">
+                        <span class="input-group-text bg-white border-0 text-muted"><i class="bi bi-calendar-range"></i></span>
+                        <input type="date" name="date_from" class="form-control border-0" value="<?php echo htmlspecialchars($dateFrom); ?>">
+                        <span class="input-group-text bg-white border-0 text-muted">to</span>
+                        <input type="date" name="date_to" class="form-control border-0" value="<?php echo htmlspecialchars($dateTo); ?>">
                     </div>
                 </div>
-                <div class="col-auto ms-auto">
-                    <div class="input-group input-group-sm">
-                        <input type="text" name="search" class="form-control" placeholder="Search logs..." value="<?php echo htmlspecialchars($search); ?>" maxlength="100" pattern="[a-zA-Z0-9\-_ ,]+" oninput="this.value = this.value.replace(/[^a-zA-Z0-9\-_ ,]/g, '')">
-                        <button type="submit" class="btn btn-primary"><i class="bi bi-search"></i></button>
+                <div class="col-md-auto ms-auto">
+                    <div class="input-group shadow-sm rounded">
+                        <span class="input-group-text bg-white border-0 text-muted"><i class="bi bi-search"></i></span>
+                        <input type="text" name="search" class="form-control border-0" placeholder="Search logs..." value="<?php echo htmlspecialchars($search); ?>" maxlength="100" pattern="[a-zA-Z0-9\-_ ,]+" oninput="this.value = this.value.replace(/[^a-zA-Z0-9\-_ ,]/g, '')">
+                        <button type="submit" class="btn btn-primary px-3 border-0">Search</button>
                         <?php if ($search || $dateFrom || $dateTo || $filter !== 'ALL'): ?>
-                            <a href="activity_logs.php" class="btn btn-outline-secondary" title="Reset Filters"><i class="bi bi-x-lg"></i></a>
+                            <a href="activity_logs.php" class="btn btn-light text-danger border-0" title="Reset Filters"><i class="bi bi-x-circle-fill"></i></a>
                         <?php endif; ?>
                     </div>
                 </div>
@@ -124,10 +134,10 @@ $logs = $stmt->fetchAll(PDO::FETCH_ASSOC);
         </div>
     </div>
 
-    <div class="card shadow-sm">
+    <div class="card shadow-sm border-0 rounded-3">
         <div class="card-body p-0 table-responsive">
-            <table class="table table-hover table-striped mb-0 align-middle small">
-                <thead class="table-dark">
+            <table class="table table-hover align-middle mb-0 text-sm">
+                <thead class="table-light text-muted" style="border-bottom: 2px solid #e9ecef;">
                     <tr>
                         <th>Timestamp</th>
                         <th>User</th>
@@ -136,25 +146,54 @@ $logs = $stmt->fetchAll(PDO::FETCH_ASSOC);
                         <th>IP Address</th>
                     </tr>
                 </thead>
-                <tbody>
+                <tbody class="border-top-0">
                     <?php if (empty($logs)): ?>
                         <tr>
-                            <td colspan="5" class="text-center py-4 text-muted">No activity logs found.</td>
+                            <td colspan="5" class="text-center py-5 text-muted">
+                                <i class="bi bi-inbox fs-2 d-block mb-2 text-light"></i>
+                                No activity logs found matching your criteria.
+                            </td>
                         </tr>
                     <?php else: ?>
                         <?php foreach ($logs as $log):
-                            $actionColor = 'bg-secondary';
-                            if (strpos($log['action'], 'DELETE') !== false || strpos($log['action'], 'FAIL') !== false || strpos($log['action'], 'LOCK') !== false) $actionColor = 'bg-danger';
-                            elseif (strpos($log['action'], 'EDIT') !== false || strpos($log['action'], 'UPDATE') !== false || strpos($log['action'], 'RESET') !== false) $actionColor = 'bg-warning text-dark';
-                            elseif (strpos($log['action'], 'ADD') !== false || strpos($log['action'], 'SUCCESS') !== false || strpos($log['action'], 'UNLOCK') !== false) $actionColor = 'bg-success';
-                            elseif (strpos($log['action'], 'LOGIN') !== false) $actionColor = 'bg-primary';
+                            // UI UPGRADE: Modern Soft Badges
+                            $actionColor = 'bg-secondary bg-opacity-10 text-secondary border border-secondary';
+                            if (strpos($log['action'], 'DELETE') !== false || strpos($log['action'], 'FAIL') !== false || strpos($log['action'], 'LOCK') !== false) {
+                                $actionColor = 'bg-danger bg-opacity-10 text-danger border border-danger';
+                            } elseif (strpos($log['action'], 'EDIT') !== false || strpos($log['action'], 'UPDATE') !== false || strpos($log['action'], 'RESET') !== false) {
+                                $actionColor = 'bg-warning bg-opacity-10 text-warning border border-warning';
+                            } elseif (strpos($log['action'], 'ADD') !== false || strpos($log['action'], 'SUCCESS') !== false || strpos($log['action'], 'UNLOCK') !== false) {
+                                $actionColor = 'bg-success bg-opacity-10 text-success border border-success';
+                            } elseif (strpos($log['action'], 'LOGIN') !== false) {
+                                $actionColor = 'bg-primary bg-opacity-10 text-primary border border-primary';
+                            }
                         ?>
                             <tr>
-                                <td class="text-nowrap text-muted"><?php echo date('M d, Y H:i:s', strtotime($log['created_at'])); ?></td>
-                                <td class="fw-bold"><?php echo htmlspecialchars($log['username'] ?? 'System / Guest'); ?></td>
-                                <td><span class="badge <?php echo $actionColor; ?>"><?php echo htmlspecialchars($log['action']); ?></span></td>
-                                <td class="text-wrap text-break" style="max-width: 400px;"><?php echo htmlspecialchars($log['details']); ?></td>
-                                <td class="font-monospace text-muted"><?php echo htmlspecialchars($log['ip_address'] ?? 'Unknown'); ?></td>
+                                <td class="px-4 text-nowrap text-muted" style="font-size: 0.9rem;">
+                                    <?php echo date('M d, Y', strtotime($log['created_at'])); ?>
+                                    <span class="ms-1 fw-bold"><?php echo date('H:i:s', strtotime($log['created_at'])); ?></span>
+                                </td>
+                                <td>
+                                    <div class="d-flex align-items-center">
+                                        <div class="bg-light rounded-circle d-flex align-items-center justify-content-center text-primary fw-bold me-2" style="width: 32px; height: 32px; font-size: 0.8rem;">
+                                            <?php echo strtoupper(substr($log['username'] ?? 'S', 0, 1)); ?>
+                                        </div>
+                                        <span class="fw-semibold text-dark"><?php echo htmlspecialchars($log['username'] ?? 'System / Guest'); ?></span>
+                                    </div>
+                                </td>
+                                <td>
+                                    <span class="badge rounded-pill <?php echo $actionColor; ?> px-3 py-2 fw-normal" style="font-size: 0.75rem; letter-spacing: 0.5px;">
+                                        <?php echo htmlspecialchars(str_replace('_', ' ', $log['action'])); ?>
+                                    </span>
+                                </td>
+                                <td class="text-wrap text-break text-secondary" style="max-width: 400px; font-size: 0.9rem;">
+                                    <?php echo htmlspecialchars($log['details']); ?>
+                                </td>
+                                <td class="px-4 text-end">
+                                    <span class="font-monospace text-muted bg-light px-2 py-1 rounded" style="font-size: 0.85rem;">
+                                        <?php echo htmlspecialchars($log['ip_address'] ?? 'Unknown'); ?>
+                                    </span>
+                                </td>
                             </tr>
                         <?php endforeach; ?>
                     <?php endif; ?>
@@ -165,17 +204,28 @@ $logs = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
     <!-- Pagination -->
     <?php if ($totalPages > 1): ?>
-        <nav class="mt-4">
-            <ul class="pagination justify-content-center">
+        <nav class="mt-4 d-flex justify-content-center">
+            <ul class="pagination pagination-sm shadow-sm">
                 <?php
                 $qs = $_GET;
+
+                // Previous Button
+                $qs['page'] = max(1, $page - 1);
+                $prevDisabled = ($page <= 1) ? 'disabled' : '';
+                echo '<li class="page-item ' . $prevDisabled . '"><a class="page-link px-3 text-dark border-0" href="?' . http_build_query($qs) . '" aria-label="Previous"><i class="bi bi-chevron-left"></i></a></li>';
+
                 $start = max(1, $page - 3);
                 $end = min($totalPages, $page + 3);
                 for ($i = $start; $i <= $end; $i++) {
                     $qs['page'] = $i;
                     $active = ($page == $i) ? 'active' : '';
-                    echo '<li class="page-item ' . $active . '"><a class="page-link" href="?' . http_build_query($qs) . '">' . $i . '</a></li>';
+                    echo '<li class="page-item ' . $active . '"><a class="page-link px-3 text-dark border-0" href="?' . http_build_query($qs) . '">' . $i . '</a></li>';
                 }
+
+                // Next Button
+                $qs['page'] = min($totalPages, $page + 1);
+                $nextDisabled = ($page >= $totalPages) ? 'disabled' : '';
+                echo '<li class="page-item ' . $nextDisabled . '"><a class="page-link px-3 text-dark border-0" href="?' . http_build_query($qs) . '" aria-label="Next"><i class="bi bi-chevron-right"></i></a></li>';
                 ?>
             </ul>
         </nav>

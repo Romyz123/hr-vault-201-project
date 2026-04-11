@@ -223,6 +223,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } else {
             $displayName = $file['name'];
         }
+
+        // [NEW] Auto-increment filename logic (-001, -002, etc.)
+        // This prevents naming collisions and helps distinguish multiple versions of the same file.
+        $baseNameOnly = pathinfo($displayName, PATHINFO_FILENAME);
+        $extOnly = pathinfo($displayName, PATHINFO_EXTENSION);
+
+        // Fetch all existing names for this employee to check for collisions
+        $checkStmt = $pdo->prepare("SELECT original_name FROM documents WHERE employee_id = ? AND deleted_at IS NULL");
+        $checkStmt->execute([$emp_id]);
+        $existingInDB = $checkStmt->fetchAll(PDO::FETCH_COLUMN);
+
+        $counter = 1;
+        $finalCandidate = $displayName;
+        while (true) {
+            $sanitizedCandidate = preg_replace('/[^a-zA-Z0-9\s\-\.\(\)_]/', '', htmlspecialchars($finalCandidate, ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+            if (!in_array($sanitizedCandidate, $existingInDB)) {
+                break;
+            }
+            $finalCandidate = $baseNameOnly . '-' . str_pad($counter, 3, '0', STR_PAD_LEFT) . '.' . $extOnly;
+            $counter++;
+        }
+        $displayName = $finalCandidate;
+
         // [SECURITY] Sanitize $displayName before storing in DB to prevent XSS on display
         $displayName = htmlspecialchars($displayName, ENT_QUOTES | ENT_HTML5, 'UTF-8');
         // Further sanitize to remove potentially problematic characters for display/filesystem, even if not directly used for disk filename

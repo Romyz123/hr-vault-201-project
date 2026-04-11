@@ -607,7 +607,11 @@ include 'header.php';
     <?php endif; ?>
     </form>
 
-    <div class="no-print d-flex gap-2 ms-lg-3">
+    <div class="no-print d-flex gap-2 ms-lg-3 align-items-center">
+        <div class="btn-group btn-group-sm me-2 shadow-sm">
+            <button type="button" class="btn btn-light fw-bold" onclick="document.getElementById('selectAll').click()"><i class="bi bi-check-all"></i> Select All</button>
+            <button type="button" class="btn btn-light fw-bold" onclick="deselectAllCandidates()"><i class="bi bi-x-circle"></i> Deselect</button>
+        </div>
         <a href="export_recruitment.php" class="btn btn-sm btn-light text-success fw-bold"><i class="bi bi-file-earmark-excel-fill"></i> Excel</a>
         <a href="print_recruitment.php?status=<?php echo urlencode($filterStatus); ?>&month=<?php echo urlencode($filterMonth); ?>&week=<?php echo urlencode($filterWeek); ?>" target="_blank" class="btn btn-sm btn-light text-dark fw-bold"><i class="bi bi-printer-fill"></i> Print</a>
         <button class="btn btn-sm btn-warning text-dark fw-bold" data-bs-toggle="modal" data-bs-target="#addModal"><i class="bi bi-plus-circle-fill"></i> Add Candidate</button>
@@ -618,7 +622,8 @@ include 'header.php';
     <table class="table table-hover align-middle mb-0" style="font-size: 0.9rem;">
         <thead class="table-light text-secondary">
             <tr>
-                <th>Name</th>
+                <th style="width: 40px;"><input type="checkbox" class="form-check-input" id="selectAll"></th>
+                <th>Name <span id="selection-count" class="badge bg-primary ms-1" style="display:none">0</span></th>
                 <th>Position</th>
                 <th>Contact Info</th>
                 <th>Status</th>
@@ -1112,6 +1117,34 @@ include 'header.php';
     });
 
     // --- ACTION BUTTON LOGIC ---
+    function updateCount() {
+        const count = document.querySelectorAll('.cand-checkbox:checked').length;
+        const badge = document.getElementById('selection-count');
+        if (badge) {
+            badge.innerText = count;
+            badge.style.display = count > 0 ? 'inline-block' : 'none';
+        }
+    }
+
+    function deselectAllCandidates() {
+        const selectAllCb = document.getElementById('selectAll');
+        if (selectAllCb) selectAllCb.checked = false;
+        document.querySelectorAll('.cand-checkbox').forEach(cb => cb.checked = false);
+        updateCount();
+    }
+
+    document.getElementById('selectAll')?.addEventListener('change', function() {
+        document.querySelectorAll('.cand-checkbox').forEach(cb => {
+            // Only select items that are visible (handles filtered views)
+            if (cb.offsetParent !== null) cb.checked = this.checked;
+        });
+        updateCount();
+    });
+
+    document.querySelectorAll('.cand-checkbox').forEach(cb => {
+        cb.addEventListener('change', updateCount);
+    });
+
     function openEditModal(data) {
         document.getElementById('edit_id').value = data.id || '';
         document.getElementById('edit_first').value = data.first_name || '';

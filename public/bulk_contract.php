@@ -44,6 +44,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate_bulk'])) {
     $ids = $_POST['employee_ids'] ?? [];
     $type = $_POST['doc_type'];
 
+    // [NEW] Load Config to ensure VAULT_PATH is available for auto-saving copies
+    $configEnv = require '../config/config.php';
+    $vaultPath = $configEnv['VAULT_PATH'] ?? dirname(__DIR__) . DIRECTORY_SEPARATOR . 'vault' . DIRECTORY_SEPARATOR;
+
     // [NEW] Capture & Save Settings on the Fly
     $marginL = min(500, max(0, (int)($_POST['margin_left'] ?? $marginL)));
     $marginR = min(500, max(0, (int)($_POST['margin_right'] ?? $marginR)));
@@ -82,6 +86,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate_bulk'])) {
         'employee_pledge' => 'templates/employee_pledge.php',
         'whistleblowing' => 'templates/whistleblowing.php'
     ];
+
+    // [NEW] Friendly Document Titles for Auto-Save Naming
+    $docTitles = [
+        'probationary'      => 'Probationary Employment Contract',
+        'project'           => 'Project Employment Contract',
+        'data_consent'      => 'Data Privacy Consent Form',
+        'confidentiality'   => 'Confidentiality Agreement',
+        'notice_to_explain' => 'Notice to Explain',
+        'notice_of_decision' => 'Notice of Decision',
+        'employee_pledge'   => 'Employee Safety Pledge',
+        'whistleblowing'    => 'Whistle Blowing Consent Form'
+    ];
+    $friendlyTitle = $docTitles[$type] ?? 'Document';
 
     $templateFile = $templateMap[$type] ?? '';
 
@@ -246,6 +263,41 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate_bulk'])) {
                 include $templateFile;
                 $content = ob_get_clean();
 
+                // [NEW] Logic to Save Unsigned Copy to Digital 201 File
+                if (isset($_POST['auto_save_copy'])) {
+                    // 1. Construct File Name per requested format
+                    $baseName = "Unsigned Digital Copy of the Document ($friendlyTitle)";
+                    $fileExt = "html";
+
+                    // 2. Collision Detection & Auto-Numbering (-0001)
+                    $checkStmt = $pdo->prepare("SELECT original_name FROM documents WHERE employee_id = ? AND deleted_at IS NULL");
+                    $checkStmt->execute([$emp['emp_id']]);
+                    $existingInDB = $checkStmt->fetchAll(PDO::FETCH_COLUMN);
+
+                    $counter = 1;
+                    $finalDisplayName = $baseName . "." . $fileExt;
+                    while (in_array($finalDisplayName, $existingInDB)) {
+                        $finalDisplayName = $baseName . " -" . str_pad($counter, 4, '0', STR_PAD_LEFT) . "." . $fileExt;
+                        $counter++;
+                    }
+
+                    // 3. Save Physical File to Vault
+                    $vaultFilename = "GEN_" . time() . "_" . bin2hex(random_bytes(4)) . "." . $fileExt;
+
+                    $standaloneHtml = '<!DOCTYPE html><html><head><meta charset="UTF-8"><style>' .
+                        'body { font-family: sans-serif; padding: 20mm; } ' .
+                        'p { text-align: justify; line-height: 1.5; }' .
+                        '</style></head><body>' . $content . '</body></html>';
+
+                    if (file_put_contents($vaultPath . $vaultFilename, $standaloneHtml)) {
+                        // 4. Register in Documents Table
+                        $ins = $pdo->prepare("INSERT INTO documents (file_uuid, employee_id, original_name, file_path, category, uploaded_by, description) 
+                                              VALUES (UUID(), ?, ?, ?, 'System Generated', ?, 'Auto-generated unsigned copy.')");
+                        $ins->execute([$emp['emp_id'], $finalDisplayName, $vaultFilename, $_SESSION['user_id']]);
+                        $logger->log($_SESSION['user_id'], 'AUTO_SAVE_COPY', "Auto-saved unsigned copy: $finalDisplayName for employee {$emp['emp_id']}");
+                    }
+                }
+
                 // [FIX] Strip outer HTML tags to prevent layout breakage in bulk mode
                 // 1. Extract Styles
                 preg_match_all('/<style>(.*?)<\/style>/is', $content, $matches);
@@ -407,6 +459,15 @@ $allDepts = $pdo->query("SELECT DISTINCT dept FROM employees WHERE dept != '' OR
                                 <option value="employee_pledge">Employee Safety Pledge</option>
                                 <option value="whistleblowing">Whistle Blowing Consent</option>
                             </select>
+                        </div>
+                        <div class="col-md-2 d-flex align-items-center">
+                            <!-- [NEW] Auto-Save Copy Toggle -->
+                            <div class="form-check form-switch mt-3">
+                                <input class="form-check-input" type="checkbox" name="auto_save_copy" id="autoSaveCopy" value="1">
+                                <label class="form-check-label small fw-bold text-primary" for="autoSaveCopy">
+                                    <i class="bi bi-cloud-arrow-up-fill"></i> Auto-save Copies
+                                </label>
+                            </div>
                         </div>
                         <div class="col-md-2 project-field">
                             <label class="form-label small fw-bold">Project Name</label>

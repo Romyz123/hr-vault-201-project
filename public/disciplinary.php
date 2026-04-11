@@ -814,6 +814,20 @@ if (isset($_GET['msg'])) {
     <script src="assets/bootstrap.bundle.min.js"></script>
     <script src="dark_mode.js"></script>
     <script>
+        // [UX STABILIZATION] Scroll Memory Helper
+        // Prevents the page from jumping to the top after filing or closing a case
+        const scrollKey = 'hr201_scroll_pos_' + window.location.pathname;
+
+        window.addEventListener('beforeunload', () => {
+            sessionStorage.setItem(scrollKey, window.scrollY);
+        });
+
+        const urlParamsForScroll = new URLSearchParams(window.location.search);
+        if (urlParamsForScroll.has('msg') || urlParamsForScroll.has('error')) {
+            const savedPos = sessionStorage.getItem(scrollKey);
+            if (savedPos) window.scrollTo(0, parseInt(savedPos));
+        }
+
         <?php if ($alertMsg): ?>
             Swal.fire({
                 icon: '<?php echo $alertType; ?>',

@@ -474,6 +474,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $logger->log($_SESSION['user_id'], 'MASTER_SYNC', "Master Sync executed. Details: " . implode(" | ", $logMessages));
     }
 
+    // --- [NEW] RESTORE ALL DOCUMENTS ---
+    if (isset($_POST['restore_all_docs'])) {
+        $stmt = $pdo->prepare("UPDATE documents SET deleted_at = NULL WHERE deleted_at IS NOT NULL");
+        $stmt->execute();
+        $count = $stmt->rowCount();
+        $msg = "✅ Restored $count documents from the Recycle Bin.";
+        $logger = new Logger($pdo);
+        $logger->log($_SESSION['user_id'], 'RESTORE_ALL_DOCS', "Restored $count soft-deleted documents via System Recovery.");
+    }
+
     // --- RESTORE EMPLOYEE ---
     if (isset($_POST['restore_employee'])) {
         $empId = $_POST['emp_id'];
@@ -963,9 +973,15 @@ $bkMaxSize = $pdo->query("SELECT setting_value FROM system_settings WHERE settin
         <!-- DELETED EMPLOYEES TAB -->
         <div class="tab-pane fade" id="deleted">
             <div class="card shadow-sm">
-                <div class="card-header bg-secondary text-white">
-                    <i class="bi bi-person-x"></i> <strong>Recycle Bin: Employees</strong>
-                    <small class="d-block text-light">Restore employees or permanently delete them (including files).</small>
+                <div class="card-header bg-secondary text-white d-flex justify-content-between align-items-center">
+                    <div>
+                        <i class="bi bi-person-x"></i> <strong>Recycle Bin: Employees</strong>
+                        <small class="d-block text-light">Restore employees or permanently delete them (including files).</small>
+                    </div>
+                    <form method="POST" class="m-0">
+                        <input type="hidden" name="csrf_token" value="<?php echo h($_SESSION['csrf_token']); ?>">
+                        <button type="submit" name="restore_all_docs" class="btn btn-sm btn-light fw-bold shadow-sm" onclick="return confirm('This will restore ALL documents currently in the Recycle Bin. Continue?')"><i class="bi bi-recycle"></i> Restore All Documents</button>
+                    </form>
                 </div>
                 <div class="card-body p-0 table-responsive">
                     <table class="table table-hover mb-0 align-middle">

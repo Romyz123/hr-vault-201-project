@@ -75,7 +75,7 @@ $docStmt = $pdo->prepare("
     FROM documents d 
     LEFT JOIN users u ON d.updated_by = u.id 
     WHERE d.employee_id = ? AND d.deleted_at IS NULL 
-    ORDER BY d.uploaded_at DESC");
+    ORDER BY d.uploaded_at DESC, d.original_name ASC");
 $docStmt->execute([$emp['emp_id']]);
 $myDocs = $docStmt->fetchAll(PDO::FETCH_ASSOC);
 
@@ -1092,6 +1092,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         </div>
                     </div>
 
+                    <!-- [NEW] Document Search Filter -->
+                    <div class="mb-3">
+                        <div class="input-group input-group-sm shadow-sm rounded">
+                            <span class="input-group-text bg-light border-end-0 text-muted"><i class="bi bi-search"></i></span>
+                            <input type="text" id="docSearch" class="form-control border-start-0" placeholder="Filter documents by name, category, or resolution notes..." onkeyup="filter201Docs()">
+                        </div>
+                    </div>
+
                     <?php if (empty($myDocs)): ?>
                         <div class="alert alert-light text-center border border-dashed p-5">
                             <i class="bi bi-folder-x fs-1 text-muted"></i>
@@ -1117,13 +1125,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                         }
                                     }
                                 }
+
+                                // UI UPGRADE: Highlight Version Numbers (-001, -002)
+                                $displayName = h($d['original_name']);
+                                if (preg_match('/(-(\d{3}))(\.[^.]+)$/', $displayName, $vMatches)) {
+                                    $versionPart = '<span class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary ms-1" style="font-size: 0.7rem;">Ver ' . $vMatches[2] . '</span>';
+                                    $displayName = str_replace($vMatches[1], '', $displayName) . $versionPart;
+                                } else {
+                                    $versionPart = '';
+                                }
                                 ?>
                                 <div class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
                                     <div>
                                         <div class="fw-bold text-dark">
                                             <i class="bi bi-file-earmark-text me-2 text-secondary"></i>
                                             <a href="view_doc.php?id=<?php echo $d['file_uuid']; ?>" target="_blank" class="text-decoration-none text-dark stretched-link">
-                                                <?php echo h($d['original_name']); ?>
+                                                <?php echo $displayName; ?>
                                                 <?php if ($isThisDocUncategorized): ?>
                                                     <span class="badge bg-danger-subtle text-danger border border-danger-subtle ms-1" style="font-size: 0.65rem;"><i class="bi bi-tag-fill"></i> Needs Categorization</span>
                                                 <?php endif; ?>
@@ -1278,6 +1295,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <form id="deleteForm" method="POST" style="display:none;">
     <input type="hidden" name="action" value="delete_employee">
     <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
+</form>
+
+<form id="deleteFileForm" action="delete_document.php" method="POST" style="display:none;">
+    <input type="hidden" name="file_uuid" id="del_file_uuid">
+    <input type="hidden" name="emp_id" id="del_emp_id">
+    <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
+    <input type="hidden" name="redirect_to" value="edit_employee.php?id=<?php echo $id; ?>&tab=docs">
 </form>
 
 <!-- EDIT DOCUMENT MODAL -->
@@ -1528,6 +1552,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             <option value="" selected>-- Select Category First --</option>
                         </select>
                         <div class="form-text text-muted" id="docHelp"></div>
+                    </div>
+
+                    <!-- [NEW] Auto-Save Copy Toggle -->
+                    <div class="form-check form-switch mb-3 p-2 border rounded bg-light shadow-sm">
+                        <input class="form-check-input ms-1" type="checkbox" name="auto_save_copy" id="autoSaveCopy" value="1">
+                        <label class="form-check-label fw-bold text-primary ms-2" for="autoSaveCopy">
+                            <i class="bi bi-cloud-arrow-up-fill"></i> Auto-save unsigned copy to 201 File
+                        </label>
                     </div>
 
                     <!-- [NEW] COE Specific Fields -->
@@ -1783,6 +1815,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
+    // [NEW] Local filter for Digital 201 File Tab
+    function filter201Docs() {
+        const filter = document.getElementById('docSearch').value.toLowerCase();
+        const items = document.querySelectorAll('#docs .list-group-item');
+        items.forEach(item => {
+            const text = item.innerText.toLowerCase();
+            // Toggles visibility while preserving d-flex layout if matched
+            item.classList.toggle('d-none', !text.includes(filter));
+        });
+    }
+
+    function confirmDeleteFile(uuid, empId) {
+        Swal.fire({
+            title: 'Delete this document?',
+            text: "It will be moved to the Recycle Bin.",
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#dc3545',
+            confirmButtonText: 'Yes, delete it!'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                document.getElementById('del_file_uuid').value = uuid;
+                document.getElementById('del_emp_id').value = empId;
+                document.getElementById('deleteFileForm').submit();
+            }
+        });
+    }
+
     function confirmDelete(id) {
         // [NEW] Check for existing documents
         const docCount = <?php echo htmlspecialchars(count($myDocs)); ?>;
@@ -1834,6 +1894,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // [NEW] Tab Persistence Logic
     document.addEventListener("DOMContentLoaded", () => {
+        // [UX STABILIZATION] Scroll Memory Helper
+        // Keeps the user at their vertical scroll position even after switching tabs or saving changes
+        const scrollKey = 'hr201_scroll_pos_' + window.location.pathname;
+
+        window.addEventListener('beforeunload', () => {
+            sessionStorage.setItem(scrollKey, window.scrollY);
+        });
+
+        const urlParamsForScroll = new URLSearchParams(window.location.search);
+        if (urlParamsForScroll.has('msg') || urlParamsForScroll.has('error') || urlParamsForScroll.has('tab')) {
+            const savedPos = sessionStorage.getItem(scrollKey);
+            if (savedPos) window.scrollTo(0, parseInt(savedPos));
+        }
+
         const urlParams = new URLSearchParams(window.location.search);
         const activeTab = urlParams.get('tab');
         if (activeTab) {

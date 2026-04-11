@@ -11,7 +11,7 @@ require '../src/FileService.php';
 session_start();
 
 // 1. SECURITY: Admin/Manager/HR/Staff
-$userRole = isset($_SESSION['role']) ? strtoupper(trim($_SESSION['role'])) : '';
+$userRole = isset($_SESSION['role']) ? strtoupper(trim((string)$_SESSION['role'])) : '';
 if (!in_array($userRole, ['ADMIN', 'MANAGER', 'HR', 'STAFF'])) {
     die("ACCESS DENIED");
 }
@@ -19,8 +19,8 @@ if (!in_array($userRole, ['ADMIN', 'MANAGER', 'HR', 'STAFF'])) {
 $logger = new Logger($pdo);
 
 // 2. FETCH EMPLOYEE
-$ids_raw = $_GET['ids'] ?? ($_GET['id'] ?? '');
-$ids = array_filter(explode(',', $ids_raw), 'is_numeric');
+$ids_raw = (isset($_GET['ids']) && !is_array($_GET['ids'])) ? $_GET['ids'] : ((isset($_GET['id']) && !is_array($_GET['id'])) ? $_GET['id'] : '');
+$ids = array_filter(explode(',', (string)$ids_raw), 'is_numeric');
 $type = isset($_GET['type']) ? $_GET['type'] : '';
 $format = isset($_GET['format']) ? $_GET['format'] : 'html'; // 'html' or 'word'
 
@@ -47,7 +47,7 @@ try {
 $docFontSize = $settings['document_font_size'] ?? '11';
 
 // Validate font size to prevent CSS injection
-if (!preg_match('/^\d+(?:\.\d+)?$/', trim($docFontSize))) {
+if (!is_numeric($docFontSize)) {
     $docFontSize = '11';
 }
 $docFontSize = floatval($docFontSize);
@@ -57,30 +57,13 @@ if ($docFontSize < 8) {
     $docFontSize = 24;
 }
 
-// 3. PREPARE VARIABLES (Auto-Fill Logic)
-$full_name = strtoupper($emp['first_name'] . ' ' . (empty($emp['middle_name']) ? '' : $emp['middle_name'][0] . '.') . ' ' . $emp['last_name']);
-$address   = strtoupper($emp['present_address']);
-$position  = strtoupper($emp['job_title']);
-$section   = strtoupper($emp['section']);
-
-// [NEW] Capture Custom Duties
-$custom_duties = isset($_GET['custom_duties']) ? trim($_GET['custom_duties']) : '';
-
-// [NEW] Custom Date Logic from Modal
-$start_input = $_GET['start_date'] ?? $emp['hire_date'];
+// 3. PREPARE SHARED INPUTS
+$custom_duties = (isset($_GET['custom_duties']) && !is_array($_GET['custom_duties'])) ? trim($_GET['custom_duties']) : '';
+$start_override = $_GET['start_date'] ?? '';
 $end_input   = $_GET['end_date'] ?? '';
 
 $manual_end_date_override = isset($_GET['manual_end_date_override']) && $_GET['manual_end_date_override'] === 'on';
 $manual_end_date_value = $_GET['manual_end_date_value'] ?? '';
-
-// [FIX] Safe Date Parsing to prevent Fatal Error crashes on missing hire dates
-try {
-    $start_date_obj = new DateTime($start_input ?: 'now');
-    $start_date_str = $start_date_obj->format('F j, Y');
-} catch (Exception $e) {
-    $start_date_obj = new DateTime('now');
-    $start_date_str = $start_date_obj->format('F j, Y');
-}
 
 // Current Date for Signatures
 $current_day  = date('jS'); // 24th
@@ -100,43 +83,10 @@ if (is_array($rule_violated)) {
 }
 
 // Shared variables for templates
-$incident_date = $_GET['incident_date'] ?? '';
-$incident_place = $_GET['incident_place'] ?? '';
-$allegation = $_GET['allegation'] ?? '';
-$decision = $_GET['decision'] ?? '';
-
-// [NEW] Automatically Record Disciplinary Case if generating NTE or NOD
-if (in_array($type, ['notice_to_explain', 'notice_of_decision'])) {
-    try {
-        $vDate = trim($_GET['incident_date'] ?? '');
-        $vType = $violation; // Use the processed string variable
-        $vRule = $rule_violated; // Use the processed string variable
-        $vAction = trim(($type === 'notice_to_explain') ? 'Written Explanation Required' : ($_GET['decision'] ?? ''));
-        $vDesc = trim(($type === 'notice_to_explain') ? ($_GET['allegation'] ?? '') : ($_GET['decision'] ?? ''));
-
-        // Skip recording if core fields are empty (prevents recording blank templates/samples)
-        if (!empty($vDate) && !empty($vDesc)) {
-            // Format datetime-local from NTE to Y-m-d
-            if (strpos($vDate, 'T') !== false) $vDate = explode('T', $vDate)[0];
-
-            if ($vType === '') $vType = ($type === 'notice_to_explain') ? 'NTE Issued' : 'NOD Issued';
-            if ($vAction === '') $vAction = ($type === 'notice_to_explain') ? 'Written Explanation Required' : 'Sanction Issued';
-
-            // Simple De-duplication: Check if an identical case was filed in the last hour
-            $chk = $pdo->prepare("SELECT id FROM disciplinary_cases WHERE employee_id = ? AND violation_type = ? AND incident_date = ? AND created_at > DATE_SUB(NOW(), INTERVAL 1 HOUR)");
-            $chk->execute([$emp['emp_id'], $vType, $vDate]);
-
-            if (!$chk->fetch()) {
-                $stmt = $pdo->prepare("INSERT INTO disciplinary_cases (employee_id, violation_type, rule_violated, incident_date, action_taken, description, status) 
-                                   VALUES (?, ?, ?, ?, ?, ?, 'Open')");
-                $stmt->execute([$emp['emp_id'], $vType, $vRule, $vDate, $vAction, $vDesc]);
-                $logger->log($_SESSION['user_id'], 'AUTO_CASE_FILE', "Auto-recorded disciplinary case ($type) for " . $emp['emp_id']);
-            }
-        }
-    } catch (Exception $e) {
-        error_log("Failed to auto-record disciplinary case in generate_document.php: " . $e->getMessage());
-    }
-}
+$incident_date = (isset($_GET['incident_date']) && !is_array($_GET['incident_date'])) ? trim($_GET['incident_date']) : '';
+$incident_place = (isset($_GET['incident_place']) && !is_array($_GET['incident_place'])) ? trim($_GET['incident_place']) : '';
+$allegation = (isset($_GET['allegation']) && !is_array($_GET['allegation'])) ? trim($_GET['allegation']) : '';
+$decision = (isset($_GET['decision']) && !is_array($_GET['decision'])) ? trim($_GET['decision']) : '';
 
 $logo_paths = [
     __DIR__ . '/assets/images/tesp-logo-1.png',
@@ -173,7 +123,6 @@ if ($type === 'probationary') {
     $templateFile = __DIR__ . '/templates/contract_project.php';
 } elseif ($type === 'coe') {
     $templateFile = __DIR__ . '/templates/coe.php';
-    $_GET['employment_end_display'] = $employmentEnd; // Pass to COE template
 } elseif ($type === 'notice_to_explain') {
     $templateFile = __DIR__ . '/templates/notice_to_explain.php';
 } elseif ($type === 'notice_of_decision') {
@@ -186,17 +135,88 @@ if ($type === 'probationary') {
     $templateFile = __DIR__ . '/templates/data_consent.php';
 }
 
-// [NEW] Start Output Buffering to capture the document for auto-attachment
-ob_start();
+// [NEW] Friendly Document Titles for Auto-Save Naming
+$docTitles = [
+    'probationary'      => 'Probationary Employment Contract',
+    'project'           => 'Project Employment Contract',
+    'data_consent'      => 'Data Privacy Consent Form',
+    'confidentiality'   => 'Confidentiality Agreement',
+    'notice_to_explain' => 'Notice to Explain',
+    'notice_of_decision' => 'Notice of Decision',
+    'employee_pledge'   => 'Employee Safety Pledge',
+    'whistleblowing'    => 'Whistle Blowing Consent Form',
+    'coe'               => 'Certificate of Employment'
+];
+$friendlyTitle = $docTitles[$type] ?? 'Document';
 
-// [NEW] WORD EXPORT HEADER
+// 4. GENERATE OUTPUT
 if ($format === 'word') {
+    $firstEmp = $all_employees[0] ?? ['last_name' => 'Documents'];
     header("Content-type: application/vnd.ms-word");
-    header("Content-Disposition: attachment;Filename=Contract_{$emp['last_name']}.doc");
+    header("Content-Disposition: attachment;Filename=Contract_{$firstEmp['last_name']}.doc");
+
     // No HTML wrapper for Word doc download, just the template content
-    if ($templateFile && file_exists($templateFile)) {
-        include $templateFile;
+    foreach ($all_employees as $emp) {
+        $full_name = strtoupper($emp['first_name'] . ' ' . (empty($emp['middle_name']) ? '' : $emp['middle_name'][0] . '.') . ' ' . $emp['last_name']);
+        $position  = strtoupper($emp['job_title']);
+        $address   = strtoupper($emp['present_address']);
+        $section   = strtoupper($emp['section']);
+
+        $start_input = !empty($start_override) ? $start_override : ($emp['hire_date'] ?? '');
+        try {
+            $start_date_obj = new DateTime($start_input ?: 'now');
+            $start_date_str = $start_date_obj->format('F j, Y');
+        } catch (Exception $e) {
+            $start_date_str = date('F j, Y');
+        }
+
+        if ($type === 'coe' && $manual_end_date_override) {
+            $employmentEnd = !empty($manual_end_date_value) ? date('F j, Y', strtotime($manual_end_date_value)) : 'Present';
+        } else {
+            $currentStatus = strtolower(trim($emp['status'] ?? ''));
+            if (in_array($currentStatus, ['resigned', 'inactive', 'terminated'])) {
+                $employmentEnd = !empty($end_input) ? date('F j, Y', strtotime($end_input)) : 'Present';
+            } else {
+                $employmentEnd = 'Present';
+            }
+        }
+        $_GET['employment_end_display'] = $employmentEnd;
+
+        // Auto-case filing
+        if (in_array($type, ['notice_to_explain', 'notice_of_decision'])) {
+            try {
+                $vDate = $incident_date;
+                $vType = $violation;
+                $vRule = $rule_violated;
+                $vAction = trim((string)(($type === 'notice_to_explain') ? 'Written Explanation Required' : ($decision ?: '')));
+                $vDesc = trim((string)(($type === 'notice_to_explain') ? ($allegation ?: '') : ($decision ?: '')));
+
+                if (!empty($vDate) && !empty($vDesc)) {
+                    if (strpos($vDate, 'T') !== false) $vDate = explode('T', $vDate)[0];
+                    if ($vType === '') $vType = ($type === 'notice_to_explain') ? 'NTE Issued' : 'NOD Issued';
+                    if ($vAction === '') $vAction = ($type === 'notice_to_explain') ? 'Written Explanation Required' : 'Sanction Issued';
+
+                    $chk = $pdo->prepare("SELECT id FROM disciplinary_cases WHERE employee_id = ? AND violation_type = ? AND incident_date = ? AND created_at > DATE_SUB(NOW(), INTERVAL 1 HOUR)");
+                    $chk->execute([$emp['emp_id'], $vType, $vDate]);
+
+                    if (!$chk->fetch()) {
+                        $stmt = $pdo->prepare("INSERT INTO disciplinary_cases (employee_id, violation_type, rule_violated, incident_date, action_taken, description, status) 
+                                           VALUES (?, ?, ?, ?, ?, ?, 'Open')");
+                        $stmt->execute([$emp['emp_id'], $vType, $vRule, $vDate, $vAction, $vDesc]);
+                        $logger->log($_SESSION['user_id'], 'AUTO_CASE_FILE', "Auto-recorded disciplinary case ($type) for " . $emp['emp_id']);
+                    }
+                }
+            } catch (Exception $e) {
+                error_log("Auto-case file failed: " . $e->getMessage());
+            }
+        }
+
+        if ($templateFile && file_exists($templateFile)) {
+            include $templateFile;
+        }
+        echo '<br style="page-break-before: always; clear: both;">';
     }
+    exit;
 } else {
 
     // 4. LOAD TEMPLATE
@@ -309,10 +329,22 @@ if ($format === 'word') {
         <div class="page">
             <?php foreach ($all_employees as $emp): ?>
                 <?php
+                // [NEW] Capture content per employee for individual auto-saving
+                ob_start();
+
                 // Re-initialize per-employee variables
                 $full_name = strtoupper($emp['first_name'] . ' ' . (empty($emp['middle_name']) ? '' : $emp['middle_name'][0] . '.') . ' ' . $emp['last_name']);
                 $position  = strtoupper($emp['job_title']);
                 $address   = strtoupper($emp['present_address']);
+                $section   = strtoupper($emp['section']);
+
+                $start_input = !empty($start_override) ? $start_override : ($emp['hire_date'] ?? '');
+                try {
+                    $start_date_obj = new DateTime($start_input ?: 'now');
+                    $start_date_str = $start_date_obj->format('F j, Y');
+                } catch (Exception $e) {
+                    $start_date_str = date('F j, Y');
+                }
 
                 // Re-calculate Employment Period per employee
                 if ($type === 'coe' && $manual_end_date_override) {
@@ -327,6 +359,35 @@ if ($format === 'word') {
                 }
                 $_GET['employment_end_display'] = $employmentEnd;
 
+                // Auto-case filing
+                if (in_array($type, ['notice_to_explain', 'notice_of_decision'])) {
+                    try {
+                        $vDate = $incident_date;
+                        $vType = $violation;
+                        $vRule = $rule_violated;
+                        $vAction = trim((string)(($type === 'notice_to_explain') ? 'Written Explanation Required' : ($decision ?: '')));
+                        $vDesc = trim((string)(($type === 'notice_to_explain') ? ($allegation ?: '') : ($decision ?: '')));
+
+                        if (!empty($vDate) && !empty($vDesc)) {
+                            if (strpos($vDate, 'T') !== false) $vDate = explode('T', $vDate)[0];
+                            if ($vType === '') $vType = ($type === 'notice_to_explain') ? 'NTE Issued' : 'NOD Issued';
+                            if ($vAction === '') $vAction = ($type === 'notice_to_explain') ? 'Written Explanation Required' : 'Sanction Issued';
+
+                            $chk = $pdo->prepare("SELECT id FROM disciplinary_cases WHERE employee_id = ? AND violation_type = ? AND incident_date = ? AND created_at > DATE_SUB(NOW(), INTERVAL 1 HOUR)");
+                            $chk->execute([$emp['emp_id'], $vType, $vDate]);
+
+                            if (!$chk->fetch()) {
+                                $stmt = $pdo->prepare("INSERT INTO disciplinary_cases (employee_id, violation_type, rule_violated, incident_date, action_taken, description, status) 
+                                                   VALUES (?, ?, ?, ?, ?, ?, 'Open')");
+                                $stmt->execute([$emp['emp_id'], $vType, $vRule, $vDate, $vAction, $vDesc]);
+                                $logger->log($_SESSION['user_id'], 'AUTO_CASE_FILE', "Auto-recorded disciplinary case ($type) for " . $emp['emp_id']);
+                            }
+                        }
+                    } catch (Exception $e) {
+                        error_log("Auto-case file failed: " . $e->getMessage());
+                    }
+                }
+
                 // [LOGGING] Record document generation for each
                 $logger->log($_SESSION['user_id'], 'GENERATE_DOC', "Generated $type for {$emp['first_name']} {$emp['last_name']} ({$emp['emp_id']})");
                 ?>
@@ -339,54 +400,54 @@ if ($format === 'word') {
                     }
                     ?>
                 </div>
+                <?php
+                $renderedContent = ob_get_clean();
+                echo $renderedContent;
+
+                // --- [NEW] PER-EMPLOYEE AUTO-ATTACH LOGIC ---
+                if (isset($_GET['auto_save_copy']) && !empty($renderedContent)) {
+                    try {
+                        $vaultPath = isset($config['VAULT_PATH']) ? $config['VAULT_PATH'] : dirname(__DIR__) . DIRECTORY_SEPARATOR . 'vault' . DIRECTORY_SEPARATOR;
+                        $fileService = new FileService($vaultPath);
+
+                        // 1. requested formal naming
+                        $baseName = "Unsigned Digital Copy of the Document ($friendlyTitle)";
+                        $fileExt = "html";
+
+                        // 2. Collision Detection & Auto-Numbering (-0001)
+                        $checkStmt = $pdo->prepare("SELECT original_name FROM documents WHERE employee_id = ? AND deleted_at IS NULL");
+                        $checkStmt->execute([$emp['emp_id']]);
+                        $existingInDB = $checkStmt->fetchAll(PDO::FETCH_COLUMN);
+
+                        $counter = 1;
+                        $finalDisplayName = $baseName . "." . $fileExt;
+                        while (in_array($finalDisplayName, $existingInDB)) {
+                            $finalDisplayName = $baseName . " -" . str_pad($counter, 4, '0', STR_PAD_LEFT) . "." . $fileExt;
+                            $counter++;
+                        }
+
+                        // 3. Save and Link
+                        $tmp = tempnam(sys_get_temp_dir(), 'gen_doc');
+                        $standaloneHtml = '<!DOCTYPE html><html><head><meta charset="UTF-8"><style>body{font-family:sans-serif;padding:20mm;}p{text-align:justify;line-height:1.5;}</style></head><body>' . $renderedContent . '</body></html>';
+                        file_put_contents($tmp, $standaloneHtml);
+
+                        $storedName = $fileService->saveFile($tmp, $finalDisplayName);
+                        if ($storedName) {
+                            $category = (strpos($type, 'notice') !== false) ? 'Disciplinary' : 'Contract';
+                            $docStmt = $pdo->prepare("INSERT INTO documents (file_uuid, employee_id, original_name, file_path, category, uploaded_by, description) VALUES (UUID(), ?, ?, ?, ?, ?, 'Auto-generated unsigned copy.')");
+                            $docStmt->execute([$emp['emp_id'], $finalDisplayName, $storedName, $category, $_SESSION['user_id']]);
+                            $logger->log($_SESSION['user_id'], 'AUTO_SAVE_COPY', "Auto-saved unsigned copy: $finalDisplayName for employee {$emp['emp_id']}");
+                        }
+                        @unlink($tmp);
+                    } catch (Exception $e) {
+                        error_log("Individual auto-attach failed: " . $e->getMessage());
+                    }
+                }
+                ?>
             <?php endforeach; ?>
         </div>
 
     </body>
 
     </html>
-<?php
-} // End Format Check
-
-// --- AUTO-ATTACH LOGIC ---
-$renderedContent = ob_get_contents();
-ob_end_flush(); // Send to browser for printing
-
-if ($format === 'html' && !empty($renderedContent)) {
-    try {
-        $config = require '../config/config.php';
-        $vaultPath = $config['VAULT_PATH'] ?? realpath(__DIR__ . '/../vault');
-        if (!$vaultPath) {
-            throw new Exception('Vault path not configured or does not exist');
-        }
-        $fileService = new FileService($vaultPath);
-        // 1. Create a descriptive filename
-        $cleanType = str_replace('_', ' ', ucwords($type));
-        $originalName = $cleanType . " (" . date('M d Y') . ").html";
-
-        // 2. De-duplication Check: Don't attach if generated in the last 2 minutes (prevents refresh spam)
-        $chk = $pdo->prepare("SELECT id FROM documents WHERE employee_id = ? AND original_name = ? AND uploaded_at > DATE_SUB(NOW(), INTERVAL 2 MINUTE)");
-        $chk->execute([$emp['emp_id'], $originalName]);
-
-        if (!$chk->fetch()) {
-            // 3. Save to temporary file first
-            $tmp = tempnam(sys_get_temp_dir(), 'gen_doc');
-            file_put_contents($tmp, $renderedContent);
-
-            // 4. Encrypt and save to Vault
-            $storedName = $fileService->saveFile($tmp, $originalName);
-
-            if ($storedName) {
-                // 5. Link to 201 File
-                $category = (strpos($type, 'notice') !== false) ? 'Disciplinary' : 'Contract';
-                $docStmt = $pdo->prepare("INSERT INTO documents (file_uuid, employee_id, original_name, file_path, category, uploaded_by) VALUES (UUID(), ?, ?, ?, ?, ?)");
-                $docStmt->execute([$emp['emp_id'], $originalName, $storedName, $category, $_SESSION['user_id']]);
-            }
-
-            unlink($tmp);
-        }
-    } catch (Exception $e) {
-        error_log("Auto-attach failed: " . $e->getMessage());
-    }
-}
-?>
+<?php } ?>
