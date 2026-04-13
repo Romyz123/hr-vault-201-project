@@ -1222,12 +1222,20 @@ $paginatedEmployees = array_slice($employees, $offset, $perPage);
     <input type="hidden" name="req_keywords" id="addReqKeys">
 </form>
 
+<?php
+$redirectQuery = '';
+if (!empty($_SERVER['QUERY_STRING'])) {
+    parse_str($_SERVER['QUERY_STRING'], $qs);
+    unset($qs['report']);
+    $redirectQuery = http_build_query($qs);
+}
+?>
 <form id="exemptForm" method="POST" style="display:none;">
     <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
     <input type="hidden" name="action" value="toggle_exempt">
     <input type="hidden" name="emp_id" id="exemptEmpId">
     <input type="hidden" name="req_name" id="exemptReqName">
-    <input type="hidden" name="redirect_query" value="<?php echo h($_SERVER['QUERY_STRING']); ?>">
+    <input type="hidden" name="redirect_query" value="<?php echo h($redirectQuery); ?>">
 </form>
 
 <!-- REMINDER MODAL -->
@@ -1789,6 +1797,12 @@ $paginatedEmployees = array_slice($employees, $offset, $perPage);
     <?php if (isset($_GET['report']) && $_GET['report'] === 'misclassified'): ?>
         document.addEventListener('DOMContentLoaded', () => {
             new bootstrap.Modal(document.getElementById('misclassifiedModal')).show();
+            const url = new URL(window.location.href);
+            if (url.searchParams.get('report') === 'misclassified') {
+                url.searchParams.delete('report');
+                const target = url.pathname + (url.search ? '?' + url.searchParams.toString() : '') + url.hash;
+                window.history.replaceState(null, '', target);
+            }
         });
     <?php endif; ?>
 
