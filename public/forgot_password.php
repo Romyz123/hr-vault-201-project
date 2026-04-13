@@ -194,11 +194,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($new_pass !== $confirm_pass) {
                 $error = "❌ Update Failed: Passwords do not match.";
                 $step = 3;
-            } elseif (strlen($new_pass) > 128) {
+            } elseif (strlen($new_pass) > 128) { // Max length check
                 $error = "❌ Update Failed: Password is too long (Max 128 characters).";
                 $step = 3;
-            } elseif (strlen($new_pass) < 15 || !preg_match('/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_])/', $new_pass)) {
-                $error = "❌ Update Failed: Password must be 15+ chars with Uppercase, Lowercase, Number, and Symbol.";
+            } elseif (($complexError = Validator::validatePasswordComplexity($new_pass)) !== null) {
+                $error = "❌ Update Failed: " . $complexError;
                 $step = 3;
             } elseif (stripos($new_pass, $username) !== false) {
                 $error = "❌ Update Failed: Password cannot contain your Username.";

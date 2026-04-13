@@ -131,6 +131,11 @@ function checkSessionTimeout($pdo, $serverTimeout = null)
     }
     $_SESSION['last_activity'] = time();
 
+    // [SECURITY] Ensure CSRF token is generated for every active session
+    if (empty($_SESSION['csrf_token'])) {
+        $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+    }
+
     // [MHI 5.1.3 Req.5] Absolute Session Expiry (Max Duration)
     // Forces re-authentication after a set period regardless of activity.
     if (isset($_SESSION['login_time'])) {

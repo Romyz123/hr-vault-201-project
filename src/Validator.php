@@ -46,4 +46,25 @@ class Validator
         }
         return null;
     }
+
+    /**
+     * Enforces MHI Password Complexity Policy
+     * Min 15 chars, at least 3 types (Upper, Lower, Number, Symbol)
+     */
+    public static function validatePasswordComplexity($password)
+    {
+        if (strlen($password) < 15) {
+            return "Password must be at least 15 characters long.";
+        }
+        $types = 0;
+        if (preg_match('/[a-z]/', $password)) $types++;
+        if (preg_match('/[A-Z]/', $password)) $types++;
+        if (preg_match('/[0-9]/', $password)) $types++;
+        if (preg_match('/[\W_]/', $password)) $types++;
+
+        if ($types < 3) {
+            return "Password must contain at least 3 character types (uppercase, lowercase, numbers, symbols).";
+        }
+        return null;
+    }
 }

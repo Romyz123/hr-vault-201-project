@@ -320,7 +320,7 @@ try {
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['clear_notifs'])) {
     // CSRF validation
     $formToken = $_POST['csrf_token'] ?? '';
-    if (!hash_equals($_SESSION['csrf_token'], $formToken)) {
+    if (empty($formToken) || !hash_equals($_SESSION['csrf_token'], $formToken)) {
         // silently ignore if token mismatch (or handle as you prefer)
     } else {
         $delStmt = $pdo->prepare("DELETE FROM notifications WHERE user_id = ?");

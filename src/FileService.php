@@ -20,6 +20,13 @@ class FileService
                 throw new Exception("Failed to create vault directory: " . $this->vaultPath);
             }
         }
+
+        // [SECURITY] Protect vault from direct web access if within web root
+        $htaccess = $this->vaultPath . '.htaccess';
+        if (!file_exists($htaccess)) {
+            @file_put_contents($htaccess, "Deny from all");
+        }
+
         // The Fail-Safe Map (Text file)
         $this->manifestFile = $this->vaultPath . 'manifest_DO_NOT_DELETE.txt';
 
@@ -69,9 +76,13 @@ class FileService
             $ext = 'bin'; // Safe fallback
         }
 
-        // 2. Generate Random Filename (e.g. 'a8f9-b2c3.pdf')
-        // We keep the extension so you know it's a PDF if DB fails
-        $randomName = bin2hex(random_bytes(8)) . '.' . $ext;
+        // [SECURITY] Generate a proper UUID v4 string for the filename. 
+        // Never use original filename components for storage to prevent injection and disclosure.
+        $data = random_bytes(16);
+        $data[6] = chr(ord($data[6]) & 0x0f | 0x40);
+        $data[8] = chr(ord($data[8]) & 0x3f | 0x80);
+        $uuid = vsprintf('%s%s-%s-%s-%s-%s%s%s', str_split(bin2hex($data), 4));
+        $randomName = $uuid . '.' . $ext;
 
         // 3. Define Full Target Path
         $targetPath = $this->vaultPath . $randomName;

@@ -12,6 +12,8 @@ if (!isset($_SESSION['user_id'])) {
     exit;
 }
 
+checkSessionTimeout($pdo); // [SECURITY] Enforce Timeout and CSRF Generation
+
 // [SECURITY] Check Maintenance Mode
 if (($_SESSION['role'] ?? '') !== 'ADMIN') {
     $chkMaint = $pdo->query("SELECT setting_value FROM system_settings WHERE setting_key = 'maintenance_mode'")->fetchColumn();

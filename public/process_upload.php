@@ -158,11 +158,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         $rawName = basename($file['name']);
         $ext = strtolower(pathinfo($rawName, PATHINFO_EXTENSION));
-        $allowed = ['pdf', 'jpg', 'jpeg', 'png'];
-        $allowedMime = ['application/pdf', 'image/jpeg', 'image/png'];
+        $allowed = ['pdf', 'jpg', 'jpeg', 'png', 'docx'];
+        $allowedMime = [
+            'application/pdf',
+            'image/jpeg',
+            'image/png',
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        ];
 
         if (!in_array($ext, $allowed)) {
-            $errors[] = "File " . ($idx + 1) . ": Invalid file extension ($ext). Strictly allow only PDF, JPG, and PNG.";
+            $errors[] = "File " . ($idx + 1) . ": Invalid file extension ($ext). Strictly allow only PDF, JPG, PNG, and DOCX.";
             continue;
         }
 
@@ -187,7 +192,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $header = fread($handle, min(2048, $fileSize));
 
         // 1. Block Disguised Executables & Scripts (Windows PE, Linux ELF, PHP)
-        if (strpos($header, 'MZ') === 0 || strpos($header, "\x7FELF") === 0 || stripos($header, '<?php') !== false) {
+        if (strpos($header, 'MZ') === 0 || strpos($header, "\x7FELF") === 0 || stripos($header, '<?php') !== false || strpos($header, '#!') === 0) {
             fclose($handle);
             $errors[] = "File " . ($idx + 1) . ": Rejected. Suspicious executable or script signature detected.";
             continue;

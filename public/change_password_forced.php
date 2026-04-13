@@ -1,6 +1,7 @@
 <?php
 require '../config/db.php';
 require '../src/Security.php';
+require '../src/Validator.php'; // [NEW] Required for complexity check
 session_start();
 checkSessionTimeout($pdo); // [SECURITY] Enforce Timeout
 
@@ -40,8 +41,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $error = "❌ Passwords do not match.";
     } elseif (strlen($pass) > 128) {
         $error = "❌ Password is too long (Max 128 characters).";
-    } elseif (strlen($pass) < 15 || !preg_match('/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_])/', $pass)) {
-        $error = "❌ Password must be 15+ chars, with Uppercase, Lowercase, Number & Symbol.";
+    } elseif (($complexError = Validator::validatePasswordComplexity($pass)) !== null) {
+        $error = "❌ " . $complexError;
     } else {
         // Fetch user data to check against password
         $uStmt = $pdo->prepare("SELECT username, password FROM users WHERE id = ?");

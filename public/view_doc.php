@@ -5,6 +5,7 @@ ob_start();
 require '../config/db.php';
 require '../src/Security.php';
 require '../src/FileService.php';
+require '../src/Logger.php';
 session_start();
 
 // [FIX] Load Config to ensure VAULT_PATH is available
@@ -26,15 +27,34 @@ if (!preg_match('/^[a-zA-Z0-9-]+$/', $file_uuid)) {
 }
 
 // 3. FETCH FILE INFO
-$stmt = $pdo->prepare("SELECT file_path, original_name, deleted_at FROM documents WHERE file_uuid = ?");
+$stmt = $pdo->prepare("SELECT employee_id, file_path, original_name, deleted_at, uploaded_by, is_private FROM documents WHERE file_uuid = ?");
 $stmt->execute([$file_uuid]);
 $file = $stmt->fetch();
 
 if (!$file) die("File entry not found in database.");
 
-if ($file['deleted_at'] !== null && !in_array($_SESSION['role'], ['ADMIN', 'HR'])) {
+$security = new Security($pdo);
+$logger   = new Logger($pdo);
+$userRole = strtoupper($_SESSION['role'] ?? '');
+
+// [SECURITY] Access Control Check
+if ($file['deleted_at'] !== null && !in_array($userRole, ['ADMIN', 'HR'])) {
     die("Access Denied: This file has been deleted.");
 }
+
+// [SECURITY] Private Document Access Control
+if (!empty($file['is_private']) && (int)$_SESSION['user_id'] !== (int)$file['uploaded_by'] && $userRole !== 'ADMIN') {
+    $logger->log($_SESSION['user_id'], 'AUTH_FAIL', "Unauthorized attempt to view private doc: " . $file['original_name'] . " (ID: $file_uuid)");
+    die("Access Denied: This document is marked as Private.");
+}
+
+if ($userRole !== 'HR' && !$security->canViewEmployee($_SESSION['user_id'], $file['employee_id'])) {
+    $logger->log($_SESSION['user_id'], 'AUTH_FAIL', "Unauthorized access attempt to doc: " . $file['original_name'] . " (Employee: " . $file['employee_id'] . ")");
+    die("Access Denied: You do not have permission to view this document.");
+}
+
+// [AUDIT] Log the view event
+$logger->log($_SESSION['user_id'], 'VIEW_DOC', "Viewed document: " . $file['original_name'] . " (ID: $file_uuid)");
 
 // 4. LOCATE FILE (Relative to this script)
 $uploadDir = $vaultPath;
