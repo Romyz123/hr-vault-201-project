@@ -129,6 +129,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
                     }
 
                     if ($requires2FA) {
+                        // [LOGGING] Record successful password match before 2FA challenge
+                        $logger = new Logger($pdo);
+                        $logger->log($user['id'], 'LOGIN_PASSWORD_MATCH', "Password verified; 2FA challenge issued.");
+
                         // [SECURITY] Reset session attempts on credential match
                         $_SESSION['login_attempts'] = 0;
                         unset($_SESSION['last_login_attempt']);
@@ -144,6 +148,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
                     $_SESSION['user_id'] = $user['id'];
                     $_SESSION['username'] = $user['username'];
                     $_SESSION['role'] = $normalizedRole; // [FIX] Normalize to uppercase to prevent Access Denied errors
+                    $_SESSION['login_time'] = time(); // [MHI 5.1.3 Req.5] Record absolute login time
 
                     // [SECURITY] Regenerate CSRF Token immediately after login
                     $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
@@ -233,14 +238,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
             /* background: linear-gradient(135deg, #198754 0%, #146c43 100%); */
 
             /* OPTION 3: Clean Light Corporate Flat Color */
-            background-color: #f4f6f9;
+            background-color: var(--bs-tertiary-bg);
 
             /* OPTION 4: Background Image with Dark Overlay */
             /* background: linear-gradient(rgba(30, 60, 114, 0.8), rgba(42, 82, 152, 0.8)), url('uploads/company_bg.jpg') center/cover no-repeat fixed; */
         }
 
         .login-card {
-            border: none;
+            border: 1px solid var(--bs-border-color);
             border-radius: 16px;
             box-shadow: 0 15px 35px rgba(0, 0, 0, 0.4) !important;
             overflow: hidden;
@@ -280,13 +285,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
         </button>
     </div>
 
+    <?php
+    // [NEW] Consistent Logo Discovery for Login
+    $logo_paths = [
+        __DIR__ . '/uploads/tesp-logo.png',
+        __DIR__ . '/assets/images/tesp-logo-1.png',
+        __DIR__ . '/../uploads/tesp-logo.png'
+    ];
+    $login_logo_src = '';
+    foreach ($logo_paths as $p) {
+        if (file_exists($p)) {
+            $ext = strtolower(pathinfo($p, PATHINFO_EXTENSION));
+            $mime = ($ext === 'png' ? 'image/png' : 'image/jpeg');
+            $login_logo_src = 'data:' . $mime . ';base64,' . base64_encode(file_get_contents($p));
+            break;
+        }
+    }
+    ?>
+
     <div class="card login-card" style="width: 100%; max-width: 400px;">
         <div class="card-header bg-primary text-white text-center py-4">
-            <img src="../uploads/tesp-logo.png?v=<?= file_exists('../uploads/tesp-logo.png') ? filemtime('../uploads/tesp-logo.png') : time() ?>" alt="TESP Logo" style="height: 100px; width: auto;" class="mb-2">
+            <img src="<?= $login_logo_src ?>" alt="TESP Logo" style="height: 100px; width: auto;" class="mb-2" onerror="this.style.display='none'">
             <h3 class="mt-2 fw-bold">HR 201 Vault</h3>
             <p class="mb-0 opacity-75">TES Philippines, Inc.</p>
         </div>
-        <div class="card-body p-4 bg-white">
+        <div class="card-body p-4">
 
             <form method="POST">
                 <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token); ?>">
@@ -315,7 +338,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
                     <a href="forgot_password.php" class="text-decoration-none small text-primary fw-bold">Forgot Password?</a>
                 </div>
 
-                <div class="mb-4 form-check bg-light p-3 rounded border">
+                <div class="mb-4 form-check bg-body-tertiary p-3 rounded border">
                     <input type="checkbox" name="terms_agreed" class="form-check-input" id="termsCheck">
                     <label class="form-check-label small text-muted lh-sm" for="termsCheck">
                         <strong>Confidentiality Pledge:</strong><br>

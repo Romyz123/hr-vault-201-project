@@ -18,8 +18,7 @@ date_default_timezone_set('Asia/Manila');
 header('X-Frame-Options: SAMEORIGIN');
 header('X-Content-Type-Options: nosniff');
 header('Referrer-Policy: strict-origin-when-cross-origin');
-header("Content-Security-Policy: default-src 'self'; img-src 'self' data: https://api.qrserver.com; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline';");
-header("Content-Security-Policy: default-src 'self'; img-src 'self' data:; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline';");
+header("Content-Security-Policy: default-src 'self'; img-src 'self' data: https://api.qrserver.com; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline';");
 
 // Load settings directly from PHP file instead of .env to avoid permission errors
 $_ENV = require __DIR__ . '/config.php';
@@ -131,6 +130,21 @@ function checkSessionTimeout($pdo, $serverTimeout = null)
         exit;
     }
     $_SESSION['last_activity'] = time();
+
+    // [MHI 5.1.3 Req.5] Absolute Session Expiry (Max Duration)
+    // Forces re-authentication after a set period regardless of activity.
+    if (isset($_SESSION['login_time'])) {
+        $role = strtoupper($_SESSION['role'] ?? 'STAFF');
+        // Admins: 18 hours (64,800s), Others: 30 hours (108,000s)
+        $maxLife = ($role === 'ADMIN') ? 64800 : 108000;
+
+        if ((time() - $_SESSION['login_time']) > $maxLife) {
+            session_unset();
+            session_destroy();
+            header("Location: login.php?msg=" . urlencode("Security Policy: Maximum session duration reached. Please log in again."));
+            exit;
+        }
+    }
 
     // [SECURITY] Ensure account recovery is configured for all authenticated users
     if (!empty($_SESSION['user_id'])) {

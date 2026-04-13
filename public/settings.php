@@ -76,6 +76,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
 
+        // [NEW] Handle Favicon Upload
+        if (isset($_FILES['company_favicon']) && $_FILES['company_favicon']['error'] === UPLOAD_ERR_OK) {
+            $favFile = $_FILES['company_favicon'];
+            $allowedTypes = ['image/png', 'image/x-icon', 'image/vnd.microsoft.icon', 'image/jpeg'];
+            $finfo = new finfo(FILEINFO_MIME_TYPE);
+            $mime = $finfo->file($favFile['tmp_name']);
+
+            if (!in_array($mime, $allowedTypes)) {
+                $errors[] = "Favicon must be a PNG, ICO, or JPG image.";
+            } elseif ($favFile['size'] > 512 * 1024) {
+                $errors[] = "Favicon file size must be less than 512KB.";
+            } else {
+                $destDir = dirname(__DIR__) . DIRECTORY_SEPARATOR . 'uploads';
+                if (!is_dir($destDir)) @mkdir($destDir, 0755, true);
+
+                $dest = $destDir . DIRECTORY_SEPARATOR . 'favicon.png';
+                if (move_uploaded_file($favFile['tmp_name'], $dest)) {
+                    // Also sync to public/uploads/ for consistency across different server routes
+                    $publicDest = __DIR__ . DIRECTORY_SEPARATOR . 'uploads' . DIRECTORY_SEPARATOR . 'favicon.png';
+                    if (!is_dir(dirname($publicDest))) @mkdir(dirname($publicDest), 0755, true);
+                    @copy($dest, $publicDest);
+                    $logger->log($_SESSION['user_id'], 'FAVICON_UPDATE', 'System favicon was updated.');
+                } else {
+                    $errors[] = "Failed to save the uploaded favicon.";
+                }
+            }
+        }
+
         // [FIX] Ensure approval_widgets is saved as an empty array if all boxes are unchecked
         if (isset($_POST['settings']) && !isset($_POST['settings']['approval_widgets'])) {
             $_POST['settings']['approval_widgets'] = [];
@@ -247,7 +275,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             foreach ($updates as $k => $v) {
                 // [FIX] Correctly handle array values (like approval_widgets) during database save.
                 // This prevents storing the literal string "Array" which causes 500 errors on the dashboard.
-                $valStr = is_array($v) ? json_encode($v) : (string)$v;
+                $valStr = (is_array($v) || is_object($v)) ? json_encode($v) : (string)$v;
 
                 $stmt->execute([$k, $valStr, $valStr]);
             }
@@ -288,7 +316,13 @@ $defProject  = $currentSettings['default_project_name'] ?? '';
 $defPlace    = $currentSettings['default_notice_place'] ?? '';
 $marginL     = $currentSettings['bulk_margin_left'] ?? '30';
 $marginR     = $currentSettings['bulk_margin_right'] ?? '20';
-$approvalWidgetsJson = json_decode($currentSettings['approval_widgets'] ?? '["hires","edits","docs","doc-edits","tickets"]', true);
+$approvalWidgetsRaw = $currentSettings['approval_widgets'] ?? '["hires","edits","docs","doc-edits","tickets"]';
+// [FIX] Robust check for corrupted "Array" string in DB to prevent Fatal Errors on in_array()
+if ($approvalWidgetsRaw === 'Array') {
+    $approvalWidgetsJson = ["hires", "edits", "docs", "doc-edits", "tickets"];
+} else {
+    $approvalWidgetsJson = json_decode($approvalWidgetsRaw, true);
+}
 $docFontSize = $currentSettings['document_font_size'] ?? '11';
 
 $backupDay = $currentSettings['backup_day'] ?? 'Fri';
@@ -427,7 +461,9 @@ include 'header.php';
                             'doc-edits' => 'Document Edits',
                             'tickets' => 'Ticket Resolutions'
                         ];
+                        // [FIX] Moved definition above the loop to prevent in_array() TypeError
                         $enabledWidgets = is_array($approvalWidgetsJson) ? $approvalWidgetsJson : array_keys($allWidgets);
+
                         foreach ($allWidgets as $key => $label):
                         ?>
                             <div class="form-check form-switch">

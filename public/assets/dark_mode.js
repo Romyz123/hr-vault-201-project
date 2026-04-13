@@ -1,47 +1,45 @@
+// --- START: Dark Mode Fix ---
 (function () {
-  // 1. Apply theme immediately to avoid flash of unstyled content
-  const getStoredTheme = () => localStorage.getItem("theme");
-  const getPreferredTheme = () => {
-    const stored = getStoredTheme();
-    if (stored) return stored;
-    return window.matchMedia("(prefers-color-scheme: dark)").matches
+  "use strict";
+
+  // 1. Apply theme immediately to prevent "white flash" on page load
+  const theme =
+    localStorage.getItem("theme") ||
+    (window.matchMedia("(prefers-color-scheme: dark)").matches
       ? "dark"
-      : "light";
-  };
+      : "light");
+  document.documentElement.setAttribute("data-bs-theme", theme);
 
-  const setTheme = (theme) => {
-    document.documentElement.setAttribute("data-bs-theme", theme);
-  };
-
-  setTheme(getPreferredTheme());
-
-  // 2. Setup Toggle Button (after DOM load)
+  // 2. Attach toggle logic after DOM is ready
   document.addEventListener("DOMContentLoaded", () => {
     const btn = document.getElementById("darkModeToggle");
     if (!btn) return;
 
-    const icon = btn.querySelector("i");
-    if (!icon) return;
-
-    const updateIcon = (theme) => {
-      if (theme === "dark") {
-        icon.classList.remove("bi-moon-stars-fill");
-        icon.classList.add("bi-sun-fill");
-        btn.title = "Switch to Light Mode";
-      } else {
-        icon.classList.remove("bi-sun-fill");
-        icon.classList.add("bi-moon-stars-fill");
-        btn.title = "Switch to Dark Mode";
+    const updateUI = (currentTheme) => {
+      const icon = btn.querySelector("i");
+      if (icon) {
+        if (currentTheme === "dark") {
+          icon.classList.replace("bi-moon-stars-fill", "bi-sun-fill");
+          btn.title = "Switch to Light Mode";
+        } else {
+          icon.classList.replace("bi-sun-fill", "bi-moon-stars-fill");
+          btn.title = "Switch to Dark Mode";
+        }
       }
     };
-    updateIcon(document.documentElement.getAttribute("data-bs-theme"));
+
+    // Sync UI icon on load
+    updateUI(theme);
 
     btn.addEventListener("click", () => {
-      const current = document.documentElement.getAttribute("data-bs-theme");
-      const next = current === "dark" ? "light" : "dark";
-      setTheme(next);
+      const next =
+        document.documentElement.getAttribute("data-bs-theme") === "dark"
+          ? "light"
+          : "dark";
+      document.documentElement.setAttribute("data-bs-theme", next);
       localStorage.setItem("theme", next);
-      updateIcon(next);
+      updateUI(next);
     });
   });
 })();
+// --- END: Dark Mode Fix ---

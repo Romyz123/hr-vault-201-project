@@ -35,7 +35,7 @@ $manualSecret = '';
 $secret = $user['totp_secret'] ?? '';
 if (empty($secret)) {
     $isFirstTimeSetup = true;
-    // Only generate a new secret if we don't already have a pending one in the session
+    // [FIX] Pin the secret to the session so it doesn't change on page reload
     if (empty($_SESSION['pending_totp_secret'])) {
         $_SESSION['pending_totp_secret'] = GoogleAuthenticator::generateSecret();
     }
@@ -142,7 +142,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // SUCCESS: Log them in fully
             $_SESSION['user_id'] = $user['id'];
             $_SESSION['username'] = $user['username'];
-            $_SESSION['role'] = $user['role'];
+            $_SESSION['role'] = strtoupper(trim($user['role'])); // [FIX] Normalize role
+            $_SESSION['login_time'] = time(); // [MHI 5.1.3 Req.5] Record absolute login time
             unset($_SESSION['otp_attempts']); // [SECURITY] Reset counter on success
 
             // [NEW] Handle "Trust Device" (Remember Me)
@@ -166,6 +167,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $logMsg = $isBackupCode ? "2FA Verified Successfully using Backup Code" : "2FA Verified Successfully";
             $logger->log($user['id'], 'LOGIN_2FA', $logMsg);
 
+            // [LOGGING] Record standard LOGIN event now that 2FA is cleared
+            $logUsername = preg_replace('/[^a-zA-Z0-9_\-\.]/', '', $user['username']);
+            $logger->log($user['id'], 'LOGIN', "User '$logUsername' fully logged in via 2FA (IP: " . $_SERVER['REMOTE_ADDR'] . ")");
+
             enforceSecurityQuestionSetup($pdo, true);
 
             header("Location: index.php");
@@ -184,6 +189,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <link rel="shortcut icon" type="image/png" href="../uploads/tesp-logo.png">
     <link rel="apple-touch-icon" href="../uploads/tesp-logo.png">
     <link href="assets/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="assets/icons/bootstrap-icons.css">
     <style>
         body {
             /* --- BACKGROUND THEMES (Uncomment the one you want to use) --- */
@@ -227,8 +233,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <?php if ($isFirstTimeSetup): ?>
                 <p class="text-muted small"><strong>First Time Setup:</strong> Scan this QR code using an Authenticator app (Google Authenticator, Authy, or Microsoft Authenticator).</p>
                 <div class="mb-3 d-flex flex-column align-items-center">
-                    <div id="qrcode" class="p-2 bg-white border rounded" style="min-width: 160px; min-height: 160px;">
-                        <img src="https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=<?php echo urlencode($otpauthUrl); ?>" alt="QR Code" style="width: 160px; height: 160px;">
+                    <div id="qrcode" class="p-2 bg-white border rounded d-flex align-items-center justify-content-center" style="min-width: 160px; min-height: 160px;">
+                        <div class="spinner-border text-primary spinner-border-sm" role="status"></div>
                     </div>
                     <div class="mt-2">
                         <button type="button" class="btn btn-sm btn-outline-secondary" onclick="saveQRCode()"><i class="bi bi-download"></i> Save QR Code</button>
@@ -278,36 +284,48 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 var qrCodeDiv = document.getElementById("qrcode");
                 var otpUrl = <?php echo json_encode($otpauthUrl); ?>;
 
-                if (qrCodeDiv && otpUrl && typeof QRCode !== 'undefined') {
+                if (qrCodeDiv && otpUrl) {
                     try {
-                        // Create a temporary element to render the new QR
-                        var temp = document.createElement('div');
-                        new QRCode(temp, {
-                            text: otpUrl,
-                            width: 160,
-                            height: 160,
-                            colorDark: "#000000",
-                            colorLight: "#ffffff",
-                            correctLevel: QRCode.CorrectLevel.M
-                        });
-                        // Only replace the fallback if rendering was successful
-                        qrCodeDiv.innerHTML = "";
-                        qrCodeDiv.appendChild(temp.firstChild);
-                        while (temp.firstChild) qrCodeDiv.appendChild(temp.firstChild);
+                        if (typeof QRCode !== 'undefined') {
+                            // Create a temporary element to render the new QR
+                            var temp = document.createElement('div');
+                            new QRCode(temp, {
+                                text: otpUrl,
+                                width: 160,
+                                height: 160,
+                                colorDark: "#000000",
+                                colorLight: "#ffffff",
+                                correctLevel: QRCode.CorrectLevel.M
+                            });
+                            // Replace spinner with generated QR
+                            var qrEl = temp.querySelector('canvas') || temp.querySelector('img');
+                            if (qrEl) {
+                                qrCodeDiv.innerHTML = "";
+                                qrCodeDiv.appendChild(qrEl);
+                            } else {
+                                throw new Error("QR rendering failed");
+                            }
+                        } else {
+                            throw new Error("QRCode library not loaded");
+                        }
                     } catch (e) {
-                        console.error("Local QR Render failed, keeping fallback.");
+                        console.warn("Falling back to QR API:", e.message);
+                        qrCodeDiv.innerHTML = `<img src="https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(otpUrl)}" alt="QR Code">`;
                     }
                 }
             });
 
             function saveQRCode() {
                 var canvas = document.querySelector('#qrcode canvas');
+                var img = document.querySelector('#qrcode img');
+                var link = document.createElement('a');
+                link.download = '2FA_QRCode.png';
                 if (canvas) {
-                    var link = document.createElement('a');
-                    link.download = '2FA_QRCode.png';
                     link.href = canvas.toDataURL('image/png');
-                    link.click();
+                } else if (img) {
+                    link.href = img.src;
                 }
+                if (link.href) link.click();
             }
         </script>
     <?php endif; ?>

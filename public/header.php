@@ -12,16 +12,18 @@ if (!function_exists('h')) {
     }
 }
 
+// [FIX] Ensure doc_alerts and db_notifs are always initialized to avoid 500 errors on count()
+$doc_alerts = [];
+$db_notifs = [];
+$all_notifications = [];
+$msgCount = 0;
+$notifCount = 0;
+
 require_once __DIR__ . '/options.php';
 
 // [NEW] Auto-fetch settings if not provided by parent page
 if (isset($_SESSION['user_id'])) {
     $uid = (int)$_SESSION['user_id'];
-    $userRole = $userRole ?? strtoupper($_SESSION['role'] ?? '');
-
-    // [FIX] Initialize variables to prevent 500 error on empty states
-    $db_notifs = [];
-    $doc_alerts = [];
 
     if (!isset($clientTimeout)) {
         try {
@@ -107,10 +109,26 @@ if (isset($_SESSION['user_id'])) {
         return strtotime($b['created_at']) <=> strtotime($a['created_at']);
     });
     $msgCount = count($db_notifs);
-    $notifCount = $msgCount + count($doc_alerts);
+    $notifCount = $msgCount + count($doc_alerts ?: []);
 }
 
 $csrf_token = $_SESSION['csrf_token'] ?? '';
+
+// [NEW] Robust Logo Discovery Logic
+$logo_paths = [
+    __DIR__ . '/uploads/tesp-logo.png',
+    __DIR__ . '/assets/images/tesp-logo-1.png',
+    __DIR__ . '/../uploads/tesp-logo.png'
+];
+$nav_logo_src = '';
+foreach ($logo_paths as $p) {
+    if (file_exists($p)) {
+        $ext = strtolower(pathinfo($p, PATHINFO_EXTENSION));
+        $mime = ($ext === 'png' ? 'image/png' : 'image/jpeg');
+        $nav_logo_src = 'data:' . $mime . ';base64,' . base64_encode(file_get_contents($p));
+        break;
+    }
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -131,22 +149,31 @@ $csrf_token = $_SESSION['csrf_token'] ?? '';
     <link href="assets/icons/bootstrap-icons.css?v=5" rel="stylesheet">
     <script src="assets/chart.min.js?v=3" defer></script>
     <script src="assets/sweetalert2.all.min.js?v=3"></script>
-    <script src="dark_mode.js?v=7"></script>
+    <?php // --- START: Dark Mode Fix --- 
+    ?>
+    <script src="assets/dark_mode.js?v=7"></script>
+    <?php // --- END: Dark Mode Fix --- 
+    ?>
     <style>
         :root {
-            --bg: #f4f6f9;
-            --card-border: #e9ecef;
             --accent: #2a5298;
         }
 
         [data-bs-theme=dark] {
-            --bg: #212529;
-            --card-border: #495057;
             --accent: #6ea8fe;
         }
 
         body {
-            background: var(--bg);
+            background-color: var(--bs-body-bg);
+        }
+
+        /* Theme-aware shadows */
+        .shadow-soft {
+            box-shadow: 0 10px 30px rgba(0, 0, 0, .05);
+        }
+
+        [data-bs-theme=dark] .shadow-soft {
+            box-shadow: 0 10px 30px rgba(0, 0, 0, .5) !important;
         }
 
         .container {
@@ -175,7 +202,7 @@ $csrf_token = $_SESSION['csrf_token'] ?? '';
         .employee-card {
             cursor: pointer;
             transition: transform .18s ease, box-shadow .18s ease;
-            border: 1px solid var(--card-border);
+            border: 1px solid var(--bs-border-color);
         }
 
         .employee-card:hover {
@@ -200,7 +227,7 @@ $csrf_token = $_SESSION['csrf_token'] ?? '';
         }
 
         .modal-header-custom {
-            background: linear-gradient(135deg, #1e3c72 0%, var(--accent) 100%);
+            background: linear-gradient(135deg, #1e3c72 0%, var(--accent, #2a5298) 100%);
             color: #fff;
         }
 
@@ -266,7 +293,12 @@ $csrf_token = $_SESSION['csrf_token'] ?? '';
 
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4 px-3">
         <div class="container-fluid">
-            <a class="navbar-brand" href="index.php"><i class="bi bi-house-door-fill me-2"></i> Dashboard</a>
+            <a class="navbar-brand d-flex align-items-center" href="index.php">
+                <?php if ($nav_logo_src): ?>
+                    <img src="<?= $nav_logo_src ?>" alt="Logo" width="30" height="30" class="d-inline-block align-text-top rounded-circle me-2">
+                <?php endif; ?>
+                <span>Dashboard</span>
+            </a>
 
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarContent" aria-controls="navbarContent" aria-expanded="false" aria-label="Toggle navigation">
                 <span class="navbar-toggler-icon"></span>

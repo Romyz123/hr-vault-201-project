@@ -1096,7 +1096,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <div class="mb-3">
                         <div class="input-group input-group-sm shadow-sm rounded">
                             <span class="input-group-text bg-light border-end-0 text-muted"><i class="bi bi-search"></i></span>
-                            <input type="text" id="docSearch" class="form-control border-start-0" placeholder="Filter documents by name, category, or resolution notes..." onkeyup="filter201Docs()">
+                            <input type="text" id="docSearch" class="form-control border-start-0" placeholder="Filter documents by name, category, or resolution notes..." onkeyup="filter201Docs()" maxlength="50">
                         </div>
                     </div>
 

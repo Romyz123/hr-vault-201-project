@@ -4,12 +4,12 @@
 // ======================================================
 
 // ---------- 1) SYSTEM IMPORTS, SECURITY, SESSION, AND DATA FETCHING FOR HEADER ----------
-require '../config/db.php';
-require '../src/Security.php';
-require '../src/Logger.php';
-require '../src/Validator.php';
-require '../src/SearchHelper.php';
-require_once 'options.php'; // [NEW] Load dynamic options
+require __DIR__ . '/../config/db.php';
+require __DIR__ . '/../src/Security.php';
+require __DIR__ . '/../src/Logger.php';
+require __DIR__ . '/../src/Validator.php';
+require __DIR__ . '/../src/SearchHelper.php';
+require_once __DIR__ . '/options.php'; // [NEW] Load dynamic options
 session_start();
 
 // [NEW] Fetch Session Timeout settings (required before enforcing timeout)
@@ -42,6 +42,24 @@ $userRole = isset($_SESSION['role']) ? strtoupper((string)$_SESSION['role']) : '
 
 $security = new Security($pdo);
 $logger   = new Logger($pdo);
+
+// [FIX] Define Requirements at the top so they are available for Filters AND Charts
+$REQUIRED_DOCS = [];
+try {
+    $reqStmt = $pdo->query("SELECT name, keywords FROM document_requirements ORDER BY id ASC");
+    $reqList = $reqStmt->fetchAll(PDO::FETCH_ASSOC);
+    foreach ($reqList as $r) {
+        $REQUIRED_DOCS[$r['name']] = array_map('trim', explode(',', $r['keywords']));
+    }
+} catch (Exception $e) {
+    $REQUIRED_DOCS = [
+        '201 Files' => ['201', 'PDS', 'Data Sheet', 'Resume'],
+        'Valid ID'  => ['ID', 'Passport', 'License', 'SSS', 'PhilHealth'],
+        'Contract'  => ['Contract', 'Appointment', 'Offer'],
+        'Medical'   => ['Medical', 'Fit to Work', 'Exam'],
+        'Clearance' => ['NBI', 'Police', 'Barangay']
+    ];
+}
 
 // [NEW] Fetch Auto-Refresh Interval
 $refreshInterval = 60; // Default
@@ -443,10 +461,15 @@ try {
     $alertDate = date('Y-m-d', strtotime('+30 days'));
     $docQuery  = "SELECT d.id, d.original_name, d.expiry_date, e.emp_id AS real_emp_id FROM documents d JOIN employees e ON d.employee_id = e.emp_id WHERE d.is_resolved = 0 AND d.expiry_date IS NOT NULL AND d.expiry_date <= ?";
     if ($hasDeletedAtColumn) $docQuery .= " AND d.deleted_at IS NULL";
-    if (!in_array($userRole, ['ADMIN', 'MANAGER', 'HR'], true)) $docQuery .= " AND d.uploaded_by = " . (int)$_SESSION['user_id'];
+
+    $notifParams = [$alertDate];
+    if (!in_array($userRole, ['ADMIN', 'MANAGER', 'HR'], true)) {
+        $docQuery .= " AND d.uploaded_by = ?";
+        $notifParams[] = (int)$_SESSION['user_id'];
+    }
 
     $notifyStmt = $pdo->prepare($docQuery);
-    $notifyStmt->execute([$alertDate]);
+    $notifyStmt->execute($notifParams);
     $raw_alerts = $notifyStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
     foreach ($raw_alerts as $d) {
@@ -480,27 +503,8 @@ usort($all_notifications, function ($a, $b) {
     return strtotime($b['created_at']) <=> strtotime($a['created_at']);
 });
 $msgCount = count($db_notifs);
-$actionCount = count($doc_alerts);
+$actionCount = count($doc_alerts ?: []);
 $notifCount = $msgCount + $actionCount;
-
-// ---------- 5.5) FETCH DYNAMIC REQUIREMENTS FOR ANALYTICS AND FILTERS ----------
-$REQUIRED_DOCS = [];
-try {
-    $reqStmt = $pdo->query("SELECT name, keywords FROM document_requirements ORDER BY id ASC");
-    $reqList = $reqStmt->fetchAll(PDO::FETCH_ASSOC);
-    foreach ($reqList as $r) {
-        $REQUIRED_DOCS[$r['name']] = array_map('trim', explode(',', $r['keywords']));
-    }
-} catch (Exception $e) {
-    // Failsafe fallback if the database table is suddenly missing
-    $REQUIRED_DOCS = [
-        '201 Files' => ['201', 'PDS', 'Data Sheet', 'Resume'],
-        'Valid ID'  => ['ID', 'Passport', 'License', 'SSS', 'PhilHealth'],
-        'Contract'  => ['Contract', 'Appointment', 'Offer'],
-        'Medical'   => ['Medical', 'Fit to Work', 'Exam'],
-        'Clearance' => ['NBI', 'Police', 'Barangay']
-    ];
-}
 
 // ---------- 6) BUILD FILTER SQL ----------
 $where  = ['1=1'];
@@ -702,7 +706,7 @@ try {
 }
 
 $currentVaultBytes = 0;
-$configEnv = require '../config/config.php';
+$configEnv = require __DIR__ . '/../config/config.php';
 $vaultPath = $configEnv['VAULT_PATH'] ?? realpath(__DIR__ . '/../vault');
 if ($vaultPath && is_dir($vaultPath)) {
     $iterator = new FileSystemIterator($vaultPath, FileSystemIterator::SKIP_DOTS);
@@ -715,7 +719,7 @@ $vaultQuotaPercent = ($vaultLimitGB > 0) ? min(100, round(($currentVaultGB / $va
 
 $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
 ?>
-<?php require 'header.php'; ?>
+<?php require __DIR__ . '/header.php'; ?>
 
 <div class="container">
 
@@ -1187,9 +1191,9 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
                 'ENGINEER', 'ADVISOR' => 'bg-primary',
                 'IT' => 'bg-dark',
                 'OFFICER', 'SUPERVISOR' => 'bg-info text-dark',
-                'MAINTENANCE', 'TECHNICIAN' => 'bg-warning text-dark',
+                'MAINTENANCE', 'TECHNICIAN' => 'bg-warning-subtle text-warning-emphasis',
                 'DRIVER' => 'bg-secondary',
-                default => 'bg-light text-dark border'
+                default => 'bg-body-secondary text-body border'
             };
 
             // Color-coded employer badges
@@ -1305,8 +1309,8 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
                                     <img src="uploads/avatars/<?php echo h($emp['avatar_path'] ?: 'default.png'); ?>" class="rounded-circle border border-3 border-white shadow-sm" width="100" height="100" onerror="this.onerror=null; this.src='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI1MCIgZmlsbD0iI2UzZTNlMyIvPjxwYXRoIGQ9Ik01MCA1MCBhMjAgMjAgMCAxIDAgMC00MCAyMCAyMCAwIDEgMCAwIDQwIHptMCAxMCBjLTE1IDAtMzUgMTAtMzUgMzAgdjEwIGg3MCB2LTEwIGMtMC0yMC0yMC0zMC0zNS0zMCIgZmlsbD0iI2FhYSIvPjwvc3ZnPg==';" alt="Avatar">
                                     <div class="ms-3 flex-grow-1">
                                         <h3 class="mb-0 fw-bold"><?php echo h($emp['first_name'] . ' ' . $emp['last_name']); ?></h3>
-                                        <div class="badge bg-light text-dark mt-1"><?php echo h($emp['emp_id']); ?></div>
-                                        <div class="badge bg-white text-dark mt-1"><?php echo h($emp['job_title']); ?></div>
+                                        <div class="badge bg-body-secondary text-body mt-1"><?php echo h($emp['emp_id']); ?></div>
+                                        <div class="badge bg-body text-body border mt-1"><?php echo h($emp['job_title']); ?></div>
 
                                         <?php if ($isRecentlyUpdated): ?>
                                             <span class="badge bg-info text-dark mt-1"><i class="bi bi-stars"></i> Recently Updated</span>
@@ -1550,7 +1554,7 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
             <div class="modal-body">
                 <input type="hidden" name="csrf_token" value="<?php echo h($_SESSION['csrf_token']); ?>">
 
-                <div class="mb-3 p-2 bg-light border rounded position-relative">
+                <div class="mb-3 p-2 bg-body-tertiary border rounded position-relative">
                     <label class="form-label fw-bold text-primary">Search Employee (Optional)</label>
                     <input type="text" id="exportSearch" name="search" class="form-control" placeholder="Type Name or ID..." autocomplete="off" maxlength="50" pattern="[a-zA-Z0-9\-_ ,]+" title="Allowed: Letters, Numbers, Spaces, Dashes, Underscores, Commas">
                     <div id="exportSuggestionBox" class="list-group position-absolute w-100 shadow" style="display:none; z-index:2000; top:75px;"></div>
@@ -1673,7 +1677,7 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
                 </div>
                 <hr>
                 <!-- [NEW] COE Specific Fields for Bulk -->
-                <div id="bulkCoeFields" class="mb-3 p-3 bg-light border rounded">
+                <div id="bulkCoeFields" class="mb-3 p-3 bg-body-tertiary border rounded">
                     <h6 class="text-primary fw-bold"><i class="bi bi-calendar-event"></i> COE Employment Period Options</h6>
                     <div class="form-check mb-2">
                         <input class="form-check-input" type="checkbox" id="bulkManualEndDateOverride">
@@ -1696,17 +1700,14 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
 <script>
     // ---------- Chart ----------
     document.addEventListener('DOMContentLoaded', () => {
-        // [NEW] 100% Offline Custom DataLabels Plugin
+        const ctx = document.getElementById('hrChart');
+        if (!ctx || typeof Chart === 'undefined') return;
+
         const offlineDataLabels = {
             id: 'offlineDataLabels',
             afterDatasetsDraw(chart, args, options) {
-                const {
-                    ctx
-                } = chart;
-                ctx.save();
-                ctx.font = 'bold 12px Helvetica, Arial, sans-serif';
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'middle';
+                const chartCtx = chart.ctx;
+                chartCtx.save();
 
                 chart.data.datasets.forEach((dataset, i) => {
                     const meta = chart.getDatasetMeta(i);
@@ -1731,20 +1732,20 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
                         if ((chart.config.type === 'bar' || meta.type === 'bar') && element.base !== undefined) {
                             y = (element.base + pos.y) / 2;
                         }
-                        ctx.strokeStyle = 'rgba(0, 0, 0, 0.75)';
-                        ctx.lineWidth = 3;
-                        ctx.strokeText(text, x, y);
-                        ctx.fillStyle = '#ffffff';
-                        ctx.fillText(text, x, y);
+                        chartCtx.strokeStyle = 'rgba(0, 0, 0, 0.75)';
+                        chartCtx.lineWidth = 3;
+                        chartCtx.strokeText(text, x, y);
+                        chartCtx.fillStyle = '#ffffff';
+                        chartCtx.fillText(text, x, y);
                     });
                 });
-                ctx.restore();
+                chartCtx.restore();
             }
         };
         Chart.register(offlineDataLabels);
 
-        const ctx = document.getElementById('hrChart');
-        if (!ctx) return;
+        const chartCanvas = document.getElementById('hrChart');
+        if (!chartCanvas) return;
 
         const labels = <?php echo $labels ?: '[]'; ?>;
         const values = <?php echo $data   ?: '[]'; ?>;
@@ -1760,7 +1761,7 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
         };
         const defaultPalette = ['#4BC0C0', '#36A2EB', '#FFCE56', '#9966FF', '#FF9F40', '#FF6384'];
 
-        window.hrChartInstance = new Chart(ctx, {
+        window.hrChartInstance = new Chart(chartCanvas, {
             type: 'bar',
             data: {
                 labels,

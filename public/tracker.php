@@ -183,12 +183,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($_SESSION['role'], ['ADMIN
             }
             $allowedCategories = array_unique($allowedCategories);
 
+            $uid = (int)$_SESSION['user_id'];
+            $userRole = strtoupper($_SESSION['role'] ?? '');
+            $isPrivileged = in_array($userRole, ['ADMIN', 'MANAGER', 'HR'], true);
+
+            // [SECURITY] Verify if granular ownership is possible
+            $chkUp = $pdo->query("SHOW COLUMNS FROM documents LIKE 'uploaded_by'");
+            $hasOwnershipCol = ($chkUp->rowCount() > 0);
+
             $updatedCount = 0;
             $updatedIds = [];
             $skippedIds = [];
             try {
                 $pdo->beginTransaction();
-                $stmt = $pdo->prepare("UPDATE documents SET category = ?, updated_at = NOW() WHERE id = ?");
+                // [FIX] IDOR Protection: Restrict updates to original owner unless user is HR+
+                $updateSql = "UPDATE documents SET category = ?, updated_at = NOW() WHERE id = ?";
+                if (!$isPrivileged && $hasOwnershipCol) $updateSql .= " AND uploaded_by = ?";
+
+                $stmt = $pdo->prepare($updateSql);
                 foreach ($fixDocs as $docId => $newCategory) {
                     $docId = (int)$docId;
                     $newCategory = trim($newCategory);
@@ -200,7 +212,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($_SESSION['role'], ['ADMIN
                         continue;
                     }
 
-                    $stmt->execute([$newCategory, $docId]);
+                    $execParams = [$newCategory, $docId];
+                    if (!$isPrivileged && $hasOwnershipCol) $execParams[] = $uid;
+
+                    $stmt->execute($execParams);
                     if ($stmt->rowCount() > 0) {
                         $updatedCount++;
                         $updatedIds[] = $docId;
@@ -772,7 +787,6 @@ $paginatedEmployees = array_slice($employees, $offset, $perPage);
 <?php include 'header.php'; ?>
 <style>
     body {
-        background: #f8f9fa;
         font-size: 0.9rem;
     }
 
@@ -800,10 +814,6 @@ $paginatedEmployees = array_slice($employees, $offset, $perPage);
         color: white;
     }
 
-    .table-hover tbody tr:hover {
-        background-color: #f1f1f1;
-    }
-
     .cursor-pointer {
         cursor: pointer;
     }
@@ -820,7 +830,7 @@ $paginatedEmployees = array_slice($employees, $offset, $perPage);
         padding: 5px;
         border: 1px solid #ced4da;
         border-radius: 0.25rem;
-        background: #fff;
+        background: var(--bs-body-bg);
         min-height: 38px;
         align-items: center;
     }
@@ -831,7 +841,7 @@ $paginatedEmployees = array_slice($employees, $offset, $perPage);
     }
 
     .tag-chip {
-        background: #e9ecef;
+        background: var(--bs-tertiary-bg);
         border: 1px solid #dee2e6;
         border-radius: 3px;
         padding: 2px 6px;

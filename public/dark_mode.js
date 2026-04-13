@@ -1,9 +1,17 @@
+/**
+ * dark_mode.js
+ * Handles theme switching and persistence for TESP HR 201 System
+ */
+
 (function () {
-  // 1. Apply theme immediately to avoid flash of unstyled content
+  "use strict";
+
   const getStoredTheme = () => localStorage.getItem("theme");
+  const setStoredTheme = (theme) => localStorage.setItem("theme", theme);
+
   const getPreferredTheme = () => {
-    const stored = getStoredTheme();
-    if (stored) return stored;
+    const storedTheme = getStoredTheme();
+    if (storedTheme) return storedTheme;
     return window.matchMedia("(prefers-color-scheme: dark)").matches
       ? "dark"
       : "light";
@@ -11,45 +19,50 @@
 
   const setTheme = (theme) => {
     document.documentElement.setAttribute("data-bs-theme", theme);
-    // Add a smooth transition class to the body
-    document.body.style.transition =
-      "background-color 0.3s ease, color 0.3s ease";
-    // Apply to all cards and navbars for a uniform look
-    document.querySelectorAll(".card, .navbar, .alert").forEach((el) => {
-      el.style.transition =
-        "background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease";
+  };
+
+  const updateUI = (theme) => {
+    const toggleBtns = document.querySelectorAll("#darkModeToggle");
+    toggleBtns.forEach((btn) => {
+      const icon = btn.querySelector("i");
+      if (icon) {
+        if (theme === "dark") {
+          icon.classList.replace("bi-moon-stars-fill", "bi-sun-fill");
+        } else {
+          icon.classList.replace("bi-sun-fill", "bi-moon-stars-fill");
+        }
+      }
     });
   };
 
-  setTheme(getPreferredTheme());
+  // 1. Initial theme application (Immediate to prevent flash)
+  const initialTheme = getPreferredTheme();
+  setTheme(initialTheme);
 
-  // 2. Setup Toggle Button (after DOM load)
-  document.addEventListener("DOMContentLoaded", () => {
-    const btn = document.getElementById("darkModeToggle");
-    if (!btn) return;
-
-    const icon = btn.querySelector("i");
-    if (!icon) return;
-
-    const updateIcon = (theme) => {
-      if (theme === "dark") {
-        icon.classList.remove("bi-moon-stars-fill");
-        icon.classList.add("bi-sun-fill");
-        btn.title = "Switch to Light Mode";
-      } else {
-        icon.classList.remove("bi-sun-fill");
-        icon.classList.add("bi-moon-stars-fill");
-        btn.title = "Switch to Dark Mode";
+  // 2. Listen for system preference changes
+  window
+    .matchMedia("(prefers-color-scheme: dark)")
+    .addEventListener("change", () => {
+      if (!getStoredTheme()) {
+        const theme = getPreferredTheme();
+        setTheme(theme);
+        updateUI(theme);
       }
-    };
-    updateIcon(document.documentElement.getAttribute("data-bs-theme"));
+    });
 
-    btn.addEventListener("click", () => {
-      const current = document.documentElement.getAttribute("data-bs-theme");
-      const next = current === "dark" ? "light" : "dark";
-      setTheme(next);
-      localStorage.setItem("theme", next);
-      updateIcon(next);
+  // 3. Attach click handler using event delegation
+  window.addEventListener("DOMContentLoaded", () => {
+    updateUI(initialTheme);
+    document.addEventListener("click", (e) => {
+      const btn = e.target.closest("#darkModeToggle");
+      if (!btn) return;
+      const newTheme =
+        document.documentElement.getAttribute("data-bs-theme") === "dark"
+          ? "light"
+          : "dark";
+      setStoredTheme(newTheme);
+      setTheme(newTheme);
+      updateUI(newTheme);
     });
   });
 })();
