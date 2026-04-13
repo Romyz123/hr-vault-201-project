@@ -9842,3 +9842,539 @@ Stack trace:
 [13-Apr-2026 14:06:20 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 440
 [13-Apr-2026 14:06:20 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 447
 [13-Apr-2026 14:06:20 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 450
+[13-Apr-2026 14:34:18 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 59
+[13-Apr-2026 14:34:18 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 88
+[13-Apr-2026 14:34:18 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 430
+[13-Apr-2026 14:34:18 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 436
+[13-Apr-2026 14:34:18 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 440
+[13-Apr-2026 14:34:18 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 447
+[13-Apr-2026 14:34:18 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 450
+[13-Apr-2026 14:39:58 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 59
+[13-Apr-2026 14:39:58 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 88
+[13-Apr-2026 14:39:58 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 430
+[13-Apr-2026 14:39:58 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 436
+[13-Apr-2026 14:39:58 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 440
+[13-Apr-2026 14:39:58 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 447
+[13-Apr-2026 14:39:58 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 450
+[13-Apr-2026 14:40:17 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 59
+[13-Apr-2026 14:40:17 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 88
+[13-Apr-2026 14:40:17 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 430
+[13-Apr-2026 14:40:17 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 436
+[13-Apr-2026 14:40:17 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 440
+[13-Apr-2026 14:40:17 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 447
+[13-Apr-2026 14:40:17 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 450
+[13-Apr-2026 14:40:17 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 59
+[13-Apr-2026 14:40:18 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 88
+[13-Apr-2026 14:40:18 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 430
+[13-Apr-2026 14:40:18 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 436
+[13-Apr-2026 14:40:18 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 440
+[13-Apr-2026 14:40:18 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 447
+[13-Apr-2026 14:40:18 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 450
+[13-Apr-2026 14:40:32 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 59
+[13-Apr-2026 14:40:32 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 88
+[13-Apr-2026 14:40:32 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 430
+[13-Apr-2026 14:40:32 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 436
+[13-Apr-2026 14:40:32 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 440
+[13-Apr-2026 14:40:32 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 447
+[13-Apr-2026 14:40:32 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 450
+[13-Apr-2026 14:43:01 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 59
+[13-Apr-2026 14:43:01 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 88
+[13-Apr-2026 14:43:01 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 430
+[13-Apr-2026 14:43:01 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 436
+[13-Apr-2026 14:43:01 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 440
+[13-Apr-2026 14:43:01 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 447
+[13-Apr-2026 14:43:01 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 450
+[13-Apr-2026 14:52:01 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 59
+[13-Apr-2026 14:52:01 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 88
+[13-Apr-2026 14:52:01 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 430
+[13-Apr-2026 14:52:01 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 436
+[13-Apr-2026 14:52:01 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 440
+[13-Apr-2026 14:52:01 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 447
+[13-Apr-2026 14:52:01 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 450
+[13-Apr-2026 14:52:11 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 59
+[13-Apr-2026 14:52:11 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 88
+[13-Apr-2026 14:52:11 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 430
+[13-Apr-2026 14:52:11 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 436
+[13-Apr-2026 14:52:11 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 440
+[13-Apr-2026 14:52:11 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 447
+[13-Apr-2026 14:52:11 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 450
+[13-Apr-2026 14:52:22 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 59
+[13-Apr-2026 14:52:22 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 88
+[13-Apr-2026 14:52:22 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 430
+[13-Apr-2026 14:52:22 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 436
+[13-Apr-2026 14:52:22 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 440
+[13-Apr-2026 14:52:22 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 447
+[13-Apr-2026 14:52:22 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 450
+[13-Apr-2026 14:52:24 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesA696.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:24 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesA6A7.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:24 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesA6B8.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:24 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesA6C8.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:24 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesA6D9.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:24 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesA6EA.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:24 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesA6FA.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:24 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesA70B.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:24 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesA71B.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:24 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesA72C.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:24 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesA74C.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:24 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesA75D.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:24 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesA76E.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:24 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesA77E.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:24 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesA78F.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:24 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesA79F.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:24 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesA7B0.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:24 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesA7D0.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:24 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesA7E1.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:25 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesA7F2.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:25 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesA802.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:25 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesA822.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:25 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesA833.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:25 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesA844.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:25 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesA854.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:25 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesA865.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:25 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesA876.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:25 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesA886.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:25 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesA897.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:25 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesA8B7.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:25 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesA8C8.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:25 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesA8D8.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:25 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesA8E9.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:25 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesA8FA.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:25 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesA91A.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:25 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesA92A.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:25 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesA92B.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:25 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesA94C.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:25 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesA95C.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:25 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesA96D.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:25 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesA97E.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:25 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesA98E.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:25 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesA9AE.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:25 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesA9BF.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:25 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesA9D0.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:25 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesA9F0.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:25 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesA9F1.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:25 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesAA11.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:25 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesAA22.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:25 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesAA32.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:25 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesAA43.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:25 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesAA63.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:25 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesAA74.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:25 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesAA94.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:25 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesAAA5.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:25 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesAAB5.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:25 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesAAD6.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:25 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesAAE6.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:25 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesAAF7.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:25 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesAB08.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:25 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesAB28.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:25 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesAB38.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:25 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesAB49.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:25 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesAB5A.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:25 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesAB6A.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:25 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesAB8B.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:25 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesAB9B.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:25 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesABAC.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:25 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesABBC.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:25 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesABDD.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:25 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesABED.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:26 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesAC0E.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:26 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesAC1E.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:26 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesAC2F.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:26 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesAC3F.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:26 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesAC60.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:26 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesAC70.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:26 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesAC81.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:26 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesAC92.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:26 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesACA2.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:26 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesACB3.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:26 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesACD3.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:26 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesACE4.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:26 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesAD04.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:26 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesAD15.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:26 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesAD25.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:26 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesAD45.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:26 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesAD56.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:26 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesAD76.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:26 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesAD87.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:26 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesAD98.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:26 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesADB8.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:26 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesADC8.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:26 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesADD9.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:26 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesADF9.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:26 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesAE0A.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:26 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesAE1B.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:26 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesAE3B.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:26 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesAE4B.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:26 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesAE5C.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:26 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesAE6D.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:26 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesAE7D.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:26 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesAE8E.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:26 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesAEAE.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:26 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesAEBF.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:26 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesAEDF.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:26 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesAEF0.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:26 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesAF10.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:26 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesAF21.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:26 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesAF41.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:26 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesAF51.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:26 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesAF62.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:26 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesAF82.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:26 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesAF93.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:26 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesAFB3.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:26 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesAFC4.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:26 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesAFD4.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:26 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesAFE5.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:26 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesB005.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:27 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesB016.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:27 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesB036.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:27 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesB047.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:27 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesB057.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:27 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesB078.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:27 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesB088.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:27 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesB099.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:27 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesB0AA.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:27 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesB0CA.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:27 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesB0DA.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:27 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesB0FB.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:27 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesB10B.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:27 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesB12C.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:27 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesB13C.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:27 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesB14D.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:27 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesB16D.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:27 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesB17E.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:27 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesB18E.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:27 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesB1AF.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:27 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesB1BF.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:27 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesB1DF.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:27 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesB1F0.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:27 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesB210.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:27 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesB221.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:27 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesB241.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:27 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesB252.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:27 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesB272.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:27 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesB283.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:27 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesB2A3.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:27 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesB2B4.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:27 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesB2C4.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:27 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesB2E4.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:27 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesB2F5.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:27 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesB315.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:27 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesB326.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:27 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesB346.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:27 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesB357.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:27 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesB367.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:27 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesB388.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:27 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesB398.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:27 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesB3B9.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:27 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesB3BA.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:27 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesB3DA.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:27 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesB3EA.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:27 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesB40B.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:27 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesB41B.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:28 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesB43C.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:28 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesB44C.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:28 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesB45D.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:28 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesB47D.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:28 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesB47E.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:28 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesB49E.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:28 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesB4AF.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:28 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesB4C0.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:28 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesB4D0.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:28 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesB4E1.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:28 Asia/Manila] PHP Warning:  unlink(C:\Users\U369038\AppData\Local\Temp\tesB501.tmp): No such file or directory in C:\xampp\htdocs\hr 201\public\generate_test_data.php on line 126
+[13-Apr-2026 14:52:28 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 59
+[13-Apr-2026 14:52:28 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 88
+[13-Apr-2026 14:52:28 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 430
+[13-Apr-2026 14:52:28 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 436
+[13-Apr-2026 14:52:28 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 440
+[13-Apr-2026 14:52:28 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 447
+[13-Apr-2026 14:52:28 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 450
+[13-Apr-2026 14:52:49 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 59
+[13-Apr-2026 14:52:49 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 88
+[13-Apr-2026 14:52:49 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 430
+[13-Apr-2026 14:52:49 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 436
+[13-Apr-2026 14:52:49 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 440
+[13-Apr-2026 14:52:49 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 447
+[13-Apr-2026 14:52:49 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 450
+[13-Apr-2026 15:00:04 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 59
+[13-Apr-2026 15:00:04 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 88
+[13-Apr-2026 15:00:04 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 430
+[13-Apr-2026 15:00:04 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 436
+[13-Apr-2026 15:00:04 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 440
+[13-Apr-2026 15:00:04 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 447
+[13-Apr-2026 15:00:04 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 450
+[13-Apr-2026 15:03:20 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 59
+[13-Apr-2026 15:03:20 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 88
+[13-Apr-2026 15:03:20 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 430
+[13-Apr-2026 15:03:20 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 436
+[13-Apr-2026 15:03:20 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 440
+[13-Apr-2026 15:03:20 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 447
+[13-Apr-2026 15:03:20 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 450
+[13-Apr-2026 15:05:26 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 59
+[13-Apr-2026 15:05:26 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 88
+[13-Apr-2026 15:05:26 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 430
+[13-Apr-2026 15:05:26 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 436
+[13-Apr-2026 15:05:26 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 440
+[13-Apr-2026 15:05:26 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 447
+[13-Apr-2026 15:05:26 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 450
+[13-Apr-2026 15:17:18 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 59
+[13-Apr-2026 15:17:18 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 88
+[13-Apr-2026 15:17:18 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 430
+[13-Apr-2026 15:17:18 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 436
+[13-Apr-2026 15:17:18 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 440
+[13-Apr-2026 15:17:18 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 447
+[13-Apr-2026 15:17:18 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 450
+[13-Apr-2026 15:21:16 Asia/Manila] PHP Fatal error:  Uncaught Error: Call to undefined function keepQuery() in C:\xampp\htdocs\hr 201\public\recruitment.php:289
+Stack trace:
+#0 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\recruitment.php on line 289
+[13-Apr-2026 15:21:29 Asia/Manila] PHP Fatal error:  Uncaught Error: Call to undefined function keepQuery() in C:\xampp\htdocs\hr 201\public\recruitment.php:289
+Stack trace:
+#0 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\recruitment.php on line 289
+[13-Apr-2026 15:21:46 Asia/Manila] PHP Fatal error:  Uncaught Error: Call to undefined function keepQuery() in C:\xampp\htdocs\hr 201\public\recruitment.php:289
+Stack trace:
+#0 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\recruitment.php on line 289
+[13-Apr-2026 15:21:49 Asia/Manila] PHP Fatal error:  Uncaught Error: Call to undefined function keepQuery() in C:\xampp\htdocs\hr 201\public\recruitment.php:289
+Stack trace:
+#0 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\recruitment.php on line 289
+[13-Apr-2026 15:24:08 Asia/Manila] PHP Fatal error:  Uncaught Error: Call to undefined function keepQuery() in C:\xampp\htdocs\hr 201\public\recruitment.php:289
+Stack trace:
+#0 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\recruitment.php on line 289
+[13-Apr-2026 15:24:13 Asia/Manila] PHP Fatal error:  Uncaught Error: Call to undefined function keepQuery() in C:\xampp\htdocs\hr 201\public\recruitment.php:304
+Stack trace:
+#0 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\recruitment.php on line 304
+[13-Apr-2026 15:24:38 Asia/Manila] PHP Fatal error:  Uncaught Error: Call to undefined function keepQuery() in C:\xampp\htdocs\hr 201\public\recruitment.php:304
+Stack trace:
+#0 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\recruitment.php on line 304
+[13-Apr-2026 15:24:51 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 59
+[13-Apr-2026 15:24:51 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 88
+[13-Apr-2026 15:24:51 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 430
+[13-Apr-2026 15:24:51 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 436
+[13-Apr-2026 15:24:51 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 440
+[13-Apr-2026 15:24:51 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 447
+[13-Apr-2026 15:24:51 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 450
+[13-Apr-2026 15:31:45 Asia/Manila] PHP Fatal error:  Uncaught Error: Call to undefined function keepQuery() in C:\xampp\htdocs\hr 201\public\recruitment.php:304
+Stack trace:
+#0 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\recruitment.php on line 304
+[13-Apr-2026 15:31:48 Asia/Manila] PHP Fatal error:  Uncaught Error: Call to undefined function keepQuery() in C:\xampp\htdocs\hr 201\public\recruitment.php:304
+Stack trace:
+#0 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\recruitment.php on line 304
+[13-Apr-2026 15:31:50 Asia/Manila] PHP Fatal error:  Uncaught Error: Call to undefined function keepQuery() in C:\xampp\htdocs\hr 201\public\recruitment.php:304
+Stack trace:
+#0 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\recruitment.php on line 304
+[13-Apr-2026 15:32:09 Asia/Manila] PHP Fatal error:  Uncaught Error: Call to undefined function keepQuery() in C:\xampp\htdocs\hr 201\public\recruitment.php:304
+Stack trace:
+#0 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\recruitment.php on line 304
+[13-Apr-2026 15:32:14 Asia/Manila] PHP Fatal error:  Uncaught Error: Call to undefined function keepQuery() in C:\xampp\htdocs\hr 201\public\recruitment.php:304
+Stack trace:
+#0 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\recruitment.php on line 304
+[13-Apr-2026 15:32:22 Asia/Manila] PHP Fatal error:  Uncaught Error: Call to undefined function keepQuery() in C:\xampp\htdocs\hr 201\public\recruitment.php:304
+Stack trace:
+#0 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\recruitment.php on line 304
+[13-Apr-2026 15:32:31 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 59
+[13-Apr-2026 15:32:31 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 88
+[13-Apr-2026 15:32:31 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 430
+[13-Apr-2026 15:32:31 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 436
+[13-Apr-2026 15:32:31 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 440
+[13-Apr-2026 15:32:31 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 447
+[13-Apr-2026 15:32:31 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 450
+[13-Apr-2026 15:42:19 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 59
+[13-Apr-2026 15:42:19 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 88
+[13-Apr-2026 15:42:19 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 430
+[13-Apr-2026 15:42:19 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 436
+[13-Apr-2026 15:42:19 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 440
+[13-Apr-2026 15:42:19 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 447
+[13-Apr-2026 15:42:19 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 450
+[13-Apr-2026 15:43:40 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 59
+[13-Apr-2026 15:43:40 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 88
+[13-Apr-2026 15:43:40 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 430
+[13-Apr-2026 15:43:40 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 436
+[13-Apr-2026 15:43:40 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 440
+[13-Apr-2026 15:43:40 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 447
+[13-Apr-2026 15:43:40 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 450
+[13-Apr-2026 15:49:10 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 59
+[13-Apr-2026 15:49:10 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 88
+[13-Apr-2026 15:49:10 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 430
+[13-Apr-2026 15:49:10 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 436
+[13-Apr-2026 15:49:10 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 440
+[13-Apr-2026 15:49:10 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 447
+[13-Apr-2026 15:49:10 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 450
+[13-Apr-2026 15:54:37 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 59
+[13-Apr-2026 15:54:37 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 88
+[13-Apr-2026 15:54:37 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 430
+[13-Apr-2026 15:54:37 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 436
+[13-Apr-2026 15:54:37 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 440
+[13-Apr-2026 15:54:37 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 447
+[13-Apr-2026 15:54:37 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 450
+[13-Apr-2026 16:01:21 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 59
+[13-Apr-2026 16:01:21 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 88
+[13-Apr-2026 16:01:21 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 430
+[13-Apr-2026 16:01:21 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 436
+[13-Apr-2026 16:01:21 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 440
+[13-Apr-2026 16:01:21 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 447
+[13-Apr-2026 16:01:21 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 450
+[13-Apr-2026 16:04:48 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 59
+[13-Apr-2026 16:04:48 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 88
+[13-Apr-2026 16:04:48 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 430
+[13-Apr-2026 16:04:48 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 436
+[13-Apr-2026 16:04:48 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 440
+[13-Apr-2026 16:04:48 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 447
+[13-Apr-2026 16:04:48 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 450
+[13-Apr-2026 16:09:12 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 59
+[13-Apr-2026 16:09:12 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 88
+[13-Apr-2026 16:09:12 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 430
+[13-Apr-2026 16:09:12 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 436
+[13-Apr-2026 16:09:12 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 440
+[13-Apr-2026 16:09:12 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 447
+[13-Apr-2026 16:09:12 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 450
+[13-Apr-2026 16:09:40 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 59
+[13-Apr-2026 16:09:40 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 88
+[13-Apr-2026 16:09:40 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 430
+[13-Apr-2026 16:09:40 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 436
+[13-Apr-2026 16:09:40 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 440
+[13-Apr-2026 16:09:40 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 447
+[13-Apr-2026 16:09:40 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 450
+[13-Apr-2026 16:09:44 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 59
+[13-Apr-2026 16:09:44 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 88
+[13-Apr-2026 16:09:44 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 430
+[13-Apr-2026 16:09:44 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 436
+[13-Apr-2026 16:09:44 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 440
+[13-Apr-2026 16:09:44 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 447
+[13-Apr-2026 16:09:44 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 450
+[13-Apr-2026 16:12:12 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 59
+[13-Apr-2026 16:12:12 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 88
+[13-Apr-2026 16:12:12 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 430
+[13-Apr-2026 16:12:12 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 436
+[13-Apr-2026 16:12:12 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 440
+[13-Apr-2026 16:12:12 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 447
+[13-Apr-2026 16:12:12 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 450
+[13-Apr-2026 16:20:48 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 59
+[13-Apr-2026 16:20:48 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 88
+[13-Apr-2026 16:20:48 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 430
+[13-Apr-2026 16:20:48 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 436
+[13-Apr-2026 16:20:48 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 440
+[13-Apr-2026 16:20:48 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 447
+[13-Apr-2026 16:20:48 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 450
+[13-Apr-2026 16:21:16 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 59
+[13-Apr-2026 16:21:16 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 88
+[13-Apr-2026 16:21:16 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 430
+[13-Apr-2026 16:21:16 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 436
+[13-Apr-2026 16:21:16 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 440
+[13-Apr-2026 16:21:16 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 447
+[13-Apr-2026 16:21:16 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 450
+[13-Apr-2026 16:39:10 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 59
+[13-Apr-2026 16:39:10 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 88
+[13-Apr-2026 16:39:10 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 430
+[13-Apr-2026 16:39:10 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 436
+[13-Apr-2026 16:39:10 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 440
+[13-Apr-2026 16:39:10 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 447
+[13-Apr-2026 16:39:10 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 450
+[13-Apr-2026 16:39:11 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 59
+[13-Apr-2026 16:39:11 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 88
+[13-Apr-2026 16:39:11 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 430
+[13-Apr-2026 16:39:11 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 436
+[13-Apr-2026 16:39:11 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 440
+[13-Apr-2026 16:39:11 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 447
+[13-Apr-2026 16:39:11 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 450
+[13-Apr-2026 16:57:32 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 59
+[13-Apr-2026 16:57:32 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 88
+[13-Apr-2026 16:57:32 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 430
+[13-Apr-2026 16:57:32 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 436
+[13-Apr-2026 16:57:32 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 440
+[13-Apr-2026 16:57:32 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 447
+[13-Apr-2026 16:57:32 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 450
+[13-Apr-2026 16:59:06 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 59
+[13-Apr-2026 16:59:06 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 88
+[13-Apr-2026 16:59:06 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 430
+[13-Apr-2026 16:59:06 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 436
+[13-Apr-2026 16:59:06 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 440
+[13-Apr-2026 16:59:06 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 447
+[13-Apr-2026 16:59:06 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 450
+[13-Apr-2026 17:01:42 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 59
+[13-Apr-2026 17:01:42 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 88
+[13-Apr-2026 17:01:42 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 430
+[13-Apr-2026 17:01:42 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 436
+[13-Apr-2026 17:01:42 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 440
+[13-Apr-2026 17:01:42 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 447
+[13-Apr-2026 17:01:42 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 450
+[13-Apr-2026 17:02:00 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 59
+[13-Apr-2026 17:02:00 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 88
+[13-Apr-2026 17:02:00 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 430
+[13-Apr-2026 17:02:00 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 436
+[13-Apr-2026 17:02:00 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 440
+[13-Apr-2026 17:02:00 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 447
+[13-Apr-2026 17:02:00 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 450
+[13-Apr-2026 17:02:02 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 59
+[13-Apr-2026 17:02:02 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 88
+[13-Apr-2026 17:02:02 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 430
+[13-Apr-2026 17:02:02 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 436
+[13-Apr-2026 17:02:02 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 440
+[13-Apr-2026 17:02:02 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 447
+[13-Apr-2026 17:02:02 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 450
+[13-Apr-2026 17:03:40 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 59
+[13-Apr-2026 17:03:40 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 88
+[13-Apr-2026 17:03:40 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 430
+[13-Apr-2026 17:03:40 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 436
+[13-Apr-2026 17:03:40 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 440
+[13-Apr-2026 17:03:40 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 447
+[13-Apr-2026 17:03:40 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 450
+[13-Apr-2026 17:04:01 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 59
+[13-Apr-2026 17:04:01 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 88
+[13-Apr-2026 17:04:01 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 430
+[13-Apr-2026 17:04:01 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 436
+[13-Apr-2026 17:04:01 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 440
+[13-Apr-2026 17:04:01 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 447
+[13-Apr-2026 17:04:01 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 450
+[13-Apr-2026 17:06:26 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 59
+[13-Apr-2026 17:06:26 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 88
+[13-Apr-2026 17:06:26 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 430
+[13-Apr-2026 17:06:26 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 436
+[13-Apr-2026 17:06:26 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 440
+[13-Apr-2026 17:06:26 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 447
+[13-Apr-2026 17:06:26 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 450
+[13-Apr-2026 17:06:32 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 59
+[13-Apr-2026 17:06:32 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 88
+[13-Apr-2026 17:06:32 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 430
+[13-Apr-2026 17:06:32 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 436
+[13-Apr-2026 17:06:32 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 440
+[13-Apr-2026 17:06:32 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 447
+[13-Apr-2026 17:06:32 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 450
+[13-Apr-2026 17:07:12 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 59
+[13-Apr-2026 17:07:12 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 88
+[13-Apr-2026 17:07:12 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 430
+[13-Apr-2026 17:07:12 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 436
+[13-Apr-2026 17:07:12 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 440
+[13-Apr-2026 17:07:12 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 447
+[13-Apr-2026 17:07:12 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 450
+[13-Apr-2026 17:08:03 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 59
+[13-Apr-2026 17:08:03 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 88
+[13-Apr-2026 17:08:03 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 430
+[13-Apr-2026 17:08:03 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 436
+[13-Apr-2026 17:08:03 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 440
+[13-Apr-2026 17:08:03 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 447
+[13-Apr-2026 17:08:03 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 450
+[13-Apr-2026 17:10:12 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 59
+[13-Apr-2026 17:10:12 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 88
+[13-Apr-2026 17:10:12 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 430
+[13-Apr-2026 17:10:12 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 436
+[13-Apr-2026 17:10:12 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 440
+[13-Apr-2026 17:10:12 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 447
+[13-Apr-2026 17:10:12 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 450
+[13-Apr-2026 17:10:23 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 59
+[13-Apr-2026 17:10:23 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 88
+[13-Apr-2026 17:10:23 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 430
+[13-Apr-2026 17:10:23 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 436
+[13-Apr-2026 17:10:23 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 440
+[13-Apr-2026 17:10:23 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 447
+[13-Apr-2026 17:10:23 Asia/Manila] PHP Warning:  Undefined variable $userRole in C:\xampp\htdocs\hr 201\public\header.php on line 450
