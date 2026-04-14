@@ -723,6 +723,13 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
 
 <div class="container">
 
+    <!-- [2FA OPTIONAL ENROLLMENT WARNING] -->
+    <?php if (empty($_SESSION['2fa_enabled'])): ?>
+        <div class="alert alert-warning shadow-sm border-warning border-start border-5 mb-4">
+            <i class="bi bi-shield-exclamation-fill me-2"></i> <strong>Security Notice:</strong> Your account is not fully secured. Please <a href="profile_settings.php#security" class="alert-link">enable 2FA in Profile Settings</a>.
+        </div>
+    <?php endif; ?>
+
     <!-- [SECURITY] Production Readiness & MHI Audit Checks -->
     <?php if ($userRole === 'ADMIN'):
         $riskFiles = [
@@ -898,7 +905,7 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
 
     <div class="row mb-4">
         <div class="col-lg-8 mb-3 mb-lg-0">
-            <div class="card h-100 shadow-soft">
+            <div class="card h-100 shadow-sm border">
                 <div class="card-header d-flex align-items-center">
                     <i class="bi bi-graph-up-arrow me-2 text-primary"></i>
                     <span class="fw-semibold">Document Analytics</span>
@@ -909,7 +916,7 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
             </div>
         </div>
         <div class="col-lg-4">
-            <div class="card h-100 shadow-soft">
+            <div class="card h-100 shadow-sm border">
                 <div class="card-header d-flex align-items-center">
                     <i class="bi bi-lightning-charge-fill me-2 text-warning"></i>
                     <span class="fw-semibold">Actions</span>
@@ -1005,10 +1012,10 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
     </div>
 
     <!-- Directory Search / Filters -->
-    <div class="card mb-4 shadow-soft" id="directory-search-bar">
-        <div class="card-body">
+    <div class="card mb-4 shadow-sm border" id="directory-search-bar">
+        <div class="card-body bg-body-tertiary rounded">
             <div class="d-flex justify-content-between align-items-center mb-3">
-                <h5 class="text-muted mb-0"><i class="bi bi-funnel-fill"></i> Directory Search</h5>
+                <h5 class="text-body mb-0"><i class="bi bi-funnel-fill"></i> Directory Search</h5>
                 <a href="index.php" class="btn btn-sm btn-outline-secondary">Reset Filters</a>
             </div>
 
@@ -1110,7 +1117,7 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
                 <!-- Search box (with maxlength for UX) -->
                 <div class="col-md-3 position-relative">
                     <div class="input-group input-group-sm">
-                        <input type="text" id="mainSearch" name="search" class="form-control"
+                        <input type="text" id="mainSearch" name="search" class="form-control bg-body"
                             placeholder="Search by ID / First / Last..." value="<?php echo h($search_query); ?>"
                             autocomplete="off" aria-label="Search employees" maxlength="50" pattern="[a-zA-Z0-9\-_ ,]+" title="Allowed: Letters, Numbers, Spaces, Dashes, Underscores, Commas">
                         <?php if (!empty($search_query)): ?>
@@ -1173,7 +1180,7 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
         <?php foreach ($employees as $emp):
             $statusClass = match ($emp['status']) {
                 'Active'     => 'status-active',
-                'Resigned'   => 'status-agency',
+                'Resigned'   => 'border-warning',
                 'Terminated' => 'status-terminated',
                 default      => 'border-secondary'
             };
@@ -1193,7 +1200,7 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
                 'OFFICER', 'SUPERVISOR' => 'bg-info text-dark',
                 'MAINTENANCE', 'TECHNICIAN' => 'bg-warning-subtle text-warning-emphasis',
                 'DRIVER' => 'bg-secondary',
-                default => 'bg-body-secondary text-body border'
+                default => 'bg-secondary-subtle text-body border'
             };
 
             // Color-coded employer badges
@@ -1272,13 +1279,13 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
                         <div class="d-flex justify-content-between align-items-start mb-3">
                             <div class="me-3">
                                 <img src="uploads/avatars/<?php echo h($emp['avatar_path'] ?: 'default.png'); ?>"
-                                    class="card-img-top avatar-circle"
+                                    class="card-img-top avatar-circle bg-body"
                                     alt="Profile"
                                     onerror="this.onerror=null; this.src='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI1MCIgZmlsbD0iI2UzZTNlMyIvPjxwYXRoIGQ9Ik01MCA1MCBhMjAgMjAgMCAxIDAgMC00MCAyMCAyMCAwIDEgMCAwIDQwIHptMCAxMCBjLTE1IDAtMzUgMTAtMzUgMzAgdjEwIGg3MCB2LTEwIGMtMC0yMC0yMC0zMC0zNS0zMCIgZmlsbD0iI2FhYSIvPjwvc3ZnPg==';">
                             </div>
                             <div class="flex-grow-1">
-                                <h5 class="card-title mb-1 fw-bold"><?php echo h($emp['first_name'] . ' ' . $emp['last_name']); ?></h5>
-                                <small class="text-muted d-block mb-1"><?php echo $deptDisplay; ?></small>
+                                <h5 class="card-title mb-1 fw-bold text-body"><?php echo h($emp['first_name'] . ' ' . $emp['last_name']); ?></h5>
+                                <small class="text-body-secondary d-block mb-1"><?php echo $deptDisplay; ?></small>
                                 <?php if ($hasUncategorized): ?>
                                     <div class="mb-1"><span class="badge bg-danger-subtle text-danger border border-danger-subtle extra-small"><i class="bi bi-exclamation-triangle-fill"></i> Uncategorized Files</span></div>
                                 <?php endif; ?>
@@ -1310,6 +1317,9 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
                                     <div class="ms-3 flex-grow-1">
                                         <h3 class="mb-0 fw-bold"><?php echo h($emp['first_name'] . ' ' . $emp['last_name']); ?></h3>
                                         <div class="badge bg-body-secondary text-body mt-1"><?php echo h($emp['emp_id']); ?></div>
+                                        <?php if (!empty($emp['resignation_label'])): ?>
+                                            <div class="badge bg-warning text-dark mt-1"><?php echo h($emp['resignation_label']); ?></div>
+                                        <?php endif; ?>
                                         <div class="badge bg-body text-body border mt-1"><?php echo h($emp['job_title']); ?></div>
 
                                         <?php if ($isRecentlyUpdated): ?>
@@ -1697,7 +1707,7 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
 <!-- SINGLE Bootstrap bundle include -->
 <script src="assets/bootstrap.bundle.min.js?v=3"></script>
 
-<script>
+<script nonce="<?= htmlspecialchars($cspNonce, ENT_QUOTES, 'UTF-8') ?>">
     // ---------- Chart ----------
     document.addEventListener('DOMContentLoaded', () => {
         const ctx = document.getElementById('hrChart');
@@ -2297,10 +2307,7 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
 
 
     // --- AUTO-REFRESH SYSTEM ---
-    let isPaused = false;
-
     function refreshSystem() {
-        if (isPaused) return;
         const spinner = document.getElementById('sync-spinner');
         if (spinner) spinner.style.display = 'inline-block';
 
@@ -2329,15 +2336,6 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
     }
 
     document.addEventListener("DOMContentLoaded", function() {
-        const toggleBtn = document.getElementById('refreshToggle');
-        if (toggleBtn) {
-            toggleBtn.addEventListener('click', function() {
-                isPaused = !isPaused;
-                this.innerHTML = isPaused ? '<i class="bi bi-play-circle-fill text-warning"></i>' : '<i class="bi bi-pause-circle"></i>';
-                this.title = isPaused ? "Resume Dashboard Updates" : "Pause Dashboard Updates";
-                if (!isPaused) refreshSystem();
-            });
-        }
         setInterval(refreshSystem, <?php echo (int)$refreshInterval * 1000; ?>);
 
         refreshSystem(); // Run once on load

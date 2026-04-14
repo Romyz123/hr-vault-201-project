@@ -21,6 +21,10 @@ $notifCount = 0;
 
 require_once __DIR__ . '/options.php';
 
+// [NEW] Normalize user context for shared header logic
+$userRole = strtoupper(trim($_SESSION['role'] ?? ''));
+$username = trim($_SESSION['username'] ?? 'User');
+
 // [NEW] Auto-fetch settings if not provided by parent page
 if (isset($_SESSION['user_id'])) {
     $uid = (int)$_SESSION['user_id'];
@@ -112,6 +116,16 @@ if (isset($_SESSION['user_id'])) {
     $notifCount = $msgCount + count($doc_alerts ?: []);
 }
 
+// [NEW] Fetch unread notifications count for the red badge
+$unreadNotifCount = 0;
+if (isset($_SESSION['user_id'])) {
+    $unreadStmt = $pdo->prepare("SELECT COUNT(*) FROM notifications WHERE user_id = ? AND is_read = 0");
+    $unreadStmt->execute([$_SESSION['user_id']]);
+    $unreadNotifCount = (int)$unreadStmt->fetchColumn();
+}
+
+$notificationCount = max($notifCount, $unreadNotifCount);
+
 $csrf_token = $_SESSION['csrf_token'] ?? '';
 
 // [NEW] Robust Logo Discovery Logic
@@ -136,6 +150,9 @@ foreach ($logo_paths as $p) {
 <head>
     <meta charset="UTF-8">
     <title>TESP HR 201 System</title>
+    <script nonce="<?= htmlspecialchars($cspNonce, ENT_QUOTES, 'UTF-8') ?>">
+        document.documentElement.setAttribute('data-bs-theme', localStorage.getItem('theme') || 'light');
+    </script>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <?php
     $faviconPath = '../uploads/favicon.png';
@@ -145,16 +162,12 @@ foreach ($logo_paths as $p) {
     <link rel="icon" type="image/png" href="<?= $faviconUrl ?>">
     <link rel="shortcut icon" type="image/png" href="<?= $faviconUrl ?>">
     <link rel="apple-touch-icon" href="<?= $faviconUrl ?>">
-    <link href="assets/bootstrap.min.css?v=5" rel="stylesheet">
-    <link href="assets/icons/bootstrap-icons.css?v=5" rel="stylesheet">
-    <script src="assets/chart.min.js?v=3" defer></script>
-    <script src="assets/sweetalert2.all.min.js?v=3"></script>
-    <?php // --- START: Dark Mode Fix --- 
-    ?>
-    <script src="assets/dark_mode.js?v=7"></script>
-    <?php // --- END: Dark Mode Fix --- 
-    ?>
-    <style>
+    <link href="assets/bootstrap.min.css?v=5" rel="stylesheet" nonce="<?= htmlspecialchars($cspNonce, ENT_QUOTES, 'UTF-8') ?>">
+    <link href="assets/icons/bootstrap-icons.css?v=5" rel="stylesheet" nonce="<?= htmlspecialchars($cspNonce, ENT_QUOTES, 'UTF-8') ?>">
+    <script src="assets/chart.min.js?v=3" nonce="<?= htmlspecialchars($cspNonce, ENT_QUOTES, 'UTF-8') ?>"></script>
+    <script src="assets/sweetalert2.all.min.js?v=3" nonce="<?= htmlspecialchars($cspNonce, ENT_QUOTES, 'UTF-8') ?>"></script>
+    <script src="assets/dark_mode.js?v=7" nonce="<?= htmlspecialchars($cspNonce, ENT_QUOTES, 'UTF-8') ?>"></script>
+    <style nonce="<?= htmlspecialchars($cspNonce, ENT_QUOTES, 'UTF-8') ?>">
         :root {
             --accent: #2a5298;
         }
@@ -311,11 +324,6 @@ foreach ($logo_paths as $p) {
                         <i class="bi bi-hourglass-split"></i> <span id="sessionTimer" class="fw-bold font-monospace"><?php echo floor($clientTimeout / 60) . ':' . str_pad($clientTimeout % 60, 2, '0', STR_PAD_LEFT); ?></span>
                     </div>
 
-                    <!-- Auto-Refresh Toggle -->
-                    <button id="refreshToggle" class="btn btn-sm btn-outline-light me-3 border-0" title="Pause Dashboard Updates">
-                        <i class="bi bi-pause-circle"></i>
-                    </button>
-
                     <!-- Dark Mode Toggle -->
                     <button id="darkModeToggle" class="btn btn-sm btn-outline-light me-3 border-0" title="Toggle Dark Mode">
                         <i class="bi bi-moon-stars-fill"></i>
@@ -330,27 +338,27 @@ foreach ($logo_paths as $p) {
                     <div class="dropdown me-3">
                         <a class="text-white position-relative" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                             <i class="bi bi-bell-fill fs-5"></i>
-                            <?php if ($notifCount > 0): ?>
+                            <?php if ($notificationCount > 0): ?>
                                 <?php
                                 // [UX] Color code the badge: Red for new messages, Yellow for pending actions only
                                 $badgeClass = ($msgCount > 0) ? 'bg-danger' : 'bg-warning text-dark';
                                 ?>
-                                <span id="notifyBadge" class="position-absolute top-0 start-100 translate-middle badge rounded-pill <?php echo $badgeClass; ?>">
-                                    <?php echo $notifCount; ?>
+                                <span id="notifyBadge" class="position-absolute top-0 start-100 translate-middle badge rounded-pill <?= $badgeClass; ?>">
+                                    <?php echo $notificationCount; ?>
                                 </span>
                             <?php else: ?>
                                 <span id="notifyBadge" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style="display:none">0</span>
                             <?php endif; ?>
                         </a>
 
-                        <ul id="notifyList" class="dropdown-menu dropdown-menu-end shadow" style="width: 350px; max-height: 400px; overflow-y: auto;">
+                        <ul id="notifyList" class="dropdown-menu dropdown-menu-end shadow bg-body" style="width: 350px; max-height: 400px; overflow-y: auto;">
                             <li class="dropdown-header d-flex justify-content-between align-items-center">
                                 <span>Notifications</span>
                                 <?php if (count($db_notifs ?? []) > 0): // Use $db_notifs from index.php 
                                 ?>
                                     <form method="POST" class="m-0">
-                                        <input type="hidden" name="csrf_token" value="<?php echo h($csrf_token); ?>">
-                                        <button name="clear_notifs" class="btn btn-link btn-sm text-decoration-none p-0" style="font-size: 0.8rem;">Clear Read</button>
+                                        <input type="hidden" name="csrf_token" value="<?php echo h($_SESSION['csrf_token'] ?? ''); ?>">
+                                        <button type="submit" name="clear_notifs" class="btn btn-link btn-sm text-decoration-none p-0" style="font-size: 0.8rem;">Clear Read</button>
                                     </form>
                                 <?php endif; ?>
                             </li>
@@ -423,34 +431,37 @@ foreach ($logo_paths as $p) {
 
                     <!-- User Menu -->
                     <div class="dropdown">
-                        <a href="#" class="d-flex align-items-center text-white text-decoration-none dropdown-toggle" data-bs-toggle="dropdown">
-                            <strong><?php echo h($_SESSION['username'] ?? 'User'); ?></strong>
+                        <a href="#" class="d-flex align-items-center text-white text-decoration-none dropdown-toggle" id="userMenuDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                            <strong><i class="bi bi-person-circle me-1"></i> <?php echo h($_SESSION['username'] ?? 'User'); ?></strong>
                         </a>
-                        <ul class="dropdown-menu dropdown-menu-end shadow">
-                            <?php if (in_array($userRole, ['ADMIN', 'MANAGER'])): ?>
-                                <li><a class="dropdown-item fw-bold text-primary" href="manager_dashboard.php"><i class="bi bi-speedometer2 me-2"></i> Manager Dashboard</a></li>
+                        <ul class="dropdown-menu dropdown-menu-end shadow" aria-labelledby="userMenuDropdown">
+                            <li>
+                                <h6 class="dropdown-header">User Controls</h6>
+                            </li>
+                            <li><a class="dropdown-item" href="profile_settings.php"><i class="bi bi-person-gear me-2"></i> Profile Settings</a></li>
+
+
+                            <?php if ($userRole === 'ADMIN'): ?>
                                 <li>
                                     <hr class="dropdown-divider">
                                 </li>
-                            <?php endif; ?>
-                            <?php if ($userRole === 'ADMIN'): ?>
+                                <li>
+                                    <h6 class="dropdown-header text-danger">Admin Panel</h6>
+                                </li>
                                 <li><a class="dropdown-item" href="settings.php"><i class="bi bi-sliders me-2"></i> System Settings</a></li>
-                            <?php endif; ?>
-                            <li><a class="dropdown-item" href="profile_settings.php"><i class="bi bi-gear me-2"></i> Change Password</a></li>
-                            <?php if ($userRole === 'ADMIN'): ?>
-                                <li>
-                                    <hr class="dropdown-divider">
-                                </li>
                                 <li><a class="dropdown-item" href="manager_user.php"><i class="bi bi-people-fill me-2"></i> Manage Users</a></li>
                                 <li><a class="dropdown-item" href="access_review.php"><i class="bi bi-shield-check me-2"></i> Access Reviews</a></li>
                             <?php endif; ?>
+
                             <?php if (in_array($userRole, ['ADMIN', 'MANAGER'])): ?>
                                 <li><a class="dropdown-item" href="activity_logs.php"><i class="bi bi-shield-lock-fill me-2 text-danger"></i> Activity Logs</a></li>
                             <?php endif; ?>
+
                             <?php if ($userRole === 'STAFF'): ?>
                                 <li><a class="dropdown-item" href="my_requests.php"><i class="bi bi-clock-history me-2 text-primary"></i> My Requests</a></li>
                             <?php endif; ?>
                             <li><a class="dropdown-item" href="help.php"><i class="bi bi-question-circle-fill me-2 text-info"></i> User Manual</a></li>
+
                             <li>
                                 <hr class="dropdown-divider">
                             </li>
@@ -462,7 +473,7 @@ foreach ($logo_paths as $p) {
         </div>
     </nav>
 
-    <script>
+    <script nonce="<?= $cspNonce ?>">
         // [SECURITY] Centralized Global Auto-Logout Timer (Client-Side)
         document.addEventListener("DOMContentLoaded", function() {
             const INACTIVITY_LIMIT_MS = <?php echo (int)($clientTimeout ?? 900) * 1000; ?>;
@@ -495,5 +506,51 @@ foreach ($logo_paths as $p) {
             window.addEventListener('keydown', resetTimer);
             window.addEventListener('click', resetTimer);
             window.addEventListener('scroll', resetTimer);
+
+            // [NEW] Mark notifications as read when dropdown is shown
+            const bellDropdownIcon = document.querySelector('.bi-bell-fill');
+            if (bellDropdownIcon) {
+                const bellDropdown = bellDropdownIcon.closest('.dropdown');
+                bellDropdown.addEventListener('show.bs.dropdown', function() {
+                    const badge = document.getElementById('notifyBadge');
+                    if (badge && badge.style.display !== 'none' && badge.innerText !== '0') {
+                        fetch('api/mark_read.php', {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/x-www-form-urlencoded'
+                                },
+                                body: 'csrf_token=' + encodeURIComponent('<?php echo $_SESSION['csrf_token'] ?? ''; ?>')
+                            })
+                            .then(response => response.json())
+                            .then(data => {
+                                if (data.status === 'success') {
+                                    badge.innerText = '0';
+                                    badge.style.display = 'none';
+                                }
+                            })
+                            .catch(err => console.error('Mark as read failed:', err));
+                    }
+                });
+            }
         });
+
+        // [SECURITY] AJAX Notification Sync (Refresh unread count every 60s)
+        function syncNotifications() {
+            fetch('api/get_updates.php')
+                .then(response => response.json())
+                .then(data => {
+                    const badge = document.getElementById('notifyBadge');
+                    if (data.status === 'success' && badge) {
+                        const currentCount = parseInt(badge.innerText, 10) || 0;
+                        const remoteCount = parseInt(data.unreadCount, 10) || 0;
+                        const displayCount = Math.max(currentCount, remoteCount);
+                        badge.innerText = displayCount;
+                        badge.style.display = displayCount > 0 ? 'block' : 'none';
+                    }
+                })
+                .catch(err => console.error('Notification sync failed:', err));
+        }
+
+        // Run every 60 seconds
+        setInterval(syncNotifications, 60000);
     </script>

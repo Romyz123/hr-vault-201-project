@@ -431,51 +431,22 @@ if (isset($_GET['msg'])) {
     $alertMsg = htmlspecialchars($_GET['msg']);
 }
 ?>
+<?php require 'header.php'; ?>
+<style>
+    .status-Open {
+        background-color: #ffeeba;
+        color: #856404;
+    }
 
-<!DOCTYPE html>
-<html lang="en">
-
-<head>
-    <meta charset="UTF-8">
-    <title>Disciplinary Management</title>
-    <link rel="icon" href="assets/tesp-logo.png?v=4" type="image/png">
-    <link href="assets/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="assets/icons/bootstrap-icons.css">
-    <script src="assets/sweetalert2.all.min.js"></script>
-    <link rel="icon" type="image/png" href="../uploads/tesp-logo.png">
-    <link rel="shortcut icon" type="image/png" href="../uploads/tesp-logo.png">
-    <link rel="apple-touch-icon" href="../uploads/tesp-logo.png">
-    <style>
-        .status-Open {
-            background-color: #ffeeba;
-            color: #856404;
-        }
-
-        .status-Closed {
-            background-color: #d4edda;
-            color: #155724;
-        }
-    </style>
-</head>
-
-<body class="bg-body-tertiary">
-    <nav class="navbar navbar-dark bg-dark mb-4">
-        <div class="container-fluid px-4">
-            <div class="d-flex align-items-center">
-                <a class="navbar-brand" href="index.php">Back to Dashboard</a>
-                <span class="navbar-text text-white ms-3 border-start ps-3">Disciplinary Console</span>
-            </div>
-            <div class="d-flex align-items-center gap-2">
-                <button id="darkModeToggle" class="btn btn-sm btn-outline-light border-0" title="Toggle Dark Mode">
-                    <i class="bi bi-moon-stars-fill"></i>
-                </button>
-                <?php if (($_SESSION['role'] ?? '') === 'ADMIN'): ?>
-                    <a href="settings.php" class="btn btn-outline-light btn-sm"><i class="bi bi-gear-fill"></i> Settings</a>
-                <?php endif; ?>
-            </div>
-        </div>
-    </nav>
-
+    .status-Closed {
+        background-color: #d4edda;
+        color: #155724;
+    }
+</style>
+<div class="container-fluid px-4 mt-4">
+    <div class="mb-4 d-flex justify-content-between align-items-center">
+        <h4 class="mb-0 text-danger"><i class="bi bi-exclamation-triangle-fill"></i> Disciplinary Management</h4>
+    </div>
     <div class="container">
         <div class="row mb-4 align-items-center">
             <div class="col-md-8">
@@ -991,6 +962,6 @@ if (isset($_GET['msg'])) {
             return true;
         }
     </script>
-</body>
+    </body>
 
-</html>
+    </html>

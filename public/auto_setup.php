@@ -21,23 +21,53 @@ $status = "info";
 try {
     // 2. DATABASE SETUP: Build tables from schema.sql
     clearstatcache();
-    $schemaPath = realpath(__DIR__ . '/../schema.sql');
-    if (!$schemaPath || !file_exists($schemaPath)) {
-        throw new Exception("Schema file (schema.sql) not found in the root directory.");
+    $rootPath = dirname(__DIR__);
+    $schemaPath = $rootPath . DIRECTORY_SEPARATOR . 'schema.sql';
+
+    $sql = "";
+    $message_suffix = "";
+
+    // Try to load from external file
+    if (file_exists($schemaPath)) {
+        $sql = @file_get_contents($schemaPath);
     }
 
-    $sql = @file_get_contents($schemaPath);
     if ($sql === false || trim($sql) === '') {
-        throw new Exception("Failed to read schema.sql. Check if the file is empty or if your Windows user has restricted read permissions on the file.");
+        // Fallback: Internal Core Schema to allow Admin login and use db_status.php for full repair
+        $sql = "
+            CREATE TABLE IF NOT EXISTS `users` (
+                `id` INT AUTO_INCREMENT PRIMARY KEY,
+                `username` VARCHAR(50) NOT NULL UNIQUE,
+                `password` VARCHAR(255) NOT NULL,
+                `role` VARCHAR(20) DEFAULT 'STAFF',
+                `email` VARCHAR(100) DEFAULT NULL,
+                `is_2fa_enabled` TINYINT(1) DEFAULT 0,
+                `totp_secret` VARCHAR(255) DEFAULT NULL,
+                `recovery_codes` TEXT DEFAULT NULL,
+                `failed_attempts` INT DEFAULT 0,
+                `locked_until` DATETIME DEFAULT NULL,
+                `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+            CREATE TABLE IF NOT EXISTS `system_settings` (
+                `setting_key` VARCHAR(50) PRIMARY KEY,
+                `setting_value` TEXT
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+            INSERT IGNORE INTO `users` (username, password, role) 
+            VALUES ('admin', '" . password_hash('Admin@12345', PASSWORD_BCRYPT) . "', 'ADMIN');
+        ";
+        $message_suffix = " (Using internal core fallback)";
     }
 
     // Execute the schema
     $pdo->exec($sql);
 
-    // 3. 2FA BYPASS: Reset Admin account for local migration recovery
-    $pdo->exec("UPDATE users SET is_2fa_enabled = 0, totp_secret = NULL WHERE role = 'ADMIN'");
+    // 3. RECOVERY: Reset Admin account for local migration recovery
+    $tempPass = password_hash('Admin@12345', PASSWORD_BCRYPT);
+    $pdo->prepare("UPDATE users SET password = ?, is_2fa_enabled = 0, totp_secret = NULL, failed_attempts = 0, locked_until = NULL, password_changed_at = NOW() WHERE role = 'ADMIN'")->execute([$tempPass]);
 
-    $message = "✅ Database initialized and Admin 2FA has been disabled for recovery.";
+    $message = "✅ Database initialized" . $message_suffix . " and Admin account has been reset (Password: Admin@12345, 2FA Disabled).";
     $status = "success";
 } catch (Exception $e) {
     $message = "❌ Error during setup: " . $e->getMessage();

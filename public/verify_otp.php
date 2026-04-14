@@ -63,7 +63,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     } elseif (isset($_POST['otp_code'])) {
         // [SECURITY] Max Attempts Check (Database-Backed Brute Force Protection)
-        if ($user && ($user['failed_attempts'] ?? 0) >= 10) {
+        // [DEV] Disable 2FA lockout for local development
+        $isLocal = in_array($_SERVER['REMOTE_ADDR'] ?? '', ['127.0.0.1', '::1']);
+        if (!$isLocal && $user && ($user['failed_attempts'] ?? 0) >= 10) {
             $logger->log($userId, 'ACCOUNT_LOCKOUT', "Account locked after 10 failed 2FA attempts");
 
             // Lock account completely
@@ -144,6 +146,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $_SESSION['username'] = $user['username'];
             $_SESSION['role'] = strtoupper(trim($user['role'])); // [FIX] Normalize role
             $_SESSION['login_time'] = time(); // [MHI 5.1.3 Req.5] Record absolute login time
+            $_SESSION['2fa_enabled'] = true;
             unset($_SESSION['otp_attempts']); // [SECURITY] Reset counter on success
 
             // [NEW] Handle "Trust Device" (Remember Me)

@@ -171,6 +171,39 @@ class Security
         $stmt = $this->pdo->prepare("INSERT INTO password_history (user_id, password_hash) VALUES (?, ?)");
         $stmt->execute([$userId, $passwordHash]);
     }
+
+    /**
+     * [NEW] Encrypts a URL bound to the current system secret and user session.
+     * Prevents external link leakage and unauthorized sharing.
+     */
+    public function maskUrl($url)
+    {
+        if (empty($url)) return '';
+        $config = require __DIR__ . '/../config/config.php';
+        $systemSecret = $config['VAULT_KEY'] ?? '';
+        $userId = $_SESSION['user_id'] ?? 0;
+        $key = hash('sha256', $systemSecret . $userId, true);
+        $iv = random_bytes(16);
+        $encrypted = openssl_encrypt($url, 'aes-256-cbc', $key, OPENSSL_RAW_DATA, $iv);
+        return bin2hex($iv . $encrypted);
+    }
+
+    /**
+     * [NEW] Decrypts a URL payload using the user's unique session key.
+     */
+    public function unmaskUrl($payload)
+    {
+        if (empty($payload)) return false;
+        $config = require __DIR__ . '/../config/config.php';
+        $systemSecret = $config['VAULT_KEY'] ?? '';
+        $userId = $_SESSION['user_id'] ?? 0;
+        $key = hash('sha256', $systemSecret . $userId, true);
+        $data = @hex2bin($payload);
+        if (!$data || strlen($data) < 16) return false;
+        $iv = substr($data, 0, 16);
+        $encrypted = substr($data, 16);
+        return openssl_decrypt($encrypted, 'aes-256-cbc', $key, OPENSSL_RAW_DATA, $iv);
+    }
 }
 
 

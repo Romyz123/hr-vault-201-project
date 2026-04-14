@@ -50,11 +50,15 @@ class Validator
     /**
      * Enforces MHI Password Complexity Policy
      * Min 15 chars, at least 3 types (Upper, Lower, Number, Symbol)
+     * Also ensures password does not contain the username.
      */
-    public static function validatePasswordComplexity($password)
+    public static function validatePasswordComplexity($password, $username = '')
     {
         if (strlen($password) < 15) {
             return "Password must be at least 15 characters long.";
+        }
+        if (!empty($username) && stripos($password, $username) !== false) {
+            return "Password cannot contain your Username.";
         }
         $types = 0;
         if (preg_match('/[a-z]/', $password)) $types++;

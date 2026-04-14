@@ -461,7 +461,7 @@ include 'header.php';
 ?>
 <script src="assets/chart.min.js"></script>
 <script src="assets/qrcode.min.js"></script>
-<style>
+<style nonce="<?= htmlspecialchars($cspNonce, ENT_QUOTES, 'UTF-8') ?>">
     /* =========================================
            PRINT TO PDF STYLES
            ========================================= */
@@ -718,6 +718,11 @@ include 'header.php';
                                     <td>
                                         <div class="text-dark fw-semibold text-wrap" style="max-width: 250px;"><?php echo h($c['position_applied']); ?></div>
                                         <div class="small text-muted border-top mt-1 pt-1"><i class="bi bi-calendar-plus"></i> Applied: <?php echo date('M d, Y', strtotime($c['application_date'])); ?></div>
+                                        <?php if (!empty($c['notes']) && filter_var($c['notes'], FILTER_VALIDATE_URL)): ?>
+                                            <div class="mt-1">
+                                                <a href="redirect.php?path=<?php echo $security->maskUrl($c['notes']); ?>" target="_blank" rel="noopener noreferrer" class="btn btn-xs btn-outline-primary py-0 px-1 small" style="font-size: 0.7rem;"><i class="bi bi-file-earmark-person"></i> View Masked Resume</a>
+                                            </div>
+                                        <?php endif; ?>
                                     </td>
                                     <td>
                                         <?php if (!empty($c['phone_number'])): ?><div class="small text-nowrap"><i class="bi bi-telephone-fill text-secondary me-1"></i> <?php echo h($c['phone_number']); ?></div><?php endif; ?>
@@ -1001,7 +1006,7 @@ include 'header.php';
 </form>
 
 <script src="assets/bootstrap.bundle.min.js"></script>
-<script>
+<script nonce="<?= htmlspecialchars($cspNonce, ENT_QUOTES, 'UTF-8') ?>">
     /**
      * [NEW] Exports a chart canvas to a PNG image with a white background.
      */

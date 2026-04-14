@@ -15,13 +15,17 @@ date_default_timezone_set('Asia/Manila');
 // ========================================================================
 // [SECURITY] GLOBAL HTTP HEADERS (MHI Compliance)
 // ========================================================================
+// [NEW] Generate CSP Nonce for secure script/style execution without 'unsafe-inline'
+$cspNonce = bin2hex(random_bytes(16));
+
 header('X-Frame-Options: SAMEORIGIN');
 header('X-Content-Type-Options: nosniff');
 header('Referrer-Policy: strict-origin-when-cross-origin');
-header("Content-Security-Policy: default-src 'self'; img-src 'self' data: https://api.qrserver.com; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline';");
+header("Content-Security-Policy: default-src 'self'; img-src 'self' data: https://api.qrserver.com; script-src 'self' 'nonce-$cspNonce'; style-src 'self' 'nonce-$cspNonce';");
 
 // Load settings directly from PHP file instead of .env to avoid permission errors
-$_ENV = require __DIR__ . '/config.php';
+$configPath = __DIR__ . '/config.php';
+$_ENV = file_exists($configPath) ? require $configPath : [];
 
 // ========================================================================
 // [SECURITY] GLOBAL INPUT SANITIZATION
@@ -47,8 +51,13 @@ sanitize_global_input($_GET);
 
 // [MHI 5.4] Enforce HTTPS (Skip for Localhost or CLI to avoid ERR_SSL_PROTOCOL_ERROR)
 // To test compliance locally, you can temporarily remove '127.0.0.1' from the array below.
-$isLocal = (php_sapi_name() === 'cli') || in_array($_SERVER['REMOTE_ADDR'] ?? '', ['127.0.0.1', '::1']);
-$isHttps = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || ($_SERVER['SERVER_PORT'] ?? 80) == 443;
+$isLocal = (php_sapi_name() === 'cli');
+// [FIX] Robust HTTPS detection including support for Reverse Proxies
+$isHttps = (
+    (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ||
+    ($_SERVER['SERVER_PORT'] ?? 80) == 443 ||
+    (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && strtolower($_SERVER['HTTP_X_FORWARDED_PROTO']) === 'https')
+);
 
 if (!$isLocal && !$isHttps) {
     $location = 'https://' . $_SERVER['SERVER_NAME'] . $_SERVER['REQUEST_URI'];

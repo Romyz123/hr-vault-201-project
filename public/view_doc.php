@@ -236,7 +236,7 @@ $fileSize = strlen($content);
 $realName = basename($file['original_name']);
 
 // [FIX] Sanitize filename for headers (Remove quotes to prevent header injection)
-$safeName = str_replace('"', '', $realName);
+$safeName = str_replace(["\r", "\n", '"'], '', $realName);
 
 header('Content-Description: File Transfer');
 header('Content-Type: ' . $mime_type);

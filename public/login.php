@@ -28,6 +28,7 @@ if (isset($_SESSION['login_error'])) {
 }
 
 // [FIX] Calculate lockout state on every load so timers remain accurate after redirects
+// [SECURITY] Enforce session lockout globally
 if (isset($_SESSION['login_attempts']) && $_SESSION['login_attempts'] >= 5) {
     $lockout_time = 15 * 60; // 15 minutes
     $time_since_last = time() - ($_SESSION['last_login_attempt'] ?? 0);
@@ -80,6 +81,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
             $user = $stmt->fetch();
 
             // [SECURITY] 1. Check Account Lockout (10 Attempts)
+            // [SECURITY] Enforce account lockout globally
             if ($user && !empty($user['locked_until']) && new DateTime($user['locked_until']) > new DateTime()) {
                 $alertType = 'error';
                 $alertMsg = "❌ <strong>Account Locked</strong><br>Maximum failed attempts reached. Please contact Administrator.";
@@ -110,19 +112,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
                     $alertType = 'warning';
                     $alertMsg = "🛠️ <strong>System Under Maintenance</strong><br>Only Administrators can log in at this time. Please try again later.";
                 } else {
-                    // [NEW] 2FA Check (Enforced for ADMINs per MHI Sec 5.2)
                     $isLocalRequest = in_array($_SERVER['REMOTE_ADDR'], ['127.0.0.1', '::1']);
                     $requires2FA = false;
 
-                    // [SECURITY] Force 2FA Setup for ALL users if they haven't configured it yet
-                    if (empty($user['totp_secret'])) {
+                    // [SECURITY] Optional Enrollment Logic: (FIXED SYNTAX)
+                    // Only challenge 2FA if it is enabled AND the user has already configured their secret.
+                    // This prevents users from being locked out if they haven't set up their app yet.
+                    if (!empty($user['is_2fa_enabled']) && !empty($user['totp_secret'])) {
                         $requires2FA = true;
-                    } elseif (($normalizedRole === 'ADMIN' && !$isLocalRequest) || !empty($user['is_2fa_enabled'])) {
-                        $requires2FA = true;
+                    }
+
+                    // If 2FA is required, check for a trusted device
+                    if ($requires2FA) {
                         if (isset($_COOKIE['hr_trust_device'])) {
                             $tokenHash = hash('sha256', $_COOKIE['hr_trust_device']);
                             // Verify against DB
-                            if (hash_equals($user['trusted_device_token'], $tokenHash) && new DateTime($user['trusted_device_expires']) > new DateTime()) {                                // Trust valid - Skip OTP
+                            if (hash_equals($user['trusted_device_token'], $tokenHash) && new DateTime($user['trusted_device_expires']) > new DateTime()) {
                                 $requires2FA = false;
                             }
                         }
@@ -149,6 +154,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
                     $_SESSION['username'] = $user['username'];
                     $_SESSION['role'] = $normalizedRole; // [FIX] Normalize to uppercase to prevent Access Denied errors
                     $_SESSION['login_time'] = time(); // [MHI 5.1.3 Req.5] Record absolute login time
+                    $_SESSION['2fa_enabled'] = !empty($user['totp_secret']);
 
                     // [SECURITY] Regenerate CSRF Token immediately after login
                     $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
@@ -217,9 +223,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
     <meta charset="UTF-8">
     <title>Login - TES Philippines HR</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <link href="assets/bootstrap.min.css?v=3" rel="stylesheet">
-    <link rel="stylesheet" href="assets/icons/bootstrap-icons.css?v=3">
-    <script src="assets/sweetalert2.all.min.js?v=3"></script>
+    <link href="assets/bootstrap.min.css?v=3" rel="stylesheet" nonce="<?= htmlspecialchars($cspNonce, ENT_QUOTES, 'UTF-8') ?>">
+    <link rel="stylesheet" href="assets/icons/bootstrap-icons.css?v=3" nonce="<?= htmlspecialchars($cspNonce, ENT_QUOTES, 'UTF-8') ?>">
+    <script src="assets/sweetalert2.all.min.js?v=3" nonce="<?= htmlspecialchars($cspNonce, ENT_QUOTES, 'UTF-8') ?>"></script>
     <?php
     $fav = '../uploads/favicon.png';
     if (!file_exists($fav)) $fav = '../uploads/tesp-logo.png';
@@ -227,7 +233,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
     <link rel="icon" type="image/png" href="<?= $fav ?>">
     <link rel="shortcut icon" type="image/png" href="<?= $fav ?>">
     <link rel="apple-touch-icon" href="<?= $fav ?>">
-    <style>
+    <style nonce="<?= htmlspecialchars($cspNonce, ENT_QUOTES, 'UTF-8') ?>">
         body {
             /* --- BACKGROUND THEMES (Uncomment the one you want to use) --- */
 
@@ -305,7 +311,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
 
     <div class="card login-card" style="width: 100%; max-width: 400px;">
         <div class="card-header bg-primary text-white text-center py-4">
-            <img src="<?= $login_logo_src ?>" alt="TESP Logo" style="height: 100px; width: auto;" class="mb-2" onerror="this.style.display='none'">
+            <img src="<?= $login_logo_src ?>" alt="TESP Logo" style="height: 50px; max-width: 100px; width: auto;" class="mb-2" onerror="this.style.display='none'">
             <h3 class="mt-2 fw-bold">HR 201 Vault</h3>
             <p class="mb-0 opacity-75">TES Philippines, Inc.</p>
         </div>
@@ -359,7 +365,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
         </div>
     </div>
 
-    <script>
+    <script nonce="<?= htmlspecialchars($cspNonce, ENT_QUOTES, 'UTF-8') ?>">
         // [SCRIPT] Toggle Login Button based on Checkbox
         const termsCheck = document.getElementById('termsCheck');
         const loginBtn = document.getElementById('loginBtn');

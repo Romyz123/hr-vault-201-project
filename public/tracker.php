@@ -979,7 +979,7 @@ $paginatedEmployees = array_slice($employees, $offset, $perPage);
             <input type="hidden" name="action" value="bulk_reminders">
             <div class="card-body p-0 table-responsive">
                 <table class="table table-bordered table-hover mb-0 text-center align-middle">
-                    <thead class="table-light">
+                    <thead>
                         <tr>
                             <th class="text-center" style="width: 40px;"><input type="checkbox" id="selectAll" class="form-check-input"></th>
                             <th class="text-start ps-3">Employee <span id="selection-count" class="badge bg-primary ms-1" style="display:none">0</span></th>
@@ -1330,7 +1330,7 @@ if (!empty($_SERVER['QUERY_STRING'])) {
                             </div>
 
                             <table class="table table-sm table-hover small align-middle">
-                                <thead class="table-light">
+                                <thead>
                                     <tr>
                                         <th style="width:30px;"><input type="checkbox" class="form-check-input" onclick="toggleBulk(this)"></th>
                                         <th>Employee</th>

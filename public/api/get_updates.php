@@ -227,10 +227,19 @@ try {
         $chartStats = array_filter($chartStats, fn($v) => $v > 0);
     }
 
+    // [NEW] Fetch unread count for sync
+    $unreadNotifCount = 0;
+    if ($userId > 0) {
+        $unreadStmt = $pdo->prepare("SELECT COUNT(*) FROM notifications WHERE user_id = ? AND is_read = 0");
+        $unreadStmt->execute([$userId]);
+        $unreadNotifCount = (int)$unreadStmt->fetchColumn();
+    }
+
     echo json_encode([
         'status' => 'success',
         // Notification Data
         'count' => $totalBadgeCount,
+        'unreadCount' => $unreadNotifCount,
         'msgCount' => $msgCount,
         'html'  => $html,
         // Live Dashboard Data

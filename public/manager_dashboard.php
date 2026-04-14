@@ -237,7 +237,7 @@ $ageCounts = json_encode(array_values($ageBands));
 </div>
 <script src="assets/chart.min.js"></script>
 <script src="assets/bootstrap.bundle.min.js"></script>
-<script>
+<script nonce="<?= htmlspecialchars($cspNonce, ENT_QUOTES, 'UTF-8') ?>">
     /**
      * [NEW] Exports current Age Demographics chart data to a CSV file.
      */
