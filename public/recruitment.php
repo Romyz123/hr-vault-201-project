@@ -628,7 +628,6 @@ include 'header.php';
                 <div class="card-header d-flex align-items-center justify-content-between bg-dark text-white fw-bold">
                     <span><i class="bi bi-pie-chart-fill me-2"></i> Pipeline Breakdown</span>
                     <div class="d-flex gap-2">
-                        <button type="button" class="btn btn-sm btn-outline-light fw-bold" onclick="downloadPipelineImage()" title="Download Image"><i class="bi bi-download"></i> Image</button>
                         <button class="btn btn-sm btn-outline-light fw-bold" onclick="downloadPipelineData()" title="Download Data as CSV"><i class="bi bi-download"></i> CSV</button>
                     </div>
                 </div>
@@ -1447,8 +1446,6 @@ include 'header.php';
             });
     }
 </script>
-<script src="assets/sweetalert2.all.min.js"></script>
-<script src="assets/dark_mode.js"></script>
 </body>
 
 </html>

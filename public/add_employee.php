@@ -751,8 +751,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </div>
 
     <script src="assets/bootstrap.bundle.min.js"></script>
-    <script src="assets/sweetalert2.all.min.js"></script>
-    <script src="dark_mode.js"></script>
     <script>
         // [NEW] Real-time Duplicate ID Detector
         async function checkDuplicateID(id) {
