@@ -146,7 +146,9 @@ if (!empty($dateTo)) {
 // 1) HEADCOUNTS (Active)
 $countStmt = $pdo->prepare("SELECT COUNT(*) FROM employees $activeSQL");
 $countStmt->execute($params);
-$totalHeadcount = (int)$countStmt->fetchColumn();
+// [SECURITY FIX] Validate fetchColumn() result before using
+$countResult = $countStmt->fetchColumn();
+$totalHeadcount = ($countResult !== false && $countResult !== null) ? (int)$countResult : 0;
 
 // 2) AGENCY BREAKDOWN (Active)
 $agencyStmt = $pdo->prepare("
@@ -1180,6 +1182,7 @@ if ($debug) {
                         <span><i class="bi bi-hourglass-split me-2"></i> Status (<?php echo htmlspecialchars($probMonths); ?>m)</span>
                         <div>
                             <span class="badge bg-dark text-white me-2"><?php echo htmlspecialchars($probCount); ?> Probie</span>
+                            <button class="btn btn-sm btn-link text-dark p-0 me-1" onclick="downloadSpecificChart('statusChart', 'Employment_Status')" title="Download Image"><i class="bi bi-download"></i></button>
                             <button class="btn btn-sm btn-link text-dark p-0" onclick="openFullScreen('statusChart', 'Employment Status')"><i class="bi bi-arrows-fullscreen"></i></button>
                         </div>
                     </div>
@@ -1231,6 +1234,7 @@ if ($debug) {
                 <div class="card shadow-sm h-100">
                     <div class="card-header border-bottom-0 d-flex justify-content-between align-items-center">
                         <span>Compliance by Department</span>
+                        <button class="btn btn-sm btn-link text-secondary p-0 me-1" onclick="downloadSpecificChart('complianceChart', 'Vault_Compliance_By_Dept')" title="Download Image"><i class="bi bi-download"></i></button>
                         <button class="btn btn-sm btn-link text-secondary p-0" onclick="openFullScreen('complianceChart', 'Compliance by Department')"><i class="bi bi-arrows-fullscreen"></i></button>
                     </div>
                     <div class="card-body position-relative" style="min-height: 250px;"><canvas id="complianceChart"></canvas></div>
@@ -1273,6 +1277,7 @@ if ($debug) {
                 <div class="card shadow-sm h-100">
                     <div class="card-header border-bottom-0 d-flex justify-content-between align-items-center">
                         <span>Agency Breakdown</span>
+                        <button class="btn btn-sm btn-link text-secondary p-0 me-1" onclick="downloadSpecificChart('agencyChart', 'Agency_Breakdown')" title="Download Image"><i class="bi bi-download"></i></button>
                         <button class="btn btn-sm btn-link text-secondary p-0" onclick="openFullScreen('agencyChart', 'Agency Breakdown')"><i class="bi bi-arrows-fullscreen"></i></button>
                     </div>
                     <div class="card-body position-relative" style="min-height: 250px;"><canvas id="agencyChart"></canvas></div>
@@ -1282,6 +1287,7 @@ if ($debug) {
                 <div class="card shadow-sm h-100">
                     <div class="card-header border-bottom-0 d-flex justify-content-between align-items-center">
                         <span>Headcount by Dept</span>
+                        <button class="btn btn-sm btn-link text-secondary p-0 me-1" onclick="downloadSpecificChart('deptChart', 'Headcount_By_Dept')" title="Download Image"><i class="bi bi-download"></i></button>
                         <button class="btn btn-sm btn-link text-secondary p-0" onclick="openFullScreen('deptChart', 'Headcount by Department')"><i class="bi bi-arrows-fullscreen"></i></button>
                     </div>
                     <div class="card-body position-relative" style="min-height: 250px;"><canvas id="deptChart"></canvas></div>
@@ -1294,6 +1300,7 @@ if ($debug) {
                 <div class="card shadow-sm h-100">
                     <div class="card-header border-bottom-0 text-info d-flex justify-content-between align-items-center">
                         <span>Net Workforce Growth</span>
+                        <button class="btn btn-sm btn-link text-info p-0 me-1" onclick="downloadSpecificChart('trendChart', 'Workforce_Growth_Trend')" title="Download Image"><i class="bi bi-download"></i></button>
                         <button class="btn btn-sm btn-link text-info p-0" onclick="openFullScreen('trendChart', 'Net Workforce Growth')"><i class="bi bi-arrows-fullscreen"></i></button>
                     </div>
                     <div class="card-body position-relative" style="min-height: 250px;"><canvas id="trendChart"></canvas></div>
@@ -1303,6 +1310,7 @@ if ($debug) {
                 <div class="card shadow-sm h-100">
                     <div class="card-header border-bottom-0 d-flex justify-content-between align-items-center">
                         <span>Gender Split</span>
+                        <button class="btn btn-sm btn-link text-secondary p-0 me-1" onclick="downloadSpecificChart('genderChart', 'Gender_Distribution')" title="Download Image"><i class="bi bi-download"></i></button>
                         <button class="btn btn-sm btn-link text-secondary p-0" onclick="openFullScreen('genderChart', 'Gender Distribution')"><i class="bi bi-arrows-fullscreen"></i></button>
                     </div>
                     <div class="card-body position-relative" style="min-height: 250px;"><canvas id="genderChart"></canvas></div>
@@ -1315,6 +1323,7 @@ if ($debug) {
                 <div class="card shadow-sm h-100">
                     <div class="card-header border-bottom-0 d-flex justify-content-between align-items-center">
                         <span>Performance Ratings</span>
+                        <button class="btn btn-sm btn-link text-secondary p-0 me-1" onclick="downloadSpecificChart('perfChart', 'Performance_Ratings')" title="Download Image"><i class="bi bi-download"></i></button>
                         <button class="btn btn-sm btn-link text-secondary p-0" onclick="openFullScreen('perfChart', 'Performance Ratings')"><i class="bi bi-arrows-fullscreen"></i></button>
                     </div>
                     <div class="card-body position-relative" style="min-height: 250px;"><canvas id="perfChart"></canvas></div>
@@ -1324,6 +1333,7 @@ if ($debug) {
                 <div class="card shadow-sm h-100">
                     <div class="card-header border-bottom-0 d-flex justify-content-between align-items-center">
                         <span>Age Demographics</span>
+                        <button class="btn btn-sm btn-link text-secondary p-0 me-1" onclick="downloadSpecificChart('ageChart', 'Age_Demographics')" title="Download Image"><i class="bi bi-download"></i></button>
                         <button class="btn btn-sm btn-link text-secondary p-0" onclick="openFullScreen('ageChart', 'Age Demographics')"><i class="bi bi-arrows-fullscreen"></i></button>
                     </div>
                     <div class="card-body position-relative" style="min-height: 250px;"><canvas id="ageChart"></canvas></div>
@@ -1333,6 +1343,7 @@ if ($debug) {
                 <div class="card shadow-sm h-100">
                     <div class="card-header border-bottom-0 d-flex justify-content-between align-items-center">
                         <span>Tenure Overview</span>
+                        <button class="btn btn-sm btn-link text-secondary p-0 me-1" onclick="downloadSpecificChart('tenureChart', 'Tenure_Overview')" title="Download Image"><i class="bi bi-download"></i></button>
                         <button class="btn btn-sm btn-link text-secondary p-0" onclick="openFullScreen('tenureChart', 'Tenure Overview')"><i class="bi bi-arrows-fullscreen"></i></button>
                     </div>
                     <div class="card-body position-relative" style="min-height: 250px;"><canvas id="tenureChart"></canvas></div>
@@ -1500,6 +1511,7 @@ if ($debug) {
                 <div class="card shadow-sm border-info h-100">
                     <div class="card-header bg-info text-dark d-flex justify-content-between align-items-center">
                         <span class="fw-bold"><i class="bi bi-bar-chart-fill"></i> Birthdays per Month</span>
+                        <button class="btn btn-sm btn-link text-dark p-0 me-1" onclick="downloadSpecificChart('bdayMonthChart', 'Birthday_Distribution_Annual')" title="Download Image"><i class="bi bi-download"></i></button>
                         <button class="btn btn-sm btn-link text-dark p-0" onclick="openFullScreen('bdayChart', 'Birthdays per Month')"><i class="bi bi-arrows-fullscreen"></i></button>
                     </div>
                     <div class="card-body position-relative" style="min-height: 250px;">
@@ -2057,45 +2069,80 @@ if ($debug) {
 
         function downloadChartImage() {
             const canvas = document.getElementById('fsChartCanvas');
+            const title = document.getElementById('fsModalTitle')?.innerText || 'Chart';
+            const safeFilename = title.replace(/[^a-z0-9]/gi, '_');
+
             if (canvas) {
-                const chartInst = Chart.getChart(canvas);
-                if (chartInst) chartInst.update('none'); // Force immediate render before capture
+                try {
+                    // Force white background for clean documentation exports
+                    const destinationCanvas = document.createElement("canvas");
+                    destinationCanvas.width = canvas.width;
+                    destinationCanvas.height = canvas.height;
+                    const destCtx = destinationCanvas.getContext('2d');
+                    destCtx.fillStyle = '#FFFFFF';
+                    destCtx.fillRect(0, 0, canvas.width, canvas.height);
+                    destCtx.drawImage(canvas, 0, 0);
 
-                // Force white background for clean documentation exports
-                const destinationCanvas = document.createElement("canvas");
-                destinationCanvas.width = canvas.width;
-                destinationCanvas.height = canvas.height;
-                const destCtx = destinationCanvas.getContext('2d');
-                destCtx.fillStyle = '#FFFFFF';
-                destCtx.fillRect(0, 0, canvas.width, canvas.height);
-                destCtx.drawImage(canvas, 0, 0);
+                    const link = document.createElement('a');
+                    link.style.display = 'none';
+                    link.download = safeFilename + '_' + new Date().toISOString().split('T')[0] + '.png';
+                    link.href = destinationCanvas.toDataURL('image/png');
 
-                const link = document.createElement('a');
-                link.download = 'Chart_Export.png';
-                link.href = destinationCanvas.toDataURL('image/png');
-                link.click();
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+
+                    if (window.Swal) {
+                        Swal.fire({
+                            toast: true,
+                            position: 'top-end',
+                            icon: 'success',
+                            title: 'Chart downloaded!',
+                            showConfirmButton: false,
+                            timer: 2000
+                        });
+                    }
+                } catch (e) {
+                    console.error("Download failed", e);
+                }
             }
         }
 
-        function downloadSpecificChart(canvasId, filename) {
+        window.downloadSpecificChart = function(canvasId, filename) {
             const canvas = document.getElementById(canvasId);
             if (canvas) {
-                const chartInst = Chart.getChart(canvas);
-                if (chartInst) chartInst.update('none'); // Force immediate render before capture
+                try {
+                    // Force white background for clean documentation exports
+                    const destinationCanvas = document.createElement("canvas");
+                    destinationCanvas.width = canvas.width;
+                    destinationCanvas.height = canvas.height;
+                    const destCtx = destinationCanvas.getContext('2d');
+                    destCtx.fillStyle = '#FFFFFF';
+                    destCtx.fillRect(0, 0, canvas.width, canvas.height);
+                    destCtx.drawImage(canvas, 0, 0);
 
-                // Force white background for clean documentation exports
-                const destinationCanvas = document.createElement("canvas");
-                destinationCanvas.width = canvas.width;
-                destinationCanvas.height = canvas.height;
-                const destCtx = destinationCanvas.getContext('2d');
-                destCtx.fillStyle = '#FFFFFF';
-                destCtx.fillRect(0, 0, canvas.width, canvas.height);
-                destCtx.drawImage(canvas, 0, 0);
+                    const link = document.createElement('a');
+                    link.style.display = 'none';
+                    link.download = filename + '_' + new Date().toISOString().split('T')[0] + '.png';
+                    link.href = destinationCanvas.toDataURL('image/png');
 
-                const link = document.createElement('a');
-                link.download = filename + '.png';
-                link.href = destinationCanvas.toDataURL('image/png');
-                link.click();
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+
+                    if (window.Swal) {
+                        Swal.fire({
+                            toast: true,
+                            position: 'top-end',
+                            icon: 'success',
+                            title: 'Chart downloaded!',
+                            showConfirmButton: false,
+                            timer: 2000
+                        });
+                    }
+                } catch (e) {
+                    console.error("Download failed", e);
+                }
             }
         }
 

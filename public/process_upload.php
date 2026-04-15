@@ -95,6 +95,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     // -------------------------------------
 
+    // [NEW] Fetch employee status for naming convention (Resigned, Terminated, AWOL)
+    $stmtStatus = $pdo->prepare("SELECT status FROM employees WHERE emp_id = ? AND deleted_at IS NULL");
+    $stmtStatus->execute([$emp_id]);
+    $rowStatus = $stmtStatus->fetch();
+    $empStatus = $rowStatus ? $rowStatus['status'] : 'Active';
+    $statusLabel = ($empStatus !== 'Active') ? " ($empStatus)" : "";
+
     // 2. HANDLE FILE UPLOAD
     // Normalize $_FILES structure for multiple uploads
     $uploadedFiles = [];
@@ -230,13 +237,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $baseNameOnly = pathinfo($displayName, PATHINFO_FILENAME);
         $extOnly = pathinfo($displayName, PATHINFO_EXTENSION);
 
+        // [NEW] Inject Status into the filename if employee is not Active
+        if ($empStatus !== 'Active') {
+            $baseNameOnly .= $statusLabel;
+        }
+
         // Fetch all existing names for this employee to check for collisions
         $checkStmt = $pdo->prepare("SELECT original_name FROM documents WHERE employee_id = ? AND deleted_at IS NULL");
         $checkStmt->execute([$emp_id]);
         $existingInDB = $checkStmt->fetchAll(PDO::FETCH_COLUMN);
 
         $counter = 1;
-        $finalCandidate = $displayName;
+        $finalCandidate = $baseNameOnly . '.' . $extOnly;
         while (true) {
             $sanitizedCandidate = preg_replace('/[^a-zA-Z0-9\s\-\.\(\)_]/', '', htmlspecialchars($finalCandidate, ENT_QUOTES | ENT_HTML5, 'UTF-8'));
             if (!in_array($sanitizedCandidate, $existingInDB)) {

@@ -220,21 +220,25 @@ foreach ($logo_paths as $p) {
             }
 
             /* // --- START: PRINT FIX --- */
+            .print-header {
+                display: flex !important;
+                align-items: center;
+                justify-content: space-between;
+                border-bottom: 2px solid #000;
+                margin-bottom: 20px;
+                padding-bottom: 10px;
+            }
+
             .print-logo {
-                max-height: 70px !important;
+                max-height: 80px !important;
                 width: auto !important;
-                display: block !important;
-                margin: 0 auto 10px auto !important;
                 -webkit-print-color-adjust: exact !important;
                 print-color-adjust: exact !important;
             }
 
-            .print-header {
-                text-align: center !important;
-                border-bottom: 2px solid #000 !important;
-                margin-bottom: 20px !important;
-                padding-bottom: 10px !important;
-                display: block !important;
+            .print-title-area {
+                text-align: center;
+                flex-grow: 1;
             }
 
             /* // --- END: PRINT FIX --- */
@@ -242,14 +246,7 @@ foreach ($logo_paths as $p) {
 
         /* // --- START: PRINT FIX --- */
         .print-logo {
-            max-height: 70px;
-        }
-
-        .print-header {
-            text-align: center;
-            border-bottom: 2px solid #000;
-            margin-bottom: 20px;
-            padding-bottom: 10px;
+            max-height: 80px;
         }
 
         /* // --- END: PRINT FIX --- */
@@ -266,8 +263,11 @@ foreach ($logo_paths as $p) {
         <!-- // --- START: PRINT FIX --- -->
         <div class="print-header">
             <img src="<?php echo $logo_src; ?>" alt="TESP Logo" class="print-logo">
-            <div style="font-size: 16pt; font-weight: bold; text-transform: uppercase;">TES Philippines, Inc.</div>
-            <div style="font-size: 14pt; font-weight: bold; text-transform: uppercase;">Performance Evaluation Report</div>
+            <div class="print-title-area">
+                <div style="font-size: 16pt; font-weight: bold; text-transform: uppercase;">TES Philippines, Inc.</div>
+                <div style="font-size: 14pt; font-weight: bold; text-transform: uppercase;">Performance Evaluation Report</div>
+            </div>
+            <div style="width: 80px;"></div>
         </div>
         <!-- // --- END: PRINT FIX --- -->
 

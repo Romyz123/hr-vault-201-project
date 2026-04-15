@@ -5,12 +5,19 @@ class SearchHelper
      * Find the best fuzzy match for a search term from the employees table.
      * Uses a similarity ratio algorithm (Levenshtein based).
      */
-    public static function findBestMatch($pdo, $search)
+    public static function findBestMatch($pdo, $search, $table = 'employees')
     {
         if (empty($search)) return null;
 
         // Fetch only necessary columns
-        $stmt = $pdo->query("SELECT first_name, last_name FROM employees");
+        $query = "SELECT first_name, last_name FROM `$table`";
+        if ($table === 'employees') {
+            $chk = $pdo->query("SHOW COLUMNS FROM employees LIKE 'deleted_at'");
+            if ($chk->rowCount() > 0) {
+                $query .= " WHERE deleted_at IS NULL";
+            }
+        }
+        $stmt = $pdo->query($query);
         $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
         $bestMatch = null;

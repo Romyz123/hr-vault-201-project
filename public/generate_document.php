@@ -414,6 +414,10 @@ if ($format === 'word') {
                         $baseName = "Unsigned Digital Copy of the Document ($friendlyTitle)";
                         $fileExt = "html";
 
+                        // [NEW] Append Status to Filename for Non-Active Employees
+                        $empStatus = $emp['status'] ?? 'Active';
+                        if ($empStatus !== 'Active') $baseName .= " ($empStatus)";
+
                         // 2. Collision Detection & Auto-Numbering (-0001)
                         $checkStmt = $pdo->prepare("SELECT original_name FROM documents WHERE employee_id = ? AND deleted_at IS NULL");
                         $checkStmt->execute([$emp['emp_id']]);
@@ -422,7 +426,7 @@ if ($format === 'word') {
                         $counter = 1;
                         $finalDisplayName = $baseName . "." . $fileExt;
                         while (in_array($finalDisplayName, $existingInDB)) {
-                            $finalDisplayName = $baseName . " -" . str_pad($counter, 4, '0', STR_PAD_LEFT) . "." . $fileExt;
+                            $finalDisplayName = $baseName . "-" . str_pad($counter, 3, '0', STR_PAD_LEFT) . "." . $fileExt;
                             $counter++;
                         }
 

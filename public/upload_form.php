@@ -436,7 +436,7 @@ $isVaultFull = ($vaultLimitBytes > 0 && $currentVaultBytes >= $vaultLimitBytes);
                         }
                     })
                     .catch(err => console.error(err));
-            }, 200);
+            }, 250);
         });
 
         // 2. Function to Select Employee

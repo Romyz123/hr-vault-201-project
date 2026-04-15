@@ -824,7 +824,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                             <div class="col-md-3">
                                 <label class="form-label">Employee ID</label>
-                                <input type="text" name="emp_id" class="form-control" value="<?php echo val('emp_id'); ?>" required oninput="this.value=this.value.toUpperCase().replace(/[^A-Z0-9\-_]/g, '')" pattern="[A-Z0-9\-_]+" title="Allowed: Letters, Numbers, - and _" maxlength="20">
+                                <input type="text" name="emp_id" id="emp_id_input" class="form-control" value="<?php echo val('emp_id'); ?>" required oninput="this.value=this.value.toUpperCase().replace(/[^A-Z0-9\-_]/g, '')" pattern="[A-Z0-9\-_]+" title="Allowed: Letters, Numbers, - and _" maxlength="20">
                                 <div class="form-text small">Allowed: Letters, Numbers, - and _</div>
                             </div>
                             <div class="col-md-2">
@@ -1740,6 +1740,44 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 <script src="assets/bootstrap.bundle.min.js"></script>
 <script>
+    // [NEW] Real-time Duplicate ID Detector
+    async function checkDuplicateID(id) {
+        const originalId = "<?php echo $emp['emp_id']; ?>";
+        if (!id || id === originalId || id.length < 2) {
+            const input = document.getElementById('emp_id_input');
+            input.classList.remove('is-invalid', 'is-valid');
+            const oldFeedback = document.getElementById('id-check-feedback');
+            if (oldFeedback) oldFeedback.remove();
+            return;
+        }
+
+        try {
+            const response = await fetch(`api/check_id.php?id=${encodeURIComponent(id)}`);
+            const result = await response.json();
+            const input = document.getElementById('emp_id_input');
+
+            const oldFeedback = document.getElementById('id-check-feedback');
+            if (oldFeedback) oldFeedback.remove();
+
+            const feedback = document.createElement('div');
+            feedback.id = 'id-check-feedback';
+            input.parentNode.appendChild(feedback);
+
+            if (result.exists) {
+                input.classList.add('is-invalid');
+                feedback.className = 'invalid-feedback d-block fw-bold';
+                feedback.innerHTML = `<i class="bi bi-x-circle"></i> ID taken ${result.status === 'deleted' ? '(In Recycle Bin)' : '(Active)'}`;
+            } else {
+                input.classList.remove('is-invalid');
+                input.classList.add('is-valid');
+                feedback.className = 'valid-feedback d-block fw-bold';
+                feedback.innerHTML = '<i class="bi bi-check-circle"></i> ID Available';
+            }
+        } catch (e) {
+            console.error("ID Check failed", e);
+        }
+    }
+
     // Logic for Sections and Auto-Capitalize
     const sectionMap = <?php echo json_encode($sectionFriendlyMap); ?>;
     const rawDeptMap = <?php echo json_encode($deptMap); ?>;
@@ -2157,6 +2195,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     document.addEventListener("DOMContentLoaded", () => {
+        // Attach ID check
+        document.getElementById('emp_id_input').addEventListener('blur', function() {
+            checkDuplicateID(this.value);
+        });
+
         toggleExitFields();
         updateSections(); // [FIX] Initialize sections on load
 

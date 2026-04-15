@@ -225,14 +225,7 @@ if (empty($logo_src)) {
 
         /* // --- START: PRINT FIX --- */
         .print-logo {
-            max-height: 70px;
-        }
-
-        .print-header {
-            text-align: center;
-            border-bottom: 2px solid #000;
-            margin-bottom: 20px;
-            padding-bottom: 10px;
+            max-height: 80px;
         }
 
         /* // --- END: PRINT FIX --- */
@@ -358,8 +351,11 @@ if (empty($logo_src)) {
         <!-- // --- START: PRINT FIX --- -->
         <div class="print-header">
             <img src="<?php echo $logo_src; ?>" alt="TESP Logo" class="print-logo">
-            <div style="font-size: 16pt; font-weight: bold; text-transform: uppercase;">TES Philippines, Inc.</div>
-            <div style="font-size: 14pt; font-weight: bold; text-transform: uppercase;">Employee 201 File</div>
+            <div class="print-title-area">
+                <div style="font-size: 16pt; font-weight: bold; text-transform: uppercase;">TES Philippines, Inc.</div>
+                <div style="font-size: 14pt; font-weight: bold; text-transform: uppercase;">Employee 201 File</div>
+            </div>
+            <div style="width: 80px;"></div>
         </div>
         <!-- // --- END: PRINT FIX --- -->
 

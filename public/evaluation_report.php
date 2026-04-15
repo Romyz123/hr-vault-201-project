@@ -154,10 +154,16 @@ if (empty($logo_src)) {
 </head>
 
 <body class="bg-body-tertiary" data-year="<?php echo $yearFilter; ?>">
-    <div class="print-only-header">
-        <img src="<?php echo $logo_src ?: 'assets/images/tesp-logo-1.png'; ?>" alt="TESP Logo">
-        <h2>Department Evaluation Report (<?php echo $yearFilter; ?>)</h2>
+    <!-- // --- START: PRINT FIX --- -->
+    <div class="print-header d-none d-print-flex">
+        <img src="<?php echo $logo_src; ?>" alt="TESP Logo" class="print-logo">
+        <div class="print-title-area">
+            <div style="font-size: 16pt; font-weight: bold; text-transform: uppercase;">TES Philippines, Inc.</div>
+            <div style="font-size: 14pt; font-weight: bold; text-transform: uppercase;">Department Evaluation Report (<?php echo $yearFilter; ?>)</div>
+        </div>
+        <div style="width: 80px;"></div>
     </div>
+    <!-- // --- END: PRINT FIX --- -->
     <nav class="navbar navbar-dark bg-dark mb-4 no-print">
         <div class="container">
             <div class="d-flex align-items-center gap-2 w-100">
@@ -191,7 +197,12 @@ if (empty($logo_src)) {
         <div class="row mb-4">
             <div class="col-md-8">
                 <div class="card shadow-sm h-100">
-                    <div class="card-header bg-white fw-bold">Average Score by Department</div>
+                    <div class="card-header bg-white fw-bold d-flex justify-content-between align-items-center">
+                        <span>Average Score by Department</span>
+                        <button class="btn btn-sm btn-link text-secondary p-0" onclick="downloadSpecificChart('deptChart', 'Dept_Evaluation_Report')" title="Download Image">
+                            <i class="bi bi-download"></i>
+                        </button>
+                    </div>
                     <div class="card-body">
                         <canvas id="deptChart"></canvas>
                     </div>
@@ -279,6 +290,43 @@ if (empty($logo_src)) {
             }
         };
         Chart.register(offlineDataLabels);
+
+        // [NEW] Global Download Function
+        window.downloadSpecificChart = function(canvasId, filename) {
+            const canvas = document.getElementById(canvasId);
+            if (!canvas) return;
+            try {
+                const destinationCanvas = document.createElement("canvas");
+                destinationCanvas.width = canvas.width;
+                destinationCanvas.height = canvas.height;
+                const destCtx = destinationCanvas.getContext('2d');
+                destCtx.fillStyle = '#FFFFFF';
+                destCtx.fillRect(0, 0, canvas.width, canvas.height);
+                destCtx.drawImage(canvas, 0, 0);
+
+                const link = document.createElement('a');
+                link.style.display = 'none';
+                link.download = filename + '_' + new Date().toISOString().split('T')[0] + '.png';
+                link.href = destinationCanvas.toDataURL('image/png');
+
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+
+                if (window.Swal) {
+                    Swal.fire({
+                        toast: true,
+                        position: 'top-end',
+                        icon: 'success',
+                        title: 'Chart downloaded!',
+                        showConfirmButton: false,
+                        timer: 2000
+                    });
+                }
+            } catch (e) {
+                console.error('Download failed:', e);
+            }
+        };
 
         const ctx = document.getElementById('deptChart');
         const deptChart = new Chart(ctx, {

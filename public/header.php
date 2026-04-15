@@ -30,7 +30,13 @@ if (isset($_SESSION['user_id'])) {
     if (!isset($clientTimeout)) {
         try {
             $stmt = $pdo->query("SELECT setting_value FROM system_settings WHERE setting_key = 'session_timeout_client'");
-            $clientTimeout = (int)$stmt->fetchColumn() ?: 900;
+            // [SECURITY FIX] Always check fetchColumn() returns valid data before casting
+            $result = $stmt ? $stmt->fetchColumn() : false;
+            if ($result !== false && $result !== null && (int)$result > 0) {
+                $clientTimeout = (int)$result;
+            } else {
+                $clientTimeout = 900; // Fallback to 15 minutes
+            }
         } catch (Throwable $e) {
             $clientTimeout = 900;
         }
@@ -364,11 +370,6 @@ $csrf_token = $_SESSION['csrf_token'] ?? '';
                     <div class="text-white me-3 small d-none d-md-block" title="Time until auto-logout">
                         <i class="bi bi-hourglass-split"></i> <span id="sessionTimer" class="fw-bold font-monospace"><?php echo floor($clientTimeout / 60) . ':' . str_pad($clientTimeout % 60, 2, '0', STR_PAD_LEFT); ?></span>
                     </div>
-
-                    <!-- Auto-Refresh Toggle -->
-                    <button id="refreshToggle" class="btn btn-sm btn-outline-light me-3 border-0" title="Pause Dashboard Updates">
-                        <i class="bi bi-pause-circle"></i>
-                    </button>
 
                     <!-- Dark Mode Toggle -->
                     <button id="darkModeToggle" class="btn btn-sm btn-outline-light me-3 border-0" title="Toggle Dark Mode">

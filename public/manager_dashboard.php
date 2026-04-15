@@ -210,7 +210,10 @@ $ageCounts = json_encode(array_values($ageBands));
                     <div>
                         <i class="bi bi-pie-chart-fill text-warning"></i> Age Demographics
                     </div>
-                    <button class="btn btn-sm btn-outline-primary fw-bold" onclick="downloadAgeData()" title="Download Data as CSV"><i class="bi bi-download"></i> Download Data</button>
+                    <div class="d-flex gap-2">
+                        <button class="btn btn-sm btn-outline-secondary fw-bold" onclick="downloadSpecificChart('ageChart', 'Workforce_Age_Demographics')" title="Download Image"><i class="bi bi-image"></i></button>
+                        <button class="btn btn-sm btn-outline-primary fw-bold" onclick="downloadAgeData()" title="Download Data as CSV"><i class="bi bi-download"></i> CSV</button>
+                    </div>
                 </div>
                 <div class="card-body position-relative d-flex align-items-center justify-content-center" style="min-height: 250px;">
                     <canvas id="ageChart"></canvas>
@@ -261,6 +264,43 @@ $ageCounts = json_encode(array_values($ageBands));
         link.click();
         document.body.removeChild(link);
     }
+
+    // [NEW] Global Download Function
+    window.downloadSpecificChart = function(canvasId, filename) {
+        const canvas = document.getElementById(canvasId);
+        if (!canvas) return;
+        try {
+            const destinationCanvas = document.createElement("canvas");
+            destinationCanvas.width = canvas.width;
+            destinationCanvas.height = canvas.height;
+            const destCtx = destinationCanvas.getContext('2d');
+            destCtx.fillStyle = '#FFFFFF';
+            destCtx.fillRect(0, 0, canvas.width, canvas.height);
+            destCtx.drawImage(canvas, 0, 0);
+
+            const link = document.createElement('a');
+            link.style.display = 'none';
+            link.download = filename + '_' + new Date().toISOString().split('T')[0] + '.png';
+            link.href = destinationCanvas.toDataURL('image/png');
+
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+
+            if (window.Swal) {
+                Swal.fire({
+                    toast: true,
+                    position: 'top-end',
+                    icon: 'success',
+                    title: 'Chart downloaded!',
+                    showConfirmButton: false,
+                    timer: 2000
+                });
+            }
+        } catch (e) {
+            console.error('Download failed:', e);
+        }
+    };
 
     document.addEventListener('DOMContentLoaded', function() {
         // [NEW] 100% Offline Custom DataLabels Plugin

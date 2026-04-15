@@ -79,6 +79,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
             $stmt->execute([$username]);
             $user = $stmt->fetch();
 
+            // [SECURITY FIX] Prevent timing attacks: always call password_verify() even if user doesn't exist
+            // Use a dummy hash if user not found to ensure consistent timing
+            $passwordHash = $user['password'] ?? '$2y$10$dummyhashtopreventtimingattack....';
+            $passwordMatches = password_verify($password, $passwordHash);
+
             // [SECURITY] 1. Check Account Lockout (10 Attempts)
             if ($user && !empty($user['locked_until']) && new DateTime($user['locked_until']) > new DateTime()) {
                 $alertType = 'error';
@@ -88,7 +93,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
                 $skipLogin = true;
             }
 
-            if (empty($skipLogin) && $user && password_verify($password, $user['password'])) {
+            if (empty($skipLogin) && $user && $passwordMatches) {
 
                 // [SECURITY] Reset failed attempts on success
                 try {

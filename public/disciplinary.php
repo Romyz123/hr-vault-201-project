@@ -179,9 +179,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 // 2. Sync to Documents (If file exists)
                 if ($thisFilePath) {
                     try {
-                        // Check columns (Simplified for speed, assuming standard schema now)
+                        // [NEW] Fetch status for naming convention
+                        $st = $pdo->prepare("SELECT status FROM employees WHERE emp_id = ? AND deleted_at IS NULL");
+                        $st->execute([$e_id]);
+                        $empStatus = $st->fetchColumn() ?: 'Active';
+
+                        $info = pathinfo($originalName);
+                        $baseNameOnly = $info['filename'];
+                        $extOnly = $info['extension'] ?? '';
+
+                        if ($empStatus !== 'Active') {
+                            $baseNameOnly .= " ($empStatus)";
+                        }
+
+                        // Collision Detection
+                        $checkStmt = $pdo->prepare("SELECT original_name FROM documents WHERE employee_id = ? AND deleted_at IS NULL");
+                        $checkStmt->execute([$e_id]);
+                        $existingInDB = $checkStmt->fetchAll(PDO::FETCH_COLUMN);
+
+                        $counter = 1;
+                        $finalOriginalName = $baseNameOnly . ($extOnly ? '.' . $extOnly : '');
+                        while (in_array($finalOriginalName, $existingInDB)) {
+                            $finalOriginalName = $baseNameOnly . '-' . str_pad($counter, 3, '0', STR_PAD_LEFT) . ($extOnly ? '.' . $extOnly : '');
+                            $counter++;
+                        }
+
                         $docStmt = $pdo->prepare("INSERT INTO documents (file_uuid, employee_id, original_name, file_path, category, uploaded_by) VALUES (UUID(), ?, ?, ?, 'Disciplinary', ?)");
-                        $docStmt->execute([$e_id, $originalName, $thisFilePath, $_SESSION['user_id']]);
+                        $docStmt->execute([$e_id, $finalOriginalName, $thisFilePath, $_SESSION['user_id']]);
                         $syncStatus = "✅ Synced";
                     } catch (Exception $e) {
                         // Ignore duplicate entry errors if any
@@ -297,8 +321,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                         $st->execute([$case_id]);
                         $eid = $st->fetchColumn();
 
+                        // [NEW] Fetch status for naming convention
+                        $st = $pdo->prepare("SELECT status FROM employees WHERE emp_id = ? AND deleted_at IS NULL");
+                        $st->execute([$eid]);
+                        $empStatus = $st->fetchColumn() ?: 'Active';
+
+                        $info = pathinfo($originalName);
+                        $baseNameOnly = $info['filename'];
+                        $extOnly = $info['extension'] ?? '';
+
+                        if ($empStatus !== 'Active') {
+                            $baseNameOnly .= " ($empStatus)";
+                        }
+
+                        // Collision Detection
+                        $checkStmt = $pdo->prepare("SELECT original_name FROM documents WHERE employee_id = ? AND deleted_at IS NULL");
+                        $checkStmt->execute([$eid]);
+                        $existingInDB = $checkStmt->fetchAll(PDO::FETCH_COLUMN);
+
+                        $counter = 1;
+                        $finalOriginalName = $baseNameOnly . ($extOnly ? '.' . $extOnly : '');
+                        while (in_array($finalOriginalName, $existingInDB)) {
+                            $finalOriginalName = $baseNameOnly . '-' . str_pad($counter, 3, '0', STR_PAD_LEFT) . ($extOnly ? '.' . $extOnly : '');
+                            $counter++;
+                        }
+
                         $pdo->prepare("INSERT INTO documents (file_uuid, employee_id, original_name, file_path, category, uploaded_by) VALUES (UUID(), ?, ?, ?, 'Disciplinary', ?)")
-                            ->execute([$eid, $originalName, $fileName, $_SESSION['user_id']]);
+                            ->execute([$eid, $finalOriginalName, $fileName, $_SESSION['user_id']]);
 
                         // Delete old file from uploads if present and not same as new
                         if (!empty($oldPath) && $oldPath !== $fileName) {

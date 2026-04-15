@@ -772,14 +772,15 @@ $paginatedEmployees = array_slice($employees, $offset, $perPage);
 <?php include 'header.php'; ?>
 <style>
     body {
-        background: #f8f9fa;
+        background-color: var(--bs-body-bg);
+        color: var(--bs-body-color);
         font-size: 0.9rem;
     }
 
     .progress {
         height: 20px;
         border-radius: 10px;
-        background-color: #e9ecef;
+        background-color: var(--bs-tertiary-bg);
     }
 
     .icon-check {
@@ -818,9 +819,9 @@ $paginatedEmployees = array_slice($employees, $offset, $perPage);
         flex-wrap: wrap;
         gap: 5px;
         padding: 5px;
-        border: 1px solid #ced4da;
+        border: 1px solid var(--bs-border-color);
         border-radius: 0.25rem;
-        background: #fff;
+        background-color: var(--bs-body-bg);
         min-height: 38px;
         align-items: center;
     }
@@ -831,8 +832,9 @@ $paginatedEmployees = array_slice($employees, $offset, $perPage);
     }
 
     .tag-chip {
-        background: #e9ecef;
-        border: 1px solid #dee2e6;
+        background-color: var(--bs-tertiary-bg);
+        color: var(--bs-body-color);
+        border: 1px solid var(--bs-border-color);
         border-radius: 3px;
         padding: 2px 6px;
         font-size: 0.85rem;
@@ -1366,7 +1368,7 @@ $paginatedEmployees = array_slice($employees, $offset, $perPage);
 
 <script src="assets/bootstrap.bundle.min.js"></script>
 <script src="assets/sweetalert2.all.min.js"></script>
-<script src="dark_mode.js"></script>
+<script src="assets/dark_mode.js"></script>
 <script>
     // [NEW] Tag Logic
     function initTags(containerId, hiddenInputId) {

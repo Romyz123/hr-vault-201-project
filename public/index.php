@@ -38,8 +38,19 @@ if (!isset($_SESSION['user_id'])) {
     exit;
 }
 
-// Normalize role to uppercase (handles 'hr', 'HR', etc.)
-$userRole = isset($_SESSION['role']) ? strtoupper((string)$_SESSION['role']) : '';
+// [SECURITY FIX] Normalize role to uppercase with default fallback
+$userRole = strtoupper(trim($_SESSION['role'] ?? 'STAFF'));
+
+// [SECURITY FIX] Validate role is one of the expected values to prevent access control bypass
+$validRoles = ['ADMIN', 'MANAGER', 'HR', 'STAFF', 'EMPLOYEE'];
+if (!in_array($userRole, $validRoles)) {
+    // Log suspicious role and force re-login
+    $logger = new Logger($pdo);
+    $logger->log($_SESSION['user_id'] ?? 0, 'INVALID_ROLE', "Invalid role detected: $userRole");
+    session_destroy();
+    header('Location: login.php?error=' . urlencode('Session invalid. Please log in again.'));
+    exit;
+}
 
 $security = new Security($pdo);
 $logger   = new Logger($pdo);
@@ -89,112 +100,110 @@ if ($userRole === 'ADMIN') {
     $existingBackups = glob(rtrim($primaryBackupPath, '/\\') . '/AutoBackup_' . $todayStr . '*.*');
 
     if ($todayDay === $scheduleDay && empty($existingBackups)) {
-        // [NEW] Check Time Requirement
-        if (date('H:i') < $scheduleTime) {
-            // Too early, skip backup for now
-            goto skip_backup;
-        }
+        // [SECURITY FIX] Replaced goto with proper if-else control flow
+        // Check Time Requirement
+        if (date('H:i') >= $scheduleTime) {
+            // Time is acceptable, proceed with backup
+            ini_set('memory_limit', '-1');
+            set_time_limit(600); // 10 minutes
 
-        // START BACKUP PROCESS
-        ini_set('memory_limit', '-1');
-        set_time_limit(600); // 10 minutes
+            $baseFilename = 'AutoBackup_' . date('Y-m-d_H-i-s');
+            $sqlFilename  = $baseFilename . '.sql';
 
-        $baseFilename = 'AutoBackup_' . date('Y-m-d_H-i-s');
-        $sqlFilename  = $baseFilename . '.sql';
-
-        $tables = [];
-        $query  = $pdo->query('SHOW TABLES');
-        while ($row = $query->fetch(PDO::FETCH_NUM)) {
-            $tables[] = $row[0];
-        }
-
-        $content  = "-- AUTOMATED FRIDAY BACKUP\n";
-        $content .= "-- Date: " . date("Y-m-d H:i:s") . "\n\n";
-        $content .= "SET FOREIGN_KEY_CHECKS=0;\n\n";
-
-        foreach ($tables as $table) {
-            $stmt = $pdo->query("SHOW CREATE TABLE `$table`");
-            $row  = $stmt->fetch(PDO::FETCH_NUM);
-            $content .= "DROP TABLE IF EXISTS `$table`;\n" . $row[1] . ";\n\n";
-
-            $stmt = $pdo->query("SELECT * FROM `$table`");
-            while ($r = $stmt->fetch(PDO::FETCH_ASSOC)) {
-                $values = [];
-                foreach ($r as $v) {
-                    if ($v === null) {
-                        $values[] = "NULL";
-                        continue;
-                    }
-                    // Use PDO quote instead of addslashes for safe escaping
-                    $values[] = $pdo->quote((string)$v);
-                }
-                $content .= "INSERT INTO `$table` VALUES (" . implode(', ', $values) . ");\n";
+            $tables = [];
+            $query  = $pdo->query('SHOW TABLES');
+            while ($row = $query->fetch(PDO::FETCH_NUM)) {
+                $tables[] = $row[0];
             }
-            $content .= "\n";
-        }
-        $content .= "\nSET FOREIGN_KEY_CHECKS=1;";
 
-        // ZIP CREATION
-        $zip = new ZipArchive();
-        $zipFile = rtrim($primaryBackupPath, '/\\') . '/' . $baseFilename . '.zip';
+            $content  = "-- AUTOMATED FRIDAY BACKUP\n";
+            $content .= "-- Date: " . date("Y-m-d H:i:s") . "\n\n";
+            $content .= "SET FOREIGN_KEY_CHECKS=0;\n\n";
 
-        if ($zip->open($zipFile, ZipArchive::CREATE) === TRUE) {
-            // Add SQL
-            $zip->addFromString($sqlFilename, $content);
-            if ($zipPass) $zip->setEncryptionName($sqlFilename, ZipArchive::EM_AES_256, $zipPass);
+            foreach ($tables as $table) {
+                $stmt = $pdo->query("SHOW CREATE TABLE `$table`");
+                $row  = $stmt->fetch(PDO::FETCH_NUM);
+                $content .= "DROP TABLE IF EXISTS `$table`;\n" . $row[1] . ";\n\n";
 
-            // Add Vault (if enabled)
-            if ($incVault) {
-                // [LOGICAL FIX] Include config.php to preserve VAULT_KEY
-                $configPath = realpath(__DIR__ . '/../config/config.php');
-                if ($configPath && file_exists($configPath)) {
-                    $zip->addFile($configPath, 'config/config.php');
-                    if ($zipPass) $zip->setEncryptionName('config/config.php', ZipArchive::EM_AES_256, $zipPass);
+                $stmt = $pdo->query("SELECT * FROM `$table`");
+                while ($r = $stmt->fetch(PDO::FETCH_ASSOC)) {
+                    $values = [];
+                    foreach ($r as $v) {
+                        if ($v === null) {
+                            $values[] = "NULL";
+                            continue;
+                        }
+                        // Use PDO quote instead of addslashes for safe escaping
+                        $values[] = $pdo->quote((string)$v);
+                    }
+                    $content .= "INSERT INTO `$table` VALUES (" . implode(', ', $values) . ");\n";
                 }
+                $content .= "\n";
+            }
+            $content .= "\nSET FOREIGN_KEY_CHECKS=1;";
 
-                // [PHP SMART SYNC] Mirror Vault instead of Zipping
-                $vaultPath = realpath(__DIR__ . '/../vault');
-                $mirrorPath = rtrim($primaryBackupPath, '/\\') . DIRECTORY_SEPARATOR . 'vault_mirror';
-                if (!is_dir($mirrorPath)) @mkdir($mirrorPath, 0755, true);
+            // ZIP CREATION
+            $zip = new ZipArchive();
+            $zipFile = rtrim($primaryBackupPath, '/\\') . '/' . $baseFilename . '.zip';
 
-                if ($vaultPath && is_dir($vaultPath)) {
-                    $files = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($vaultPath), RecursiveIteratorIterator::LEAVES_ONLY);
-                    foreach ($files as $name => $file) {
-                        if (!$file->isDir()) {
-                            $src = $file->getRealPath();
-                            $dest = $mirrorPath . DIRECTORY_SEPARATOR . $file->getFilename();
-                            // Delta Sync: Only copy if missing or modified
-                            if (!file_exists($dest) || filemtime($src) > filemtime($dest) || filesize($src) !== filesize($dest)) {
-                                @copy($src, $dest);
+            if ($zip->open($zipFile, ZipArchive::CREATE) === TRUE) {
+                // Add SQL
+                $zip->addFromString($sqlFilename, $content);
+                if ($zipPass) $zip->setEncryptionName($sqlFilename, ZipArchive::EM_AES_256, $zipPass);
+
+                // Add Vault (if enabled)
+                if ($incVault) {
+                    // [LOGICAL FIX] Include config.php to preserve VAULT_KEY
+                    $configPath = realpath(__DIR__ . '/../config/config.php');
+                    if ($configPath && file_exists($configPath)) {
+                        $zip->addFile($configPath, 'config/config.php');
+                        if ($zipPass) $zip->setEncryptionName('config/config.php', ZipArchive::EM_AES_256, $zipPass);
+                    }
+
+                    // [PHP SMART SYNC] Mirror Vault instead of Zipping
+                    $vaultPath = realpath(__DIR__ . '/../vault');
+                    $mirrorPath = rtrim($primaryBackupPath, '/\\') . DIRECTORY_SEPARATOR . 'vault_mirror';
+                    if (!is_dir($mirrorPath)) @mkdir($mirrorPath, 0755, true);
+
+                    if ($vaultPath && is_dir($vaultPath)) {
+                        $files = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($vaultPath), RecursiveIteratorIterator::LEAVES_ONLY);
+                        foreach ($files as $name => $file) {
+                            if (!$file->isDir()) {
+                                $src = $file->getRealPath();
+                                $dest = $mirrorPath . DIRECTORY_SEPARATOR . $file->getFilename();
+                                // Delta Sync: Only copy if missing or modified
+                                if (!file_exists($dest) || filemtime($src) > filemtime($dest) || filesize($src) !== filesize($dest)) {
+                                    @copy($src, $dest);
+                                }
                             }
                         }
                     }
                 }
-            }
 
-            $zip->close();
+                $zip->close();
 
-            if (file_exists($zipFile)) {
-                $logger->log($_SESSION['user_id'], 'AUTO_BACKUP', "Backup created: " . basename($zipFile));
-                $_SESSION['backup_msg'] = "✅ Automated Backup Completed (" . basename($zipFile) . ")";
+                if (file_exists($zipFile)) {
+                    $logger->log($_SESSION['user_id'], 'AUTO_BACKUP', "Backup created: " . basename($zipFile));
+                    $_SESSION['backup_msg'] = "✅ Automated Backup Completed (" . basename($zipFile) . ")";
 
-                // [NEW] Add to Notification Center (Bell Icon)
-                $pdo->prepare("INSERT INTO notifications (user_id, title, message, type) VALUES (?, 'System Backup', ?, 'success')")
-                    ->execute([$_SESSION['user_id'], "Automated backup created successfully: " . basename($zipFile)]);
-            } else {
-                // [NEW] Failure Alert
-                if ($alertEmail) {
-                    mail($alertEmail, "⚠️ HR System Backup Failed", "The automated backup process failed to create the ZIP file on server.\n\nTime: " . date('Y-m-d H:i:s'));
+                    // [NEW] Add to Notification Center (Bell Icon)
+                    $pdo->prepare("INSERT INTO notifications (user_id, title, message, type) VALUES (?, 'System Backup', ?, 'success')")
+                        ->execute([$_SESSION['user_id'], "Automated backup created successfully: " . basename($zipFile)]);
+                } else {
+                    // [NEW] Failure Alert
+                    if ($alertEmail) {
+                        mail($alertEmail, "⚠️ HR System Backup Failed", "The automated backup process failed to create the ZIP file on server.\n\nTime: " . date('Y-m-d H:i:s'));
+                    }
+                    $logger->log($_SESSION['user_id'], 'AUTO_BACKUP_FAIL', "Backup failed: ZIP file not created.");
                 }
-                $logger->log($_SESSION['user_id'], 'AUTO_BACKUP_FAIL', "Backup failed: ZIP file not created.");
+            } else {
+                if ($alertEmail) {
+                    mail($alertEmail, "⚠️ HR System Backup Failed", "Could not open/create ZIP archive.\n\nTime: " . date('Y-m-d H:i:s'));
+                }
             }
-        } else {
-            if ($alertEmail) {
-                mail($alertEmail, "⚠️ HR System Backup Failed", "Could not open/create ZIP archive.\n\nTime: " . date('Y-m-d H:i:s'));
-            }
-        }
+        } // End of time check if statement
     }
-    skip_backup:
+    // Backup process complete
 }
 
 // ---------- 3) HELPERS ----------
@@ -898,7 +907,10 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
             <div class="card h-100 shadow-soft">
                 <div class="card-header d-flex align-items-center">
                     <i class="bi bi-graph-up-arrow me-2 text-primary"></i>
-                    <span class="fw-semibold">Document Analytics</span>
+                    <span class="fw-semibold me-auto">Document Analytics</span>
+                    <button class="btn btn-sm btn-link text-secondary p-0" onclick="downloadSpecificChart('hrChart', 'Document_Analytics_Overview')" title="Download Image">
+                        <i class="bi bi-download"></i>
+                    </button>
                 </div>
                 <div class="card-body position-relative">
                     <canvas id="hrChart" style="width: 100%; height: 100%; min-height: 300px;"></canvas>
@@ -1744,6 +1756,44 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
         };
         Chart.register(offlineDataLabels);
 
+        // [NEW] Global Download Function
+        window.downloadSpecificChart = function(canvasId, filename) {
+            const canvas = document.getElementById(canvasId);
+            if (!canvas) {
+                console.error('Canvas not found:', canvasId);
+                return;
+            }
+            try {
+                const destinationCanvas = document.createElement("canvas");
+                destinationCanvas.width = canvas.width;
+                destinationCanvas.height = canvas.height;
+                const destCtx = destinationCanvas.getContext('2d');
+                destCtx.fillStyle = '#FFFFFF';
+                destCtx.fillRect(0, 0, canvas.width, canvas.height);
+                destCtx.drawImage(canvas, 0, 0);
+
+                const link = document.createElement('a');
+                link.style.display = 'none';
+                link.download = filename + '_' + new Date().toISOString().split('T')[0] + '.png';
+                link.href = destinationCanvas.toDataURL('image/png');
+
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+
+                Swal.fire({
+                    toast: true,
+                    position: 'top-end',
+                    icon: 'success',
+                    title: 'Chart downloaded!',
+                    showConfirmButton: false,
+                    timer: 2000
+                });
+            } catch (e) {
+                console.error('Download failed:', e);
+            }
+        };
+
         const ctx = document.getElementById('hrChart');
         if (!ctx) return;
 
@@ -1934,7 +1984,7 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
                         }
                     })
                     .catch(() => {});
-            }, 180);
+            }, 250);
         });
 
         document.addEventListener('click', (e) => {
@@ -2019,7 +2069,7 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
                         .catch(() => {
                             box.style.display = 'none';
                         });
-                }, 200);
+                }, 250);
             });
             document.addEventListener('click', (e) => {
                 if (!input.contains(e.target) && !box.contains(e.target)) {
@@ -2329,15 +2379,6 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
     }
 
     document.addEventListener("DOMContentLoaded", function() {
-        const toggleBtn = document.getElementById('refreshToggle');
-        if (toggleBtn) {
-            toggleBtn.addEventListener('click', function() {
-                isPaused = !isPaused;
-                this.innerHTML = isPaused ? '<i class="bi bi-play-circle-fill text-warning"></i>' : '<i class="bi bi-pause-circle"></i>';
-                this.title = isPaused ? "Resume Dashboard Updates" : "Pause Dashboard Updates";
-                if (!isPaused) refreshSystem();
-            });
-        }
         setInterval(refreshSystem, <?php echo (int)$refreshInterval * 1000; ?>);
 
         refreshSystem(); // Run once on load

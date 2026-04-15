@@ -75,13 +75,24 @@ if (empty($logo_src)) {
     <style>
         body {
             font-family: Arial, sans-serif;
-            font-size: 12px;
+            font-size: 10pt;
         }
 
-        .header {
+        /* // --- START: PRINT FIX --- */
+        .print-header {
+            display: block !important;
             text-align: center;
             margin-bottom: 20px;
+            border-bottom: 2px solid #000;
+            padding-bottom: 10px;
         }
+
+        .print-logo {
+            max-height: 70px !important;
+            width: auto !important;
+        }
+
+        /* // --- END: PRINT FIX --- */
 
         .header h2 {
             margin: 0;
@@ -125,10 +136,13 @@ if (empty($logo_src)) {
 
 <body>
 
-    <div class="header">
-        <img src="<?php echo $logo_src; ?>" style="height: 60px; display: block; margin: 0 auto 10px auto;">
-        <h2>Recruitment Pipeline Report</h2>
+    <!-- // --- START: PRINT FIX --- -->
+    <div class="print-header">
+        <img src="<?php echo $logo_src; ?>" alt="TESP Logo" class="print-logo">
+        <div style="font-size: 16pt; font-weight: bold; text-transform: uppercase;">TES Philippines, Inc.</div>
+        <div style="font-size: 14pt; font-weight: bold; text-transform: uppercase;">Recruitment Pipeline Report</div>
     </div>
+    <!-- // --- END: PRINT FIX --- -->
 
     <div class="no-print" style="margin-bottom: 20px; text-align: center;">
         <p>

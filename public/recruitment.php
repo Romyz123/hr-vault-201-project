@@ -351,10 +351,9 @@ try {
     $data = [];
     foreach ($recruitOrder as $s) {
         $count = (int)($dbRecruit[$s] ?? 0);
-        if ($count > 0) {
-            $labels[] = $s;
-            $data[] = $count;
-        }
+        // [UX] Always keep labels so the chart legend remains visible even if data is 0
+        $labels[] = $s;
+        $data[] = $count;
     }
 
     // --- FETCH TABLE DATA ---
@@ -386,11 +385,20 @@ try {
         }
     }
     if ($filterSearch) {
-        $terms = preg_split('/[\s,]+/', Validator::sanitizeSearch($filterSearch), -1, PREG_SPLIT_NO_EMPTY);
-        foreach ($terms as $term) {
-            $sql .= " AND (first_name LIKE ? OR last_name LIKE ? OR position_applied LIKE ? OR email LIKE ?)";
-            $t = "%$term%";
-            array_push($params, $t, $t, $t, $t);
+        // [FIX] Sanitize and split search terms
+        $sanitized = trim(preg_replace('/[^a-zA-Z0-9\s\-_.@,]/u', '', $filterSearch));
+        if ($sanitized) {
+            $terms = array_filter(preg_split('/[\s,]+/', $sanitized, -1, PREG_SPLIT_NO_EMPTY));
+            if (!empty($terms)) {
+                foreach ($terms as $term) {
+                    $term = trim($term);
+                    if (strlen($term) >= 2) { // Require at least 2 characters per term
+                        $sql .= " AND (first_name LIKE ? OR last_name LIKE ? OR position_applied LIKE ? OR email LIKE ?)";
+                        $t = "%$term%";
+                        array_push($params, $t, $t, $t, $t);
+                    }
+                }
+            }
         }
     }
 
@@ -398,6 +406,17 @@ try {
     $stmt = $pdo->prepare($sql);
     $stmt->execute($params);
     $candidates = $stmt->fetchAll();
+
+    // [NEW] Fuzzy Search Logic (Did you mean?)
+    $didYouMean = null;
+    $didYouMeanLink = "#";
+    if (empty($candidates) && !empty($filterSearch)) {
+        $closest = SearchHelper::findBestMatch($pdo, $filterSearch, 'candidates');
+        if ($closest) {
+            $didYouMean = $closest;
+            $didYouMeanLink = "recruitment.php?search=" . urlencode($closest);
+        }
+    }
 
     $logo_paths = [
         __DIR__ . '/assets/images/tesp-logo-1.png',
@@ -554,6 +573,15 @@ include 'header.php';
         <strong>Print Instructions:</strong> For best results, use your browser's "Print" function (Ctrl+P). In the print dialog, set the layout to <strong>Landscape</strong> and enable "Background graphics" to ensure colors and styles are included.
     </div>
 
+    <!-- [NEW] Fuzzy Search Suggestion -->
+    <?php if ($didYouMean): ?>
+        <div class="alert alert-info text-center shadow-sm no-print mb-4">
+            <i class="bi bi-lightbulb-fill me-2"></i> Did you mean:
+            <a href="<?php echo $didYouMeanLink; ?>" class="fw-bold text-dark text-decoration-underline"><?php echo htmlspecialchars($didYouMean); ?></a>?
+        </div>
+    <?php endif; ?>
+
+    <!-- ANALYTICS CARDS -->
     <div class="row mb-4">
         <div class="col-md-3 mb-3">
             <div class="card bg-success text-white shadow-sm h-100">
@@ -592,163 +620,221 @@ include 'header.php';
         </div>
     </div>
 
-    <div class="row">
-        <datalist id="cand_search_list">
-            <?php
-            $allCands = $pdo->query("SELECT DISTINCT first_name, last_name, position_applied FROM candidates ORDER BY last_name LIMIT 100")->fetchAll();
-            foreach ($allCands as $ac) {
-                echo "<option value=\"" . htmlspecialchars($ac['first_name'] . ' ' . $ac['last_name']) . "\">";
-                echo "<option value=\"" . htmlspecialchars($ac['position_applied']) . "\">";
-            }
-            ?> </datalist>
-        <button class="btn btn-light text-primary" type="submit"><i class="bi bi-search"></i></button>
-    </div>
-    <?php if ($filterStatus || $filterMonth || $filterWeek || $filterSearch): ?>
-        <a href="recruitment.php" class="btn btn-sm btn-outline-light text-nowrap" title="Clear Filters"><i class="bi bi-x-lg"></i></a>
-    <?php endif; ?>
-    </form>
-
-    <div class="no-print d-flex gap-2 ms-lg-3 align-items-center">
-        <div class="btn-group btn-group-sm me-2 shadow-sm">
-            <button type="button" class="btn btn-light fw-bold" onclick="document.getElementById('selectAll').click()"><i class="bi bi-check-all"></i> Select All</button>
-            <button type="button" class="btn btn-light fw-bold" onclick="deselectAllCandidates()"><i class="bi bi-x-circle"></i> Deselect</button>
-        </div>
-        <a href="export_recruitment.php" class="btn btn-sm btn-light text-success fw-bold"><i class="bi bi-file-earmark-excel-fill"></i> Excel</a>
-        <a href="print_recruitment.php?status=<?php echo urlencode($filterStatus); ?>&month=<?php echo urlencode($filterMonth); ?>&week=<?php echo urlencode($filterWeek); ?>" target="_blank" class="btn btn-sm btn-light text-dark fw-bold"><i class="bi bi-printer-fill"></i> Print</a>
-        <button class="btn btn-sm btn-warning text-dark fw-bold" data-bs-toggle="modal" data-bs-target="#addModal"><i class="bi bi-plus-circle-fill"></i> Add Candidate</button>
-    </div>
-</div>
-</div>
-<div class="card-body p-0 table-responsive">
-    <table class="table table-hover align-middle mb-0" style="font-size: 0.9rem;">
-        <thead class="table-light text-secondary">
-            <tr>
-                <th style="width: 40px;"><input type="checkbox" class="form-check-input" id="selectAll"></th>
-                <th>Name <span id="selection-count" class="badge bg-primary ms-1" style="display:none">0</span></th>
-                <th>Position</th>
-                <th>Contact Info</th>
-                <th>Status</th>
-                <th>Action</th>
-                <th>Last Follow-up</th>
-            </tr>
-        </thead>
-        <tbody>
-            <?php foreach ($candidates as $c):
-                // Calculate days since last follow-up
-                $follow_up_date = strtotime($c['last_follow_up'] ?? $c['application_date']);
-                $days_ago = round((time() - $follow_up_date) / (60 * 60 * 24));
-
-                // Highlight logic
-                $row_class = "";
-                $badge = match ($c['status']) {
-                    'New Applicant' => 'bg-primary rounded-pill',
-                    'Screening' => 'bg-info text-dark rounded-pill',
-                    'Interviewed' => 'bg-warning text-dark rounded-pill',
-                    'Hired' => 'bg-success rounded-pill',
-                    'Rejected' => 'bg-danger rounded-pill',
-                    default => 'bg-secondary rounded-pill'
-                };
-
-                if ($days_ago > 3 && !in_array($c['status'], ['Hired', 'Rejected'])) {
-                    $row_class = "table-warning border-warning"; // Soft warning!
-                }
-                $isBlacklisted = !empty($c['is_blacklisted']);
-            ?>
-                <tr class="<?php echo $row_class; ?>" id="cand-<?php echo $c['id']; ?>">
-                    <td class="fw-bold text-primary"><?php echo htmlspecialchars($c['last_name'] . ', ' . $c['first_name']); ?></td>
-                    <td>
-                        <div class="text-dark fw-semibold text-wrap" style="max-width: 250px;" title="<?php echo htmlspecialchars($c['position_applied']); ?>"><?php echo htmlspecialchars($c['position_applied']); ?></div>
-                        <div class="small text-muted border-top mt-1 pt-1"><i class="bi bi-calendar-plus"></i> Applied: <?php echo date('M d, Y', strtotime($c['application_date'])); ?></div>
-                    </td>
-                    <td>
-                        <?php if (!empty($c['phone_number'])): ?><div class="small text-nowrap"><i class="bi bi-telephone-fill text-secondary me-1"></i> <?php echo htmlspecialchars($c['phone_number']); ?></div><?php endif; ?>
-                        <?php if (!empty($c['email'])): ?><div class="small text-nowrap"><i class="bi bi-envelope-fill text-secondary me-1"></i> <a href="mailto:<?php echo htmlspecialchars($c['email']); ?>" class="text-decoration-none text-muted"><?php echo htmlspecialchars($c['email']); ?></a></div><?php endif; ?>
-                    </td>
-                    <td>
-                        <span class="badge <?php echo $badge; ?>"><?php echo htmlspecialchars($c['status']); ?></span>
-                        <?php if ($isBlacklisted): ?>
-                            <span class="badge bg-dark text-danger border border-danger mt-1"><i class="bi bi-slash-circle"></i> BLACKLISTED</span>
-                        <?php endif; ?>
-                        <?php if ($c['status'] == 'Rejected' && !empty($c['rejection_reason'])): ?>
-                            <div class="small text-danger mt-1">Reason: <?php echo htmlspecialchars($c['rejection_reason']); ?></div>
-                        <?php endif; ?>
-
-                        <!-- COLOR CODED INTERVIEW DATE INDICATOR -->
-                        <?php if (!empty($c['interview_date'])): ?>
-                            <?php
-                            $iDate = strtotime($c['interview_date']);
-                            $today = strtotime('today');
-                            $iDay = strtotime('midnight', $iDate);
-
-                            if ($iDay == $today) {
-                                echo '<div class="small text-danger fw-bold mt-2 bg-danger-subtle px-2 py-1 rounded d-inline-block border border-danger shadow-sm"><i class="bi bi-calendar-event-fill"></i> Today at ' . date('h:i A', $iDate) . '</div>';
-                            } elseif ($iDay < $today) {
-                                echo '<div class="small text-muted mt-2"><i class="bi bi-calendar-check"></i> Past: ' . date('M d', $iDate) . '</div>';
-                            } else {
-                                echo '<div class="small text-primary mt-2 fw-bold"><i class="bi bi-calendar-event"></i> Upcoming: ' . date('M d, h:i A', $iDate) . '</div>';
-                            }
-                            ?>
-                        <?php endif; ?>
-                    </td>
-                    <td>
-                        <div class="btn-group btn-group-sm">
-                            <?php if ($isBlacklisted): ?>
-                                <button class="btn btn-secondary disabled" title="Cannot Hire: Candidate is Blacklisted" disabled><i class="bi bi-person-x-fill"></i></button>
-                            <?php else: ?>
-                                <form method="POST" class="d-inline" onsubmit="return confirm('Mark as Hired and proceed to Add Employee?');">
-                                    <input type="hidden" name="hire_candidate" value="1">
-                                    <input type="hidden" name="csrf_token" value="<?php echo $csrf_token; ?>">
-                                    <input type="hidden" name="candidate_id" value="<?php echo $c['id']; ?>">
-                                    <button type="submit" class="btn btn-outline-success" title="Hire & Add to Employee Database">
-                                        <i class="bi bi-person-check-fill"></i>
-                                    </button>
-                                </form>
-                            <?php endif; ?>
-                            <!-- [FIX] Bulletproof JSON injection for all Action Buttons -->
-                            <?php $safeData = htmlspecialchars(json_encode($c), ENT_QUOTES, 'UTF-8'); ?>
-                            <button type="button" class="btn btn-outline-primary" title="Schedule Interview" onclick='openSchedModal(<?php echo $safeData; ?>)'><i class="bi bi-calendar-event"></i></button>
-                            <button type="button" class="btn btn-outline-info" title="Send SMS Follow Up" onclick='openFollowModal(<?php echo $safeData; ?>)'><i class="bi bi-chat-left-text-fill"></i></button>
-                            <button type="button" class="btn btn-outline-secondary" title="Edit Profile" onclick='openEditModal(<?php echo $safeData; ?>)'><i class="bi bi-pencil-square"></i></button>
-                            <button type="button" class="btn btn-outline-danger" title="Blacklist Candidate" onclick="openBlacklistModal(<?php echo $c['id']; ?>)"><i class="bi bi-slash-circle"></i></button>
-                            <button type="button" class="btn btn-outline-danger" title="Delete" onclick="deleteCandidate(<?php echo $c['id']; ?>)"><i class="bi bi-trash"></i></button>
-                        </div>
-                    </td>
-                    <td class="small">
-                        <?php echo date('M d, Y', $follow_up_date); ?>
-                        <?php if ($row_class == "table-warning border-warning"): ?>
-                            <br><span class="badge bg-warning text-dark mt-1"><i class="bi bi-clock-history"></i> <?php echo $days_ago; ?> days ago</span>
-                        <?php endif; ?>
-                    </td>
-                </tr>
-            <?php endforeach; ?>
-            <?php if (empty($candidates)): ?>
-                <tr>
-                    <td colspan="6" class="text-center p-4 text-muted">No candidates found matching your criteria.</td>
-                </tr>
-            <?php endif; ?>
-        </tbody>
-    </table>
-</div>
-</div>
-</div>
-
-<!-- PIPELINE BREAKDOWN (MOVED DOWN) -->
-<div class="col-lg-6 mb-4">
-    <div class="card shadow border-0 h-100">
-        <div class="card-header d-flex align-items-center justify-content-between bg-dark text-white fw-bold">
-            <span><i class="bi bi-pie-chart-fill me-2"></i> Pipeline Breakdown</span>
-            <div class="d-flex gap-2">
-                <button class="btn btn-sm btn-outline-light fw-bold" onclick="downloadSpecificChart('pipelineChart', 'Recruitment_Pipeline')" title="Download Image"><i class="bi bi-image"></i> Download Image</button>
-                <button class="btn btn-sm btn-outline-light fw-bold" onclick="downloadPipelineData()" title="Download Data as CSV"><i class="bi bi-download"></i> Download Data</button>
+    <!-- PIPELINE BREAKDOWN CHART (MOVED UP) -->
+    <div class="row mb-4">
+        <div class="col-lg-8 mb-4">
+            <div class="card shadow border-0 h-100">
+                <div class="card-header d-flex align-items-center justify-content-between bg-dark text-white fw-bold">
+                    <span><i class="bi bi-pie-chart-fill me-2"></i> Pipeline Breakdown</span>
+                    <div class="d-flex gap-2">
+                        <button class="btn btn-sm btn-outline-light fw-bold" onclick="downloadPipelineData()" title="Download Data as CSV"><i class="bi bi-download"></i> CSV</button>
+                    </div>
+                </div>
+                <div class="card-body" style="min-height: 300px;">
+                    <canvas id="pipelineChart"></canvas>
+                </div>
             </div>
         </div>
-        <div class="card-body" style="min-height: 300px;">
-            <canvas id="pipelineChart"></canvas>
+
+        <!-- FILTERS & ACTIONS PANEL -->
+        <div class="col-lg-4 mb-4">
+            <div class="card shadow border-0 h-100">
+                <div class="card-header bg-info text-dark fw-bold">
+                    <i class="bi bi-funnel-fill me-2"></i> Filters & Actions
+                </div>
+                <div class="card-body">
+                    <form method="GET" class="mb-3" id="filterForm" onsubmit="return validateFilters(event)">
+                        <div class="mb-2">
+                            <label class="form-label small fw-bold">Status</label>
+                            <select name="status" class="form-select form-select-sm" id="filterStatus">
+                                <option value="">All Status</option>
+                                <option value="New Applicant" <?php echo ($filterStatus === 'New Applicant' ? 'selected' : ''); ?>>New Applicant</option>
+                                <option value="Screening" <?php echo ($filterStatus === 'Screening' ? 'selected' : ''); ?>>Screening</option>
+                                <option value="Interviewed" <?php echo ($filterStatus === 'Interviewed' ? 'selected' : ''); ?>>Interviewed</option>
+                                <option value="Hired" <?php echo ($filterStatus === 'Hired' ? 'selected' : ''); ?>>Hired</option>
+                                <option value="Rejected" <?php echo ($filterStatus === 'Rejected' ? 'selected' : ''); ?>>Rejected</option>
+                            </select>
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label small fw-bold">Month</label>
+                            <input type="month" name="month" class="form-control form-control-sm" id="filterMonth" value="<?php echo htmlspecialchars($filterMonth); ?>">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label small fw-bold">Search</label>
+                            <input type="text" name="search" class="form-control form-control-sm" placeholder="Name, position, email..." list="cand_search_list" value="<?php echo htmlspecialchars($filterSearch); ?>" maxlength="100" title="Search by name, position, or email">
+                            <datalist id="cand_search_list">
+                                <?php
+                                $allCands = $pdo->query("SELECT DISTINCT first_name, last_name, position_applied FROM candidates ORDER BY last_name LIMIT 100")->fetchAll();
+                                foreach ($allCands as $ac) {
+                                    echo "<option value=\"" . htmlspecialchars($ac['first_name'] . ' ' . $ac['last_name']) . "\">";
+                                    echo "<option value=\"" . htmlspecialchars($ac['position_applied']) . "\">";
+                                }
+                                ?>
+                            </datalist>
+                        </div>
+                        <div class="d-flex gap-2">
+                            <button type="submit" class="btn btn-sm btn-info fw-bold flex-grow-1"><i class="bi bi-search"></i> Apply</button>
+                            <?php if ($filterStatus || $filterMonth || $filterSearch): ?>
+                                <a href="recruitment.php" class="btn btn-sm btn-outline-secondary fw-bold"><i class="bi bi-x-lg"></i> Clear</a>
+                            <?php endif; ?>
+                        </div>
+                        <input type="hidden" class="filter-state" value="<?php echo htmlspecialchars(json_encode(['status' => $filterStatus, 'month' => $filterMonth, 'week' => $filterWeek, 'search' => $filterSearch])); ?>">
+                    </form>
+
+                    <hr>
+
+                    <div class="d-flex flex-column gap-2">
+                        <button class="btn btn-sm btn-warning text-dark fw-bold" data-bs-toggle="modal" data-bs-target="#addModal">
+                            <i class="bi bi-plus-circle-fill"></i> Add Candidate
+                        </button>
+                        <!-- TODO: Implement bulk reminder functionality
+                        <button type="button" id="bulkReminderBtn" class="btn btn-sm btn-outline-primary fw-bold d-none" onclick="submitBulkReminders()">
+                            <i class="bi bi-clipboard-check"></i> Log Bulk Reminders (<span id="selectedCount">0</span>)
+                        </button>
+                        -->
+                        <a href="export_recruitment.php" class="btn btn-sm btn-success fw-bold">
+                            <i class="bi bi-file-earmark-excel-fill"></i> Export to Excel
+                        </a>
+                        <a href="print_recruitment.php?status=<?php echo urlencode($filterStatus); ?>&month=<?php echo urlencode($filterMonth); ?>&week=<?php echo urlencode($filterWeek); ?>" target="_blank" class="btn btn-sm btn-secondary fw-bold">
+                            <i class="bi bi-printer-fill"></i> Print Report
+                        </a>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
+
+    <!-- CANDIDATES TABLE SECTION -->
+    <div class="card shadow border-0 mb-5">
+        <div class="card-header bg-primary text-white fw-bold">
+            <div class="d-flex align-items-center justify-content-between">
+                <span><i class="bi bi-list-check me-2"></i> Candidates Database</span>
+                <div class="btn-group btn-group-sm" role="group">
+                    <button type="button" class="btn btn-light fw-bold" onclick="toggleSelectAllCandidates()" title="Select All">
+                        <i class="bi bi-check-all"></i>
+                    </button>
+                    <button type="button" class="btn btn-light fw-bold" onclick="deselectAllCandidates()" title="Deselect All">
+                        <i class="bi bi-x-circle"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+        <div class="card-body p-0 table-responsive">
+            <table class="table table-hover align-middle mb-0" style="font-size: 0.9rem;">
+                <thead class="table-light text-secondary">
+                    <tr>
+                        <th style="width: 40px;"><input type="checkbox" class="form-check-input" id="selectAll" onclick="toggleSelectAllCandidates()"></th>
+                        <th>Name</th>
+                        <th>Position</th>
+                        <th>Contact Info</th>
+                        <th>Status</th>
+                        <th class="no-print">Action</th>
+                        <th>Last Follow-up</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php foreach ($candidates as $c):
+                        // Calculate days since last follow-up
+                        $follow_up_date = strtotime($c['last_follow_up'] ?? $c['application_date']);
+                        $days_ago = round((time() - $follow_up_date) / (60 * 60 * 24));
+
+                        // Highlight logic
+                        $row_class = "";
+                        $badge = match ($c['status']) {
+                            'New Applicant' => 'bg-primary rounded-pill',
+                            'Screening' => 'bg-info text-dark rounded-pill',
+                            'Interviewed' => 'bg-warning text-dark rounded-pill',
+                            'Hired' => 'bg-success rounded-pill',
+                            'Rejected' => 'bg-danger rounded-pill',
+                            default => 'bg-secondary rounded-pill'
+                        };
+
+                        if ($days_ago > 3 && !in_array($c['status'], ['Hired', 'Rejected'])) {
+                            $row_class = "table-warning border-warning"; // Soft warning!
+                        }
+                        $isBlacklisted = !empty($c['is_blacklisted']);
+                    ?>
+                        <tr class="<?php echo $row_class; ?>" id="cand-<?php echo $c['id']; ?>">
+                            <td><input type="checkbox" class="form-check-input cand-checkbox" value="<?php echo $c['id']; ?>" onclick="setCandidateSelected(this.value, this.checked)"></td>
+                            <td class="fw-bold text-primary"><?php echo htmlspecialchars($c['last_name'] . ', ' . $c['first_name']); ?></td>
+                            <td>
+                                <div class="text-dark fw-semibold text-wrap" style="max-width: 250px;" title="<?php echo htmlspecialchars($c['position_applied']); ?>"><?php echo htmlspecialchars($c['position_applied']); ?></div>
+                                <div class="small text-muted border-top mt-1 pt-1"><i class="bi bi-calendar-plus"></i> Applied: <?php echo date('M d, Y', strtotime($c['application_date'])); ?></div>
+                            </td>
+                            <td>
+                                <?php if (!empty($c['phone_number'])): ?><div class="small text-nowrap"><i class="bi bi-telephone-fill text-secondary me-1"></i> <?php echo htmlspecialchars($c['phone_number']); ?></div><?php endif; ?>
+                                <?php if (!empty($c['email'])): ?><div class="small text-nowrap"><i class="bi bi-envelope-fill text-secondary me-1"></i> <a href="mailto:<?php echo htmlspecialchars($c['email']); ?>" class="text-decoration-none text-muted"><?php echo htmlspecialchars($c['email']); ?></a></div><?php endif; ?>
+                            </td>
+                            <td>
+                                <span class="badge <?php echo $badge; ?>"><?php echo htmlspecialchars($c['status']); ?></span>
+                                <?php if ($isBlacklisted): ?>
+                                    <span class="badge bg-dark text-danger border border-danger mt-1"><i class="bi bi-slash-circle"></i> BLACKLISTED</span>
+                                <?php endif; ?>
+                                <?php if ($c['status'] == 'Rejected' && !empty($c['rejection_reason'])): ?>
+                                    <div class="small text-danger mt-1">Reason: <?php echo htmlspecialchars($c['rejection_reason']); ?></div>
+                                <?php endif; ?>
+
+                                <!-- COLOR CODED INTERVIEW DATE INDICATOR -->
+                                <?php if (!empty($c['interview_date'])): ?>
+                                    <?php
+                                    $iDate = strtotime($c['interview_date']);
+                                    $today = strtotime('today');
+                                    $iDay = strtotime('midnight', $iDate);
+
+                                    if ($iDay == $today) {
+                                        echo '<div class="small text-danger fw-bold mt-2 bg-danger-subtle px-2 py-1 rounded d-inline-block border border-danger shadow-sm"><i class="bi bi-calendar-event-fill"></i> Today at ' . date('h:i A', $iDate) . '</div>';
+                                    } elseif ($iDay < $today) {
+                                        echo '<div class="small text-muted mt-2"><i class="bi bi-calendar-check"></i> Past: ' . date('M d', $iDate) . '</div>';
+                                    } else {
+                                        echo '<div class="small text-primary mt-2 fw-bold"><i class="bi bi-calendar-event"></i> Upcoming: ' . date('M d, h:i A', $iDate) . '</div>';
+                                    }
+                                    ?>
+                                <?php endif; ?>
+                            </td>
+                            <td class="no-print">
+                                <div class="btn-group btn-group-sm">
+                                    <?php if ($isBlacklisted): ?>
+                                        <button class="btn btn-secondary disabled" title="Cannot Hire: Candidate is Blacklisted" disabled><i class="bi bi-person-x-fill"></i></button>
+                                    <?php else: ?>
+                                        <form method="POST" class="d-inline" onsubmit="return confirm('Mark as Hired and proceed to Add Employee?');">
+                                            <input type="hidden" name="hire_candidate" value="1">
+                                            <input type="hidden" name="csrf_token" value="<?php echo $csrf_token; ?>">
+                                            <input type="hidden" name="candidate_id" value="<?php echo $c['id']; ?>">
+                                            <button type="submit" class="btn btn-outline-success" title="Hire & Add to Employee Database">
+                                                <i class="bi bi-person-check-fill"></i>
+                                            </button>
+                                        </form>
+                                    <?php endif; ?>
+                                    <!-- [FIX] Bulletproof JSON injection for all Action Buttons -->
+                                    <?php $safeData = htmlspecialchars(json_encode($c), ENT_QUOTES, 'UTF-8'); ?>
+                                    <button type="button" class="btn btn-outline-primary" title="Schedule Interview" onclick='openSchedModal(<?php echo $safeData; ?>)'><i class="bi bi-calendar-event"></i></button>
+                                    <button type="button" class="btn btn-outline-info" title="Send SMS Follow Up" onclick='openFollowModal(<?php echo $safeData; ?>)'><i class="bi bi-chat-left-text-fill"></i></button>
+                                    <button type="button" class="btn btn-outline-secondary" title="Edit Profile" onclick='openEditModal(<?php echo $safeData; ?>)'><i class="bi bi-pencil-square"></i></button>
+                                    <button type="button" class="btn btn-outline-danger" title="Blacklist Candidate" onclick="openBlacklistModal(<?php echo $c['id']; ?>)"><i class="bi bi-slash-circle"></i></button>
+                                    <button type="button" class="btn btn-outline-danger" title="Delete" onclick="deleteCandidate(<?php echo $c['id']; ?>)"><i class="bi bi-trash"></i></button>
+                                </div>
+                            </td>
+                            <td class="small">
+                                <?php echo date('M d, Y', $follow_up_date); ?>
+                                <?php if ($row_class == "table-warning border-warning"): ?>
+                                    <br><span class="badge bg-warning text-dark mt-1"><i class="bi bi-clock-history"></i> <?php echo $days_ago; ?> days ago</span>
+                                <?php endif; ?>
+                            </td>
+                        </tr>
+                    <?php endforeach; ?>
+                    <?php if (empty($candidates)): ?>
+                        <tr>
+                            <td colspan="7" class="text-center p-4 text-muted">No candidates found matching your criteria.</td>
+                        </tr>
+                    <?php endif; ?>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
 </div>
-</div>
-</div>
+<!-- END CONTAINER -->
+
 
 <div class="modal fade" id="addModal" tabindex="-1">
     <div class="modal-dialog">
@@ -964,12 +1050,13 @@ include 'header.php';
     /**
      * [NEW] Exports a chart canvas to a PNG image with a white background.
      */
-    function downloadSpecificChart(canvasId, filename) {
+    window.downloadSpecificChart = function(canvasId, filename) {
         const canvas = document.getElementById(canvasId);
-        if (canvas) {
-            const chartInst = Chart.getChart(canvas);
-            if (chartInst) chartInst.update('none');
-
+        if (!canvas) {
+            console.error('Canvas not found:', canvasId);
+            return;
+        }
+        try {
             const destinationCanvas = document.createElement("canvas");
             destinationCanvas.width = canvas.width;
             destinationCanvas.height = canvas.height;
@@ -979,33 +1066,74 @@ include 'header.php';
             destCtx.drawImage(canvas, 0, 0);
 
             const link = document.createElement('a');
+            link.style.display = 'none';
             link.download = filename + '_' + new Date().toISOString().split('T')[0] + '.png';
             link.href = destinationCanvas.toDataURL('image/png');
+
+            document.body.appendChild(link);
             link.click();
+            document.body.removeChild(link);
+
+            if (window.Swal) {
+                Swal.fire({
+                    toast: true,
+                    position: 'top-end',
+                    icon: 'success',
+                    title: 'Chart downloaded!',
+                    showConfirmButton: false,
+                    timer: 2000
+                });
+            }
+        } catch (e) {
+            console.error('Download failed:', e);
         }
-    }
+    };
+
     /**
      * [NEW] Exports current Recruitment Pipeline chart data to a CSV file.
      */
     function downloadPipelineData() {
-        if (!pipelineChart) return;
-        const labels = pipelineChart.data.labels;
-        const values = pipelineChart.data.datasets[0].data;
-        let csv = "\uFEFFPhase,Total Candidates\n"; // Added BOM for Excel UTF-8
-        labels.forEach((label, i) => {
-            const cleanLabel = label.includes(',') ? `"${label}"` : label;
-            csv += `${cleanLabel},${values[i]}\n`;
-        });
-        const blob = new Blob([csv], {
-            type: 'text/csv;charset=utf-8;'
-        });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = `Recruitment_Pipeline_Stats_${new Date().toISOString().split('T')[0]}.csv`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+        if (!pipelineChart) {
+            alert('Chart data not available. Please wait for chart to load.');
+            return;
+        }
+        try {
+            const labels = pipelineChart.data.labels;
+            const values = pipelineChart.data.datasets[0].data;
+            if (!labels || !values || labels.length === 0) {
+                alert('No data available to download.');
+                return;
+            }
+            let csv = "\uFEFFPhase,Total Candidates\n"; // Added BOM for Excel UTF-8
+            labels.forEach((label, i) => {
+                const cleanLabel = label.includes(',') ? `"${label}"` : label;
+                csv += `${cleanLabel},${values[i]}\n`;
+            });
+            const blob = new Blob([csv], {
+                type: 'text/csv;charset=utf-8;'
+            });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `Recruitment_Pipeline_Stats_${new Date().toISOString().split('T')[0]}.csv`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+
+            if (window.Swal) {
+                Swal.fire({
+                    toast: true,
+                    position: 'top-end',
+                    icon: 'success',
+                    title: 'Data downloaded!',
+                    showConfirmButton: false,
+                    timer: 2000
+                });
+            }
+        } catch (e) {
+            console.error('CSV export failed:', e);
+            alert('Failed to download data. Please try again.');
+        }
     }
 
     // [NEW] 100% Offline Custom DataLabels Plugin
@@ -1055,69 +1183,51 @@ include 'header.php';
     };
     Chart.register(offlineDataLabels);
 
-    // Initialize the Pie Chart
-    const ctx = document.getElementById('pipelineChart');
+    // [FIX] Global chart variable - must be declared before DOMContentLoaded
     let pipelineChart = null;
-    if (ctx) {
-        pipelineChart = new Chart(ctx, {
-            type: 'doughnut',
-            data: {
-                labels: <?php echo json_encode($labels); ?>,
-                datasets: [{
-                    label: 'Candidates',
-                    data: <?php echo json_encode($data); ?>,
-                    backgroundColor: ['#6c757d', '#0dcaf0', '#ffc107', '#198754', '#dc3545', '#0d6efd'],
-                    hoverOffset: 4
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                animation: false, // Disable animation for print compatibility
-                plugins: {
-                    legend: {
-                        position: 'bottom'
-                    }
-                }
-            }
-        });
 
-        // [NEW] Dark Mode Adapter for Chart
-        function updateChartTheme() {
-            const isDark = document.documentElement.getAttribute('data-bs-theme') === 'dark';
-            const textColor = isDark ? '#adb5bd' : '#6c757d';
+    // [NEW] Selection Logic for Candidates
+    const selectionStorageKey = 'hr201_selected_candidates';
+    let selectedCandidateIds = new Set();
 
-            if (pipelineChart && pipelineChart.options.plugins && pipelineChart.options.plugins.legend) {
-                pipelineChart.options.plugins.legend.labels = pipelineChart.options.plugins.legend.labels || {};
-                pipelineChart.options.plugins.legend.labels.color = textColor;
+    function loadSelectedCandidates() {
+        const stored = localStorage.getItem(selectionStorageKey);
+        if (!stored) return;
+        try {
+            const ids = JSON.parse(stored);
+            if (Array.isArray(ids)) {
+                selectedCandidateIds = new Set(ids.map(id => String(id)).filter(id => id !== ''));
             }
-            if (pipelineChart) pipelineChart.update();
+        } catch (e) {
+            selectedCandidateIds = new Set();
         }
-
-        new MutationObserver(updateChartTheme).observe(document.documentElement, {
-            attributes: true,
-            attributeFilter: ['data-bs-theme']
-        });
-        updateChartTheme(); // Initial check
     }
 
-    // [FIX] Auto-Capitalize Fields matching add_employee.php logic
-    document.addEventListener("DOMContentLoaded", () => {
-        const fieldsToCap = ['first_name', 'last_name', 'position_applied'];
-        fieldsToCap.forEach(name => {
-            document.querySelectorAll(`input[name="${name}"]`).forEach(input => {
-                input.addEventListener('input', function() {
-                    let words = this.value.split(' ');
-                    for (let i = 0; i < words.length; i++) {
-                        if (words[i].length > 0) words[i] = words[i].charAt(0).toUpperCase() + words[i].slice(1).toLowerCase();
-                    }
-                    this.value = words.join(' ');
-                });
-            });
-        });
-    });
+    function saveSelectedCandidates() {
+        localStorage.setItem(selectionStorageKey, JSON.stringify(Array.from(selectedCandidateIds)));
+    }
 
-    // --- ACTION BUTTON LOGIC ---
+    function setCandidateSelected(id, selected) {
+        if (!id) return;
+        if (selected) {
+            selectedCandidateIds.add(String(id));
+        } else {
+            selectedCandidateIds.delete(String(id));
+        }
+        saveSelectedCandidates();
+        updateCount();
+    }
+
+    function toggleSelectAllCandidates() {
+        const checkboxes = document.querySelectorAll('.cand-checkbox');
+        const allChecked = Array.from(checkboxes).every(cb => cb.checked);
+        checkboxes.forEach(cb => {
+            cb.checked = !allChecked;
+            setCandidateSelected(cb.value, !allChecked);
+        });
+    }
+
+    // --- CONSOLIDATED INITIALIZATION ---
     function updateCount() {
         const count = document.querySelectorAll('.cand-checkbox:checked').length;
         const badge = document.getElementById('selection-count');
@@ -1134,16 +1244,110 @@ include 'header.php';
         updateCount();
     }
 
-    document.getElementById('selectAll')?.addEventListener('change', function() {
+    // Initialize on DOM ready - consolidated
+    // [NEW] Filter Validation Function
+    function validateFilters(event) {
+        const status = document.getElementById('filterStatus')?.value || '';
+        const month = document.getElementById('filterMonth')?.value || '';
+        const search = document.querySelector('input[name="search"]')?.value || '';
+
+        // Allow submission if any filter is selected
+        if (status || month || search) {
+            return true; // Allow form submission
+        }
+        // Even if no filters, allow clear/reload
+        return true;
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        // [NEW] Initialize Chart - Now runs when DOM is ready
+        const ctx = document.getElementById('pipelineChart');
+        if (ctx) {
+            pipelineChart = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: <?php echo json_encode($labels); ?>,
+                    datasets: [{
+                        label: 'Candidates',
+                        data: <?php echo json_encode($data); ?>,
+                        backgroundColor: ['#6c757d', '#0dcaf0', '#ffc107', '#198754', '#dc3545', '#0d6efd'],
+                        hoverOffset: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    animation: false, // Disable animation for print compatibility
+                    plugins: {
+                        legend: {
+                            position: 'bottom'
+                        }
+                    }
+                }
+            });
+
+            // [NEW] Dark Mode Adapter for Chart
+            function updateChartTheme() {
+                const isDark = document.documentElement.getAttribute('data-bs-theme') === 'dark';
+                const textColor = isDark ? '#adb5bd' : '#6c757d';
+
+                if (pipelineChart && pipelineChart.options.plugins && pipelineChart.options.plugins.legend) {
+                    pipelineChart.options.plugins.legend.labels = pipelineChart.options.plugins.legend.labels || {};
+                    pipelineChart.options.plugins.legend.labels.color = textColor;
+                }
+                if (pipelineChart) pipelineChart.update();
+            }
+
+            new MutationObserver(updateChartTheme).observe(document.documentElement, {
+                attributes: true,
+                attributeFilter: ['data-bs-theme']
+            });
+            updateChartTheme(); // Initial check
+        }
+
+        // Initialize Cart
+        loadSelectedCandidates();
         document.querySelectorAll('.cand-checkbox').forEach(cb => {
-            // Only select items that are visible (handles filtered views)
-            if (cb.offsetParent !== null) cb.checked = this.checked;
+            cb.checked = selectedCandidateIds.has(String(cb.value));
         });
         updateCount();
-    });
 
-    document.querySelectorAll('.cand-checkbox').forEach(cb => {
-        cb.addEventListener('change', updateCount);
+        // 1. Auto-Capitalize Fields
+        const fieldsToCap = ['first_name', 'last_name', 'position_applied'];
+        fieldsToCap.forEach(name => {
+            document.querySelectorAll(`input[name="${name}"]`).forEach(input => {
+                input.addEventListener('input', function() {
+                    let words = this.value.split(' ');
+                    for (let i = 0; i < words.length; i++) {
+                        if (words[i].length > 0) words[i] = words[i].charAt(0).toUpperCase() + words[i].slice(1).toLowerCase();
+                    }
+                    this.value = words.join(' ');
+                });
+            });
+        });
+
+        // 2. Select All checkbox functionality
+        const selectAllCheckbox = document.getElementById('selectAll');
+        if (selectAllCheckbox) {
+            selectAllCheckbox.addEventListener('change', function() {
+                document.querySelectorAll('.cand-checkbox').forEach(cb => {
+                    if (cb.offsetParent !== null) cb.checked = this.checked;
+                });
+                updateCount();
+            });
+        }
+
+        // 3. Individual candidate checkbox listeners
+        document.querySelectorAll('.cand-checkbox').forEach(cb => {
+            cb.addEventListener('change', function() {
+                updateCount();
+                const allCheckboxes = document.querySelectorAll('.cand-checkbox');
+                const checkedCheckboxes = document.querySelectorAll('.cand-checkbox:checked');
+                if (selectAllCheckbox) {
+                    selectAllCheckbox.checked = allCheckboxes.length > 0 && allCheckboxes.length === checkedCheckboxes.length;
+                }
+            });
+        });
     });
 
     function openEditModal(data) {

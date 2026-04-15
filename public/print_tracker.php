@@ -200,8 +200,11 @@ foreach ($logo_paths as $p) {
     <!-- // --- START: PRINT FIX --- -->
     <div class="print-header">
         <img src="<?php echo $logo_src; ?>" alt="TESP Logo" class="print-logo">
-        <div style="font-size: 16pt; font-weight: bold; text-transform: uppercase;">TES Philippines, Inc.</div>
-        <div style="font-size: 14pt; font-weight: bold; text-transform: uppercase;">Document Compliance Report</div>
+        <div class="print-title-area">
+            <div style="font-size: 16pt; font-weight: bold; text-transform: uppercase;">TES Philippines, Inc.</div>
+            <div style="font-size: 14pt; font-weight: bold; text-transform: uppercase;">Document Compliance Report</div>
+        </div>
+        <div style="width: 80px;"></div> <!-- Spacer for balance -->
     </div>
     <!-- // --- END: PRINT FIX --- -->
 

@@ -472,9 +472,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <div class="row g-3 mb-4">
                         <div class="col-md-3">
                             <label class="form-label">Employee ID <span class="text-danger">*</span></label>
-                            <input type="text" name="emp_id" class="form-control" required maxlength="20"
+                            <input type="text" name="emp_id" id="emp_id_input" class="form-control" required maxlength="20"
                                 placeholder="e.g. 2026-001" value="<?php echo old('emp_id', $_GET['emp_id'] ?? ''); ?>"
-                                autocomplete="off" pattern="[A-Za-z0-9\-_]+" title="Allowed: Letters, Numbers, - and _" oninput="this.value = this.value.replace(/[^A-Za-z0-9\-_]/g, '')">
+                                autocomplete="off" pattern="[A-Z0-9\-_]+" title="Allowed: Letters, Numbers, - and _" oninput="this.value = this.value.toUpperCase().replace(/[^A-Z0-9\-_]/g, '')">
                             <div class="form-text extra-small">Allowed: Letters, Numbers, - and _</div>
                         </div>
                         <div class="col-md-3">
@@ -754,6 +754,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <script src="assets/sweetalert2.all.min.js"></script>
     <script src="dark_mode.js"></script>
     <script>
+        // [NEW] Real-time Duplicate ID Detector
+        async function checkDuplicateID(id) {
+            if (!id || id.length < 2) return;
+
+            try {
+                const response = await fetch(`api/check_id.php?id=${encodeURIComponent(id)}`);
+                const result = await response.json();
+                const input = document.getElementById('emp_id_input');
+
+                // Remove existing feedback
+                const oldFeedback = document.getElementById('id-check-feedback');
+                if (oldFeedback) oldFeedback.remove();
+
+                const feedback = document.createElement('div');
+                feedback.id = 'id-check-feedback';
+                input.parentNode.appendChild(feedback);
+
+                if (result.exists) {
+                    input.classList.add('is-invalid');
+                    feedback.className = 'invalid-feedback d-block fw-bold';
+                    feedback.innerHTML = `<i class="bi bi-x-circle"></i> ID already taken ${result.status === 'deleted' ? '(In Recycle Bin)' : '(Active Employee)'}`;
+                } else {
+                    input.classList.remove('is-invalid');
+                    input.classList.add('is-valid');
+                    feedback.className = 'valid-feedback d-block fw-bold';
+                    feedback.innerHTML = '<i class="bi bi-check-circle"></i> ID Available';
+                }
+            } catch (e) {
+                console.error("ID Check failed", e);
+            }
+        }
+
         // 1. FRIENDLY NAME MAPPING
         // This maps the Database Value (val) to the Dropdown Text (text)
         const sectionMap = <?php echo json_encode($sectionFriendlyMap); ?>;
@@ -849,6 +881,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         // 6. ATTACH CAPITALIZATION
         document.addEventListener("DOMContentLoaded", function() {
+            // Attach ID Check
+            document.getElementById('emp_id_input').addEventListener('blur', function() {
+                checkDuplicateID(this.value);
+            });
+
             // [FIX] Declare key at the start of block to prevent ReferenceError
             const draftKey = 'hr_add_emp_draft';
 
