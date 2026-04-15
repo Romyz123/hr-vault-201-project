@@ -183,9 +183,26 @@ foreach ($logo_paths as $p) {
             margin-bottom: 20px;
         }
 
+        .print-header {
+            text-align: center !important;
+            border-bottom: 2px solid #000 !important;
+            margin-bottom: 30px !important;
+            padding-bottom: 15px !important;
+            width: 100%;
+        }
+
+        .print-logo {
+            max-height: 75px !important;
+            width: auto !important;
+            display: block !important;
+            margin: 0 auto 15px auto !important;
+            /* Centering the block image */
+        }
+
         @media print {
             .no-print {
                 display: none !important;
+
             }
         }
     </style>
@@ -204,7 +221,7 @@ foreach ($logo_paths as $p) {
             <div style="font-size: 16pt; font-weight: bold; text-transform: uppercase;">TES Philippines, Inc.</div>
             <div style="font-size: 14pt; font-weight: bold; text-transform: uppercase;">Document Compliance Report</div>
         </div>
-        <div style="width: 80px;"></div> <!-- Spacer for balance -->
+        <div style="width: 10px;"></div> <!-- Spacer for balance -->
     </div>
     <!-- // --- END: PRINT FIX --- -->
 

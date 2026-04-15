@@ -444,7 +444,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
     </script>
 
     <script src="assets/bootstrap.bundle.min.js?v=3"></script>
-    <script src="dark_mode.js?v=3"></script>
+    <script src="assets/dark_mode.js"></script>
 </body>
 
 </html>

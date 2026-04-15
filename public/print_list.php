@@ -187,6 +187,22 @@ if (empty($logo_src)) {
             font-size: 0.8rem;
         }
 
+        .print-header {
+            text-align: center !important;
+            border-bottom: 2px solid #000 !important;
+            margin-bottom: 30px !important;
+            padding-bottom: 15px !important;
+            width: 100%;
+        }
+
+        .print-logo {
+            max-height: 75px !important;
+            width: auto !important;
+            display: block !important;
+            margin: 0 auto 15px auto !important;
+            /* Centering the block image */
+        }
+
         /* Slightly smaller text to fit everything */
     </style>
 </head>

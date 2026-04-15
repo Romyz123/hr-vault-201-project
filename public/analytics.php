@@ -564,6 +564,27 @@ try {
 } catch (Exception $e) {
 }
 
+// [FIX] Locate the company logo and convert to Base64 for reliable display and printing
+$logo_paths = [
+    __DIR__ . '/uploads/tesp-logo.png',
+    __DIR__ . '/uploads/tesp logo 1.png',
+    __DIR__ . '/assets/images/tesp-logo-1.png',
+    __DIR__ . '/../uploads/tesp-logo.png',
+    __DIR__ . '/../uploads/tesp logo 1.png'
+];
+$logo_src = '';
+foreach ($logo_paths as $p) {
+    if (file_exists($p)) {
+        $mime = pathinfo($p, PATHINFO_EXTENSION) === 'png' ? 'image/png' : 'image/jpeg';
+        $logo_src = 'data:' . $mime . ';base64,' . base64_encode(file_get_contents($p));
+        break;
+    }
+}
+
+// Fallback if no logo file is found in the paths above
+if (empty($logo_src)) {
+    $logo_src = 'data:image/svg+xml;base64,' . base64_encode('<svg xmlns="http://www.w3.org/2000/svg" width="100" height="40"><text y="30" font-size="14" fill="#333">TES</text></svg>');
+}
 // Aggregates
 $ageBands          = ['18-25' => 0, '26-35' => 0, '36-45' => 0, '46-55' => 0, '56+' => 0];
 $genderCounts      = ['Male' => 0, 'Female' => 0];

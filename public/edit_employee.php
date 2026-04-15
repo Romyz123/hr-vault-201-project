@@ -842,7 +842,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             <div class="col-md-3">
                                 <label class="form-label">Department(s)</label>
                                 <div class="input-group">
-                                    <input type="text" name="dept" id="dept" class="form-control bg-white" required readonly value="<?php echo val('dept'); ?>">
+                                    <input type="text" name="dept" id="dept" class="form-control" required readonly value="<?php echo val('dept'); ?>">
                                     <button class="btn btn-outline-secondary" type="button" onclick="document.getElementById('dept').value = ''; updateSections();" title="Clear"><i class="bi bi-x-lg"></i></button>
                                 </div>
                                 <select id="deptPicker" class="form-select mt-1 form-select-sm text-muted" onchange="addDept(this.value)">
@@ -855,7 +855,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             <div class="col-md-3">
                                 <label class="form-label">Section(s)</label>
                                 <div class="input-group">
-                                    <input type="text" name="section" id="section" class="form-control bg-white" required readonly value="<?php echo val('section'); ?>">
+                                    <input type="text" name="section" id="section" class="form-control" required readonly value="<?php echo val('section'); ?>">
                                     <button class="btn btn-outline-secondary" type="button" onclick="document.getElementById('section').value = ''" title="Clear"><i class="bi bi-x-lg"></i></button>
                                 </div>
                                 <select id="sectionPicker" class="form-select mt-1 form-select-sm text-muted" onchange="addSection(this.value)"></select>
@@ -885,7 +885,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             </div>
                         </div>
 
-                        <div class="row mb-3 mt-4 p-3 bg-light border rounded">
+                        <div class="row mb-3 mt-4 p-3 border rounded">
 
                             <div class="col-md-3">
                                 <label class="form-label fw-bold">Current Status</label>
@@ -1271,7 +1271,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                         </div>
 
                                         <?php if (!empty($h['notes'])): ?>
-                                            <div class="bg-light p-2 rounded border small text-secondary">
+                                            <div class="bg-body-tertiary p-2 rounded border small text-secondary">
                                                 <?php echo nl2br(htmlspecialchars($h['notes'])); ?>
                                             </div>
                                         <?php endif; ?>
@@ -1349,7 +1349,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 <hr>
                 <h6 class="text-secondary fw-bold">Move Document (Optional)</h6>
-                <div class="mb-3 position-relative">
+                <div class="mb-3 p-2 border rounded position-relative">
                     <label class="form-label">Move to another employee</label>
                     <input type="hidden" name="move_to_emp_id" id="edit_move_to_emp_id">
                     <div class="input-group">

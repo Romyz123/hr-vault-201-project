@@ -861,7 +861,7 @@ if (isset($_GET['msg'])) {
     </div>
 
     <script src="assets/bootstrap.bundle.min.js"></script>
-    <script src="dark_mode.js"></script>
+    <script src="assets/dark_mode.js"></script>
     <script>
         // [UX STABILIZATION] Scroll Memory Helper
         // Prevents the page from jumping to the top after filing or closing a case

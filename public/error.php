@@ -70,7 +70,7 @@ switch ($code) {
             <a href="javascript:history.back()" class="btn btn-outline-secondary px-4 ms-2">Go Back</a>
         </div>
     </div>
-    <script src="dark_mode.js"></script>
+    <script src="assets/dark_mode.js"></script>
 </body>
 
 </html>

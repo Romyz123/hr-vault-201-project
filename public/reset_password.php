@@ -406,7 +406,7 @@ if ($step === 'reset' && empty($_SESSION['reset_csrf'])) {
     </script>
 
     <script src="assets/bootstrap.bundle.min.js"></script>
-    <script src="dark_mode.js"></script>
+    <script src="assets/dark_mode.js"></script>
 </body>
 
 </html>

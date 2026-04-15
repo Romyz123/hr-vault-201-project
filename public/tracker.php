@@ -780,7 +780,7 @@ $paginatedEmployees = array_slice($employees, $offset, $perPage);
     .progress {
         height: 20px;
         border-radius: 10px;
-        background-color: var(--bs-tertiary-bg);
+        background-color: var(--bs-secondary-bg);
     }
 
     .icon-check {
@@ -1368,7 +1368,6 @@ $paginatedEmployees = array_slice($employees, $offset, $perPage);
 
 <script src="assets/bootstrap.bundle.min.js"></script>
 <script src="assets/sweetalert2.all.min.js"></script>
-<script src="assets/dark_mode.js"></script>
 <script>
     // [NEW] Tag Logic
     function initTags(containerId, hiddenInputId) {

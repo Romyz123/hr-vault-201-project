@@ -756,7 +756,7 @@ foreach ($logo_paths as $p) {
             new bootstrap.Modal(document.getElementById('editReviewModal')).show();
         }
     </script>
-    <script src="dark_mode.js"></script>
+    <script src="assets/dark_mode.js"></script>
 </body>
 
 </html>

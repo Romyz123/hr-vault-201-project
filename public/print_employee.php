@@ -152,21 +152,20 @@ if (empty($logo_src)) {
 
             /* // --- START: PRINT FIX --- */
             @media print {
-                .print-logo {
-                    max-height: 70px !important;
-                    width: auto !important;
-                    display: block !important;
-                    margin: 0 auto 10px auto !important;
-                    -webkit-print-color-adjust: exact !important;
-                    print-color-adjust: exact !important;
-                }
-
                 .print-header {
                     text-align: center !important;
                     border-bottom: 2px solid #000 !important;
-                    margin-bottom: 20px !important;
-                    padding-bottom: 10px !important;
+                    margin-bottom: 30px !important;
+                    padding-bottom: 15px !important;
+                    width: 100%;
+                }
+
+                .print-logo {
+                    max-height: 75px !important;
+                    width: auto !important;
                     display: block !important;
+                    margin: 0 auto 15px auto !important;
+                    /* Centering the block image */
                 }
             }
 
@@ -225,7 +224,11 @@ if (empty($logo_src)) {
 
         /* // --- START: PRINT FIX --- */
         .print-logo {
-            max-height: 80px;
+            max-height: 75px !important;
+            width: auto !important;
+            display: block !important;
+            margin: 0 auto 15px auto !important;
+            /* Centering the block image */
         }
 
         /* // --- END: PRINT FIX --- */
@@ -351,11 +354,17 @@ if (empty($logo_src)) {
         <!-- // --- START: PRINT FIX --- -->
         <div class="print-header">
             <img src="<?php echo $logo_src; ?>" alt="TESP Logo" class="print-logo">
+
             <div class="print-title-area">
-                <div style="font-size: 16pt; font-weight: bold; text-transform: uppercase;">TES Philippines, Inc.</div>
-                <div style="font-size: 14pt; font-weight: bold; text-transform: uppercase;">Employee 201 File</div>
+                <center>
+                    <div style="font-size: 16pt; font-weight: bold; text-transform: uppercase; margin-bottom: 2px;">
+                        TES Philippines, Inc.
+                    </div>
+                    <div style="font-size: 14pt; font-weight: bold; text-transform: uppercase;">
+                        Employee 201 File
+                    </div>
+                </center>
             </div>
-            <div style="width: 80px;"></div>
         </div>
         <!-- // --- END: PRINT FIX --- -->
 

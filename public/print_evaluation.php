@@ -14,7 +14,6 @@ if ($id <= 0) {
 }
 
 // Fetch Evaluation + Employee Info
-// [FIX] Check new table first (hr_performance_reviews), then fallback to old (performance_evaluations)
 $sql = "SELECT ev.*, e.first_name, e.last_name, e.emp_id, e.dept, e.job_title, ev.employee_id 
         FROM hr_performance_reviews ev 
         JOIN employees e ON ev.employee_id = e.id 
@@ -35,15 +34,13 @@ if (!$data) {
 
 if (!$data) die("Evaluation record not found.");
 
-// permission check: only owner or admin/hr/manager can view
 $userId = $_SESSION['user_id'];
 $role = $_SESSION['role'] ?? '';
 if (!in_array($role, ['ADMIN', 'HR', 'MANAGER'], true) && $data['employee_id'] !== $userId) {
     die("Access Denied");
 }
 
-// Logo
-// [FIX] Standardized logo path for embedding in print/word documents
+// Logo Logic
 $logo_paths = [
     __DIR__ . '/uploads/tesp-logo.png',
     __DIR__ . '/uploads/tesp logo 1.png',
@@ -60,137 +57,133 @@ foreach ($logo_paths as $p) {
     }
 } ?>
 <!DOCTYPE html>
-<html lang="en" data-bs-theme="light">
+<html lang="en">
 
 <head>
     <meta charset="UTF-8">
     <title>Performance Evaluation - <?php echo htmlspecialchars($data['last_name']); ?></title>
-    <link rel="icon" type="image/png" href="assets/tesp-logo.png">
-    <link rel="shortcut icon" type="image/png" href="assets/tesp-logo.png">
-    <link rel="apple-touch-icon" href="assets/tesp-logo.png">
     <style>
+        /* Force A4 Portrait */
         @page {
-            size: A4 landscape;
-            margin: 10mm;
+            size: A4 portrait;
+            margin: 0;
+            /* Margin handled by .page padding for better control */
         }
 
         body {
             font-family: "Times New Roman", Times, serif;
             font-size: 11pt;
-            line-height: 1.3;
-            color: #000;
             background: #eee;
             margin: 0;
-            padding: 20px 0;
+            padding: 0;
         }
 
+        /* The Paper Container */
         .page {
             background: white;
-            width: 297mm;
-            min-height: 210mm;
-            margin: 0 auto;
-            padding: 10mm;
-            box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
+            width: 210mm;
+            height: 297mm;
+            /* Forced height to ensure exactly one page */
+            margin: 10px auto;
+            padding: 15mm;
+            /* Standard professional margin */
             box-sizing: border-box;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.2);
+
+            /* Flexbox layout to distribute space */
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            /* Prevents accidental second page */
         }
 
         .header {
-            text-align: center;
-            margin-bottom: 40px;
             border-bottom: 3px double #000;
-            padding-bottom: 20px;
-        }
-
-        .logo {
-            width: 100px;
-            display: block;
-            margin: 0 auto 10px auto;
-        }
-
-        .title {
-            font-weight: bold;
-            font-size: 18pt;
-            text-transform: uppercase;
-            margin-top: 10px;
-        }
-
-        .subtitle {
-            font-size: 11pt;
-            font-weight: bold;
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+            text-align: center;
         }
 
         .info-table {
             width: 100%;
-            margin-bottom: 30px;
             border-collapse: collapse;
+            margin-bottom: 15px;
         }
 
         .info-table td {
-            padding: 8px 5px;
-            vertical-align: top;
-            border-bottom: 1px solid #ddd;
+            padding: 6px;
+            border-bottom: 1px solid #eee;
         }
 
         .label {
             font-weight: bold;
-            width: 160px;
-            color: #333;
+            width: 140px;
+        }
+
+        .rating-legend {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+            font-size: 9pt;
+        }
+
+        .rating-legend th,
+        .rating-legend td {
+            border: 1px solid #ddd;
+            padding: 4px;
+            text-align: center;
+        }
+
+        .rating-legend th {
+            background: #f8f9fa;
         }
 
         .score-box {
-            border: 1px solid #000;
-            padding: 20px;
-            text-align: center;
-            margin-bottom: 30px;
-            background: #fff;
-            box-shadow: 3px 3px 0px #eee;
-        }
-
-        .score-val {
-            font-size: 32pt;
-            font-weight: bold;
-            margin: 10px 0;
-        }
-
-        .rating-val {
-            font-size: 16pt;
-            font-weight: bold;
-            text-transform: uppercase;
-            padding: 5px 15px;
             border: 2px solid #000;
-            display: inline-block;
+            padding: 12px;
+            text-align: center;
+            background: #fdfdfd;
+            margin-bottom: 20px;
         }
 
         .section-title {
             font-weight: bold;
             border-bottom: 2px solid #000;
-            margin-bottom: 10px;
             padding-bottom: 3px;
             text-transform: uppercase;
-            font-size: 11pt;
-            margin-top: 20px;
+            font-size: 10pt;
+        }
+
+        /* This container grows to fill the "free space" */
+        .remarks-container {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            margin-bottom: 30px;
         }
 
         .content-box {
-            text-align: justify;
+            flex-grow: 1;
             border: 1px solid #000;
-            padding: 20px;
-            min-height: 80px;
+            padding: 12px;
+            margin-top: 8px;
+            background: #fafafa;
             white-space: pre-wrap;
-            font-family: Arial, sans-serif;
-            /* Easier to read for long text */
-            font-size: 11pt;
+            line-height: 1.4;
         }
 
         .footer {
-            margin-top: 60px;
+            margin-top: auto;
+            /* Pushes signatures to the bottom */
+            border-top: 1px solid #eee;
+            padding-top: 20px;
         }
 
         .sig-line {
             border-top: 1px solid #000;
-            width: 80%;
-            margin-top: 50px;
+            margin-top: 40px;
             margin-bottom: 5px;
+            width: 90%;
         }
 
         @media print {
@@ -201,80 +194,38 @@ foreach ($logo_paths as $p) {
             body {
                 background: white;
                 padding: 0;
-                -webkit-print-color-adjust: exact;
-                print-color-adjust: exact;
             }
 
             .page {
-                width: 100%;
-                height: auto;
                 margin: 0;
-                padding: 0;
                 box-shadow: none;
-                border: none;
-                page-break-after: auto;
+                width: 100%;
+                height: 100vh;
+                /* Use viewport height for print */
             }
-
-            .score-box {
-                box-shadow: none;
-            }
-
-            /* // --- START: PRINT FIX --- */
-            .print-header {
-                display: flex !important;
-                align-items: center;
-                justify-content: space-between;
-                border-bottom: 2px solid #000;
-                margin-bottom: 20px;
-                padding-bottom: 10px;
-            }
-
-            .print-logo {
-                max-height: 80px !important;
-                width: auto !important;
-                -webkit-print-color-adjust: exact !important;
-                print-color-adjust: exact !important;
-            }
-
-            .print-title-area {
-                text-align: center;
-                flex-grow: 1;
-            }
-
-            /* // --- END: PRINT FIX --- */
         }
-
-        /* // --- START: PRINT FIX --- */
-        .print-logo {
-            max-height: 80px;
-        }
-
-        /* // --- END: PRINT FIX --- */
     </style>
 </head>
 
 <body>
-    <div class="no-print" style="margin-bottom: 20px; text-align: center; background: #f0f0f0; padding: 15px;">
-        <button onclick="window.print()" style="padding: 10px 20px; font-weight: bold; cursor: pointer; background: #000; color: #fff; border: none;">🖨️ Print Report</button>
-        <button onclick="window.close()" style="padding: 10px 20px; font-weight: bold; cursor: pointer; background: #ccc; border: none; margin-left: 10px;">Close</button>
+
+    <div class="no-print" style="text-align: center; background: #333; padding: 10px;">
+        <button onclick="window.print()" style="padding: 10px 20px; font-weight: bold; cursor: pointer; background: #28a745; color: #fff; border: none; border-radius: 4px;">🖨️ Print A4 Portrait Report</button>
+        <button onclick="window.close()" style="padding: 10px 20px; font-weight: bold; cursor: pointer; background: #6c757d; color: #fff; border: none; border-radius: 4px; margin-left: 10px;">Close</button>
+
     </div>
 
     <div class="page">
-        <!-- // --- START: PRINT FIX --- -->
-        <div class="print-header">
-            <img src="<?php echo $logo_src; ?>" alt="TESP Logo" class="print-logo">
-            <div class="print-title-area">
-                <div style="font-size: 16pt; font-weight: bold; text-transform: uppercase;">TES Philippines, Inc.</div>
-                <div style="font-size: 14pt; font-weight: bold; text-transform: uppercase;">Performance Evaluation Report</div>
-            </div>
-            <div style="width: 80px;"></div>
+        <div class="header">
+            <img src="<?php echo $logo_src; ?>" style="max-height: 55px; margin-bottom: 5px;">
+            <div style="font-size: 16pt; font-weight: bold; letter-spacing: 1px;">TES PHILIPPINES, INC.</div>
+            <div style="font-size: 11pt; font-weight: bold; text-transform: uppercase;">Performance Evaluation Record</div>
         </div>
-        <!-- // --- END: PRINT FIX --- -->
 
         <table class="info-table">
             <tr>
                 <td class="label">Employee Name:</td>
-                <td style="width: 35%;"><?php echo htmlspecialchars($data['last_name'] . ', ' . $data['first_name']); ?></td>
+                <td><?php echo htmlspecialchars($data['last_name'] . ', ' . $data['first_name']); ?></td>
                 <td class="label">Employee ID:</td>
                 <td><?php echo htmlspecialchars($data['emp_id']); ?></td>
             </tr>
@@ -284,49 +235,68 @@ foreach ($logo_paths as $p) {
                 <td class="label">Job Title:</td>
                 <td><?php echo htmlspecialchars($data['job_title']); ?></td>
             </tr>
-            <tr>
-                <td class="label">Evaluation Date:</td>
-                <td><?php
-                    $evalTimestamp = $data['eval_date'] ? strtotime($data['eval_date']) : false;
-                    echo $evalTimestamp ? date('F d, Y', $evalTimestamp) : 'N/A';
-                    ?></td>
-                <td class="label">Evaluator:</td>
-                <td><?php echo htmlspecialchars($data['evaluator']); ?></td>
-            </tr>
+        </table>
+
+        <div style="font-size: 8.5pt; font-weight: bold; margin-bottom: 4px;">RATING SCALE REFERENCE:</div>
+        <table class="rating-legend">
+            <thead>
+                <tr>
+                    <th>Score Range</th>
+                    <th>90 - 100</th>
+                    <th>80 - 89</th>
+                    <th>70 - 79</th>
+                    <th>Below 70</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><strong>Adjective Rating</strong></td>
+                    <td>Excellent</td>
+                    <td>Very Satisfactory</td>
+                    <td>Satisfactory</td>
+                    <td>Needs Improvement</td>
+                </tr>
+            </tbody>
         </table>
 
         <div class="score-box">
-            <div style="font-size: 10pt; text-transform: uppercase; letter-spacing: 2px;">Overall Performance Score</div>
-            <div class="score-val"><?php echo htmlspecialchars($data['score']); ?> / 100</div>
-            <div class="rating-val"><?php echo htmlspecialchars($data['rating']); ?></div>
+            <div style="font-size: 8.5pt; letter-spacing: 1px; font-weight: bold;">OVERALL PERFORMANCE SCORE</div>
+            <div style="font-size: 30pt; font-weight: bold; margin: 5px 0;"><?php echo $data['score']; ?> / 100</div>
+            <div style="font-size: 12pt; font-weight: bold; border: 2px solid #000; display: inline-block; padding: 3px 20px; text-transform: uppercase;">
+                <?php echo $data['rating']; ?>
+            </div>
         </div>
 
-        <div class="section-title">EVALUATOR'S REMARKS / COMMENTS</div>
-        <div class="content-box"><?php echo nl2br(htmlspecialchars($data['remarks'] ?? 'N/A')); ?></div>
+        <div class="remarks-container">
+            <div class="section-title">Evaluator's Remarks / Comments</div>
+            <div class="content-box">
+                <?php echo nl2br(htmlspecialchars($data['remarks'] ?? 'No comments provided.')); ?>
+            </div>
+        </div>
 
         <div class="footer">
-            <table style="width: 100%;">
+            <table style="width: 100%; border: none;">
                 <tr>
-                    <td style="width: 50%; padding-right: 20px;">
-                        <div style="font-weight: bold;">Evaluated by:</div>
+                    <td style="width: 50%; vertical-align: top;">
+                        <div style="font-weight: bold; font-size: 10pt;">Evaluated by:</div>
                         <div class="sig-line"></div>
-                        <div style="font-weight: bold; text-transform: uppercase;"><?php echo htmlspecialchars($data['evaluator']); ?></div>
-                        <div style="font-size: 9pt;">Evaluator / Supervisor</div>
+                        <div style="text-transform: uppercase; font-weight: bold; font-size: 10pt;"><?php echo htmlspecialchars($data['evaluator']); ?></div>
+                        <div style="font-size: 9pt; color: #555;">Immediate Supervisor / Evaluator</div>
                     </td>
-                    <td style="width: 50%; padding-left: 20px;">
-                        <div style="font-weight: bold;">Acknowledged by:</div>
+                    <td style="width: 50%; vertical-align: top;">
+                        <div style="font-weight: bold; font-size: 10pt;">Acknowledged by:</div>
                         <div class="sig-line"></div>
-                        <div style="font-weight: bold; text-transform: uppercase;"><?php echo htmlspecialchars($data['first_name'] . ' ' . $data['last_name']); ?></div>
-                        <div style="font-size: 9pt;">Employee Signature</div>
+                        <div style="text-transform: uppercase; font-weight: bold; font-size: 10pt;"><?php echo htmlspecialchars($data['first_name'] . ' ' . $data['last_name']); ?></div>
+                        <div style="font-size: 9pt; color: #555;">Employee Signature / Date</div>
                     </td>
                 </tr>
             </table>
+            <div style="text-align: center; font-size: 8pt; color: #aaa; margin-top: 15px;">
+                HR Vault 201 System - Printed on <?php echo date('F j, Y, g:i A'); ?>
+            </div>
         </div>
     </div>
 
-    <script>
-        // Optional: Auto-print removed to allow preview
-    </script>
 </body>
 
 </html>

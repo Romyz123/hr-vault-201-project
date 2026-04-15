@@ -351,9 +351,10 @@ try {
     $data = [];
     foreach ($recruitOrder as $s) {
         $count = (int)($dbRecruit[$s] ?? 0);
-        // [UX] Always keep labels so the chart legend remains visible even if data is 0
-        $labels[] = $s;
-        $data[] = $count;
+        if ($count > 0) {
+            $labels[] = $s;
+            $data[] = $count;
+        }
     }
 
     // --- FETCH TABLE DATA ---
@@ -627,6 +628,7 @@ include 'header.php';
                 <div class="card-header d-flex align-items-center justify-content-between bg-dark text-white fw-bold">
                     <span><i class="bi bi-pie-chart-fill me-2"></i> Pipeline Breakdown</span>
                     <div class="d-flex gap-2">
+                        <button type="button" class="btn btn-sm btn-outline-light fw-bold" onclick="downloadPipelineImage()" title="Download Image"><i class="bi bi-download"></i> Image</button>
                         <button class="btn btn-sm btn-outline-light fw-bold" onclick="downloadPipelineData()" title="Download Data as CSV"><i class="bi bi-download"></i> CSV</button>
                     </div>
                 </div>
@@ -728,7 +730,7 @@ include 'header.php';
                         <th>Position</th>
                         <th>Contact Info</th>
                         <th>Status</th>
-                        <th class="no-print">Action</th>
+                        <th>Action</th>
                         <th>Last Follow-up</th>
                     </tr>
                 </thead>
@@ -791,7 +793,7 @@ include 'header.php';
                                     ?>
                                 <?php endif; ?>
                             </td>
-                            <td class="no-print">
+                            <td>
                                 <div class="btn-group btn-group-sm">
                                     <?php if ($isBlacklisted): ?>
                                         <button class="btn btn-secondary disabled" title="Cannot Hire: Candidate is Blacklisted" disabled><i class="bi bi-person-x-fill"></i></button>
@@ -1066,13 +1068,9 @@ include 'header.php';
             destCtx.drawImage(canvas, 0, 0);
 
             const link = document.createElement('a');
-            link.style.display = 'none';
             link.download = filename + '_' + new Date().toISOString().split('T')[0] + '.png';
             link.href = destinationCanvas.toDataURL('image/png');
-
-            document.body.appendChild(link);
             link.click();
-            document.body.removeChild(link);
 
             if (window.Swal) {
                 Swal.fire({
@@ -1450,6 +1448,7 @@ include 'header.php';
     }
 </script>
 <script src="assets/sweetalert2.all.min.js"></script>
+<script src="assets/dark_mode.js"></script>
 </body>
 
 </html>
