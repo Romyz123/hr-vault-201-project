@@ -37,9 +37,7 @@ try {
 $currentEmail = $currentUser['email'] ?? '';
 $currentQuestion = $currentUser['security_question'] ?? '';
 $hasCodes = !empty($currentUser['recovery_codes']) && $currentUser['recovery_codes'] !== '[]';
-
-// Show existing secret from DB, or a pending secret from the session if they are currently setting it up
-$currentTotpSecret = $currentUser['totp_secret'] ?? $_SESSION['pending_totp_secret'] ?? '';
+$currentTotpSecret = $currentUser['totp_secret'] ?? '';
 
 // Generate QR Code URL if secret exists
 $otpauthUrl = '';

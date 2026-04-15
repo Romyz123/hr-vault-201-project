@@ -1,7 +1,7 @@
 <?php
 // public/cron_backup.php
 // [PURPOSE] Command-line script for Windows Task Scheduler to backup DB + Vault + Keys
-// Usage: php C:\xampp\htdocs\hr 201\public\cron_backup.php
+// Usage: php C:\xampp\htdocs\hr-vault\public\cron_backup.php
 
 // Ensure we are in the right directory for relative includes
 chdir(__DIR__);

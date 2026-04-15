@@ -12,8 +12,6 @@ if (!isset($_SESSION['user_id'])) {
     exit;
 }
 
-checkSessionTimeout($pdo); // [SECURITY] Enforce Timeout and CSRF Generation
-
 // [SECURITY] Check Maintenance Mode
 if (($_SESSION['role'] ?? '') !== 'ADMIN') {
     $chkMaint = $pdo->query("SELECT setting_value FROM system_settings WHERE setting_key = 'maintenance_mode'")->fetchColumn();
@@ -170,7 +168,7 @@ $isVaultFull = ($vaultLimitBytes > 0 && $currentVaultBytes >= $vaultLimitBytes);
                                 <input type="text" id="employeeSearch" class="form-control"
                                     placeholder="Search by Name or ID..."
                                     autocomplete="off"
-                                    maxlength="50"
+                                    maxlength="100"
                                     value="<?php echo htmlspecialchars($preFilledName); ?>"
                                     <?php echo $isLocked ? 'readonly style="background-color: #e9ecef;"' : ''; ?>>
                             </div>

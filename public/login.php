@@ -28,7 +28,6 @@ if (isset($_SESSION['login_error'])) {
 }
 
 // [FIX] Calculate lockout state on every load so timers remain accurate after redirects
-// [SECURITY] Enforce session lockout globally
 if (isset($_SESSION['login_attempts']) && $_SESSION['login_attempts'] >= 5) {
     $lockout_time = 15 * 60; // 15 minutes
     $time_since_last = time() - ($_SESSION['last_login_attempt'] ?? 0);
@@ -81,7 +80,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
             $user = $stmt->fetch();
 
             // [SECURITY] 1. Check Account Lockout (10 Attempts)
-            // [SECURITY] Enforce account lockout globally
             if ($user && !empty($user['locked_until']) && new DateTime($user['locked_until']) > new DateTime()) {
                 $alertType = 'error';
                 $alertMsg = "❌ <strong>Account Locked</strong><br>Maximum failed attempts reached. Please contact Administrator.";
@@ -112,32 +110,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
                     $alertType = 'warning';
                     $alertMsg = "🛠️ <strong>System Under Maintenance</strong><br>Only Administrators can log in at this time. Please try again later.";
                 } else {
+                    // [NEW] 2FA Check (Enforced for ADMINs per MHI Sec 5.2)
                     $isLocalRequest = in_array($_SERVER['REMOTE_ADDR'], ['127.0.0.1', '::1']);
                     $requires2FA = false;
 
-                    // [SECURITY] Optional Enrollment Logic: (FIXED SYNTAX)
-                    // Only challenge 2FA if it is enabled AND the user has already configured their secret.
-                    // This prevents users from being locked out if they haven't set up their app yet.
-                    if (!empty($user['is_2fa_enabled']) && !empty($user['totp_secret'])) {
+                    // [SECURITY] Force 2FA Setup for ALL users if they haven't configured it yet
+                    if (empty($user['totp_secret'])) {
                         $requires2FA = true;
-                    }
-
-                    // If 2FA is required, check for a trusted device
-                    if ($requires2FA) {
+                    } elseif (($normalizedRole === 'ADMIN' && !$isLocalRequest) || !empty($user['is_2fa_enabled'])) {
+                        $requires2FA = true;
                         if (isset($_COOKIE['hr_trust_device'])) {
                             $tokenHash = hash('sha256', $_COOKIE['hr_trust_device']);
                             // Verify against DB
-                            if (hash_equals($user['trusted_device_token'], $tokenHash) && new DateTime($user['trusted_device_expires']) > new DateTime()) {
+                            if (hash_equals($user['trusted_device_token'], $tokenHash) && new DateTime($user['trusted_device_expires']) > new DateTime()) {                                // Trust valid - Skip OTP
                                 $requires2FA = false;
                             }
                         }
                     }
 
                     if ($requires2FA) {
-                        // [LOGGING] Record successful password match before 2FA challenge
-                        $logger = new Logger($pdo);
-                        $logger->log($user['id'], 'LOGIN_PASSWORD_MATCH', "Password verified; 2FA challenge issued.");
-
                         // [SECURITY] Reset session attempts on credential match
                         $_SESSION['login_attempts'] = 0;
                         unset($_SESSION['last_login_attempt']);
@@ -153,8 +144,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
                     $_SESSION['user_id'] = $user['id'];
                     $_SESSION['username'] = $user['username'];
                     $_SESSION['role'] = $normalizedRole; // [FIX] Normalize to uppercase to prevent Access Denied errors
-                    $_SESSION['login_time'] = time(); // [MHI 5.1.3 Req.5] Record absolute login time
-                    $_SESSION['2fa_enabled'] = !empty($user['totp_secret']);
 
                     // [SECURITY] Regenerate CSRF Token immediately after login
                     $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
@@ -223,9 +212,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
     <meta charset="UTF-8">
     <title>Login - TES Philippines HR</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <link href="assets/bootstrap.min.css?v=3" rel="stylesheet" nonce="<?= htmlspecialchars($cspNonce, ENT_QUOTES, 'UTF-8') ?>">
-    <link rel="stylesheet" href="assets/icons/bootstrap-icons.css?v=3" nonce="<?= htmlspecialchars($cspNonce, ENT_QUOTES, 'UTF-8') ?>">
-    <script src="assets/sweetalert2.all.min.js?v=3" nonce="<?= htmlspecialchars($cspNonce, ENT_QUOTES, 'UTF-8') ?>"></script>
+    <link href="assets/bootstrap.min.css?v=3" rel="stylesheet">
+    <link rel="stylesheet" href="assets/icons/bootstrap-icons.css?v=3">
+    <script src="assets/sweetalert2.all.min.js?v=3"></script>
     <?php
     $fav = '../uploads/favicon.png';
     if (!file_exists($fav)) $fav = '../uploads/tesp-logo.png';
@@ -233,7 +222,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
     <link rel="icon" type="image/png" href="<?= $fav ?>">
     <link rel="shortcut icon" type="image/png" href="<?= $fav ?>">
     <link rel="apple-touch-icon" href="<?= $fav ?>">
-    <style nonce="<?= htmlspecialchars($cspNonce, ENT_QUOTES, 'UTF-8') ?>">
+    <style>
         body {
             /* --- BACKGROUND THEMES (Uncomment the one you want to use) --- */
 
@@ -244,14 +233,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
             /* background: linear-gradient(135deg, #198754 0%, #146c43 100%); */
 
             /* OPTION 3: Clean Light Corporate Flat Color */
-            background-color: var(--bs-tertiary-bg);
+            background-color: #f4f6f9;
 
             /* OPTION 4: Background Image with Dark Overlay */
             /* background: linear-gradient(rgba(30, 60, 114, 0.8), rgba(42, 82, 152, 0.8)), url('uploads/company_bg.jpg') center/cover no-repeat fixed; */
         }
 
         .login-card {
-            border: 1px solid var(--bs-border-color);
+            border: none;
             border-radius: 16px;
             box-shadow: 0 15px 35px rgba(0, 0, 0, 0.4) !important;
             overflow: hidden;
@@ -269,17 +258,57 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
             border-top: 5px solid #198754;
             /* Brand Green */
             border-radius: 15px;
+            animation: slideUp 0.4s ease-out !important;
+        }
+
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes fadeInScale {
+            from {
+                opacity: 0;
+                transform: scale(0.95);
+            }
+
+            to {
+                opacity: 1;
+                transform: scale(1);
+            }
+        }
+
+        .swal2-show {
+            animation: fadeInScale 0.3s ease-out !important;
         }
 
         .swal2-confirm {
             background-color: #198754 !important;
             /* Brand Green */
             box-shadow: 0 0 0 3px rgba(25, 135, 84, 0.2) !important;
+            transition: all 0.3s ease;
+        }
+
+        .swal2-confirm:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(25, 135, 84, 0.4) !important;
         }
 
         .swal2-cancel {
             background-color: #6c757d !important;
             /* Grey */
+            transition: all 0.3s ease;
+        }
+
+        .swal2-cancel:hover {
+            background-color: #5a6268 !important;
         }
     </style>
 </head>
@@ -291,31 +320,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
         </button>
     </div>
 
-    <?php
-    // [NEW] Consistent Logo Discovery for Login
-    $logo_paths = [
-        __DIR__ . '/uploads/tesp-logo.png',
-        __DIR__ . '/assets/images/tesp-logo-1.png',
-        __DIR__ . '/../uploads/tesp-logo.png'
-    ];
-    $login_logo_src = '';
-    foreach ($logo_paths as $p) {
-        if (file_exists($p)) {
-            $ext = strtolower(pathinfo($p, PATHINFO_EXTENSION));
-            $mime = ($ext === 'png' ? 'image/png' : 'image/jpeg');
-            $login_logo_src = 'data:' . $mime . ';base64,' . base64_encode(file_get_contents($p));
-            break;
-        }
-    }
-    ?>
-
     <div class="card login-card" style="width: 100%; max-width: 400px;">
         <div class="card-header bg-primary text-white text-center py-4">
-            <img src="<?= $login_logo_src ?>" alt="TESP Logo" style="height: 50px; max-width: 100px; width: auto;" class="mb-2" onerror="this.style.display='none'">
+            <img src="../uploads/tesp-logo.png?v=<?= file_exists('../uploads/tesp-logo.png') ? filemtime('../uploads/tesp-logo.png') : time() ?>" alt="TESP Logo" style="height: 100px; width: auto;" class="mb-2">
             <h3 class="mt-2 fw-bold">HR 201 Vault</h3>
             <p class="mb-0 opacity-75">TES Philippines, Inc.</p>
         </div>
-        <div class="card-body p-4">
+        <div class="card-body p-4 bg-white">
 
             <form method="POST">
                 <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token); ?>">
@@ -344,7 +355,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
                     <a href="forgot_password.php" class="text-decoration-none small text-primary fw-bold">Forgot Password?</a>
                 </div>
 
-                <div class="mb-4 form-check bg-body-tertiary p-3 rounded border">
+                <div class="mb-4 form-check bg-light p-3 rounded border">
                     <input type="checkbox" name="terms_agreed" class="form-check-input" id="termsCheck">
                     <label class="form-check-label small text-muted lh-sm" for="termsCheck">
                         <strong>Confidentiality Pledge:</strong><br>
@@ -353,8 +364,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
                 </div>
 
                 <div class="d-grid">
-                    <button type="submit" name="login" id="loginBtn" class="btn btn-success btn-lg shadow-sm" disabled>
-                        Secure Login <i class="bi bi-lock-fill"></i>
+                    <button type="submit" name="login" id="loginBtn" class="btn btn-success btn-lg shadow-sm">
+                        Secure Login <i class="bi bi-arrow-right"></i>
                     </button>
                 </div>
             </form>
@@ -365,22 +376,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
         </div>
     </div>
 
-    <script nonce="<?= htmlspecialchars($cspNonce, ENT_QUOTES, 'UTF-8') ?>">
-        // [SCRIPT] Toggle Login Button based on Checkbox
-        const termsCheck = document.getElementById('termsCheck');
-        const loginBtn = document.getElementById('loginBtn');
-        const icon = loginBtn.querySelector('i');
-
-        termsCheck.addEventListener('change', function() {
-            if (this.checked) {
-                loginBtn.disabled = false;
-                loginBtn.innerHTML = 'Secure Login <i class="bi bi-arrow-right"></i>';
-            } else {
-                loginBtn.disabled = true;
-                loginBtn.innerHTML = 'Secure Login <i class="bi bi-lock-fill"></i>';
-            }
-        });
-
+    <script>
         // [SCRIPT] Toggle Password Visibility
         function toggleLoginPass(btn) {
             const input = document.getElementById('loginPass');

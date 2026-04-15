@@ -1,4 +1,5 @@
 <?php
+// --- START: UI REPAIR ---
 // public/print_tracker.php
 require '../config/db.php';
 session_start();
@@ -196,17 +197,13 @@ foreach ($logo_paths as $p) {
         <button onclick="window.close()" style="padding: 10px 20px; cursor: pointer;">Close</button>
     </div>
 
-    <div class="header">
-        <?php if (!empty($logo_src)): ?>
-            <img src="<?php echo htmlspecialchars($logo_src); ?>" alt="Company Logo" style="height: 60px; display: block; margin: 0 auto 10px auto;">
-        <?php endif; ?> <h2>Document Compliance Report</h2>
-        <p>
-            Date: <?php echo date('F d, Y'); ?><br>
-            Filter: <?php echo $compliance ? ucfirst(str_replace('_', ' ', $compliance)) : 'All'; ?> |
-            Agency: <?php echo $type ? htmlspecialchars($type) : 'All'; ?> |
-            Dept: <?php echo $dept ? htmlspecialchars($dept) : 'All'; ?>
-        </p>
+    <!-- // --- START: PRINT FIX --- -->
+    <div class="print-header">
+        <img src="<?php echo $logo_src; ?>" alt="TESP Logo" class="print-logo">
+        <div style="font-size: 16pt; font-weight: bold; text-transform: uppercase;">TES Philippines, Inc.</div>
+        <div style="font-size: 14pt; font-weight: bold; text-transform: uppercase;">Document Compliance Report</div>
     </div>
+    <!-- // --- END: PRINT FIX --- -->
 
     <table>
         <thead>

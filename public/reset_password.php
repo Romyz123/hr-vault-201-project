@@ -1,6 +1,5 @@
 <?php
 require '../config/db.php';
-require '../src/Validator.php'; // [NEW] Required for complexity check
 session_start();
 $msg = '';
 $error = '';
@@ -58,11 +57,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             if ($pass !== $confirm) {
                 $error = "Passwords do not match.";
                 $step = 'reset';
-            } elseif (strlen($pass) > 128) {
-                $error = "Password exceeds maximum length of 128 characters.";
-                $step = 'reset';
-            } elseif (($complexError = Validator::validatePasswordComplexity($pass)) !== null) {
-                $error = $complexError;
+            } elseif (strlen($pass) < 15 || strlen($pass) > 128 || !preg_match('/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_])/', $pass)) {
+                $error = "Password must be 15+ chars, with Uppercase, Lowercase, Number & Symbol.";
                 $step = 'reset';
             } elseif (stripos($pass, $user['username']) !== false) {
                 $error = "Password cannot contain your Username.";

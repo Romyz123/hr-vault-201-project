@@ -1,4 +1,5 @@
 <?php
+// --- START: UI REPAIR ---
 // ======================================================
 // [FILE] public/print_list.php
 // [STATUS] DESIGN: Original (Restored) | LOGIC: Fixed
@@ -143,6 +144,31 @@ if (empty($logo_src)) {
             }
         }
 
+        /* // --- START: PRINT FIX --- */
+        .print-logo {
+            max-height: 70px;
+        }
+
+        @media print {
+            .print-logo {
+                max-height: 70px !important;
+                width: auto !important;
+                display: block !important;
+                margin: 0 auto 10px auto !important;
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+            }
+
+            .print-header {
+                text-align: center !important;
+                border-bottom: 2px solid #000 !important;
+                margin-bottom: 20px !important;
+                padding-bottom: 10px !important;
+            }
+        }
+
+        /* // --- END: PRINT FIX --- */
+
         body {
             background: #eee;
         }
@@ -173,21 +199,13 @@ if (empty($logo_src)) {
     </div>
 
     <div class="page">
-        <div class="d-flex justify-content-between align-items-end mb-4 border-bottom pb-2">
-            <div class="d-flex align-items-center gap-3">
-                <?php if (!empty($logo_src)): ?>
-                    <img src="<?php echo htmlspecialchars($logo_src); ?>" alt="TES Philippines Logo" style="height: 60px; object-fit: contain;">
-                <?php endif; ?>
-                <div>
-                    <h2 class="fw-bold mb-0">TES PHILIPPINES</h2>
-                    <h5 class="text-muted mb-0">Master Employee List</h5>
-                </div>
-            </div>
-            <div class="text-end">
-                <small class="text-muted">Generated on: <?php echo date('M d, Y'); ?></small><br>
-                <small class="text-muted">Total Records: <strong><?php echo count($employees); ?></strong></small>
-            </div>
+        <!-- // --- START: PRINT FIX --- -->
+        <div class="print-header">
+            <img src="<?php echo $logo_src; ?>" alt="TESP Logo" class="print-logo">
+            <div style="font-size: 16pt; font-weight: bold; text-transform: uppercase;">TES Philippines, Inc.</div>
+            <div style="font-size: 14pt; font-weight: bold; text-transform: uppercase;">Master Employee List</div>
         </div>
+        <!-- // --- END: PRINT FIX --- -->
 
         <table class="table table-bordered table-striped table-sm">
             <thead class="table-dark">
@@ -228,3 +246,5 @@ if (empty($logo_src)) {
 </body>
 
 </html>
+<?php // --- END: UI REPAIR --- 
+?>

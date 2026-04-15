@@ -354,17 +354,57 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             border-top: 5px solid #198754;
             /* Brand Green */
             border-radius: 15px;
+            animation: slideUp 0.4s ease-out !important;
+        }
+
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes fadeInScale {
+            from {
+                opacity: 0;
+                transform: scale(0.95);
+            }
+
+            to {
+                opacity: 1;
+                transform: scale(1);
+            }
+        }
+
+        .swal2-show {
+            animation: fadeInScale 0.3s ease-out !important;
         }
 
         .swal2-confirm {
             background-color: #198754 !important;
             /* Brand Green */
             box-shadow: 0 0 0 3px rgba(25, 135, 84, 0.2) !important;
+            transition: all 0.3s ease;
+        }
+
+        .swal2-confirm:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(25, 135, 84, 0.4) !important;
         }
 
         .swal2-cancel {
             background-color: #6c757d !important;
             /* Grey */
+            transition: all 0.3s ease;
+        }
+
+        .swal2-cancel:hover {
+            background-color: #5a6268 !important;
         }
 
         /* Camera overlay / cropping guide */
@@ -432,11 +472,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <div class="row g-3 mb-4">
                         <div class="col-md-3">
                             <label class="form-label">Employee ID <span class="text-danger">*</span></label>
-                            <input type="text" name="emp_id" id="emp_id_input" class="form-control" required maxlength="20"
+                            <input type="text" name="emp_id" class="form-control" required maxlength="20"
                                 placeholder="e.g. 2026-001" value="<?php echo old('emp_id', $_GET['emp_id'] ?? ''); ?>"
-                                autocomplete="off" pattern="[A-Z0-9\-_]+" title="Allowed: Letters, Numbers, - and _" oninput="this.value = this.value.toUpperCase().replace(/[^A-Z0-9\-_]/g, ''); checkSimilarId(this.value)">
+                                autocomplete="off" pattern="[A-Za-z0-9\-_]+" title="Allowed: Letters, Numbers, - and _" oninput="this.value = this.value.replace(/[^A-Za-z0-9\-_]/g, '')">
                             <div class="form-text extra-small">Allowed: Letters, Numbers, - and _</div>
-                            <div id="similarIdWarning" class="mt-1 small text-warning fw-bold" style="display:none;"></div>
                         </div>
                         <div class="col-md-3">
                             <label class="form-label">Job Title <span class="text-danger">*</span></label>
@@ -713,32 +752,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     <script src="assets/bootstrap.bundle.min.js"></script>
     <script src="assets/sweetalert2.all.min.js"></script>
-    <script>
-        // [NEW] Real-time Similar ID Check
-        function checkSimilarId(val) {
-            const warningDiv = document.getElementById('similarIdWarning');
-            if (val.length < 3) {
-                warningDiv.style.display = 'none';
-                return;
-            }
-
-            fetch(`api/check_emp_id.php?id=${encodeURIComponent(val)}`)
-                .then(r => r.json())
-                .then(data => {
-                    if (data.similar && data.similar.length > 0) {
-                        let list = data.similar.map(e => `${e.emp_id} (${e.last_name})`).join(', ');
-                        warningDiv.innerHTML = `<i class="bi bi-exclamation-triangle"></i> Similar IDs found: ${list}`;
-                        warningDiv.style.display = 'block';
-                    } else {
-                        warningDiv.style.display = 'none';
-                    }
-                })
-                .catch(err => {
-                    console.error('ID check failed:', err);
-                    warningDiv.style.display = 'none';
-                });
-        }
-    </script>
     <script src="dark_mode.js"></script>
     <script>
         // 1. FRIENDLY NAME MAPPING

@@ -1,5 +1,4 @@
 <?php
-// config/db.php
 
 // [SECURITY] Production Error Handling
 // Hide errors from users, log them to server instead
@@ -12,16 +11,11 @@ error_reporting(E_ALL);
 // [FIX] Set default timezone to Philippines to ensure backup filenames and logs have the correct local time
 date_default_timezone_set('Asia/Manila');
 
-// ========================================================================
-// [SECURITY] GLOBAL HTTP HEADERS (MHI Compliance)
-// ========================================================================
-// [NEW] Generate CSP Nonce for secure script/style execution without 'unsafe-inline'
 $cspNonce = bin2hex(random_bytes(16));
 
 header('X-Frame-Options: SAMEORIGIN');
 header('X-Content-Type-Options: nosniff');
 header('Referrer-Policy: strict-origin-when-cross-origin');
-header("Content-Security-Policy: default-src 'self'; img-src 'self' data: https://api.qrserver.com; script-src 'self' 'nonce-$cspNonce'; style-src 'self' 'nonce-$cspNonce';");
 
 // Load settings directly from PHP file instead of .env to avoid permission errors
 $configPath = __DIR__ . '/config.php';

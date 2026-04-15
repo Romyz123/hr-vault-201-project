@@ -170,7 +170,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                         'status',
                         'exit_date',
                         'exit_reason',
-                        'resignation_label',
                         'avatar_path'
                     ];
                     $filteredData = array_intersect_key($data, array_flip($allowedColumns));
@@ -215,7 +214,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                     // SAFETY: Remove the note so it doesn't break the SQL UPDATE
                     unset($profileData['request_note']);
 
-                    $allowedColumns = ['emp_id', 'first_name', 'middle_name', 'last_name', 'job_title', 'system_role', 'dept', 'section', 'employment_type', 'agency_name', 'company_name', 'previous_company', 'hire_date', 'gender', 'birth_date', 'contact_number', 'email', 'present_address', 'permanent_address', 'sss_no', 'tin_no', 'pagibig_no', 'philhealth_no', 'emergency_name', 'emergency_contact', 'emergency_address', 'education', 'experience', 'skills', 'licenses', 'status', 'exit_date', 'exit_reason', 'resignation_label', 'avatar_path'];
+                    $allowedColumns = ['emp_id', 'first_name', 'middle_name', 'last_name', 'job_title', 'system_role', 'dept', 'section', 'employment_type', 'agency_name', 'company_name', 'previous_company', 'hire_date', 'gender', 'birth_date', 'contact_number', 'email', 'present_address', 'permanent_address', 'sss_no', 'tin_no', 'pagibig_no', 'philhealth_no', 'emergency_name', 'emergency_contact', 'emergency_address', 'education', 'experience', 'skills', 'licenses', 'status', 'exit_date', 'exit_reason', 'avatar_path'];
                     $filteredData = array_intersect_key($profileData, array_flip($allowedColumns));
                     if (!empty($filteredData)) {
                         $setParts = [];
@@ -597,6 +596,7 @@ function renderTable($requests, $type)
 ?>
 
 <script src="assets/bootstrap.bundle.min.js"></script>
+<script src="dark_mode.js"></script>
 <script>
     document.addEventListener("DOMContentLoaded", function() {
         const urlParams = new URLSearchParams(window.location.search);
@@ -778,7 +778,7 @@ function renderTable($requests, $type)
                 content += `<div class="mb-3">
                                 <span class="badge bg-info text-dark mb-2">Comparison View</span>
                                 <table class="table table-bordered table-sm small">
-                                    <thead>
+                                    <thead class="table-light">
                                         <tr>
                                             <th style="width: 20%;">Field</th>
                                             <th>Proposed Changes (Old vs New)</th>

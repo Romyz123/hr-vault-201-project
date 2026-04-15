@@ -886,453 +886,511 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['undo_batch'])) {
 // Fetch history for the table below
 $history = $pdo->query("SELECT import_batch, MAX(agency_name) as agency_name, COUNT(*) as count, MAX(created_at) as time FROM employees WHERE import_batch IS NOT NULL GROUP BY import_batch ORDER BY time DESC LIMIT 5")->fetchAll(PDO::FETCH_ASSOC);
 ?>
-<?php require 'header.php'; ?>
-<style>
-    .format-box {
-        display: none;
-    }
 
-    .table-responsive::-webkit-scrollbar {
-        height: 8px;
-    }
+<!DOCTYPE html>
+<html lang="en">
 
-    .table-responsive::-webkit-scrollbar-track {
-        background: rgba(0, 0, 0, 0.05);
-        border-radius: 4px;
-    }
+<head>
+    <meta charset="UTF-8">
+    <title>Import Employees</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="icon" href="uploads/tesp-logo.png" type="image/png">
+    <link href="assets/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="assets/icons/bootstrap-icons.css">
+    <script src="assets/sweetalert2.all.min.js"></script>
+    <link rel="shortcut icon" type="image/png" href="uploads/tesp-logo.png">
+    <link rel="apple-touch-icon" href="uploads/tesp-logo.png">
+    <style>
+        .format-box {
+            display: none;
+        }
 
-    .table-responsive::-webkit-scrollbar-thumb {
-        background: rgba(0, 0, 0, 0.2);
-        border-radius: 4px;
-    }
+        /* Custom scrollbar to make horizontal scrolling obvious and professional */
+        .table-responsive::-webkit-scrollbar {
+            height: 8px;
+        }
 
-    .table-responsive::-webkit-scrollbar-thumb:hover {
-        background: rgba(0, 0, 0, 0.3);
-    }
-</style>
-<div class="container">
+        .table-responsive::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.05);
+            border-radius: 4px;
+        }
 
-    <div id="instr_tesp" class="alert alert-info shadow-sm mb-4 format-box bg-body-tertiary border-info">
-        <div class="d-flex justify-content-between align-items-center mb-2">
-            <h6 class="fw-bold mb-0">Standard Format (TESP / GUNJIN)</h6>
-            <a href="download_template.php?type=TESP" class="btn btn-sm btn-info fw-bold text-dark"><i class="bi bi-download"></i> Download Template</a>
-        </div>
-        <div class="table-responsive scroll-horizontal rounded border shadow-sm bg-body">
-            <table class="table table-sm small table-bordered mb-0 table-hover" style="white-space: nowrap;">
-                <thead>
-                    <tr>
-                        <th>NO.</th>
-                        <th>EMPLOYEE CODE</th>
-                        <th>PICTURE</th>
-                        <th>NAME</th>
-                        <th>SECTION</th>
-                        <th>CONTACT DETAILS:</th>
-                        <th>BIRTHDAY</th>
-                        <th>DATE OF HIRED</th>
-                        <th>SSS</th>
-                        <th>TIN</th>
-                        <th>PAG-IBIG</th>
-                        <th>PHILHEALTH</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr class="text-muted fst-italic">
-                        <td>1</td>
-                        <td>TESP-001</td>
-                        <td></td>
-                        <td>Doe, John</td>
-                        <td>SQP</td>
-                        <td>09123456789</td>
-                        <td>1990-01-01</td>
-                        <td>2023-01-01</td>
-                        <td></td>
-                        <td></td>
-                        <td></td>
-                        <td></td>
-                    </tr>
-                </tbody>
-            </table>
-        </div>
-    </div>
+        .table-responsive::-webkit-scrollbar-thumb {
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 4px;
+        }
 
-    <div id="instr_unli" class="alert alert-warning shadow-sm mb-4 format-box">
-        <div class="d-flex justify-content-between align-items-center mb-2">
-            <h6 class="fw-bold mb-0">UnliSolutions Format</h6>
-            <a href="download_template.php?type=UNLISOLUTIONS" class="btn btn-sm btn-warning fw-bold text-dark"><i class="bi bi-download"></i> Download Template</a>
-        </div>
-        <div class="table-responsive scroll-horizontal rounded border shadow-sm">
-            <table class="table table-sm small table-bordered mb-0" style="white-space: nowrap;">
-                <thead class="table-light">
-                    <tr>
-                        <th>NO</th>
-                        <th>ID</th>
-                        <th>PIC</th>
-                        <th>NAME</th>
-                        <th>POSITION</th>
-                        <th>SECTION</th>
-                        <th>CONTACT</th>
-                        <th>BDAY</th>
-                        <th>HIRED</th>
-                        <th>SSS</th>
-                        <th>TIN</th>
-                        <th>PAGIBIG</th>
-                        <th>PHILHEALTH</th>
-                        <th>ADDRESS</th>
-                        <th>EMAIL</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr class="text-muted fst-italic">
-                        <td>1</td>
-                        <td>UNLI-001</td>
-                        <td></td>
-                        <td>Doe, John</td>
-                        <td>Staff</td>
-                        <td>ADMIN</td>
-                        <td>09123456789</td>
-                        <td>1990-01-01</td>
-                        <td>2023-01-01</td>
-                        <td></td>
-                        <td></td>
-                        <td></td>
-                        <td></td>
-                        <td></td>
-                        <td>john@example.com</td>
-                    </tr>
-                </tbody>
-            </table>
-        </div>
-    </div>
+        .table-responsive::-webkit-scrollbar-thumb:hover {
+            background: rgba(0, 0, 0, 0.3);
+        }
+    </style>
+</head>
 
-    <div id="instr_jora" class="alert alert-success shadow-sm mb-4 format-box">
-        <div class="d-flex justify-content-between align-items-center mb-2">
-            <h6 class="fw-bold mb-0">Joratech Format (Special)</h6>
-            <a href="download_template.php?type=JORATECH" class="btn btn-sm btn-success fw-bold text-white"><i class="bi bi-download"></i> Download Template</a>
-        </div>
-        <div class="table-responsive scroll-horizontal rounded border shadow-sm">
-            <table class="table table-sm small table-bordered mb-0" style="white-space: nowrap;">
-                <thead class="table-light">
-                    <tr>
-                        <th>NO</th>
-                        <th>SECTION</th>
-                        <th>POSITION</th>
-                        <th>DATE HIRED</th>
-                        <th>NUM</th>
-                        <th>PIC</th>
-                        <th>NAME</th>
-                        <th>CODE</th>
-                        <th>CONTRACT</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr class="text-muted fst-italic">
-                        <td>1</td>
-                        <td>MAINTENANCE</td>
-                        <td>Technician</td>
-                        <td>2023-01-15</td>
-                        <td></td>
-                        <td></td>
-                        <td>Doe, John</td>
-                        <td>JOR-001</td>
-                        <td>Project</td>
-                    </tr>
-                </tbody>
-            </table>
-        </div>
-    </div>
+<body class="bg-body-tertiary">
 
-    <div id="instr_custom" class="alert alert-secondary shadow-sm mb-4 format-box">
-        <div class="d-flex justify-content-between align-items-center mb-2">
-            <h6 class="fw-bold mb-0">Custom Format (Microsoft/Google Forms)</h6>
-            <a href="download_template.php?type=CUSTOM" class="btn btn-sm btn-dark fw-bold text-white"><i class="bi bi-file-earmark-excel"></i> Download Excel Template</a>
-        </div>
-        <p class="small mb-2">The system will perfectly map 25 fields. Ensure these standard headers are present in Row 1:</p>
-        <div class="table-responsive scroll-horizontal rounded border shadow-sm pb-1">
-            <table class="table table-sm small table-bordered mb-0" style="white-space: nowrap;">
-                <thead class="table-secondary text-center align-middle">
-                    <tr class="table-dark text-white">
-                        <th colspan="4">Employee Name</th>
-                        <th colspan="3">Demographics</th>
-                        <th colspan="4">Contact & Address</th>
-                        <th colspan="4">Government IDs</th>
-                        <th colspan="3">Emergency Contact</th>
-                        <th colspan="4">Job Details</th>
-                        <th colspan="3">Qualifications</th>
-                    </tr>
-                    <tr>
-                        <th>First Name</th>
-                        <th>Middle Name</th>
-                        <th>Last Name</th>
-                        <th>Suffix</th>
-                        <th>Date of Birth</th>
-                        <th>Gender</th>
-                        <th>Civil Status</th>
-                        <th>Mobile Number</th>
-                        <th>Personal Email Address</th>
-                        <th>Complete Present Address</th>
-                        <th>Complete Permanent Address</th>
-                        <th>SSS Number</th>
-                        <th>Pag-IBIG (HDMF) Number</th>
-                        <th>PhilHealth Number</th>
-                        <th>TIN (Tax Identification Number)</th>
-                        <th>Emergency Contact Name</th>
-                        <th>Emergency Contact Number</th>
-                        <th>Emergency Contact Address</th>
-                        <th>Employee ID Number</th>
-                        <th>Department</th>
-                        <th>Position / Job Title</th>
-                        <th>Date Hired</th>
-                        <th>Education Attainment</th>
-                        <th>JobExperience</th>
-                        <th>Licenses / Certifications</th>
-                    </tr>
-                </thead>
-                <tbody class="text-center">
-                    <tr class="text-muted fst-italic">
-                        <td>Juan</td>
-                        <td>Dela</td>
-                        <td>Cruz</td>
-                        <td></td>
-                        <td>1/15/1990</td>
-                        <td>Man</td>
-                        <td>Single</td>
-                        <td>09123456789</td>
-                        <td>juan.delacruz@example.com</td>
-                        <td>123 Main St, Quezon City</td>
-                        <td>Same as present</td>
-                        <td>12-3456789-0</td>
-                        <td>1234-5678-9012</td>
-                        <td>12-345678901-2</td>
-                        <td>123-456-789-000</td>
-                        <td>Maria Cruz</td>
-                        <td>09987654321</td>
-                        <td>123 Main St, Quezon City</td>
-                        <td>CUST-001</td>
-                        <td>ADMIN</td>
-                        <td>Staff</td>
-                        <td>5/1/2024</td>
-                        <td>BS Computer Science</td>
-                        <td>Jolibee Crew</td>
-                        <td>Civil Service Professional</td>
-                    </tr>
-                </tbody>
-            </table>
-        </div>
-    </div>
-
-    <div class="card shadow mb-4">
-        <div class="card-header bg-success text-white">
-            <h5 class="mb-0"><i class="bi bi-file-earmark-spreadsheet"></i> Bulk Import</h5>
-        </div>
-        <div class="card-body">
-
-            <form method="POST" enctype="multipart/form-data" id="importForm">
-                <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
-                <div class="row g-3">
-                    <div class="col-md-6">
-                        <label class="form-label fw-bold">Select CSV Layout (Format)</label>
-                        <select name="agency_select" id="agency_select" class="form-select border-success" onchange="toggleFormat()" required>
-                            <option value="">-- Choose Format --</option>
-                            <option value="STANDARD">Standard Format (TESP / Others)</option>
-                            <option value="UNLISOLUTIONS">UnliSolutions Format</option>
-                            <option value="JORATECH">Joratech Format</option>
-                            <option value="CUSTOM">Custom Form (Detect Headers)</option>
-                        </select>
-                    </div>
-
-                    <div class="col-md-6" id="target_agency_container">
-                        <label class="form-label fw-bold text-primary">Assign to Agency <span class="text-danger">*</span></label>
-                        <select name="target_agency" id="target_agency" class="form-select border-primary" required>
-                            <option value="">-- Select Agency --</option>
-                            <?php foreach ($agencies as $a): ?>
-                                <option value="<?php echo htmlspecialchars($a); ?>"><?php echo htmlspecialchars($a); ?></option>
-                            <?php endforeach; ?>
-                        </select>
-                        <div class="form-text small">All employees in this import will be assigned to this agency.</div>
-                    </div>
-
-                    <div class="col-md-6">
-                        <label class="form-label fw-bold">Upload CSV</label>
-                        <input type="file" name="csv_file" class="form-control" accept=".csv" required>
-                    </div>
-                    <div class="col-12">
-                        <div class="form-check">
-                            <input class="form-check-input" type="checkbox" name="update_existing" id="updateCheck" value="1">
-                            <label class="form-check-label text-primary fw-bold" for="updateCheck">
-                                <i class="bi bi-arrow-repeat"></i> Update existing employees?
-                            </label>
-                            <div class="form-text small">If checked, employees with matching IDs will be updated with the new info from the CSV. If unchecked, they will be skipped.</div>
-                        </div>
-                    </div>
-                </div>
-                <div class="d-grid gap-2 mt-3">
-                    <button type="submit" class="btn btn-success btn-lg"><i class="bi bi-cloud-upload"></i> Upload & Import</button>
-                    <a href="index.php" class="btn btn-secondary">Back to Dashboard</a>
-                </div>
-            </form>
-        </div>
-    </div>
-
-    <?php if (count($history) > 0): ?>
-        <div class="card shadow border-danger">
-            <div class="card-header bg-danger text-white">
-                <h6 class="mb-0">Undo Recent Imports</h6>
+    <nav class="navbar navbar-dark bg-dark mb-4">
+        <div class="container">
+            <a class="navbar-brand" href="index.php">Back to Dashboard</a>
+            <div class="d-flex align-items-center gap-2">
+                <button id="darkModeToggle" class="btn btn-sm btn-outline-light border-0" title="Toggle Dark Mode">
+                    <i class="bi bi-moon-stars-fill"></i>
+                </button>
+                <span class="navbar-text text-white"><i class="bi bi-file-spreadsheet"></i> Bulk Import</span>
             </div>
-            <div class="card-body p-0 table-responsive">
-                <table class="table table-striped mb-0">
-                    <thead>
+        </div>
+    </nav>
+
+    <div class="container">
+
+        <div id="instr_tesp" class="alert alert-info shadow-sm mb-4 format-box">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <h6 class="fw-bold mb-0">Standard Format (TESP / GUNJIN)</h6>
+                <a href="download_template.php?type=TESP" class="btn btn-sm btn-info fw-bold text-dark"><i class="bi bi-download"></i> Download Template</a>
+            </div>
+            <div class="table-responsive scroll-horizontal rounded border shadow-sm">
+                <table class="table table-sm small table-bordered mb-0" style="white-space: nowrap;">
+                    <thead class="table-light">
                         <tr>
-                            <th>Date</th>
-                            <th>Agency</th>
-                            <th>Count</th>
-                            <th>Action</th>
+                            <th>NO.</th>
+                            <th>EMPLOYEE CODE</th>
+                            <th>PICTURE</th>
+                            <th>NAME</th>
+                            <th>SECTION</th>
+                            <th>CONTACT DETAILS:</th>
+                            <th>BIRTHDAY</th>
+                            <th>DATE OF HIRED</th>
+                            <th>SSS</th>
+                            <th>TIN</th>
+                            <th>PAG-IBIG</th>
+                            <th>PHILHEALTH</th>
                         </tr>
                     </thead>
                     <tbody>
-                        <?php foreach ($history as $h):
-                            // Calculate Time Remaining for Undo
-                            $importTime = strtotime($h['time']);
-                            $elapsed = time() - $importTime;
-                            $limit = 7 * 60 * 60; // 7 hours in seconds
-                            $canUndo = $elapsed < $limit;
-                            $remMinutes = ceil(($limit - $elapsed) / 60);
-                            $remHours = floor($remMinutes / 60);
-                            $remMins = $remMinutes % 60;
-                            $timeLeftStr = $remHours > 0 ? "{$remHours}h {$remMins}m" : "{$remMins}m";
-                        ?>
-                            <tr>
-                                <td><?php echo date('M d, h:i A', $importTime); ?></td>
-                                <td><?php echo htmlspecialchars($h['agency_name']); ?></td>
-                                <td><?php echo $h['count']; ?></td>
-                                <td>
-                                    <?php if ($canUndo && in_array($_SESSION['role'], ['ADMIN', 'MANAGER'])): ?>
-                                        <!-- ACTIVE BUTTON -->
-                                        <form method="POST">
-                                            <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
-                                            <input type="hidden" name="undo_batch" value="<?php echo htmlspecialchars($h['import_batch'], ENT_QUOTES, 'UTF-8'); ?>">
-                                            <button type="button" class="btn btn-sm btn-outline-danger" onclick="confirmUndo(this)">Undo</button>
-                                        </form>
-                                        <div class="text-success small fw-bold mt-1">
-                                            <i class="bi bi-clock-history"></i> <?php echo $timeLeftStr; ?> left
-                                        </div>
-                                    <?php else: ?>
-                                        <!-- LOCKED BUTTON -->
-                                        <button class="btn btn-sm btn-secondary disabled" disabled>
-                                            <i class="bi bi-lock-fill"></i> Locked
-                                        </button>
-                                        <div class="text-muted small mt-1">Time limit exceeded</div>
-                                    <?php endif; ?>
-                                </td>
-                            </tr>
-                        <?php endforeach; ?>
+                        <tr class="text-muted fst-italic">
+                            <td>1</td>
+                            <td>TESP-001</td>
+                            <td></td>
+                            <td>Doe, John</td>
+                            <td>SQP</td>
+                            <td>09123456789</td>
+                            <td>1990-01-01</td>
+                            <td>2023-01-01</td>
+                            <td></td>
+                            <td></td>
+                            <td></td>
+                            <td></td>
+                        </tr>
                     </tbody>
                 </table>
             </div>
         </div>
-    <?php endif; ?>
 
-</div>
+        <div id="instr_unli" class="alert alert-warning shadow-sm mb-4 format-box">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <h6 class="fw-bold mb-0">UnliSolutions Format</h6>
+                <a href="download_template.php?type=UNLISOLUTIONS" class="btn btn-sm btn-warning fw-bold text-dark"><i class="bi bi-download"></i> Download Template</a>
+            </div>
+            <div class="table-responsive scroll-horizontal rounded border shadow-sm">
+                <table class="table table-sm small table-bordered mb-0" style="white-space: nowrap;">
+                    <thead class="table-light">
+                        <tr>
+                            <th>NO</th>
+                            <th>ID</th>
+                            <th>PIC</th>
+                            <th>NAME</th>
+                            <th>POSITION</th>
+                            <th>SECTION</th>
+                            <th>CONTACT</th>
+                            <th>BDAY</th>
+                            <th>HIRED</th>
+                            <th>SSS</th>
+                            <th>TIN</th>
+                            <th>PAGIBIG</th>
+                            <th>PHILHEALTH</th>
+                            <th>ADDRESS</th>
+                            <th>EMAIL</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr class="text-muted fst-italic">
+                            <td>1</td>
+                            <td>UNLI-001</td>
+                            <td></td>
+                            <td>Doe, John</td>
+                            <td>Staff</td>
+                            <td>ADMIN</td>
+                            <td>09123456789</td>
+                            <td>1990-01-01</td>
+                            <td>2023-01-01</td>
+                            <td></td>
+                            <td></td>
+                            <td></td>
+                            <td></td>
+                            <td></td>
+                            <td>john@example.com</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
 
-<script>
-    function toggleFormat() {
-        const format = document.getElementById('agency_select').value;
-        const targetAgencyBox = document.getElementById('target_agency_container');
-        const targetAgencySelect = document.getElementById('target_agency');
+        <div id="instr_jora" class="alert alert-success shadow-sm mb-4 format-box">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <h6 class="fw-bold mb-0">Joratech Format (Special)</h6>
+                <a href="download_template.php?type=JORATECH" class="btn btn-sm btn-success fw-bold text-white"><i class="bi bi-download"></i> Download Template</a>
+            </div>
+            <div class="table-responsive scroll-horizontal rounded border shadow-sm">
+                <table class="table table-sm small table-bordered mb-0" style="white-space: nowrap;">
+                    <thead class="table-light">
+                        <tr>
+                            <th>NO</th>
+                            <th>SECTION</th>
+                            <th>POSITION</th>
+                            <th>DATE HIRED</th>
+                            <th>NUM</th>
+                            <th>PIC</th>
+                            <th>NAME</th>
+                            <th>CODE</th>
+                            <th>CONTRACT</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr class="text-muted fst-italic">
+                            <td>1</td>
+                            <td>MAINTENANCE</td>
+                            <td>Technician</td>
+                            <td>2023-01-15</td>
+                            <td></td>
+                            <td></td>
+                            <td>Doe, John</td>
+                            <td>JOR-001</td>
+                            <td>Project</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
 
-        document.querySelectorAll('.format-box').forEach(el => el.style.display = 'none');
+        <div id="instr_custom" class="alert alert-secondary shadow-sm mb-4 format-box">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <h6 class="fw-bold mb-0">Custom Format (Microsoft/Google Forms)</h6>
+                <a href="download_template.php?type=CUSTOM" class="btn btn-sm btn-dark fw-bold text-white"><i class="bi bi-file-earmark-excel"></i> Download Excel Template</a>
+            </div>
+            <p class="small mb-2">The system will perfectly map 25 fields. Ensure these standard headers are present in Row 1:</p>
+            <div class="table-responsive scroll-horizontal rounded border shadow-sm pb-1">
+                <table class="table table-sm small table-bordered mb-0" style="white-space: nowrap;">
+                    <thead class="table-secondary text-center align-middle">
+                        <tr class="table-dark text-white">
+                            <th colspan="4">Employee Name</th>
+                            <th colspan="3">Demographics</th>
+                            <th colspan="4">Contact & Address</th>
+                            <th colspan="4">Government IDs</th>
+                            <th colspan="3">Emergency Contact</th>
+                            <th colspan="4">Job Details</th>
+                            <th colspan="3">Qualifications</th>
+                        </tr>
+                        <tr>
+                            <th>First Name</th>
+                            <th>Middle Name</th>
+                            <th>Last Name</th>
+                            <th>Suffix</th>
+                            <th>Date of Birth</th>
+                            <th>Gender</th>
+                            <th>Civil Status</th>
+                            <th>Mobile Number</th>
+                            <th>Personal Email Address</th>
+                            <th>Complete Present Address</th>
+                            <th>Complete Permanent Address</th>
+                            <th>SSS Number</th>
+                            <th>Pag-IBIG (HDMF) Number</th>
+                            <th>PhilHealth Number</th>
+                            <th>TIN (Tax Identification Number)</th>
+                            <th>Emergency Contact Name</th>
+                            <th>Emergency Contact Number</th>
+                            <th>Emergency Contact Address</th>
+                            <th>Employee ID Number</th>
+                            <th>Department</th>
+                            <th>Position / Job Title</th>
+                            <th>Date Hired</th>
+                            <th>Education Attainment</th>
+                            <th>JobExperience</th>
+                            <th>Licenses / Certifications</th>
+                        </tr>
+                    </thead>
+                    <tbody class="text-center">
+                        <tr class="text-muted fst-italic">
+                            <td>Juan</td>
+                            <td>Dela</td>
+                            <td>Cruz</td>
+                            <td></td>
+                            <td>1/15/1990</td>
+                            <td>Man</td>
+                            <td>Single</td>
+                            <td>09123456789</td>
+                            <td>juan.delacruz@example.com</td>
+                            <td>123 Main St, Quezon City</td>
+                            <td>Same as present</td>
+                            <td>12-3456789-0</td>
+                            <td>1234-5678-9012</td>
+                            <td>12-345678901-2</td>
+                            <td>123-456-789-000</td>
+                            <td>Maria Cruz</td>
+                            <td>09987654321</td>
+                            <td>123 Main St, Quezon City</td>
+                            <td>CUST-001</td>
+                            <td>ADMIN</td>
+                            <td>Staff</td>
+                            <td>5/1/2024</td>
+                            <td>BS Computer Science</td>
+                            <td>Jolibee Crew</td>
+                            <td>Civil Service Professional</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
 
-        if (format === 'JORATECH') {
-            document.getElementById('instr_jora').style.display = 'block';
-        } else if (format === 'UNLISOLUTIONS') {
-            document.getElementById('instr_unli').style.display = 'block';
-        } else if (format === 'CUSTOM') {
-            document.getElementById('instr_custom').style.display = 'block';
-        } else if (format !== '') {
-            document.getElementById('instr_tesp').style.display = 'block';
+        <div class="card shadow mb-4">
+            <div class="card-header bg-success text-white">
+                <h5 class="mb-0">Bulk Import</h5>
+            </div>
+            <div class="card-body">
+
+                <form method="POST" enctype="multipart/form-data" id="importForm">
+                    <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Select CSV Layout (Format)</label>
+                            <select name="agency_select" id="agency_select" class="form-select border-success" onchange="toggleFormat()" required>
+                                <option value="">-- Choose Format --</option>
+                                <option value="STANDARD">Standard Format (TESP / Others)</option>
+                                <option value="UNLISOLUTIONS">UnliSolutions Format</option>
+                                <option value="JORATECH">Joratech Format</option>
+                                <option value="CUSTOM">Custom Form (Detect Headers)</option>
+                            </select>
+                        </div>
+
+                        <div class="col-md-6" id="target_agency_container">
+                            <label class="form-label fw-bold text-primary">Assign to Agency <span class="text-danger">*</span></label>
+                            <select name="target_agency" id="target_agency" class="form-select border-primary" required>
+                                <option value="">-- Select Agency --</option>
+                                <?php foreach ($agencies as $a): ?>
+                                    <option value="<?php echo htmlspecialchars($a); ?>"><?php echo htmlspecialchars($a); ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                            <div class="form-text small">All employees in this import will be assigned to this agency.</div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Upload CSV</label>
+                            <input type="file" name="csv_file" class="form-control" accept=".csv" required>
+                        </div>
+                        <div class="col-12">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="update_existing" id="updateCheck" value="1">
+                                <label class="form-check-label text-primary fw-bold" for="updateCheck">
+                                    <i class="bi bi-arrow-repeat"></i> Update existing employees?
+                                </label>
+                                <div class="form-text small">If checked, employees with matching IDs will be updated with the new info from the CSV. If unchecked, they will be skipped.</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="d-grid gap-2 mt-3">
+                        <button type="submit" class="btn btn-success btn-lg">Upload & Import</button>
+                        <a href="index.php" class="btn btn-secondary">Back to Dashboard</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <?php if (count($history) > 0): ?>
+            <div class="card shadow border-danger">
+                <div class="card-header bg-danger text-white">
+                    <h6 class="mb-0">Undo Recent Imports</h6>
+                </div>
+                <div class="card-body p-0 table-responsive">
+                    <table class="table table-striped mb-0">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Agency</th>
+                                <th>Count</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($history as $h):
+                                // Calculate Time Remaining for Undo
+                                $importTime = strtotime($h['time']);
+                                $elapsed = time() - $importTime;
+                                $limit = 7 * 60 * 60; // 7 hours in seconds
+                                $canUndo = $elapsed < $limit;
+                                $remMinutes = ceil(($limit - $elapsed) / 60);
+                                $remHours = floor($remMinutes / 60);
+                                $remMins = $remMinutes % 60;
+                                $timeLeftStr = $remHours > 0 ? "{$remHours}h {$remMins}m" : "{$remMins}m";
+                            ?>
+                                <tr>
+                                    <td><?php echo date('M d, h:i A', $importTime); ?></td>
+                                    <td><?php echo htmlspecialchars($h['agency_name']); ?></td>
+                                    <td><?php echo $h['count']; ?></td>
+                                    <td>
+                                        <?php if ($canUndo && in_array($_SESSION['role'], ['ADMIN', 'MANAGER'])): ?>
+                                            <!-- ACTIVE BUTTON -->
+                                            <form method="POST">
+                                                <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
+                                                <input type="hidden" name="undo_batch" value="<?php echo htmlspecialchars($h['import_batch'], ENT_QUOTES, 'UTF-8'); ?>">
+                                                <button type="button" class="btn btn-sm btn-outline-danger" onclick="confirmUndo(this)">Undo</button>
+                                            </form>
+                                            <div class="text-success small fw-bold mt-1">
+                                                <i class="bi bi-clock-history"></i> <?php echo $timeLeftStr; ?> left
+                                            </div>
+                                        <?php else: ?>
+                                            <!-- LOCKED BUTTON -->
+                                            <button class="btn btn-sm btn-secondary disabled" disabled>
+                                                <i class="bi bi-lock-fill"></i> Locked
+                                            </button>
+                                            <div class="text-muted small mt-1">Time limit exceeded</div>
+                                        <?php endif; ?>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        <?php endif; ?>
+
+    </div>
+
+    <script>
+        function toggleFormat() {
+            const format = document.getElementById('agency_select').value;
+            const targetAgencyBox = document.getElementById('target_agency_container');
+            const targetAgencySelect = document.getElementById('target_agency');
+
+            document.querySelectorAll('.format-box').forEach(el => el.style.display = 'none');
+
+            if (format === 'JORATECH') {
+                document.getElementById('instr_jora').style.display = 'block';
+            } else if (format === 'UNLISOLUTIONS') {
+                document.getElementById('instr_unli').style.display = 'block';
+            } else if (format === 'CUSTOM') {
+                document.getElementById('instr_custom').style.display = 'block';
+            } else if (format !== '') {
+                document.getElementById('instr_tesp').style.display = 'block';
+            }
         }
-    }
 
-    // SweetAlert2 Logic
-    document.getElementById('importForm').addEventListener('submit', function(e) {
-        e.preventDefault();
-        const form = this;
-        const selectEl = document.getElementById('agency_select');
-        const formatText = selectEl.options[selectEl.selectedIndex].text;
-        const fileInput = document.querySelector('input[name="csv_file"]');
-        const file = fileInput.files[0];
+        // SweetAlert2 Logic
+        document.getElementById('importForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const form = this;
+            const selectEl = document.getElementById('agency_select');
+            const formatText = selectEl.options[selectEl.selectedIndex].text;
+            const fileInput = document.querySelector('input[name="csv_file"]');
+            const file = fileInput.files[0];
 
-        if (!file) {
-            form.submit();
-            return;
-        }
-
-        const reader = new FileReader();
-        const blob = file; // Read entire file to show all rows
-
-        reader.onload = function(e) {
-            let text = e.target.result;
-
-            // [FIX] Neutralize newlines inside quoted strings so the table doesn't break!
-            let inQuote = false;
-            let cleanText = "";
-            for (let i = 0; i < text.length; i++) {
-                let char = text[i];
-                if (char === '"') inQuote = !inQuote;
-                if (inQuote && (char === '\n' || char === '\r')) {
-                    cleanText += ' ';
-                } else {
-                    cleanText += char;
-                }
+            if (!file) {
+                form.submit();
+                return;
             }
 
-            const rows = cleanText.split(/\r\n|\n|\r/).filter(r => r.trim() !== '');
-            const previewRows = rows; // Show all rows
-            const employeeCount = Math.max(0, rows.length - 1); // Exclude header row
+            const reader = new FileReader();
+            const blob = file; // Read entire file to show all rows
 
-            let tableHtml = '<div class="scroll-horizontal scroll-vertical" style="text-align:left;"><table class="table table-sm table-bordered table-striped" style="font-size:0.75rem; white-space: nowrap;">';
+            reader.onload = function(e) {
+                let text = e.target.result;
 
-            const firstLine = rows[0] || '';
-            const delimComma = (firstLine.match(/,/g) || []).length;
-            const delimSemi = (firstLine.match(/;/g) || []).length;
-            const delimTab = (firstLine.match(/\t/g) || []).length;
+                // [FIX] Neutralize newlines inside quoted strings so the table doesn't break!
+                let inQuote = false;
+                let cleanText = "";
+                for (let i = 0; i < text.length; i++) {
+                    let char = text[i];
+                    if (char === '"') inQuote = !inQuote;
+                    if (inQuote && (char === '\n' || char === '\r')) {
+                        cleanText += ' ';
+                    } else {
+                        cleanText += char;
+                    }
+                }
 
-            let delimiter = ',';
-            if (delimSemi > delimComma && delimSemi > delimTab) delimiter = ';';
-            if (delimTab > delimComma && delimTab > delimSemi) delimiter = '\t';
+                const rows = cleanText.split(/\r\n|\n|\r/).filter(r => r.trim() !== '');
+                const previewRows = rows; // Show all rows
+                const employeeCount = Math.max(0, rows.length - 1); // Exclude header row
 
-            const splitRegex = (delimiter === '\t') ? /\t/ : new RegExp(`${delimiter}(?=(?:(?:[^"]*"){2})*[^"]*$)`);
+                let tableHtml = '<div class="scroll-horizontal scroll-vertical" style="text-align:left;"><table class="table table-sm table-bordered table-striped" style="font-size:0.75rem; white-space: nowrap;">';
 
-            previewRows.forEach((row, index) => {
-                const cols = row.split(splitRegex);
-                tableHtml += '<tr>';
-                cols.forEach(col => {
-                    let clean = col.trim().replace(/^"|"$/g, ''); // Remove quotes
-                    tableHtml += (index === 0) ? `<th class="table-secondary sticky-top" style="z-index: 1;">${clean}</th>` : `<td>${clean}</td>`;
+                const firstLine = rows[0] || '';
+                const delimComma = (firstLine.match(/,/g) || []).length;
+                const delimSemi = (firstLine.match(/;/g) || []).length;
+                const delimTab = (firstLine.match(/\t/g) || []).length;
+
+                let delimiter = ',';
+                if (delimSemi > delimComma && delimSemi > delimTab) delimiter = ';';
+                if (delimTab > delimComma && delimTab > delimSemi) delimiter = '\t';
+
+                const splitRegex = (delimiter === '\t') ? /\t/ : new RegExp(`${delimiter}(?=(?:(?:[^"]*"){2})*[^"]*$)`);
+
+                previewRows.forEach((row, index) => {
+                    const cols = row.split(splitRegex);
+                    tableHtml += '<tr>';
+                    cols.forEach(col => {
+                        let clean = col.trim().replace(/^"|"$/g, ''); // Remove quotes
+                        tableHtml += (index === 0) ? `<th class="table-secondary sticky-top" style="z-index: 1;">${clean}</th>` : `<td>${clean}</td>`;
+                    });
+                    tableHtml += '</tr>';
                 });
-                tableHtml += '</tr>';
-            });
-            tableHtml += '</table></div>';
+                tableHtml += '</table></div>';
 
+                Swal.fire({
+                    title: 'Confirm Import',
+                    html: `<p>Importing via <strong>${formatText}</strong>. Check the preview below:</p>${tableHtml}<div class="alert alert-success mt-3 py-2 fw-bold text-center border-success"><i class="bi bi-people-fill"></i> Total Employees to Import: ${employeeCount}</div>`,
+                    icon: 'info',
+                    width: '800px',
+                    showCancelButton: true,
+                    confirmButtonColor: '#198754',
+                    confirmButtonText: 'Yes, Import Data'
+                }).then((result) => {
+                    if (result.isConfirmed) {
+                        // Disable button and show spinner
+                        const submitBtn = form.querySelector('button[type="submit"]');
+                        if (submitBtn) {
+                            submitBtn.disabled = true;
+                            submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span> Processing...';
+                        }
+                        // Show un-closable loading alert
+                        Swal.fire({
+                            title: 'Importing Data...',
+                            html: 'Please wait while we process the records.<br><br><span class="text-danger fw-bold small">Do not close or refresh this window!</span>',
+                            allowOutsideClick: false,
+                            allowEscapeKey: false,
+                            showConfirmButton: false,
+                            didOpen: () => {
+                                Swal.showLoading();
+                            }
+                        });
+                        form.submit();
+                    }
+                });
+            };
+
+            reader.readAsText(blob);
+        });
+
+        function confirmUndo(btn) {
             Swal.fire({
-                title: 'Confirm Import',
-                html: `<p>Importing via <strong>${formatText}</strong>. Check the preview below:</p>${tableHtml}<div class="alert alert-success mt-3 py-2 fw-bold text-center border-success"><i class="bi bi-people-fill"></i> Total Employees to Import: ${employeeCount}</div>`,
-                icon: 'info',
-                width: '800px',
+                title: 'Undo Import?',
+                text: "This will delete all employees from this batch. This cannot be undone.",
+                icon: 'warning',
                 showCancelButton: true,
-                confirmButtonColor: '#198754',
-                confirmButtonText: 'Yes, Import Data'
+                confirmButtonColor: '#dc3545',
+                confirmButtonText: 'Yes, delete it!'
             }).then((result) => {
                 if (result.isConfirmed) {
-                    // Disable button and show spinner
-                    const submitBtn = form.querySelector('button[type="submit"]');
-                    if (submitBtn) {
-                        submitBtn.disabled = true;
-                        submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span> Processing...';
-                    }
-                    // Show un-closable loading alert
                     Swal.fire({
-                        title: 'Importing Data...',
-                        html: 'Please wait while we process the records.<br><br><span class="text-danger fw-bold small">Do not close or refresh this window!</span>',
+                        title: 'Reverting Import...',
+                        html: 'Please wait while we remove the records.<br><br><span class="text-danger fw-bold small">Do not close or refresh this window!</span>',
                         allowOutsideClick: false,
                         allowEscapeKey: false,
                         showConfirmButton: false,
@@ -1340,57 +1398,29 @@ $history = $pdo->query("SELECT import_batch, MAX(agency_name) as agency_name, CO
                             Swal.showLoading();
                         }
                     });
-                    form.submit();
+                    btn.form.submit();
                 }
             });
-        };
+        }
 
-        reader.readAsText(blob);
-    });
-
-    function confirmUndo(btn) {
-        Swal.fire({
-            title: 'Undo Import?',
-            text: "This will delete all employees from this batch. This cannot be undone.",
-            icon: 'warning',
-            showCancelButton: true,
-            confirmButtonColor: '#dc3545',
-            confirmButtonText: 'Yes, delete it!'
-        }).then((result) => {
-            if (result.isConfirmed) {
-                Swal.fire({
-                    title: 'Reverting Import...',
-                    html: 'Please wait while we remove the records.<br><br><span class="text-danger fw-bold small">Do not close or refresh this window!</span>',
-                    allowOutsideClick: false,
-                    allowEscapeKey: false,
-                    showConfirmButton: false,
-                    didOpen: () => {
-                        Swal.showLoading();
-                    }
-                });
-                btn.form.submit();
-            }
-        });
-    }
-
-    <?php if ($msg): ?>
-        Swal.fire({
-            icon: 'success',
-            title: 'Success',
-            text: <?php echo json_encode($msg); ?>,
-            confirmButtonColor: '#198754'
-        });
-    <?php endif; ?>
-    <?php if ($error): ?>
-        Swal.fire({
-            icon: 'error',
-            title: 'Error',
-            text: <?php echo json_encode($error); ?>,
-            confirmButtonColor: '#dc3545'
-        });
-    <?php endif; ?>
-</script>
-<script src="dark_mode.js"></script>
+        <?php if ($msg): ?>
+            Swal.fire({
+                icon: 'success',
+                title: 'Success',
+                text: <?php echo json_encode($msg); ?>,
+                confirmButtonColor: '#198754'
+            });
+        <?php endif; ?>
+        <?php if ($error): ?>
+            Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: <?php echo json_encode($error); ?>,
+                confirmButtonColor: '#dc3545'
+            });
+        <?php endif; ?>
+    </script>
+    <script src="dark_mode.js"></script>
 </body>
 
 </html>

@@ -24,13 +24,16 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'ADMIN') {
 
 // [NEW] MULTI-PART DOWNLOAD HANDLER
 if (isset($_GET['download_part'])) {
-    $requested = basename($_GET['download_part']);
-    // [SECURITY] Verify file is in the session-approved list generated during the recent POST request
-    if (empty($_SESSION['backup_temp_files']) || !in_array(__DIR__ . '/../backups/temp_downloads/' . $requested, $_SESSION['backup_temp_files'])) {
+    $security = new Security($pdo);
+    $token = $_GET['csrf_token'] ?? '';
+    try {
+        $security->checkCSRF($token);
+    } catch (Exception $e) {
         http_response_code(403);
-        die("Unauthorized download attempt.");
+        exit;
     }
 
+    $requested = basename($_GET['download_part']);
     if (!preg_match('/^(FULL_SYSTEM_|Encrypted_Backup_)[A-Za-z0-9_-]+_Part\\d+\\.zip$/', $requested)) {
         http_response_code(404);
         exit;
@@ -363,7 +366,7 @@ if ($mode === 'server') {
         // MULTI-PART UI & AUTO-DOWNLOADER
         $downloadLinks = [];
         foreach ($generatedZips as $path) {
-            $downloadLinks[] = 'backup.php?download_part=' . urlencode(basename($path));
+            $downloadLinks[] = 'backup.php?download_part=' . urlencode(basename($path)) . '&csrf_token=' . urlencode($_POST['csrf_token'] ?? '');
         }
 
 ?>

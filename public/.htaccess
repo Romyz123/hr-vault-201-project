@@ -1,9 +1,4 @@
-# Force HTTPS (TLS Protocol for MHI Compliance)
-
 RewriteEngine On
-# [OPTIONAL] Server-level HTTPS enforcement (Handled by PHP config/db.php for better localhost support)
-# RewriteCond %{HTTPS} off
-# RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
 
 # Turn off directory listing (Security)
 
@@ -18,6 +13,6 @@ Deny from all
 
 # Custom Error Pages
 
-ErrorDocument 403 "/hr 201/public/error.php?code=403"
-ErrorDocument 404 "/hr 201/public/error.php?code=404"
-ErrorDocument 500 "/hr 201/public/error.php?code=500"
+ErrorDocument 403 "/hr-vault/public/error.php?code=403"
+ErrorDocument 404 "/hr-vault/public/error.php?code=404"
+ErrorDocument 500 "/hr-vault/public/error.php?code=500"

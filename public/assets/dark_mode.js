@@ -1,44 +1,42 @@
-// --- START: Dark Mode Fix ---
+// --- START: UI REPAIR ---
 (function () {
-  "use strict";
+  // 1. Apply theme IMMEDIATELY to documentElement to prevent white flash
+  const theme =
+    localStorage.getItem("theme") ||
+    (window.matchMedia("(prefers-color-scheme: dark)").matches
+      ? "dark"
+      : "light");
 
+  document.documentElement.setAttribute("data-bs-theme", theme);
+
+  // 2. Setup Toggle Button logic
   document.addEventListener("DOMContentLoaded", () => {
-    const getStoredTheme = () => localStorage.getItem("theme") || "light";
-    const setStoredTheme = (theme) => localStorage.setItem("theme", theme);
-    const setTheme = (theme) =>
-      document.documentElement.setAttribute("data-bs-theme", theme);
-
     const btn = document.getElementById("darkModeToggle");
+    if (!btn) return;
 
     const updateUI = (currentTheme) => {
-      document.querySelectorAll("#darkModeToggle").forEach((toggle) => {
-        const icon = toggle.querySelector("i");
-        if (icon) {
-          if (currentTheme === "dark") {
-            icon.classList.replace("bi-moon-stars-fill", "bi-sun-fill");
-            toggle.title = "Switch to Light Mode";
-          } else {
-            icon.classList.replace("bi-sun-fill", "bi-moon-stars-fill");
-            toggle.title = "Switch to Dark Mode";
-          }
-        }
-      });
+      const icon = btn.querySelector("i");
+      if (!icon) return;
+      if (currentTheme === "dark") {
+        icon.className = "bi bi-sun-fill";
+        btn.title = "Switch to Light Mode";
+      } else {
+        icon.className = "bi bi-moon-stars-fill";
+        btn.title = "Switch to Dark Mode";
+      }
     };
 
-    updateUI(getStoredTheme());
+    // Sync UI on load
+    updateUI(document.documentElement.getAttribute("data-bs-theme"));
 
-    document.addEventListener("click", (e) => {
-      const toggle = e.target.closest("#darkModeToggle");
-      if (!toggle) return;
+    btn.addEventListener("click", () => {
+      const current = document.documentElement.getAttribute("data-bs-theme");
+      const next = current === "dark" ? "light" : "dark";
 
-      const next =
-        document.documentElement.getAttribute("data-bs-theme") === "dark"
-          ? "light"
-          : "dark";
-      setTheme(next);
-      setStoredTheme(next);
+      document.documentElement.setAttribute("data-bs-theme", next);
+      localStorage.setItem("theme", next);
       updateUI(next);
     });
   });
 })();
-// --- END: Dark Mode Fix ---
+// --- END: UI REPAIR ---

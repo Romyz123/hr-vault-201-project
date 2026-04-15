@@ -186,12 +186,12 @@ try {
                     <ol>
                         <li><strong>Database:</strong> Go to <em>Manager Users -> Disaster Recovery</em>. Click <strong>Download Backup</strong>. (Leave "Include Vault Files" unchecked). This safely streams your SQL data and Encryption Key without overloading PHP RAM.</li>
                         <li><strong>Multi-Part ZIPs:</strong> If your automated backup exceeded the GB limit, the system created multiple files (e.g., <code>Part1.zip</code>, <code>Part2.zip</code>). Collect all parts.</li>
-                        <li><strong>Vault Files (Manual Shortcut):</strong> If skipping the web-backup, open Windows File Explorer on the server, navigate to <code>htdocs\hr 201\vault\</code>, and manually copy it to an external drive.</li>
+                        <li><strong>Vault Files (Manual Shortcut):</strong> If skipping the web-backup, open Windows File Explorer on the server, navigate to <code>htdocs\hr-vault\vault\</code>, and manually copy it to an external drive.</li>
                     </ol>
 
                     <h6 class="fw-bold text-success mt-3">PHASE 2: RESTORE PROCEDURE</h6>
                     <ol>
-                        <li><strong>Vault Files:</strong> Extract ALL your backup ZIP parts. Merge all the extracted <code>vault</code> folders together, and place them back into the <code>htdocs\hr 201\</code> directory on the new server.</li>
+                        <li><strong>Vault Files:</strong> Extract ALL your backup ZIP parts. Merge all the extracted <code>vault</code> folders together, and place them back into the <code>htdocs\hr-vault\</code> directory on the new server.</li>
                         <li><strong>Database (Web UI):</strong> Go to <em>Manage Users -> Disaster Recovery</em>. Use the <strong>Restore SQL</strong> tool. You can hold CTRL/CMD and select ALL parts at once. The system will automatically stitch them together.</li>
                         <li><strong>Database (GUI Client - Massive Restores without CMD):</strong> If your database is so massive that it exceeds browser capabilities, and Command Line is forbidden by MHI policy, use a standard Database GUI tool (like MySQL Workbench, HeidiSQL, or DBeaver).
                             <ul>

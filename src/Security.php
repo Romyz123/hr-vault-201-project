@@ -1,4 +1,5 @@
 <?php
+// --- START: UI REPAIR ---
 // ========================================================================
 // ACTIVE: STRICT SECURITY CODE (PRODUCTION READY)
 // ========================================================================
@@ -205,52 +206,6 @@ class Security
         return openssl_decrypt($encrypted, 'aes-256-cbc', $key, OPENSSL_RAW_DATA, $iv);
     }
 }
-
-
-/*
-// ========================================================================
-// DISABLED: RELAXED DEV MODE
-// ========================================================================
-class Security {
-    private $pdo;
-
-    public function __construct($pdo) {
-        $this->pdo = $pdo;
-    }
-
-    // Fixed to use 'last_request' to match your database
-    public function checkRateLimit($ip, $limit = 1000, $seconds = 60) {
-        // 1. Check if the table actually exists first to avoid crashes
-        try {
-            $stmt = $this->pdo->prepare("SELECT request_count, last_request FROM rate_limits WHERE ip_address = ?");
-            $stmt->execute([$ip]);
-            $row = $stmt->fetch();
-        } catch (PDOException $e) {
-            // If table doesn't exist or column is wrong, just allow access to prevent lockout during dev
-            return true; 
-        }
-
-        $currentTime = time();
-
-        if ($row) {
-            $lastRequestTime = strtotime($row['last_request']);
-            
-            if (($currentTime - $lastRequestTime) < $seconds) {
-                if ($row['request_count'] >= $limit) {
-                    return false; // LOCKED OUT
-                }
-                $upd = $this->pdo->prepare("UPDATE rate_limits SET request_count = request_count + 1 WHERE ip_address = ?");
-                $upd->execute([$ip]);
-            } else {
-                $upd = $this->pdo->prepare("UPDATE rate_limits SET request_count = 1, last_request = NOW() WHERE ip_address = ?");
-                $upd->execute([$ip]);
-            }
-        } else {
-            $ins = $this->pdo->prepare("INSERT INTO rate_limits (ip_address, request_count, last_request) VALUES (?, 1, NOW())");
-            $ins->execute([$ip]);
-        }
-        
-        return true;
-    }
-}
-*/
+?>
+<?php // --- END: UI REPAIR --- 
+?>

@@ -183,24 +183,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($_SESSION['role'], ['ADMIN
             }
             $allowedCategories = array_unique($allowedCategories);
 
-            $uid = (int)$_SESSION['user_id'];
-            $userRole = strtoupper($_SESSION['role'] ?? '');
-            $isPrivileged = in_array($userRole, ['ADMIN', 'MANAGER', 'HR'], true);
-
-            // [SECURITY] Verify if granular ownership is possible
-            $chkUp = $pdo->query("SHOW COLUMNS FROM documents LIKE 'uploaded_by'");
-            $hasOwnershipCol = ($chkUp->rowCount() > 0);
-
             $updatedCount = 0;
             $updatedIds = [];
             $skippedIds = [];
             try {
                 $pdo->beginTransaction();
-                // [FIX] IDOR Protection: Restrict updates to original owner unless user is HR+
-                $updateSql = "UPDATE documents SET category = ?, updated_at = NOW() WHERE id = ?";
-                if (!$isPrivileged && $hasOwnershipCol) $updateSql .= " AND uploaded_by = ?";
-
-                $stmt = $pdo->prepare($updateSql);
+                $stmt = $pdo->prepare("UPDATE documents SET category = ?, updated_at = NOW() WHERE id = ?");
                 foreach ($fixDocs as $docId => $newCategory) {
                     $docId = (int)$docId;
                     $newCategory = trim($newCategory);
@@ -212,10 +200,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($_SESSION['role'], ['ADMIN
                         continue;
                     }
 
-                    $execParams = [$newCategory, $docId];
-                    if (!$isPrivileged && $hasOwnershipCol) $execParams[] = $uid;
-
-                    $stmt->execute($execParams);
+                    $stmt->execute([$newCategory, $docId]);
                     if ($stmt->rowCount() > 0) {
                         $updatedCount++;
                         $updatedIds[] = $docId;
@@ -787,6 +772,7 @@ $paginatedEmployees = array_slice($employees, $offset, $perPage);
 <?php include 'header.php'; ?>
 <style>
     body {
+        background: #f8f9fa;
         font-size: 0.9rem;
     }
 
@@ -814,6 +800,10 @@ $paginatedEmployees = array_slice($employees, $offset, $perPage);
         color: white;
     }
 
+    .table-hover tbody tr:hover {
+        background-color: #f1f1f1;
+    }
+
     .cursor-pointer {
         cursor: pointer;
     }
@@ -830,7 +820,7 @@ $paginatedEmployees = array_slice($employees, $offset, $perPage);
         padding: 5px;
         border: 1px solid #ced4da;
         border-radius: 0.25rem;
-        background: var(--bs-body-bg);
+        background: #fff;
         min-height: 38px;
         align-items: center;
     }
@@ -841,7 +831,7 @@ $paginatedEmployees = array_slice($employees, $offset, $perPage);
     }
 
     .tag-chip {
-        background: var(--bs-tertiary-bg);
+        background: #e9ecef;
         border: 1px solid #dee2e6;
         border-radius: 3px;
         padding: 2px 6px;
@@ -979,7 +969,7 @@ $paginatedEmployees = array_slice($employees, $offset, $perPage);
             <input type="hidden" name="action" value="bulk_reminders">
             <div class="card-body p-0 table-responsive">
                 <table class="table table-bordered table-hover mb-0 text-center align-middle">
-                    <thead>
+                    <thead class="table-light">
                         <tr>
                             <th class="text-center" style="width: 40px;"><input type="checkbox" id="selectAll" class="form-check-input"></th>
                             <th class="text-start ps-3">Employee <span id="selection-count" class="badge bg-primary ms-1" style="display:none">0</span></th>
@@ -1222,20 +1212,12 @@ $paginatedEmployees = array_slice($employees, $offset, $perPage);
     <input type="hidden" name="req_keywords" id="addReqKeys">
 </form>
 
-<?php
-$redirectQuery = '';
-if (!empty($_SERVER['QUERY_STRING'])) {
-    parse_str($_SERVER['QUERY_STRING'], $qs);
-    unset($qs['report']);
-    $redirectQuery = http_build_query($qs);
-}
-?>
 <form id="exemptForm" method="POST" style="display:none;">
     <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
     <input type="hidden" name="action" value="toggle_exempt">
     <input type="hidden" name="emp_id" id="exemptEmpId">
     <input type="hidden" name="req_name" id="exemptReqName">
-    <input type="hidden" name="redirect_query" value="<?php echo h($redirectQuery); ?>">
+    <input type="hidden" name="redirect_query" value="<?php echo h($_SERVER['QUERY_STRING']); ?>">
 </form>
 
 <!-- REMINDER MODAL -->
@@ -1330,7 +1312,7 @@ if (!empty($_SERVER['QUERY_STRING'])) {
                             </div>
 
                             <table class="table table-sm table-hover small align-middle">
-                                <thead>
+                                <thead class="table-light">
                                     <tr>
                                         <th style="width:30px;"><input type="checkbox" class="form-check-input" onclick="toggleBulk(this)"></th>
                                         <th>Employee</th>
@@ -1797,12 +1779,6 @@ if (!empty($_SERVER['QUERY_STRING'])) {
     <?php if (isset($_GET['report']) && $_GET['report'] === 'misclassified'): ?>
         document.addEventListener('DOMContentLoaded', () => {
             new bootstrap.Modal(document.getElementById('misclassifiedModal')).show();
-            const url = new URL(window.location.href);
-            if (url.searchParams.get('report') === 'misclassified') {
-                url.searchParams.delete('report');
-                const target = url.pathname + (url.search ? '?' + url.searchParams.toString() : '') + url.hash;
-                window.history.replaceState(null, '', target);
-            }
         });
     <?php endif; ?>
 

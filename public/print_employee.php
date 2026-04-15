@@ -1,4 +1,5 @@
 <?php
+// --- START: UI REPAIR ---
 require '../config/db.php';
 require '../src/Security.php';
 session_start();
@@ -122,9 +123,9 @@ if (empty($logo_src)) {
     <title>Print Profile - <?php echo htmlspecialchars($emp['last_name']); ?></title>
     <link rel="icon" href="assets/tesp-logo.png?v=4" type="image/png">
     <link href="assets/bootstrap.min.css" rel="stylesheet">
-    <link rel="icon" type="image/png" href="../uploads/tesp-logo.png">
-    <link rel="shortcut icon" type="image/png" href="../uploads/tesp-logo.png">
-    <link rel="apple-touch-icon" href="../uploads/tesp-logo.png">
+    <link rel="icon" type="image/png" href="assets/tesp-logo.png">
+    <link rel="shortcut icon" type="image/png" href="assets/tesp-logo.png">
+    <link rel="apple-touch-icon" href="assets/tesp-logo.png">
     <style>
         /* 1. Force Browser to recognize A4 paper */
         @page {
@@ -149,6 +150,33 @@ if (empty($logo_src)) {
                 display: none !important;
             }
 
+            /* // --- START: PRINT FIX --- */
+            @media print {
+                .print-logo {
+                    max-height: 70px !important;
+                    width: auto !important;
+                    display: block !important;
+                    margin: 0 auto 10px auto !important;
+                    -webkit-print-color-adjust: exact !important;
+                    print-color-adjust: exact !important;
+                }
+
+                .print-header {
+                    text-align: center !important;
+                    border-bottom: 2px solid #000 !important;
+                    margin-bottom: 20px !important;
+                    padding-bottom: 10px !important;
+                    display: block !important;
+                }
+            }
+
+            /* // --- END: PRINT FIX --- */
+
+            .print-title-area {
+                text-align: center;
+                flex-grow: 1;
+            }
+
             .page {
                 box-shadow: none !important;
                 margin: 0 !important;
@@ -156,6 +184,18 @@ if (empty($logo_src)) {
                 /* Adds professional margin inside the printed page */
                 border: none !important;
                 width: 100% !important;
+            }
+
+            /* Logo print styling */
+            .page img {
+                max-width: 100%;
+                height: auto !important;
+            }
+
+            /* Disable animations on print */
+            * {
+                animation: none !important;
+                transition: none !important;
             }
 
             .page-break {
@@ -182,6 +222,20 @@ if (empty($logo_src)) {
             box-sizing: border-box;
             /* Ensures padding doesn't expand width */
         }
+
+        /* // --- START: PRINT FIX --- */
+        .print-logo {
+            max-height: 70px;
+        }
+
+        .print-header {
+            text-align: center;
+            border-bottom: 2px solid #000;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+        }
+
+        /* // --- END: PRINT FIX --- */
 
         /* 4. Content Styling */
         .profile-img {
@@ -301,12 +355,13 @@ if (empty($logo_src)) {
     <div class="page">
 
         <!-- Professional Company Header -->
-        <div style="text-align: center; border-bottom: 3px double #333; padding-bottom: 15px; margin-bottom: 30px;">
-            <img src="<?php echo $logo_src; ?>" alt="TESP Logo" style="height: 70px; margin-bottom: 10px;">
-            <div style="font-size: 16pt; font-weight: bold; margin-bottom: 2px; text-transform: uppercase;">TES PHILIPPINES, INC.</div>
-            <div style="font-size: 11pt; color: #555; margin-bottom: 10px;">Human Resources Department</div>
-            <div style="font-size: 14pt; font-weight: bold; text-transform: uppercase; letter-spacing: 2px;">Employee Profile</div>
+        <!-- // --- START: PRINT FIX --- -->
+        <div class="print-header">
+            <img src="<?php echo $logo_src; ?>" alt="TESP Logo" class="print-logo">
+            <div style="font-size: 16pt; font-weight: bold; text-transform: uppercase;">TES Philippines, Inc.</div>
+            <div style="font-size: 14pt; font-weight: bold; text-transform: uppercase;">Employee 201 File</div>
         </div>
+        <!-- // --- END: PRINT FIX --- -->
 
         <!-- Employee Summary -->
         <div class="d-flex align-items-center mb-4 avoid-break">
@@ -318,11 +373,6 @@ if (empty($logo_src)) {
             <div>
                 <h2 style="margin: 0; font-weight: bold; text-transform: uppercase;"><?php echo htmlspecialchars(strtoupper($emp['last_name'] . ', ' . $emp['first_name'])); ?></h2>
                 <div style="font-size: 1.25rem; color: #555; margin-bottom: 8px;"><?php echo htmlspecialchars($emp['job_title']); ?></div>
-                <div>
-                    <span class="badge text-bg-dark border border-dark rounded-pill"><?php echo htmlspecialchars($emp['emp_id']); ?></span>
-                    <span class="badge text-bg-secondary border border-secondary rounded-pill"><?php echo htmlspecialchars($emp['dept']); ?></span>
-                    <span class="badge text-bg-primary border border-primary rounded-pill"><?php echo htmlspecialchars($emp['status']); ?></span>
-                </div>
             </div>
         </div>
 

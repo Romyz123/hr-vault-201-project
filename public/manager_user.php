@@ -978,7 +978,7 @@ $isBackupWritable = is_writable($actualBackupPath);
                                 </div>
                                 <div class="input-group input-group-sm mb-2">
                                     <input type="password" name="admin_password" id="restoreAdminPass" class="form-control" placeholder="Confirm Admin Password" required maxlength="128" title="Enter your admin password to confirm">
-                                    <button class="btn btn-outline-secondary" type="button" onclick="togglePass('restoreAdminPass')"><i class="bi bi-eye"></i></button>
+                                    <button class="btn btn-outline-secondary bg-white" type="button" onclick="togglePass('restoreAdminPass')"><i class="bi bi-eye"></i></button>
                                 </div>
                                 <button type="submit" class="btn btn-danger w-100"><i class="bi bi-upload"></i> Restore Database</button>
                             </form>
@@ -997,7 +997,7 @@ $isBackupWritable = is_writable($actualBackupPath);
                             </div>
                             <div class="card-body p-0 table-responsive">
                                 <table class="table table-hover mb-0">
-                                    <thead class="table-group-divider">
+                                    <thead>
                                         <tr>
                                             <th>Filename</th>
                                             <th>Date Created</th>
@@ -1026,7 +1026,7 @@ $isBackupWritable = is_writable($actualBackupPath);
                                                         <input type="hidden" name="base_name" value="<?php echo htmlspecialchars($b['base_name']); ?>">
                                                         <div class="input-group input-group-sm mb-1" style="width: 160px;">
                                                             <input type="password" name="admin_password" id="serverPass_<?php echo htmlspecialchars(str_replace('.', '-', $b['base_name'])); ?>" class="form-control" placeholder="Admin Password" required maxlength="128" title="Enter your admin password to confirm">
-                                                            <button class="btn btn-outline-secondary" type="button" onclick="togglePass('serverPass_<?php echo htmlspecialchars(str_replace('.', '-', $b['base_name'])); ?>')"><i class="bi bi-eye"></i></button>
+                                                            <button class="btn btn-outline-secondary bg-white" type="button" onclick="togglePass('serverPass_<?php echo htmlspecialchars(str_replace('.', '-', $b['base_name'])); ?>')"><i class="bi bi-eye"></i></button>
                                                         </div>
                                                         <button type="submit" class="btn btn-sm btn-warning fw-bold w-100">Restore This</button>
                                                     </form>
@@ -1180,7 +1180,7 @@ $isBackupWritable = is_writable($actualBackupPath);
                                     <label class="form-label fw-bold">Password</label>
                                     <div class="input-group">
                                         <input type="password" name="password" id="addPass" class="form-control" placeholder="Enter strong password..." required minlength="15" maxlength="128" pattern="(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).{15,}" title="Must be at least 15 characters, contain Uppercase, Lowercase, Number, and Symbol." oninput="updateStrength(this.value, 'addStrengthBar')">
-                                        <button class="btn btn-outline-secondary" type="button" onclick="togglePass('addPass')"><i class="bi bi-eye"></i></button>
+                                        <button class="btn btn-outline-secondary bg-white" type="button" onclick="togglePass('addPass')"><i class="bi bi-eye"></i></button>
                                     </div>
                                     <div class="progress mt-1" style="height: 5px;">
                                         <div id="addStrengthBar" class="progress-bar bg-danger" role="progressbar" style="width: 0%"></div>
@@ -1196,7 +1196,7 @@ $isBackupWritable = is_writable($actualBackupPath);
                                     <label class="form-label fw-bold">Confirm Password</label>
                                     <div class="input-group">
                                         <input type="password" name="confirm_password" id="addConfPass" class="form-control" placeholder="Repeat strong password..." required minlength="15" maxlength="128">
-                                        <button class="btn btn-outline-secondary" type="button" onclick="togglePass('addConfPass')"><i class="bi bi-eye"></i></button>
+                                        <button class="btn btn-outline-secondary bg-white" type="button" onclick="togglePass('addConfPass')"><i class="bi bi-eye"></i></button>
                                     </div>
                                     <div class="match-msg small mt-1 fw-bold text-danger" style="display:none;">
                                         <i class="bi bi-x-circle"></i> Passwords do not match
@@ -1212,7 +1212,7 @@ $isBackupWritable = is_writable($actualBackupPath);
                                     </select>
                                 </div>
                                 <div class="form-check mb-3">
-                                    <input class="form-check-input" type="checkbox" name="is_2fa" id="add2fa">
+                                    <input class="form-check-input" type="checkbox" name="is_2fa" id="add2fa" checked>
                                     <label class="form-check-label fw-bold text-primary" for="add2fa">Enable 2FA (Authenticator App)</label>
                                 </div>
                                 <div class="form-check mb-2">
@@ -1231,12 +1231,12 @@ $isBackupWritable = is_writable($actualBackupPath);
 
                 <div class="col-md-8">
                     <div class="card shadow-sm">
-                        <div class="card-header bg-body border-bottom">
+                        <div class="card-header bg-white border-bottom">
                             <h5 class="mb-0 text-primary"><i class="bi bi-people-fill"></i> Authorized Users</h5>
                         </div>
                         <div class="card-body p-0 table-responsive">
                             <table class="table table-hover mb-0 align-middle">
-                                <thead>
+                                <thead class="table-light">
                                     <tr>
                                         <th>Username</th>
                                         <th>Email</th>
@@ -1426,6 +1426,7 @@ $isBackupWritable = is_writable($actualBackupPath);
         </div>
 
         <script src="assets/bootstrap.bundle.min.js"></script>
+        <script src="dark_mode.js"></script>
         <script>
             <?php if ($alertMsg): ?>
                 Swal.fire({

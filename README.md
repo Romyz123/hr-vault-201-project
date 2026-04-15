@@ -72,7 +72,7 @@ Ensure the web server user (e.g., `www-data`, `apache`, or `IUSR`) has **Write**
 
 ### Step 5: Database Initialization
 
-1.  Open your browser and navigate to the system URL (e.g., `http://localhost/hr%20201/public/`).
+1.  Open your browser and navigate to the system URL (e.g., `http://localhost/hr-vault/public/`).
 2.  Log in with the default Admin credentials (if provided) or manually insert an admin user into the `users` table if this is a fresh install.
 3.  Navigate to the Database Status page (`public/db_status.php`).
 4.  Click **"Auto-Fix All Issues"**. This will automatically create all necessary tables and columns based on the schema definition.

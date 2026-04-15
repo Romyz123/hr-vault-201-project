@@ -1,4 +1,5 @@
 <?php
+// --- START: UI REPAIR ---
 require '../config/db.php';
 require '../src/Security.php';
 session_start();
@@ -64,10 +65,9 @@ foreach ($logo_paths as $p) {
 <head>
     <meta charset="UTF-8">
     <title>Performance Evaluation - <?php echo htmlspecialchars($data['last_name']); ?></title>
-    <link rel="icon" href="assets/tesp-logo.png?v=4" type="image/png">
-    <link rel="icon" type="image/png" href="../uploads/tesp-logo.png">
-    <link rel="shortcut icon" type="image/png" href="../uploads/tesp-logo.png">
-    <link rel="apple-touch-icon" href="../uploads/tesp-logo.png">
+    <link rel="icon" type="image/png" href="assets/tesp-logo.png">
+    <link rel="shortcut icon" type="image/png" href="assets/tesp-logo.png">
+    <link rel="apple-touch-icon" href="assets/tesp-logo.png">
     <style>
         @page {
             size: A4 landscape;
@@ -218,7 +218,41 @@ foreach ($logo_paths as $p) {
             .score-box {
                 box-shadow: none;
             }
+
+            /* // --- START: PRINT FIX --- */
+            .print-logo {
+                max-height: 70px !important;
+                width: auto !important;
+                display: block !important;
+                margin: 0 auto 10px auto !important;
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+            }
+
+            .print-header {
+                text-align: center !important;
+                border-bottom: 2px solid #000 !important;
+                margin-bottom: 20px !important;
+                padding-bottom: 10px !important;
+                display: block !important;
+            }
+
+            /* // --- END: PRINT FIX --- */
         }
+
+        /* // --- START: PRINT FIX --- */
+        .print-logo {
+            max-height: 70px;
+        }
+
+        .print-header {
+            text-align: center;
+            border-bottom: 2px solid #000;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+        }
+
+        /* // --- END: PRINT FIX --- */
     </style>
 </head>
 
@@ -229,13 +263,13 @@ foreach ($logo_paths as $p) {
     </div>
 
     <div class="page">
-        <div class="header">
-            <?php if (!empty($logo_src)): ?>
-                <img src="<?php echo $logo_src; ?>" class="logo" alt="TESP Logo">
-            <?php endif; ?>
-            <div class="subtitle">TES PHILIPPINES, INC.</div>
-            <div class="title">Performance Evaluation Report</div>
+        <!-- // --- START: PRINT FIX --- -->
+        <div class="print-header">
+            <img src="<?php echo $logo_src; ?>" alt="TESP Logo" class="print-logo">
+            <div style="font-size: 16pt; font-weight: bold; text-transform: uppercase;">TES Philippines, Inc.</div>
+            <div style="font-size: 14pt; font-weight: bold; text-transform: uppercase;">Performance Evaluation Report</div>
         </div>
+        <!-- // --- END: PRINT FIX --- -->
 
         <table class="info-table">
             <tr>
