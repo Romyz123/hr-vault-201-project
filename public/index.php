@@ -179,13 +179,15 @@ if ($userRole === 'ADMIN') {
                         if ($currentBytes + $sqlBytes + $len > $maxSizeBytes) {
                             fwrite($handle, "SET FOREIGN_KEY_CHECKS=1;");
                             fclose($handle);
-                            $zip->addFile($tmpSqlFile, "database_Part{$partNumber}.sql");
-                            if ($zipPass) $zip->setEncryptionName("database_Part{$partNumber}.sql", ZipArchive::EM_AES_256, $zipPass);
+                            if ($zip instanceof ZipArchive) {
+                                $zip->addFile($tmpSqlFile, "database_Part{$partNumber}.sql");
+                                if ($zipPass) $zip->setEncryptionName("database_Part{$partNumber}.sql", ZipArchive::EM_AES_256, $zipPass);
+                            }
 
                             $partNumber++;
                             if (!$startNewZip()) {
                                 $backupFailed = true;
-                                break 2; // Safely breaks out of both loops
+                                goto backup_finish;
                             }
 
                             $tmpSqlFile = tempnam(sys_get_temp_dir(), 'hr201_auto_');
@@ -193,7 +195,7 @@ if ($userRole === 'ADMIN') {
                             $handle = fopen($tmpSqlFile, 'w');
                             if (!$handle) {
                                 $backupFailed = true;
-                                break 2;
+                                goto backup_finish;
                             }
                             fwrite($handle, "-- AUTOMATED BACKUP PART {$partNumber}\nSET FOREIGN_KEY_CHECKS=0;\n\n");
                             $sqlBytes = 50;
@@ -204,20 +206,23 @@ if ($userRole === 'ADMIN') {
                 }
             }
 
-            if (!$backupFailed) {
+            if (!$backupFailed && isset($handle) && is_resource($handle)) {
                 fwrite($handle, "\nSET FOREIGN_KEY_CHECKS=1;");
                 fclose($handle);
+                $handle = null;
 
                 // Add final SQL part
                 $finalSqlName = "database_Part{$partNumber}.sql";
-                $zip->addFile($tmpSqlFile, $finalSqlName);
-                if ($zipPass) $zip->setEncryptionName($finalSqlName, ZipArchive::EM_AES_256, $zipPass);
+                if ($zip instanceof ZipArchive) {
+                    $zip->addFile($tmpSqlFile, $finalSqlName);
+                    if ($zipPass) $zip->setEncryptionName($finalSqlName, ZipArchive::EM_AES_256, $zipPass);
+                }
                 $currentBytes += $sqlBytes;
 
                 if ($incVault) {
                     // [LOGICAL FIX] Include config.php to preserve VAULT_KEY
                     $configPath = realpath(__DIR__ . '/../config/config.php');
-                    if ($configPath && file_exists($configPath)) {
+                    if ($zip instanceof ZipArchive && $configPath && file_exists($configPath)) {
                         $zip->addFile($configPath, 'config/config.php');
                         if ($zipPass) $zip->setEncryptionName('config/config.php', ZipArchive::EM_AES_256, $zipPass);
                     }
@@ -246,6 +251,7 @@ if ($userRole === 'ADMIN') {
             // Cleanup Process
             backup_finish:
             if ($zip instanceof ZipArchive) $zip->close();
+            if (isset($handle) && is_resource($handle)) fclose($handle);
             foreach ($pendingUnlink as $f) if (file_exists($f)) @unlink($f);
 
             // Finalize Status
