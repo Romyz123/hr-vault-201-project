@@ -135,15 +135,18 @@ if ($userRole === 'ADMIN') {
 
             $tables = [];
             $query  = $pdo->query('SHOW TABLES');
-            while ($row = $query->fetch(PDO::FETCH_NUM)) {
-                $tables[] = $row[0];
+            if ($query) {
+                while ($row = $query->fetch(PDO::FETCH_NUM)) {
+                    $tables[] = $row[0];
+                }
             }
 
             // Initialize first part
-            if (!$startNewZip()) {
+            if ($backupFailed || !$startNewZip()) {
                 @mail($alertEmail, "⚠️ Backup Failed", "Could not create initial ZIP volume.");
                 $pdo->exec("INSERT INTO system_settings (setting_key, setting_value) VALUES ('backup_last_status', 'FAILED') ON DUPLICATE KEY UPDATE setting_value = 'FAILED'");
                 $backupFailed = true;
+                goto backup_finish;
             }
 
             if (!$backupFailed) {
@@ -160,13 +163,15 @@ if ($userRole === 'ADMIN') {
                 $sqlBytes = 40; // Approx header size
 
                 foreach ($tables as $table) {
-                    $res = $pdo->query("SHOW CREATE TABLE `$table`")->fetch(PDO::FETCH_NUM);
+                    $q = $pdo->query("SHOW CREATE TABLE `$table` ");
+                    $res = $q ? $q->fetch(PDO::FETCH_NUM) : false;
                     if (!$res) continue;
                     $createSql = "DROP TABLE IF EXISTS `$table`;\n" . $res[1] . ";\n\n";
                     fwrite($handle, $createSql);
                     $sqlBytes += strlen($createSql);
 
-                    $stmt = $pdo->query("SELECT * FROM `$table`");
+                    $stmt = $pdo->prepare("SELECT * FROM `$table` ");
+                    $stmt->execute();
                     while ($r = $stmt->fetch(PDO::FETCH_ASSOC)) {
                         $values = [];
                         foreach ($r as $v) {

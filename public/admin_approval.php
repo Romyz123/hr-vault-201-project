@@ -596,7 +596,7 @@ function renderTable($requests, $type)
 ?>
 
 <script src="assets/bootstrap.bundle.min.js"></script>
-<script src="dark_mode.js"></script>
+
 <script>
     document.addEventListener("DOMContentLoaded", function() {
         const urlParams = new URLSearchParams(window.location.search);

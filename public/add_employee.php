@@ -1364,6 +1364,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }, 'image/jpeg', 0.85);
         }
     </script>
+    <script src="dark_mode.js"></script>
 </body>
 
 </html>

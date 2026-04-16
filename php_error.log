@@ -294,3 +294,38 @@ Stack trace:
 [16-Apr-2026 15:03:04 Asia/Manila] PHP Warning:  Undefined variable $error in C:\xampp\htdocs\hr 201\public\settings.php on line 329
 [16-Apr-2026 15:03:17 Asia/Manila] PHP Warning:  Undefined variable $error in C:\xampp\htdocs\hr 201\public\settings.php on line 329
 [16-Apr-2026 15:03:22 Asia/Manila] PHP Warning:  Undefined variable $error in C:\xampp\htdocs\hr 201\public\settings.php on line 329
+[16-Apr-2026 18:43:57 Asia/Manila] PHP Warning:  Undefined variable $tmpSqlFile in C:\xampp\htdocs\hr 201\public\backup.php on line 156
+[16-Apr-2026 18:43:57 Asia/Manila] PHP Warning:  Undefined variable $tmpSqlFile in C:\xampp\htdocs\hr 201\public\backup.php on line 167
+[16-Apr-2026 18:43:57 Asia/Manila] PHP Fatal error:  Uncaught ValueError: ZipArchive::addFile(): Argument #1 ($filepath) cannot be empty in C:\xampp\htdocs\hr 201\public\backup.php:167
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\backup.php(167): ZipArchive->addFile('', 'TESP_HR_BACKUP_...')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\backup.php on line 167
+[16-Apr-2026 18:44:01 Asia/Manila] PHP Warning:  Undefined variable $tmpSqlFile in C:\xampp\htdocs\hr 201\public\backup.php on line 156
+[16-Apr-2026 18:44:01 Asia/Manila] PHP Warning:  Undefined variable $tmpSqlFile in C:\xampp\htdocs\hr 201\public\backup.php on line 167
+[16-Apr-2026 18:44:01 Asia/Manila] PHP Fatal error:  Uncaught ValueError: ZipArchive::addFile(): Argument #1 ($filepath) cannot be empty in C:\xampp\htdocs\hr 201\public\backup.php:167
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\backup.php(167): ZipArchive->addFile('', 'TESP_HR_BACKUP_...')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\backup.php on line 167
+[16-Apr-2026 18:44:32 Asia/Manila] PHP Warning:  Undefined variable $tmpSqlFile in C:\xampp\htdocs\hr 201\public\backup.php on line 156
+[16-Apr-2026 18:44:32 Asia/Manila] PHP Warning:  Undefined variable $tmpSqlFile in C:\xampp\htdocs\hr 201\public\backup.php on line 167
+[16-Apr-2026 18:44:32 Asia/Manila] PHP Fatal error:  Uncaught ValueError: ZipArchive::addFile(): Argument #1 ($filepath) cannot be empty in C:\xampp\htdocs\hr 201\public\backup.php:167
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\backup.php(167): ZipArchive->addFile('', 'TESP_HR_BACKUP_...')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\backup.php on line 167
+[16-Apr-2026 18:46:54 Asia/Manila] PHP Warning:  Undefined variable $tmpSqlFile in C:\xampp\htdocs\hr 201\public\backup.php on line 156
+[16-Apr-2026 18:46:54 Asia/Manila] PHP Warning:  Undefined variable $tmpSqlFile in C:\xampp\htdocs\hr 201\public\backup.php on line 167
+[16-Apr-2026 18:46:54 Asia/Manila] PHP Fatal error:  Uncaught ValueError: ZipArchive::addFile(): Argument #1 ($filepath) cannot be empty in C:\xampp\htdocs\hr 201\public\backup.php:167
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\backup.php(167): ZipArchive->addFile('', 'TESP_HR_BACKUP_...')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\backup.php on line 167
+[16-Apr-2026 19:02:21 Asia/Manila] PHP Warning:  Undefined variable $tmpSqlFile in C:\xampp\htdocs\hr 201\public\backup.php on line 156
+[16-Apr-2026 19:02:21 Asia/Manila] PHP Warning:  Undefined variable $tmpSqlFile in C:\xampp\htdocs\hr 201\public\backup.php on line 167
+[16-Apr-2026 19:02:21 Asia/Manila] PHP Fatal error:  Uncaught ValueError: ZipArchive::addFile(): Argument #1 ($filepath) cannot be empty in C:\xampp\htdocs\hr 201\public\backup.php:167
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\backup.php(167): ZipArchive->addFile('', 'TESP_HR_BACKUP_...')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\backup.php on line 167
