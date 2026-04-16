@@ -6,6 +6,11 @@
 // Ensure we are in the right directory for relative includes
 chdir(__DIR__);
 
+// [FIX] Prevent timeouts and memory exhaustion for scheduled background tasks
+set_time_limit(0);
+ignore_user_abort(true);
+ini_set('memory_limit', '1024M');
+
 // 1. SETUP ENVIRONMENT
 $isAjax = isset($_GET['ajax']) && $_GET['ajax'] == '1';
 
@@ -48,13 +53,24 @@ $customPath  = $settings['backup_path'] ?? '';
 $zipPass     = $settings['backup_password'] ?? '';
 $incVault    = ($settings['backup_include_vault'] ?? '0') === '1';
 $alertEmail  = $settings['backup_alert_email'] ?? '';
+$secondaryPath = $settings['secondary_backup_path'] ?? '';
+
+// [FIX] Ensure ZipArchive extension is available
+if (!class_exists('ZipArchive')) {
+    $success = false;
+    $errorMessage = "PHP ZipArchive extension is not enabled. Cannot create ZIP backups.";
+    if ($alertEmail) mail($alertEmail, "⚠️ HR System Backup Failed", "Cron backup failed: $errorMessage\n\nTime: " . date('Y-m-d H:i:s'));
+    goto backup_end;
+}
 
 // 3. PREPARE PATHS
-$backupDir = (!empty($customPath) && is_dir($customPath)) ? $customPath : realpath(__DIR__ . '/../backups');
+$backupDir = !empty($customPath) ? $customPath : realpath(__DIR__ . '/../backups');
 if (!$backupDir) {
     $backupDir = __DIR__ . '/../backups';
-    if (!is_dir($backupDir)) mkdir($backupDir, 0755, true);
 }
+
+if ($backupDir && !is_dir($backupDir)) @mkdir($backupDir, 0755, true);
+if ($backupDir) $backupDir = realpath($backupDir);
 
 $dateStr = date('Y-m-d_H-i-s');
 $baseName = "AutoBackup_" . $dateStr;
@@ -221,14 +237,17 @@ if ($success) {
         }
     }
 
-    $zip->close();
+    if ($zip instanceof ZipArchive && !empty($zip->filename)) {
+        @$zip->close();
+    }
+    $zip = null; // Mark as finished
     foreach ($pendingUnlink as $f) @unlink($f);
     $pendingUnlink = [];
 }
 
 backup_end:
-if (isset($zip) && $zip instanceof ZipArchive) {
-    $zip->close();
+if (isset($zip) && $zip instanceof ZipArchive && !empty($zip->filename)) {
+    @$zip->close();
 }
 foreach ($pendingUnlink as $f) @unlink($f);
 $pendingUnlink = [];
@@ -272,11 +291,26 @@ if ($success && $allValid && count($generatedZips) > 0) {
         $partLabel = $partCount === 1 ? '1 part' : "$partCount parts";
         $logger->log($userId, 'AUTO_BACKUP_CLI', "Created backup: " . basename($generatedZips[0]) . " ($partLabel)");
 
-        // [NEW] Add to Notification Center (if triggered via web)
-        if (!CLI_MODE && isset($_SESSION['user_id'])) {
-            $pdo->prepare("INSERT INTO notifications (user_id, title, message, type) VALUES (?, 'Manual Backup', ?, 'success')")
-                ->execute([$_SESSION['user_id'], "Manual backup created in $partLabel."]);
+        // [NEW] Secondary Path Redundancy
+        if (!empty($secondaryPath)) {
+            if (!is_dir($secondaryPath) && !@mkdir($secondaryPath, 0755, true)) {
+                error_log("CRON BACKUP ERROR: Could not create secondary directory: $secondaryPath");
+            }
+            foreach ($generatedZips as $gz) {
+                $dest = rtrim($secondaryPath, '/\\') . DIRECTORY_SEPARATOR . basename($gz);
+                if (!@copy($gz, $dest)) {
+                    error_log("CRON BACKUP ERROR: Failed to mirror to secondary path. Source: $gz | Dest: $dest");
+                }
+            }
         }
+
+        // [FIX] Always create a notification for Admins so the result is visible in the UI
+        $adminIdStmt = $pdo->query("SELECT id FROM users WHERE role = 'ADMIN' LIMIT 1");
+        $targetAdminId = $adminIdStmt->fetchColumn() ?: 1;
+
+        $notifTitle = CLI_MODE ? "Automated Backup" : "Manual Backup";
+        $pdo->prepare("INSERT INTO notifications (user_id, title, message, type) VALUES (?, ?, ?, 'success')")
+            ->execute([$targetAdminId, $notifTitle, "System backup created successfully in $partLabel: " . basename($generatedZips[0])]);
     } catch (Exception $e) {
     }
 

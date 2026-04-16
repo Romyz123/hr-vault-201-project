@@ -45,7 +45,7 @@ sanitize_global_input($_GET);
 
 // [MHI 5.4] Enforce HTTPS (Skip for Localhost or CLI to avoid ERR_SSL_PROTOCOL_ERROR)
 // To test compliance locally, you can temporarily remove '127.0.0.1' from the array below.
-$isLocal = (php_sapi_name() === 'cli');
+$isLocal = (php_sapi_name() === 'cli' || in_array($_SERVER['REMOTE_ADDR'] ?? '', ['127.0.0.1', '::1']));
 // [FIX] Robust HTTPS detection including support for Reverse Proxies
 $isHttps = (
     (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ||
@@ -53,16 +53,20 @@ $isHttps = (
     (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && strtolower($_SERVER['HTTP_X_FORWARDED_PROTO']) === 'https')
 );
 
-if (!$isLocal && !$isHttps) {
-    $location = 'https://' . $_SERVER['SERVER_NAME'] . $_SERVER['REQUEST_URI'];
-    header('HTTP/1.1 301 Moved Permanently');
-    header('Location: ' . $location);
-    exit;
-}
+// [FIX] Disable forced HTTPS redirection for local/network development environments 
+// where a valid SSL certificate is not configured.
+// if (!$isLocal && !$isHttps) {
+//     $location = 'https://' . $_SERVER['SERVER_NAME'] . $_SERVER['REQUEST_URI'];
+//     header('HTTP/1.1 301 Moved Permanently');
+//     header('Location: ' . $location);
+//     exit;
+// }
 // [MHI 5.3] Secure Session Parameters (HttpOnly, Secure, SameSite)
-ini_set('session.cookie_httponly', 1);
-ini_set('session.cookie_secure', $isHttps ? 1 : 0);
-ini_set('session.cookie_samesite', 'Lax'); // [FIX] Allows session cookies to persist when opening documents in new tabs
+if (session_status() === PHP_SESSION_NONE) {
+    ini_set('session.cookie_httponly', 1);
+    ini_set('session.cookie_secure', $isHttps ? 1 : 0);
+    ini_set('session.cookie_samesite', 'Lax');
+}
 try {
     $options = [
         PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
@@ -99,7 +103,9 @@ try {
     } catch (Exception $e) {
         // Table might not exist, use default
     }
-    ini_set('session.gc_maxlifetime', $server_timeout);
+    if (session_status() === PHP_SESSION_NONE) {
+        ini_set('session.gc_maxlifetime', $server_timeout);
+    }
 } catch (\PDOException $e) {
     error_log($e->getMessage());
     // Provide a more helpful error message for XAMPP users

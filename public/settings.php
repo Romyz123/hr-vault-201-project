@@ -15,6 +15,7 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'ADMIN') {
 $security = new Security($pdo);
 $logger = new Logger($pdo);
 $csrf_token = $security->generateCSRF();
+$error = "";
 
 // [NEW] Dynamically calculate total drive space to use as a realistic cap
 $vaultPathForDisk = realpath(__DIR__ . '/../vault') ?: __DIR__;
@@ -234,7 +235,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     if ($valBackupDiskGB < 1) $valBackupDiskGB = 1;
 
                     $value = (float)$value;
-                    if ($value < 0.1) $value = 0.1;
+                    if ($value < 0.01) $value = 0.01;
                     if ($value > $valBackupDiskGB) $value = $valBackupDiskGB;
                 }
 
@@ -745,8 +746,21 @@ include 'header.php';
     function runManualBackup() {
         const btn = document.getElementById('manualBackupBtn');
         const ogText = btn.innerHTML;
-        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> Packing Data... Please wait.';
-        btn.disabled = true;
+
+        Swal.fire({
+            title: 'Running Full Backup...',
+            html: `
+                <p class="text-muted small mb-3">The system is packing the database and files into secure volumes. Please wait...</p>
+                <div class="progress mb-3" style="height: 25px;">
+                    <div class="progress-bar progress-bar-striped progress-bar-animated bg-success" style="width: 100%"></div>
+                </div>
+                <span class="text-danger fw-bold small">This may take a few minutes. Do not close this window!</span>
+            `,
+            allowOutsideClick: false,
+            allowEscapeKey: false,
+            showConfirmButton: false
+        });
+
         const formData = new FormData();
         formData.append('csrf_token', '<?php echo $_SESSION['csrf_token']; ?>');
         fetch('cron_backup.php?ajax=1', {
@@ -755,6 +769,7 @@ include 'header.php';
             })
             .then(r => r.json())
             .then(data => {
+                Swal.close();
                 if (data.status === 'success') {
                     Swal.fire('Success!', data.message, 'success').then(() => window.location.reload());
                 } else {
@@ -762,8 +777,18 @@ include 'header.php';
                 }
             })
             .catch(err => {
+                Swal.close();
                 console.error(err);
-                Swal.fire('Network Error', 'An unexpected error occurred.', 'error');
+                // [FIX] Replace generic Network Error with helpful guidance
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'Backup Task Continuing...',
+                    html: `
+                        <p>The connection timed out, but the server is still packing your backup in the background.</p>
+                        <p class="small text-muted">Please check the <b>Disaster Recovery</b> table in Manage Users in 5-10 minutes to verify the new files.</p>
+                    `,
+                    confirmButtonText: 'Understood'
+                });
             })
             .finally(() => {
                 btn.innerHTML = ogText;

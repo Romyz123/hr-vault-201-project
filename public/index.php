@@ -83,6 +83,7 @@ if ($userRole === 'ADMIN') {
     $zipPass     = $bkSettings['backup_password'] ?? '';
     $incVault    = ($bkSettings['backup_include_vault'] ?? '0') === '1';
     $alertEmail  = $bkSettings['backup_alert_email'] ?? '';
+    $secondaryPath = $bkSettings['secondary_backup_path'] ?? '';
 
     // Determine Target Path
     $primaryBackupPath = (!empty($customPath) && is_dir($customPath)) ? $customPath : realpath(__DIR__ . '/../backups');
@@ -100,15 +101,37 @@ if ($userRole === 'ADMIN') {
     $existingBackups = glob(rtrim($primaryBackupPath, '/\\') . '/AutoBackup_' . $todayStr . '*.*');
 
     if ($todayDay === $scheduleDay && empty($existingBackups)) {
-        // [SECURITY FIX] Replaced goto with proper if-else control flow
         // Check Time Requirement
         if (date('H:i') >= $scheduleTime) {
             // Time is acceptable, proceed with backup
             ini_set('memory_limit', '-1');
+            ignore_user_abort(true);
             set_time_limit(600); // 10 minutes
 
             $baseFilename = 'AutoBackup_' . date('Y-m-d_H-i-s');
             $sqlFilename  = $baseFilename . '.sql';
+
+            $maxSizeGB = (float)($bkSettings['backup_max_size_gb'] ?? 1.9);
+            $maxSizeBytes = $maxSizeGB * 1024 * 1024 * 1024;
+            $currentBytes = 0;
+            $partNumber = 1;
+            $generatedZips = [];
+            $pendingUnlink = [];
+            $zip = null;
+            $backupFailed = !class_exists('ZipArchive');
+
+            // Closure to handle ZIP volume rotation
+            $startNewZip = function () use (&$zip, &$generatedZips, $primaryBackupPath, $baseFilename, &$partNumber, &$currentBytes) {
+                if ($zip instanceof ZipArchive) $zip->close();
+                $path = rtrim($primaryBackupPath, '/\\') . DIRECTORY_SEPARATOR . $baseFilename . "_Part{$partNumber}.zip";
+                $generatedZips[] = $path;
+                $zip = new ZipArchive();
+                if ($zip->open($path, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== TRUE) {
+                    return false;
+                }
+                $currentBytes = 0;
+                return true;
+            };
 
             $tables = [];
             $query  = $pdo->query('SHOW TABLES');
@@ -116,42 +139,81 @@ if ($userRole === 'ADMIN') {
                 $tables[] = $row[0];
             }
 
-            $content  = "-- AUTOMATED FRIDAY BACKUP\n";
-            $content .= "-- Date: " . date("Y-m-d H:i:s") . "\n\n";
-            $content .= "SET FOREIGN_KEY_CHECKS=0;\n\n";
-
-            foreach ($tables as $table) {
-                $stmt = $pdo->query("SHOW CREATE TABLE `$table`");
-                $row  = $stmt->fetch(PDO::FETCH_NUM);
-                $content .= "DROP TABLE IF EXISTS `$table`;\n" . $row[1] . ";\n\n";
-
-                $stmt = $pdo->query("SELECT * FROM `$table`");
-                while ($r = $stmt->fetch(PDO::FETCH_ASSOC)) {
-                    $values = [];
-                    foreach ($r as $v) {
-                        if ($v === null) {
-                            $values[] = "NULL";
-                            continue;
-                        }
-                        // Use PDO quote instead of addslashes for safe escaping
-                        $values[] = $pdo->quote((string)$v);
-                    }
-                    $content .= "INSERT INTO `$table` VALUES (" . implode(', ', $values) . ");\n";
-                }
-                $content .= "\n";
+            // Initialize first part
+            if (!$startNewZip()) {
+                @mail($alertEmail, "⚠️ Backup Failed", "Could not create initial ZIP volume.");
+                $pdo->exec("INSERT INTO system_settings (setting_key, setting_value) VALUES ('backup_last_status', 'FAILED') ON DUPLICATE KEY UPDATE setting_value = 'FAILED'");
+                $backupFailed = true;
             }
-            $content .= "\nSET FOREIGN_KEY_CHECKS=1;";
 
-            // ZIP CREATION
-            $zip = new ZipArchive();
-            $zipFile = rtrim($primaryBackupPath, '/\\') . '/' . $baseFilename . '.zip';
+            if (!$backupFailed) {
+                // Stream SQL to parts
+                $tmpSqlFile = tempnam(sys_get_temp_dir(), 'hr201_auto_');
+                $pendingUnlink[] = $tmpSqlFile;
+                $handle = fopen($tmpSqlFile, 'w');
+                if (!$handle) {
+                    $backupFailed = true;
+                    goto backup_finish;
+                }
 
-            if ($zip->open($zipFile, ZipArchive::CREATE) === TRUE) {
-                // Add SQL
-                $zip->addFromString($sqlFilename, $content);
-                if ($zipPass) $zip->setEncryptionName($sqlFilename, ZipArchive::EM_AES_256, $zipPass);
+                fwrite($handle, "-- AUTOMATED BACKUP\nSET FOREIGN_KEY_CHECKS=0;\n\n");
+                $sqlBytes = 40; // Approx header size
 
-                // Add Vault (if enabled)
+                foreach ($tables as $table) {
+                    $res = $pdo->query("SHOW CREATE TABLE `$table`")->fetch(PDO::FETCH_NUM);
+                    if (!$res) continue;
+                    $createSql = "DROP TABLE IF EXISTS `$table`;\n" . $res[1] . ";\n\n";
+                    fwrite($handle, $createSql);
+                    $sqlBytes += strlen($createSql);
+
+                    $stmt = $pdo->query("SELECT * FROM `$table`");
+                    while ($r = $stmt->fetch(PDO::FETCH_ASSOC)) {
+                        $values = [];
+                        foreach ($r as $v) {
+                            $values[] = ($v === null) ? "NULL" : $pdo->quote((string)$v);
+                        }
+                        $line = "INSERT INTO `$table` VALUES (" . implode(', ', $values) . ");\n";
+                        $len = strlen($line);
+
+                        // Check if we need to split volume before adding this line
+                        if ($currentBytes + $sqlBytes + $len > $maxSizeBytes) {
+                            fwrite($handle, "SET FOREIGN_KEY_CHECKS=1;");
+                            fclose($handle);
+                            $zip->addFile($tmpSqlFile, "database_Part{$partNumber}.sql");
+                            if ($zipPass) $zip->setEncryptionName("database_Part{$partNumber}.sql", ZipArchive::EM_AES_256, $zipPass);
+
+                            $partNumber++;
+                            if (!$startNewZip()) {
+                                $backupFailed = true;
+                                break 2; // Safely breaks out of both loops
+                            }
+
+                            $tmpSqlFile = tempnam(sys_get_temp_dir(), 'hr201_auto_');
+                            $pendingUnlink[] = $tmpSqlFile;
+                            $handle = fopen($tmpSqlFile, 'w');
+                            if (!$handle) {
+                                $backupFailed = true;
+                                break 2;
+                            }
+                            fwrite($handle, "-- AUTOMATED BACKUP PART {$partNumber}\nSET FOREIGN_KEY_CHECKS=0;\n\n");
+                            $sqlBytes = 50;
+                        }
+                        fwrite($handle, $line);
+                        $sqlBytes += $len;
+                    }
+                }
+            }
+
+            if (!$backupFailed) {
+                fwrite($handle, "\nSET FOREIGN_KEY_CHECKS=1;");
+                fclose($handle);
+
+                // Add final SQL part
+                $finalSqlName = "database_Part{$partNumber}.sql";
+                $zip->addFile($tmpSqlFile, $finalSqlName);
+                if ($zipPass) $zip->setEncryptionName($finalSqlName, ZipArchive::EM_AES_256, $zipPass);
+                $currentBytes += $sqlBytes;
+
                 if ($incVault) {
                     // [LOGICAL FIX] Include config.php to preserve VAULT_KEY
                     $configPath = realpath(__DIR__ . '/../config/config.php');
@@ -179,32 +241,36 @@ if ($userRole === 'ADMIN') {
                         }
                     }
                 }
+            }
 
-                $zip->close();
+            // Cleanup Process
+            backup_finish:
+            if ($zip instanceof ZipArchive) $zip->close();
+            foreach ($pendingUnlink as $f) if (file_exists($f)) @unlink($f);
 
-                if (file_exists($zipFile)) {
-                    $logger->log($_SESSION['user_id'], 'AUTO_BACKUP', "Backup created: " . basename($zipFile));
-                    $_SESSION['backup_msg'] = "✅ Automated Backup Completed (" . basename($zipFile) . ")";
-
-                    // [NEW] Add to Notification Center (Bell Icon)
-                    $pdo->prepare("INSERT INTO notifications (user_id, title, message, type) VALUES (?, 'System Backup', ?, 'success')")
-                        ->execute([$_SESSION['user_id'], "Automated backup created successfully: " . basename($zipFile)]);
-                } else {
-                    // [NEW] Failure Alert
-                    if ($alertEmail) {
-                        mail($alertEmail, "⚠️ HR System Backup Failed", "The automated backup process failed to create the ZIP file on server.\n\nTime: " . date('Y-m-d H:i:s'));
-                    }
-                    $logger->log($_SESSION['user_id'], 'AUTO_BACKUP_FAIL', "Backup failed: ZIP file not created.");
-                }
-            } else {
-                if ($alertEmail) {
-                    mail($alertEmail, "⚠️ HR System Backup Failed", "Could not open/create ZIP archive.\n\nTime: " . date('Y-m-d H:i:s'));
+            // Finalize Status
+            $allValid = !empty($generatedZips);
+            foreach ($generatedZips as $gz) {
+                if (!file_exists($gz) || filesize($gz) === 0) {
+                    $allValid = false;
+                    break;
                 }
             }
-        } // End of time check if statement
+
+            if ($allValid && !$backupFailed) {
+                $logger->log($_SESSION['user_id'], 'AUTO_BACKUP', "Automatic backup created: " . basename($generatedZips[0] ?? 'unknown'));
+                $notifMsg = "Automated backup created successfully: " . basename($generatedZips[0] ?? 'unknown');
+                if (count($generatedZips) > 1) $notifMsg .= " (Split into " . count($generatedZips) . " parts)";
+
+                $pdo->prepare("INSERT INTO notifications (user_id, title, message, type) VALUES (?, 'System Backup', ?, 'success')")
+                    ->execute([$_SESSION['user_id'], $notifMsg]);
+            } else {
+                $pdo->exec("INSERT INTO system_settings (setting_key, setting_value) VALUES ('backup_last_status', 'FAILED') ON DUPLICATE KEY UPDATE setting_value = 'FAILED'");
+            }
+        }
     }
-    // Backup process complete
 }
+
 
 // ---------- 3) HELPERS ----------
 function h($v)
@@ -231,8 +297,11 @@ function keepQuery(array $override = []): string
 {
     $q = $_GET;
     foreach ($override as $k => $v) {
-        if ($v === null) unset($q[$k]);
-        else $q[$k] = $v;
+        if ($v === null) {
+            unset($q[$k]);
+        } else {
+            $q[$k] = $v;
+        }
     }
     $qs = http_build_query($q);
     return $qs ? ('?' . $qs) : '';
@@ -1180,30 +1249,40 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
 
     <div class="row" id="directory-results">
         <?php foreach ($employees as $emp):
-            $statusClass = match ($emp['status']) {
-                'Active'     => 'status-active',
-                'Resigned'   => 'status-agency',
-                'Terminated' => 'status-terminated',
-                default      => 'border-secondary'
-            };
-            $statusBadge = match ($emp['status']) {
-                'Active'     => 'bg-success',
-                'Resigned'   => 'bg-warning',
-                'Terminated' => 'bg-dark',
-                default      => 'bg-secondary'
-            };
+            // --- PHP 7 COMPATIBLE BADGE LOGIC ---
+            $status = $emp['status'] ?? '';
 
-            // [NEW] System Role Badge Colors
-            $sysRole = $emp['system_role'] ?? 'Staff';
-            $roleBadge = match (strtoupper($sysRole)) {
-                'MANAGER', 'HEAD' => 'bg-danger',
-                'ENGINEER', 'ADVISOR' => 'bg-primary',
-                'IT' => 'bg-dark',
-                'OFFICER', 'SUPERVISOR' => 'bg-info text-dark',
-                'MAINTENANCE', 'TECHNICIAN' => 'bg-warning text-dark',
-                'DRIVER' => 'bg-secondary',
-                default => 'bg-light text-dark border'
-            };
+            // 1. Status Colors
+            $statusClass = 'border-secondary';
+            $statusBadge = 'bg-secondary';
+            if ($status === 'Active') {
+                $statusClass = 'status-active';
+                $statusBadge = 'bg-success';
+            } elseif ($status === 'Resigned') {
+                $statusClass = 'status-agency';
+                $statusBadge = 'bg-warning';
+            } elseif ($status === 'Terminated') {
+                $statusClass = 'status-terminated';
+                $statusBadge = 'bg-dark';
+            }
+
+            // 2. System Role Badge Colors
+            $sysRole = strtoupper($emp['system_role'] ?? 'STAFF');
+            $roleBadge = 'bg-light text-dark border'; // Default
+
+            if ($sysRole === 'MANAGER' || $sysRole === 'HEAD') {
+                $roleBadge = 'bg-danger';
+            } elseif ($sysRole === 'ENGINEER' || $sysRole === 'ADVISOR') {
+                $roleBadge = 'bg-primary';
+            } elseif ($sysRole === 'IT') {
+                $roleBadge = 'bg-dark';
+            } elseif ($sysRole === 'OFFICER' || $sysRole === 'SUPERVISOR') {
+                $roleBadge = 'bg-info text-dark';
+            } elseif ($sysRole === 'MAINTENANCE' || $sysRole === 'TECHNICIAN') {
+                $roleBadge = 'bg-warning text-dark';
+            } elseif ($sysRole === 'DRIVER') {
+                $roleBadge = 'bg-secondary';
+            }
 
             // Color-coded employer badges
             $agName = strtoupper($emp['agency_name'] ?? '');

@@ -260,7 +260,11 @@ $totalPages = max(1, (int)ceil($totalRows / $perPage));
         link.click();
     }
 </script>
+<script src="assets/bootstrap.bundle.min.js"></script>
+<script src="assets/dark_mode.js"></script>
+</body>
 
+</html>
 <?php
 function getLogBadge($action)
 {

@@ -15,3 +15,282 @@
 [15-Apr-2026 17:29:14 Asia/Manila] PHP Warning:  Undefined variable $error in C:\xampp\htdocs\hr 201\public\settings.php on line 329
 [15-Apr-2026 17:41:28 Asia/Manila] PHP Warning:  Undefined variable $error in C:\xampp\htdocs\hr 201\public\settings.php on line 329
 [15-Apr-2026 18:36:04 Asia/Manila] PHP Warning:  Undefined variable $error in C:\xampp\htdocs\hr 201\public\settings.php on line 329
+[16-Apr-2026 09:10:31 Asia/Manila] PHP Warning:  Undefined variable $error in C:\xampp\htdocs\hr 201\public\settings.php on line 329
+[16-Apr-2026 09:50:17 Asia/Manila] PHP Warning:  Undefined variable $isHttps in C:\xampp\htdocs\hr 201\config\db.php on line 60
+[16-Apr-2026 09:50:18 Asia/Manila] PHP Warning:  Undefined variable $isHttps in C:\xampp\htdocs\hr 201\config\db.php on line 60
+[16-Apr-2026 09:50:18 Asia/Manila] PHP Warning:  Undefined variable $isHttps in C:\xampp\htdocs\hr 201\config\db.php on line 60
+[16-Apr-2026 09:50:20 Asia/Manila] PHP Warning:  Undefined variable $isHttps in C:\xampp\htdocs\hr 201\config\db.php on line 60
+[16-Apr-2026 09:50:20 Asia/Manila] PHP Warning:  Undefined variable $isHttps in C:\xampp\htdocs\hr 201\config\db.php on line 60
+[16-Apr-2026 09:51:20 Asia/Manila] PHP Warning:  Undefined variable $isHttps in C:\xampp\htdocs\hr 201\config\db.php on line 60
+[16-Apr-2026 09:52:20 Asia/Manila] PHP Warning:  Undefined variable $isHttps in C:\xampp\htdocs\hr 201\config\db.php on line 60
+[16-Apr-2026 09:52:53 Asia/Manila] PHP Warning:  Undefined variable $isHttps in C:\xampp\htdocs\hr 201\config\db.php on line 60
+[16-Apr-2026 09:52:53 Asia/Manila] PHP Warning:  Undefined variable $isHttps in C:\xampp\htdocs\hr 201\config\db.php on line 60
+[16-Apr-2026 09:53:53 Asia/Manila] PHP Warning:  Undefined variable $isHttps in C:\xampp\htdocs\hr 201\config\db.php on line 60
+[16-Apr-2026 09:54:53 Asia/Manila] PHP Warning:  Undefined variable $isHttps in C:\xampp\htdocs\hr 201\config\db.php on line 60
+[16-Apr-2026 09:55:54 Asia/Manila] PHP Warning:  Undefined variable $isHttps in C:\xampp\htdocs\hr 201\config\db.php on line 60
+[16-Apr-2026 09:56:54 Asia/Manila] PHP Warning:  Undefined variable $isHttps in C:\xampp\htdocs\hr 201\config\db.php on line 60
+[16-Apr-2026 09:57:54 Asia/Manila] PHP Warning:  Undefined variable $isHttps in C:\xampp\htdocs\hr 201\config\db.php on line 60
+[16-Apr-2026 09:58:54 Asia/Manila] PHP Warning:  Undefined variable $isHttps in C:\xampp\htdocs\hr 201\config\db.php on line 60
+[16-Apr-2026 10:00:39 Asia/Manila] PHP Warning:  Undefined variable $isHttps in C:\xampp\htdocs\hr 201\config\db.php on line 60
+[16-Apr-2026 10:01:39 Asia/Manila] PHP Warning:  Undefined variable $isHttps in C:\xampp\htdocs\hr 201\config\db.php on line 60
+[16-Apr-2026 10:02:39 Asia/Manila] PHP Warning:  Undefined variable $isHttps in C:\xampp\htdocs\hr 201\config\db.php on line 60
+[16-Apr-2026 10:03:39 Asia/Manila] PHP Warning:  Undefined variable $isHttps in C:\xampp\htdocs\hr 201\config\db.php on line 60
+[16-Apr-2026 10:04:39 Asia/Manila] PHP Warning:  Undefined variable $isHttps in C:\xampp\htdocs\hr 201\config\db.php on line 60
+[16-Apr-2026 10:05:39 Asia/Manila] PHP Warning:  Undefined variable $isHttps in C:\xampp\htdocs\hr 201\config\db.php on line 60
+[16-Apr-2026 10:05:57 Asia/Manila] PHP Warning:  Undefined variable $isHttps in C:\xampp\htdocs\hr 201\config\db.php on line 60
+[16-Apr-2026 10:11:05 Asia/Manila] PHP Warning:  Undefined variable $error in C:\xampp\htdocs\hr 201\public\settings.php on line 329
+[16-Apr-2026 10:11:18 Asia/Manila] PHP Warning:  Undefined variable $error in C:\xampp\htdocs\hr 201\public\settings.php on line 329
+[16-Apr-2026 10:16:37 Asia/Manila] PHP Warning:  Undefined variable $error in C:\xampp\htdocs\hr 201\public\settings.php on line 329
+[16-Apr-2026 10:17:21 Asia/Manila] PHP Warning:  Undefined variable $error in C:\xampp\htdocs\hr 201\public\settings.php on line 329
+[16-Apr-2026 10:17:52 Asia/Manila] PHP Warning:  Undefined variable $error in C:\xampp\htdocs\hr 201\public\settings.php on line 329
+[16-Apr-2026 10:18:36 Asia/Manila] PHP Warning:  Undefined variable $error in C:\xampp\htdocs\hr 201\public\settings.php on line 329
+[16-Apr-2026 10:19:21 Asia/Manila] PHP Warning:  ini_set(): Session ini settings cannot be changed when a session is active in C:\xampp\htdocs\hr 201\config\db.php on line 65
+[16-Apr-2026 10:19:21 Asia/Manila] PHP Warning:  ini_set(): Session ini settings cannot be changed when a session is active in C:\xampp\htdocs\hr 201\config\db.php on line 66
+[16-Apr-2026 10:19:21 Asia/Manila] PHP Warning:  ini_set(): Session ini settings cannot be changed when a session is active in C:\xampp\htdocs\hr 201\config\db.php on line 104
+[16-Apr-2026 10:19:23 Asia/Manila] PHP Fatal error:  Uncaught ValueError: Invalid or uninitialized Zip object in C:\xampp\htdocs\hr 201\public\cron_backup.php:231
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\cron_backup.php(231): ZipArchive->close()
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\cron_backup.php on line 231
+[16-Apr-2026 10:19:37 Asia/Manila] PHP Warning:  ini_set(): Session ini settings cannot be changed when a session is active in C:\xampp\htdocs\hr 201\config\db.php on line 65
+[16-Apr-2026 10:19:37 Asia/Manila] PHP Warning:  ini_set(): Session ini settings cannot be changed when a session is active in C:\xampp\htdocs\hr 201\config\db.php on line 66
+[16-Apr-2026 10:19:37 Asia/Manila] PHP Warning:  ini_set(): Session ini settings cannot be changed when a session is active in C:\xampp\htdocs\hr 201\config\db.php on line 104
+[16-Apr-2026 10:19:39 Asia/Manila] PHP Fatal error:  Uncaught ValueError: Invalid or uninitialized Zip object in C:\xampp\htdocs\hr 201\public\cron_backup.php:231
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\cron_backup.php(231): ZipArchive->close()
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\cron_backup.php on line 231
+[16-Apr-2026 10:38:14 Asia/Manila] PHP Warning:  Undefined variable $error in C:\xampp\htdocs\hr 201\public\settings.php on line 329
+[16-Apr-2026 10:38:19 Asia/Manila] PHP Warning:  Undefined variable $error in C:\xampp\htdocs\hr 201\public\settings.php on line 329
+[16-Apr-2026 11:00:23 Asia/Manila] PHP Warning:  Undefined variable $error in C:\xampp\htdocs\hr 201\public\settings.php on line 329
+[16-Apr-2026 11:11:02 Asia/Manila] PHP Warning:  Undefined variable $error in C:\xampp\htdocs\hr 201\public\settings.php on line 329
+[16-Apr-2026 11:11:07 Asia/Manila] PHP Warning:  ini_set(): Session ini settings cannot be changed when a session is active in C:\xampp\htdocs\hr 201\config\db.php on line 65
+[16-Apr-2026 11:11:07 Asia/Manila] PHP Warning:  ini_set(): Session ini settings cannot be changed when a session is active in C:\xampp\htdocs\hr 201\config\db.php on line 66
+[16-Apr-2026 11:11:07 Asia/Manila] PHP Warning:  ini_set(): Session ini settings cannot be changed when a session is active in C:\xampp\htdocs\hr 201\config\db.php on line 104
+[16-Apr-2026 11:11:09 Asia/Manila] PHP Fatal error:  Uncaught ValueError: Invalid or uninitialized Zip object in C:\xampp\htdocs\hr 201\public\cron_backup.php:233
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\cron_backup.php(233): ZipArchive->close()
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\cron_backup.php on line 233
+[16-Apr-2026 11:11:12 Asia/Manila] PHP Warning:  ini_set(): Session ini settings cannot be changed when a session is active in C:\xampp\htdocs\hr 201\config\db.php on line 65
+[16-Apr-2026 11:11:12 Asia/Manila] PHP Warning:  ini_set(): Session ini settings cannot be changed when a session is active in C:\xampp\htdocs\hr 201\config\db.php on line 66
+[16-Apr-2026 11:11:12 Asia/Manila] PHP Warning:  ini_set(): Session ini settings cannot be changed when a session is active in C:\xampp\htdocs\hr 201\config\db.php on line 104
+[16-Apr-2026 11:11:13 Asia/Manila] PHP Fatal error:  Uncaught ValueError: Invalid or uninitialized Zip object in C:\xampp\htdocs\hr 201\public\cron_backup.php:233
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\cron_backup.php(233): ZipArchive->close()
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\cron_backup.php on line 233
+[16-Apr-2026 11:11:20 Asia/Manila] PHP Warning:  ini_set(): Session ini settings cannot be changed when a session is active in C:\xampp\htdocs\hr 201\config\db.php on line 65
+[16-Apr-2026 11:11:20 Asia/Manila] PHP Warning:  ini_set(): Session ini settings cannot be changed when a session is active in C:\xampp\htdocs\hr 201\config\db.php on line 66
+[16-Apr-2026 11:11:20 Asia/Manila] PHP Warning:  ini_set(): Session ini settings cannot be changed when a session is active in C:\xampp\htdocs\hr 201\config\db.php on line 104
+[16-Apr-2026 11:11:21 Asia/Manila] PHP Fatal error:  Uncaught ValueError: Invalid or uninitialized Zip object in C:\xampp\htdocs\hr 201\public\cron_backup.php:233
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\cron_backup.php(233): ZipArchive->close()
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\cron_backup.php on line 233
+[16-Apr-2026 13:08:08 Asia/Manila] PHP Warning:  Undefined variable $error in C:\xampp\htdocs\hr 201\public\settings.php on line 329
+[16-Apr-2026 13:08:16 Asia/Manila] PHP Warning:  ini_set(): Session ini settings cannot be changed when a session is active in C:\xampp\htdocs\hr 201\config\db.php on line 65
+[16-Apr-2026 13:08:16 Asia/Manila] PHP Warning:  ini_set(): Session ini settings cannot be changed when a session is active in C:\xampp\htdocs\hr 201\config\db.php on line 66
+[16-Apr-2026 13:08:16 Asia/Manila] PHP Warning:  ini_set(): Session ini settings cannot be changed when a session is active in C:\xampp\htdocs\hr 201\config\db.php on line 104
+[16-Apr-2026 13:08:17 Asia/Manila] PHP Fatal error:  Uncaught ValueError: Invalid or uninitialized Zip object in C:\xampp\htdocs\hr 201\public\cron_backup.php:237
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\cron_backup.php(237): ZipArchive->close()
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\cron_backup.php on line 237
+[16-Apr-2026 13:15:07 Asia/Manila] PHP Warning:  ini_set(): Session ini settings cannot be changed when a session is active in C:\xampp\htdocs\hr 201\config\db.php on line 65
+[16-Apr-2026 13:15:07 Asia/Manila] PHP Warning:  ini_set(): Session ini settings cannot be changed when a session is active in C:\xampp\htdocs\hr 201\config\db.php on line 66
+[16-Apr-2026 13:15:07 Asia/Manila] PHP Warning:  ini_set(): Session ini settings cannot be changed when a session is active in C:\xampp\htdocs\hr 201\config\db.php on line 104
+[16-Apr-2026 13:15:09 Asia/Manila] PHP Fatal error:  Uncaught ValueError: Invalid or uninitialized Zip object in C:\xampp\htdocs\hr 201\public\cron_backup.php:245
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\cron_backup.php(245): ZipArchive->close()
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\cron_backup.php on line 245
+[16-Apr-2026 13:27:29 Asia/Manila] PHP Warning:  Undefined variable $error in C:\xampp\htdocs\hr 201\public\settings.php on line 329
+[16-Apr-2026 13:27:34 Asia/Manila] PHP Warning:  Undefined variable $error in C:\xampp\htdocs\hr 201\public\settings.php on line 329
+[16-Apr-2026 13:27:39 Asia/Manila] PHP Warning:  ini_set(): Session ini settings cannot be changed when a session is active in C:\xampp\htdocs\hr 201\config\db.php on line 65
+[16-Apr-2026 13:27:39 Asia/Manila] PHP Warning:  ini_set(): Session ini settings cannot be changed when a session is active in C:\xampp\htdocs\hr 201\config\db.php on line 66
+[16-Apr-2026 13:27:39 Asia/Manila] PHP Warning:  ini_set(): Session ini settings cannot be changed when a session is active in C:\xampp\htdocs\hr 201\config\db.php on line 104
+[16-Apr-2026 13:27:40 Asia/Manila] PHP Fatal error:  Uncaught ValueError: Invalid or uninitialized Zip object in C:\xampp\htdocs\hr 201\public\cron_backup.php:245
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\cron_backup.php(245): ZipArchive->close()
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\cron_backup.php on line 245
+[16-Apr-2026 13:28:16 Asia/Manila] PHP Warning:  Undefined variable $error in C:\xampp\htdocs\hr 201\public\settings.php on line 329
+[16-Apr-2026 13:28:33 Asia/Manila] PHP Warning:  ini_set(): Session ini settings cannot be changed when a session is active in C:\xampp\htdocs\hr 201\config\db.php on line 65
+[16-Apr-2026 13:28:33 Asia/Manila] PHP Warning:  ini_set(): Session ini settings cannot be changed when a session is active in C:\xampp\htdocs\hr 201\config\db.php on line 66
+[16-Apr-2026 13:28:33 Asia/Manila] PHP Warning:  ini_set(): Session ini settings cannot be changed when a session is active in C:\xampp\htdocs\hr 201\config\db.php on line 104
+[16-Apr-2026 13:28:34 Asia/Manila] PHP Fatal error:  Uncaught ValueError: Invalid or uninitialized Zip object in C:\xampp\htdocs\hr 201\public\cron_backup.php:245
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\cron_backup.php(245): ZipArchive->close()
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\cron_backup.php on line 245
+[16-Apr-2026 13:29:32 Asia/Manila] PHP Warning:  Undefined variable $error in C:\xampp\htdocs\hr 201\public\settings.php on line 329
+[16-Apr-2026 13:30:13 Asia/Manila] PHP Warning:  Undefined variable $error in C:\xampp\htdocs\hr 201\public\settings.php on line 329
+[16-Apr-2026 13:31:08 Asia/Manila] PHP Warning:  Undefined variable $error in C:\xampp\htdocs\hr 201\public\settings.php on line 329
+[16-Apr-2026 13:31:31 Asia/Manila] PHP Warning:  Undefined variable $error in C:\xampp\htdocs\hr 201\public\settings.php on line 329
+[16-Apr-2026 13:40:57 Asia/Manila] Failed to copy vault file: C:\xampp\htdocs\hr 201\vault\.htaccess to U:\01_TESP\09_MAINTENANCE DOCS\041_GAG\201 FILES\sample\vault_mirror\
+[16-Apr-2026 13:42:41 Asia/Manila] PHP Warning:  Undefined variable $error in C:\xampp\htdocs\hr 201\public\settings.php on line 329
+[16-Apr-2026 13:43:16 Asia/Manila] Failed to copy vault file: C:\xampp\htdocs\hr 201\vault\.htaccess to U:\01_TESP\09_MAINTENANCE DOCS\041_GAG\201 FILES\sample\vault_mirror\
+[16-Apr-2026 13:43:36 Asia/Manila] PHP Warning:  Undefined variable $error in C:\xampp\htdocs\hr 201\public\settings.php on line 329
+[16-Apr-2026 13:43:41 Asia/Manila] PHP Warning:  ini_set(): Session ini settings cannot be changed when a session is active in C:\xampp\htdocs\hr 201\config\db.php on line 65
+[16-Apr-2026 13:43:41 Asia/Manila] PHP Warning:  ini_set(): Session ini settings cannot be changed when a session is active in C:\xampp\htdocs\hr 201\config\db.php on line 66
+[16-Apr-2026 13:43:41 Asia/Manila] PHP Warning:  ini_set(): Session ini settings cannot be changed when a session is active in C:\xampp\htdocs\hr 201\config\db.php on line 104
+[16-Apr-2026 13:43:42 Asia/Manila] PHP Fatal error:  Uncaught ValueError: Invalid or uninitialized Zip object in C:\xampp\htdocs\hr 201\public\cron_backup.php:245
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\cron_backup.php(245): ZipArchive->close()
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\cron_backup.php on line 245
+[16-Apr-2026 13:43:46 Asia/Manila] PHP Warning:  ini_set(): Session ini settings cannot be changed when a session is active in C:\xampp\htdocs\hr 201\config\db.php on line 65
+[16-Apr-2026 13:43:46 Asia/Manila] PHP Warning:  ini_set(): Session ini settings cannot be changed when a session is active in C:\xampp\htdocs\hr 201\config\db.php on line 66
+[16-Apr-2026 13:43:46 Asia/Manila] PHP Warning:  ini_set(): Session ini settings cannot be changed when a session is active in C:\xampp\htdocs\hr 201\config\db.php on line 104
+[16-Apr-2026 13:43:48 Asia/Manila] PHP Fatal error:  Uncaught ValueError: Invalid or uninitialized Zip object in C:\xampp\htdocs\hr 201\public\cron_backup.php:245
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\cron_backup.php(245): ZipArchive->close()
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\cron_backup.php on line 245
+[16-Apr-2026 13:49:18 Asia/Manila] PHP Warning:  Undefined variable $error in C:\xampp\htdocs\hr 201\public\settings.php on line 329
+[16-Apr-2026 14:00:08 Asia/Manila] PHP Warning:  ini_set(): Session ini settings cannot be changed when a session is active in C:\xampp\htdocs\hr 201\config\db.php on line 65
+[16-Apr-2026 14:00:08 Asia/Manila] PHP Warning:  ini_set(): Session ini settings cannot be changed when a session is active in C:\xampp\htdocs\hr 201\config\db.php on line 66
+[16-Apr-2026 14:00:08 Asia/Manila] PHP Warning:  ini_set(): Session ini settings cannot be changed when a session is active in C:\xampp\htdocs\hr 201\config\db.php on line 104
+[16-Apr-2026 14:00:09 Asia/Manila] PHP Fatal error:  Uncaught ValueError: Invalid or uninitialized Zip object in C:\xampp\htdocs\hr 201\public\cron_backup.php:245
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\cron_backup.php(245): ZipArchive->close()
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\cron_backup.php on line 245
+[16-Apr-2026 14:01:00 Asia/Manila] PHP Warning:  Undefined variable $error in C:\xampp\htdocs\hr 201\public\settings.php on line 329
+[16-Apr-2026 14:01:06 Asia/Manila] PHP Warning:  ini_set(): Session ini settings cannot be changed when a session is active in C:\xampp\htdocs\hr 201\config\db.php on line 65
+[16-Apr-2026 14:01:06 Asia/Manila] PHP Warning:  ini_set(): Session ini settings cannot be changed when a session is active in C:\xampp\htdocs\hr 201\config\db.php on line 66
+[16-Apr-2026 14:01:06 Asia/Manila] PHP Warning:  ini_set(): Session ini settings cannot be changed when a session is active in C:\xampp\htdocs\hr 201\config\db.php on line 104
+[16-Apr-2026 14:01:08 Asia/Manila] PHP Fatal error:  Uncaught ValueError: Invalid or uninitialized Zip object in C:\xampp\htdocs\hr 201\public\cron_backup.php:245
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\cron_backup.php(245): ZipArchive->close()
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\cron_backup.php on line 245
+[16-Apr-2026 14:02:46 Asia/Manila] PHP Warning:  ini_set(): Session ini settings cannot be changed when a session is active in C:\xampp\htdocs\hr 201\config\db.php on line 65
+[16-Apr-2026 14:02:46 Asia/Manila] PHP Warning:  ini_set(): Session ini settings cannot be changed when a session is active in C:\xampp\htdocs\hr 201\config\db.php on line 66
+[16-Apr-2026 14:02:46 Asia/Manila] PHP Warning:  ini_set(): Session ini settings cannot be changed when a session is active in C:\xampp\htdocs\hr 201\config\db.php on line 104
+[16-Apr-2026 14:02:48 Asia/Manila] PHP Fatal error:  Uncaught ValueError: Invalid or uninitialized Zip object in C:\xampp\htdocs\hr 201\public\cron_backup.php:245
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\cron_backup.php(245): ZipArchive->close()
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\cron_backup.php on line 245
+[16-Apr-2026 14:03:06 Asia/Manila] PHP Warning:  ini_set(): Session ini settings cannot be changed when a session is active in C:\xampp\htdocs\hr 201\config\db.php on line 65
+[16-Apr-2026 14:03:06 Asia/Manila] PHP Warning:  ini_set(): Session ini settings cannot be changed when a session is active in C:\xampp\htdocs\hr 201\config\db.php on line 66
+[16-Apr-2026 14:03:06 Asia/Manila] PHP Warning:  ini_set(): Session ini settings cannot be changed when a session is active in C:\xampp\htdocs\hr 201\config\db.php on line 104
+[16-Apr-2026 14:03:08 Asia/Manila] PHP Fatal error:  Uncaught ValueError: Invalid or uninitialized Zip object in C:\xampp\htdocs\hr 201\public\cron_backup.php:245
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\cron_backup.php(245): ZipArchive->close()
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\cron_backup.php on line 245
+[16-Apr-2026 14:09:01 Asia/Manila] PHP Warning:  ini_set(): Session ini settings cannot be changed when a session is active in C:\xampp\htdocs\hr 201\config\db.php on line 65
+[16-Apr-2026 14:09:01 Asia/Manila] PHP Warning:  ini_set(): Session ini settings cannot be changed when a session is active in C:\xampp\htdocs\hr 201\config\db.php on line 66
+[16-Apr-2026 14:09:01 Asia/Manila] PHP Warning:  ini_set(): Session ini settings cannot be changed when a session is active in C:\xampp\htdocs\hr 201\config\db.php on line 104
+[16-Apr-2026 14:09:02 Asia/Manila] PHP Fatal error:  Uncaught ValueError: Invalid or uninitialized Zip object in C:\xampp\htdocs\hr 201\public\cron_backup.php:245
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\cron_backup.php(245): ZipArchive->close()
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\cron_backup.php on line 245
+[16-Apr-2026 14:09:19 Asia/Manila] PHP Warning:  ini_set(): Session ini settings cannot be changed when a session is active in C:\xampp\htdocs\hr 201\config\db.php on line 65
+[16-Apr-2026 14:09:19 Asia/Manila] PHP Warning:  ini_set(): Session ini settings cannot be changed when a session is active in C:\xampp\htdocs\hr 201\config\db.php on line 66
+[16-Apr-2026 14:09:19 Asia/Manila] PHP Warning:  ini_set(): Session ini settings cannot be changed when a session is active in C:\xampp\htdocs\hr 201\config\db.php on line 104
+[16-Apr-2026 14:09:21 Asia/Manila] PHP Fatal error:  Uncaught ValueError: Invalid or uninitialized Zip object in C:\xampp\htdocs\hr 201\public\cron_backup.php:245
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\cron_backup.php(245): ZipArchive->close()
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\cron_backup.php on line 245
+[16-Apr-2026 14:10:34 Asia/Manila] PHP Warning:  Undefined variable $error in C:\xampp\htdocs\hr 201\public\settings.php on line 329
+[16-Apr-2026 14:10:37 Asia/Manila] PHP Warning:  ini_set(): Session ini settings cannot be changed when a session is active in C:\xampp\htdocs\hr 201\config\db.php on line 65
+[16-Apr-2026 14:10:37 Asia/Manila] PHP Warning:  ini_set(): Session ini settings cannot be changed when a session is active in C:\xampp\htdocs\hr 201\config\db.php on line 66
+[16-Apr-2026 14:10:37 Asia/Manila] PHP Warning:  ini_set(): Session ini settings cannot be changed when a session is active in C:\xampp\htdocs\hr 201\config\db.php on line 104
+[16-Apr-2026 14:10:39 Asia/Manila] PHP Fatal error:  Uncaught ValueError: Invalid or uninitialized Zip object in C:\xampp\htdocs\hr 201\public\cron_backup.php:245
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\cron_backup.php(245): ZipArchive->close()
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\cron_backup.php on line 245
+[16-Apr-2026 14:10:51 Asia/Manila] PHP Warning:  Undefined variable $error in C:\xampp\htdocs\hr 201\public\settings.php on line 329
+[16-Apr-2026 14:11:18 Asia/Manila] PHP Warning:  Undefined variable $error in C:\xampp\htdocs\hr 201\public\settings.php on line 329
+[16-Apr-2026 14:11:44 Asia/Manila] PHP Warning:  Undefined variable $error in C:\xampp\htdocs\hr 201\public\settings.php on line 329
+[16-Apr-2026 14:14:16 Asia/Manila] PHP Warning:  Undefined variable $error in C:\xampp\htdocs\hr 201\public\settings.php on line 329
+[16-Apr-2026 14:26:43 Asia/Manila] PHP Warning:  Undefined variable $error in C:\xampp\htdocs\hr 201\public\settings.php on line 329
+[16-Apr-2026 14:27:26 Asia/Manila] PHP Warning:  Undefined variable $error in C:\xampp\htdocs\hr 201\public\settings.php on line 329
+[16-Apr-2026 14:27:43 Asia/Manila] PHP Warning:  ini_set(): Session ini settings cannot be changed when a session is active in C:\xampp\htdocs\hr 201\config\db.php on line 65
+[16-Apr-2026 14:27:43 Asia/Manila] PHP Warning:  ini_set(): Session ini settings cannot be changed when a session is active in C:\xampp\htdocs\hr 201\config\db.php on line 66
+[16-Apr-2026 14:27:43 Asia/Manila] PHP Warning:  ini_set(): Session ini settings cannot be changed when a session is active in C:\xampp\htdocs\hr 201\config\db.php on line 104
+[16-Apr-2026 14:27:44 Asia/Manila] PHP Fatal error:  Uncaught ValueError: Invalid or uninitialized Zip object in C:\xampp\htdocs\hr 201\public\cron_backup.php:245
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\cron_backup.php(245): ZipArchive->close()
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\cron_backup.php on line 245
+[16-Apr-2026 14:32:10 Asia/Manila] PHP Warning:  Undefined variable $error in C:\xampp\htdocs\hr 201\public\settings.php on line 329
+[16-Apr-2026 14:32:14 Asia/Manila] PHP Warning:  Undefined variable $error in C:\xampp\htdocs\hr 201\public\settings.php on line 329
+[16-Apr-2026 14:32:23 Asia/Manila] PHP Warning:  ini_set(): Session ini settings cannot be changed when a session is active in C:\xampp\htdocs\hr 201\config\db.php on line 65
+[16-Apr-2026 14:32:23 Asia/Manila] PHP Warning:  ini_set(): Session ini settings cannot be changed when a session is active in C:\xampp\htdocs\hr 201\config\db.php on line 66
+[16-Apr-2026 14:32:23 Asia/Manila] PHP Warning:  ini_set(): Session ini settings cannot be changed when a session is active in C:\xampp\htdocs\hr 201\config\db.php on line 104
+[16-Apr-2026 14:32:24 Asia/Manila] PHP Fatal error:  Uncaught ValueError: Invalid or uninitialized Zip object in C:\xampp\htdocs\hr 201\public\cron_backup.php:247
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\cron_backup.php(247): ZipArchive->close()
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\cron_backup.php on line 247
+[16-Apr-2026 14:32:30 Asia/Manila] PHP Warning:  ini_set(): Session ini settings cannot be changed when a session is active in C:\xampp\htdocs\hr 201\config\db.php on line 65
+[16-Apr-2026 14:32:30 Asia/Manila] PHP Warning:  ini_set(): Session ini settings cannot be changed when a session is active in C:\xampp\htdocs\hr 201\config\db.php on line 66
+[16-Apr-2026 14:32:30 Asia/Manila] PHP Warning:  ini_set(): Session ini settings cannot be changed when a session is active in C:\xampp\htdocs\hr 201\config\db.php on line 104
+[16-Apr-2026 14:32:31 Asia/Manila] PHP Fatal error:  Uncaught ValueError: Invalid or uninitialized Zip object in C:\xampp\htdocs\hr 201\public\cron_backup.php:247
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\cron_backup.php(247): ZipArchive->close()
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\cron_backup.php on line 247
+[16-Apr-2026 14:33:18 Asia/Manila] PHP Warning:  ini_set(): Session ini settings cannot be changed when a session is active in C:\xampp\htdocs\hr 201\config\db.php on line 65
+[16-Apr-2026 14:33:18 Asia/Manila] PHP Warning:  ini_set(): Session ini settings cannot be changed when a session is active in C:\xampp\htdocs\hr 201\config\db.php on line 66
+[16-Apr-2026 14:33:18 Asia/Manila] PHP Warning:  ini_set(): Session ini settings cannot be changed when a session is active in C:\xampp\htdocs\hr 201\config\db.php on line 104
+[16-Apr-2026 14:33:19 Asia/Manila] PHP Fatal error:  Uncaught ValueError: Invalid or uninitialized Zip object in C:\xampp\htdocs\hr 201\public\cron_backup.php:247
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\cron_backup.php(247): ZipArchive->close()
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\cron_backup.php on line 247
+[16-Apr-2026 14:35:14 Asia/Manila] PHP Warning:  Undefined variable $error in C:\xampp\htdocs\hr 201\public\settings.php on line 329
+[16-Apr-2026 14:38:03 Asia/Manila] PHP Warning:  Undefined variable $error in C:\xampp\htdocs\hr 201\public\settings.php on line 329
+[16-Apr-2026 14:38:07 Asia/Manila] PHP Warning:  ini_set(): Session ini settings cannot be changed when a session is active in C:\xampp\htdocs\hr 201\config\db.php on line 65
+[16-Apr-2026 14:38:07 Asia/Manila] PHP Warning:  ini_set(): Session ini settings cannot be changed when a session is active in C:\xampp\htdocs\hr 201\config\db.php on line 66
+[16-Apr-2026 14:38:07 Asia/Manila] PHP Warning:  ini_set(): Session ini settings cannot be changed when a session is active in C:\xampp\htdocs\hr 201\config\db.php on line 104
+[16-Apr-2026 14:38:08 Asia/Manila] PHP Fatal error:  Uncaught ValueError: Invalid or uninitialized Zip object in C:\xampp\htdocs\hr 201\public\cron_backup.php:247
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\cron_backup.php(247): ZipArchive->close()
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\cron_backup.php on line 247
+[16-Apr-2026 14:38:38 Asia/Manila] PHP Warning:  Undefined variable $error in C:\xampp\htdocs\hr 201\public\settings.php on line 329
+[16-Apr-2026 14:38:42 Asia/Manila] PHP Warning:  ini_set(): Session ini settings cannot be changed when a session is active in C:\xampp\htdocs\hr 201\config\db.php on line 65
+[16-Apr-2026 14:38:42 Asia/Manila] PHP Warning:  ini_set(): Session ini settings cannot be changed when a session is active in C:\xampp\htdocs\hr 201\config\db.php on line 66
+[16-Apr-2026 14:38:42 Asia/Manila] PHP Warning:  ini_set(): Session ini settings cannot be changed when a session is active in C:\xampp\htdocs\hr 201\config\db.php on line 104
+[16-Apr-2026 14:38:43 Asia/Manila] PHP Fatal error:  Uncaught ValueError: Invalid or uninitialized Zip object in C:\xampp\htdocs\hr 201\public\cron_backup.php:247
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\cron_backup.php(247): ZipArchive->close()
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\cron_backup.php on line 247
+[16-Apr-2026 14:39:05 Asia/Manila] PHP Warning:  ini_set(): Session ini settings cannot be changed when a session is active in C:\xampp\htdocs\hr 201\config\db.php on line 65
+[16-Apr-2026 14:39:05 Asia/Manila] PHP Warning:  ini_set(): Session ini settings cannot be changed when a session is active in C:\xampp\htdocs\hr 201\config\db.php on line 66
+[16-Apr-2026 14:39:05 Asia/Manila] PHP Warning:  ini_set(): Session ini settings cannot be changed when a session is active in C:\xampp\htdocs\hr 201\config\db.php on line 104
+[16-Apr-2026 14:39:06 Asia/Manila] PHP Fatal error:  Uncaught ValueError: Invalid or uninitialized Zip object in C:\xampp\htdocs\hr 201\public\cron_backup.php:247
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\cron_backup.php(247): ZipArchive->close()
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\cron_backup.php on line 247
+[16-Apr-2026 14:39:17 Asia/Manila] PHP Warning:  ini_set(): Session ini settings cannot be changed when a session is active in C:\xampp\htdocs\hr 201\config\db.php on line 65
+[16-Apr-2026 14:39:17 Asia/Manila] PHP Warning:  ini_set(): Session ini settings cannot be changed when a session is active in C:\xampp\htdocs\hr 201\config\db.php on line 66
+[16-Apr-2026 14:39:17 Asia/Manila] PHP Warning:  ini_set(): Session ini settings cannot be changed when a session is active in C:\xampp\htdocs\hr 201\config\db.php on line 104
+[16-Apr-2026 14:39:18 Asia/Manila] PHP Fatal error:  Uncaught ValueError: Invalid or uninitialized Zip object in C:\xampp\htdocs\hr 201\public\cron_backup.php:247
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\cron_backup.php(247): ZipArchive->close()
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\cron_backup.php on line 247
+[16-Apr-2026 14:44:38 Asia/Manila] PHP Warning:  ini_set(): Session ini settings cannot be changed when a session is active in C:\xampp\htdocs\hr 201\config\db.php on line 65
+[16-Apr-2026 14:44:38 Asia/Manila] PHP Warning:  ini_set(): Session ini settings cannot be changed when a session is active in C:\xampp\htdocs\hr 201\config\db.php on line 66
+[16-Apr-2026 14:44:38 Asia/Manila] PHP Warning:  ini_set(): Session ini settings cannot be changed when a session is active in C:\xampp\htdocs\hr 201\config\db.php on line 104
+[16-Apr-2026 14:44:40 Asia/Manila] PHP Fatal error:  Uncaught ValueError: Invalid or uninitialized Zip object in C:\xampp\htdocs\hr 201\public\cron_backup.php:247
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\cron_backup.php(247): ZipArchive->close()
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\cron_backup.php on line 247
+[16-Apr-2026 14:49:22 Asia/Manila] PHP Warning:  Undefined variable $error in C:\xampp\htdocs\hr 201\public\settings.php on line 329
+[16-Apr-2026 15:03:04 Asia/Manila] PHP Warning:  Undefined variable $error in C:\xampp\htdocs\hr 201\public\settings.php on line 329
+[16-Apr-2026 15:03:17 Asia/Manila] PHP Warning:  Undefined variable $error in C:\xampp\htdocs\hr 201\public\settings.php on line 329
+[16-Apr-2026 15:03:22 Asia/Manila] PHP Warning:  Undefined variable $error in C:\xampp\htdocs\hr 201\public\settings.php on line 329

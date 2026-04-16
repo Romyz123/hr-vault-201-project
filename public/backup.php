@@ -7,6 +7,11 @@ require '../src/Logger.php';
 require '../src/Security.php';
 session_start();
 
+// [FIX] Prevent timeouts and memory exhaustion for large databases/vaults
+set_time_limit(0);
+ignore_user_abort(true); // [NEW] Continue backup even if browser disconnects
+ini_set('memory_limit', '1024M');
+
 // Cleanup any leftover temp backup parts from previous sessions
 if (!empty($_SESSION['backup_temp_files']) && is_array($_SESSION['backup_temp_files'])) {
     foreach ($_SESSION['backup_temp_files'] as $f) {
@@ -87,7 +92,6 @@ $maxSizeGB = (float)($settings['backup_max_size_gb'] ?? 1.9);
 $maxSizeBytes = $maxSizeGB * 1024 * 1024 * 1024;
 
 // 2. CONFIGURATION
-$backup_name = "TESP_HR_BACKUP_" . date("Y-m-d_H-i-s") . ".sql";
 $tables = [];
 
 // 3. GET ALL TABLES
@@ -95,53 +99,6 @@ $query = $pdo->query('SHOW TABLES');
 while ($row = $query->fetch(PDO::FETCH_NUM)) {
     $tables[] = $row[0];
 }
-
-// [OPTIMIZATION] Stream directly to a temporary file to save RAM
-$tmpSqlFile = tempnam(sys_get_temp_dir(), 'hr201_manual_');
-if ($tmpSqlFile === false) {
-    die("Error: Failed to create temporary file for backup.");
-}
-$handle = fopen($tmpSqlFile, 'w');
-if ($handle === false) {
-    @unlink($tmpSqlFile);
-    die("Error: Failed to open temporary file for writing.");
-}
-fwrite($handle, "-- TESP HR SYSTEM BACKUP\n");
-fwrite($handle, "-- Generated: " . date("Y-m-d H:i:s") . "\n");
-fwrite($handle, "-- By User ID: " . $_SESSION['user_id'] . "\n\n");
-fwrite($handle, "SET FOREIGN_KEY_CHECKS=0;\n\n");
-
-// 4. LOOP THROUGH TABLES
-foreach ($tables as $table) {
-    // A. Get Create Table structure
-    $stmt = $pdo->query("SHOW CREATE TABLE $table");
-    $row = $stmt->fetch(PDO::FETCH_NUM);
-
-    fwrite($handle, "\n\n-- Structure for table `$table` --\n");
-    fwrite($handle, "DROP TABLE IF EXISTS `$table`;\n");
-    fwrite($handle, $row[1] . ";\n\n");
-
-    // B. Get Table Data
-    $stmt = $pdo->query("SELECT * FROM $table");
-
-    fwrite($handle, "-- Dumping data for table `$table` --\n");
-
-    while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
-        $values = [];
-        foreach ($row as $value) {
-            if ($value === null) {
-                $values[] = "NULL";
-            } else {
-                // [FIX] Use PDO::quote for safer and consistent SQL escaping
-                $values[] = $pdo->quote((string)$value);
-            }
-        }
-        fwrite($handle, "INSERT INTO `$table` VALUES (" . implode(', ', $values) . ");\n");
-    }
-}
-
-fwrite($handle, "\nSET FOREIGN_KEY_CHECKS=1;\n");
-fclose($handle);
 
 $mode = $_GET['mode'] ?? 'download';
 $password = !empty($_POST['backup_password']) ? trim($_POST['backup_password']) : '';
@@ -267,7 +224,10 @@ if ($useZip) {
             }
         }
     }
-    if ($zip instanceof ZipArchive) $zip->close();
+    if ($zip instanceof ZipArchive) {
+        @$zip->close();
+        $zip = null;
+    }
 
     $final_filename = ($incVault ? "FULL_SYSTEM_" : "Encrypted_Backup_") . date("Y-m-d_H-i-s") . ".zip";
     $final_mimetype = 'application/zip';
@@ -278,15 +238,24 @@ if ($useZip) {
 
 $logger = new Logger($pdo);
 
+// [FIX] Set cookie here (After processing, before streaming)
+// This ensures the frontend spinner closes only when the server is ready to send the file.
+setcookie("downloadToken", $_POST['csrf_token'] ?? '1', time() + 300, "/");
+
 if ($mode === 'server') {
     // [FIX] Use path from settings or default
     $customPath = $settings['backup_path'] ?? '';
     $defaultBackupPath = __DIR__ . '/../backups';
-    $primaryPath = (!empty($customPath) && is_dir($customPath)) ? $customPath : (realpath($defaultBackupPath) ?: $defaultBackupPath);
-    if (!is_dir($primaryPath)) @mkdir($primaryPath, 0755, true);
+    $primaryPath = !empty($customPath) ? $customPath : (realpath($defaultBackupPath) ?: $defaultBackupPath);
+
+    if (!is_dir($primaryPath)) {
+        @mkdir($primaryPath, 0755, true);
+    }
+    $primaryPath = realpath($primaryPath);
     $fullPath = rtrim($primaryPath, '/\\') . '/' . $final_filename;
 
     $saved = false;
+    $savedDests = [];
     if ($useZip && !empty($generatedZips)) {
         $saved = true;
         $totalParts = count($generatedZips);
@@ -320,14 +289,26 @@ if ($mode === 'server') {
 
     if ($saved) {
         $msg = "✅ Backup saved to Primary: " . basename($fullPath);
-        $secondaryPath = null; // Removed ENV dependency for consistency
+
+        // [FIX] Implement Secondary Backup Path Redundancy
+        $secondaryPath = $settings['secondary_backup_path'] ?? '';
         if ($secondaryPath) {
-            if (!is_dir($secondaryPath)) @mkdir($secondaryPath, 0755, true);
-            $secFile = rtrim($secondaryPath, '/\\') . '/' . $final_filename;
-            if ($useZip ? copy($generatedZips[0], $secFile) : copy($tmpSqlFile, $secFile)) {
-                $msg .= " AND Secondary Location.";
+            if (!is_dir($secondaryPath) && !@mkdir($secondaryPath, 0755, true)) {
+                error_log("BACKUP ERROR: Could not create secondary directory: $secondaryPath");
             }
+            $secSuccess = true;
+            foreach ($savedDests as $d) {
+                $secFile = rtrim($secondaryPath, '/\\') . DIRECTORY_SEPARATOR . basename($d);
+                if (!@copy($d, $secFile)) {
+                    $secSuccess = false;
+                    error_log("BACKUP ERROR: Failed to mirror file to secondary path: $secFile. Check permissions.");
+                }
+            }
+            if ($secSuccess) $msg .= " AND Secondary Location.";
         }
+
+        // Update System Status
+        $pdo->exec("INSERT INTO system_settings (setting_key, setting_value) VALUES ('backup_last_status', 'OK') ON DUPLICATE KEY UPDATE setting_value = 'OK'");
 
         // Cleanup any temporary ZIP parts created during this backup
         if ($useZip && !empty($generatedZips)) {
@@ -350,6 +331,9 @@ if ($mode === 'server') {
         }
         if (file_exists($tmpSqlFile)) @unlink($tmpSqlFile);
 
+        // Mark failure for UI alert
+        $pdo->exec("INSERT INTO system_settings (setting_key, setting_value) VALUES ('backup_last_status', 'FAILED') ON DUPLICATE KEY UPDATE setting_value = 'FAILED'");
+
         header("Location: manager_user.php?error=" . urlencode("❌ Failed to write to backup path. Check folder permissions."));
         exit;
     }
@@ -360,8 +344,6 @@ if ($mode === 'server') {
     if (ob_get_length()) ob_end_clean();
     if (ini_get('zlib.output_compression')) ini_set('zlib.output_compression', 'Off');
 
-    // [NEW] Set cookie to tell the frontend to close the loading spinner
-    setcookie("downloadToken", $_POST['csrf_token'] ?? '1', time() + 300, "/");
     if ($useZip && count($generatedZips) > 1) {
         // MULTI-PART UI & AUTO-DOWNLOADER
         $downloadLinks = [];

@@ -929,8 +929,12 @@ $bkMaxSize = $pdo->query("SELECT setting_value FROM system_settings WHERE settin
 
 // [NEW] Fetch backup path for UI assurance
 $configuredBackupPath = $pdo->query("SELECT setting_value FROM system_settings WHERE setting_key = 'backup_path'")->fetchColumn();
-$actualBackupPath = (!empty($configuredBackupPath) && is_dir($configuredBackupPath)) ? realpath($configuredBackupPath) : realpath(__DIR__ . '/../backups');
-if (!$actualBackupPath) $actualBackupPath = realpath(__DIR__ . '/..') . DIRECTORY_SEPARATOR . 'backups';
+$actualBackupPath = !empty($configuredBackupPath) ? $configuredBackupPath : realpath(__DIR__ . '/../backups');
+
+if ($actualBackupPath && !is_dir($actualBackupPath)) {
+    @mkdir($actualBackupPath, 0755, true);
+}
+$actualBackupPath = realpath($actualBackupPath);
 $isBackupWritable = is_writable($actualBackupPath);
 ?>
 <?php require 'header.php'; ?>
@@ -1426,7 +1430,6 @@ $isBackupWritable = is_writable($actualBackupPath);
         </div>
 
         <script src="assets/bootstrap.bundle.min.js"></script>
-        <script src="dark_mode.js"></script>
         <script>
             <?php if ($alertMsg): ?>
                 Swal.fire({
