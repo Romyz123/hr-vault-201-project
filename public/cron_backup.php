@@ -93,13 +93,15 @@ if (CLI_MODE) echo "Starting backup to: $zipFile\n";
 // 4. INITIALIZE ZIP & SQL
 $tables = [];
 $query = $pdo->query('SHOW TABLES');
-while ($row = $query->fetch(PDO::FETCH_NUM)) $tables[] = $row[0];
+if ($query) {
+    while ($row = $query->fetch(PDO::FETCH_NUM)) $tables[] = $row[0];
+}
 
 // 5. CREATE ZIP
 $success = true;
 $errorMessage = '';
 $zip = new ZipArchive();
-if ($zip->open($zipFile, ZipArchive::CREATE) !== TRUE) {
+if (!$zip instanceof ZipArchive || $zip->open($zipFile, ZipArchive::CREATE) !== TRUE) {
     $success = false;
     $errorMessage = "Could not create ZIP file ($zipFile).";
     if ($alertEmail) mail($alertEmail, "⚠️ HR System Backup Failed", "Manual/Cron backup failed: $errorMessage\n\nTime: " . date('Y-m-d H:i:s'));
@@ -109,16 +111,23 @@ if ($success) {
     $tmpSqlFile = tempnam(sys_get_temp_dir(), 'hr201_backup_');
     $pendingUnlink[] = $tmpSqlFile;
     $handle = fopen($tmpSqlFile, 'w');
+    if (!$handle) {
+        $success = false;
+        $errorMessage = "Could not create temporary SQL file. Check server permissions.";
+        goto backup_end;
+    }
     $sqlBytes = 0;
 
     $sqlBytes += fwrite($handle, "-- AUTOMATED BACKUP ($dateStr) PART {$partNumber}\nSET FOREIGN_KEY_CHECKS=0;\n\n");
 
     foreach ($tables as $table) {
-        $row = $pdo->query("SHOW CREATE TABLE `$table`")->fetch(PDO::FETCH_NUM);
+        $q = $pdo->query("SHOW CREATE TABLE `" . str_replace("`", "``", $table) . "`");
+        $row = $q ? $q->fetch(PDO::FETCH_NUM) : false;
+        if (!$row) continue;
         $sqlBytes += fwrite($handle, "DROP TABLE IF EXISTS `$table`;\n" . $row[1] . ";\n\n");
 
         // stream the rows instead of loading entire table
-        $stmtRows = $pdo->prepare("SELECT * FROM `$table`");
+        $stmtRows = $pdo->prepare("SELECT * FROM `" . str_replace("`", "``", $table) . "` ");
         $stmtRows->execute();
         while ($r = $stmtRows->fetch(PDO::FETCH_ASSOC)) {
             $vals = array_map(fn($v) => $v === null ? "NULL" : $pdo->quote($v), $r);
@@ -129,12 +138,23 @@ if ($success) {
             if ($currentBytes + $sqlBytes + $len > $maxSizeBytes) {
                 fwrite($handle, "SET FOREIGN_KEY_CHECKS=1;\n");
                 fclose($handle);
+                $handle = null;
 
                 $sqlFileInZip = "database_Part{$partNumber}.sql";
-                $zip->addFile($tmpSqlFile, $sqlFileInZip);
-                if ($zipPass) $zip->setEncryptionName($sqlFileInZip, ZipArchive::EM_AES_256, $zipPass);
+                if ($zip instanceof ZipArchive) {
+                    if (!$zip->addFile($tmpSqlFile, $sqlFileInZip)) {
+                        $success = false;
+                        $errorMessage = "Failed to add SQL file to ZIP archive.";
+                        goto backup_end;
+                    }
+                    if ($zipPass) $zip->setEncryptionName($sqlFileInZip, ZipArchive::EM_AES_256, $zipPass);
+                    if (!$zip->close()) {
+                        $success = false;
+                        $errorMessage = "Failed to finalize ZIP archive.";
+                        goto backup_end;
+                    }
+                }
 
-                $zip->close();
                 foreach ($pendingUnlink as $f) @unlink($f);
                 $pendingUnlink = [];
 
@@ -142,7 +162,7 @@ if ($success) {
                 $currentBytes = 0;
                 $zipFile = rtrim($backupDir, '/\\') . DIRECTORY_SEPARATOR . $baseName . "_Part{$partNumber}.zip";
                 $generatedZips[] = $zipFile;
-                if ($zip->open($zipFile, ZipArchive::CREATE) !== TRUE) {
+                if (!$zip instanceof ZipArchive || $zip->open($zipFile, ZipArchive::CREATE) !== TRUE) {
                     $success = false;
                     $errorMessage = "Could not create ZIP file ($zipFile).";
                     if ($alertEmail) mail($alertEmail, "⚠️ HR System Backup Failed", "Manual/Cron backup failed: $errorMessage\n\nTime: " . date('Y-m-d H:i:s'));
@@ -152,6 +172,10 @@ if ($success) {
                 $tmpSqlFile = tempnam(sys_get_temp_dir(), 'hr201_backup_');
                 $pendingUnlink[] = $tmpSqlFile;
                 $handle = fopen($tmpSqlFile, 'w');
+                if (!$handle) {
+                    $success = false;
+                    goto backup_end;
+                }
                 $sqlBytes = 0;
                 $sqlBytes += fwrite($handle, "-- AUTOMATED BACKUP ($dateStr) PART {$partNumber}\nSET FOREIGN_KEY_CHECKS=0;\n\n");
             }
@@ -161,12 +185,21 @@ if ($success) {
         $sqlBytes += fwrite($handle, "\n");
     }
 
-    fwrite($handle, "SET FOREIGN_KEY_CHECKS=1;\n");
-    fclose($handle);
+    if (isset($handle) && is_resource($handle)) {
+        fwrite($handle, "SET FOREIGN_KEY_CHECKS=1;\n");
+        fclose($handle);
+        $handle = null;
+    }
 
     $sqlFileInZip = "database_Part{$partNumber}.sql";
-    $zip->addFile($tmpSqlFile, $sqlFileInZip);
-    if ($zipPass) $zip->setEncryptionName($sqlFileInZip, ZipArchive::EM_AES_256, $zipPass);
+    if ($zip instanceof ZipArchive) {
+        if (!$zip->addFile($tmpSqlFile, $sqlFileInZip)) {
+            $success = false;
+            $errorMessage = "Failed to add final SQL file to ZIP.";
+            goto backup_end;
+        }
+        if ($zipPass) $zip->setEncryptionName($sqlFileInZip, ZipArchive::EM_AES_256, $zipPass);
+    }
 
     $currentBytes += $sqlBytes;
 
@@ -177,7 +210,7 @@ if ($success) {
         if ($configPath && file_exists($configPath)) {
             $fsize = filesize($configPath);
             if ($currentBytes + $fsize > $maxSizeBytes && $currentBytes > 0) {
-                $zip->close();
+                if ($zip instanceof ZipArchive) $zip->close();
                 foreach ($pendingUnlink as $f) @unlink($f);
                 $pendingUnlink = [];
 
@@ -185,7 +218,7 @@ if ($success) {
                 $currentBytes = 0;
                 $zipFile = rtrim($backupDir, '/\\') . DIRECTORY_SEPARATOR . $baseName . "_Part{$partNumber}.zip";
                 $generatedZips[] = $zipFile;
-                if ($zip->open($zipFile, ZipArchive::CREATE) !== TRUE) {
+                if (!$zip instanceof ZipArchive || $zip->open($zipFile, ZipArchive::CREATE) !== TRUE) {
                     $success = false;
                     $errorMessage = "Could not create ZIP file ($zipFile).";
                     if ($alertEmail) mail($alertEmail, "⚠️ HR System Backup Failed", "Manual/Cron backup failed: $errorMessage\n\nTime: " . date('Y-m-d H:i:s'));
@@ -193,8 +226,10 @@ if ($success) {
                 }
             }
 
-            $zip->addFile($configPath, 'config/config.php');
-            if ($zipPass) $zip->setEncryptionName('config/config.php', ZipArchive::EM_AES_256, $zipPass);
+            if ($zip instanceof ZipArchive) {
+                $zip->addFile($configPath, 'config/config.php');
+                if ($zipPass) $zip->setEncryptionName('config/config.php', ZipArchive::EM_AES_256, $zipPass);
+            }
             $currentBytes += $fsize;
         }
 
@@ -211,7 +246,7 @@ if ($success) {
 
                     // [SPLIT LOGIC]
                     if ($currentBytes + $fsize > $maxSizeBytes && $currentBytes > 0) {
-                        $zip->close();
+                        if ($zip instanceof ZipArchive) @$zip->close();
                         foreach ($pendingUnlink as $f) @unlink($f);
                         $pendingUnlink = [];
 
@@ -219,7 +254,7 @@ if ($success) {
                         $currentBytes = 0;
                         $zipFile = rtrim($backupDir, '/\\') . DIRECTORY_SEPARATOR . $baseName . "_Part{$partNumber}.zip";
                         $generatedZips[] = $zipFile;
-                        if ($zip->open($zipFile, ZipArchive::CREATE) !== TRUE) {
+                        if (!$zip instanceof ZipArchive || $zip->open($zipFile, ZipArchive::CREATE) !== TRUE) {
                             $success = false;
                             $errorMessage = "Could not create ZIP file ($zipFile).";
                             if ($alertEmail) mail($alertEmail, "⚠️ HR System Backup Failed", "Manual/Cron backup failed: $errorMessage\n\nTime: " . date('Y-m-d H:i:s'));
@@ -228,8 +263,13 @@ if ($success) {
                     }
 
                     $relativePath = 'vault/' . str_replace(DIRECTORY_SEPARATOR, '/', substr($src, strlen($vaultPath) + 1));
-                    $zip->addFile($src, $relativePath);
-                    if ($zipPass) $zip->setEncryptionName($relativePath, ZipArchive::EM_AES_256, $zipPass);
+                    if ($zip instanceof ZipArchive) {
+                        if (!$zip->addFile($src, $relativePath)) {
+                            error_log("CRON BACKUP: Skipping file due to archive error: $src");
+                        } else {
+                            if ($zipPass) $zip->setEncryptionName($relativePath, ZipArchive::EM_AES_256, $zipPass);
+                        }
+                    }
                     $currentBytes += $fsize;
                     $syncCount++;
                 }
@@ -305,12 +345,12 @@ if ($success && $allValid && count($generatedZips) > 0) {
         }
 
         // [FIX] Always create a notification for Admins so the result is visible in the UI
-        $adminIdStmt = $pdo->query("SELECT id FROM users WHERE role = 'ADMIN' LIMIT 1");
-        $targetAdminId = $adminIdStmt->fetchColumn() ?: 1;
-
+        $adminIds = $pdo->query("SELECT id FROM users WHERE role = 'ADMIN'")->fetchAll(PDO::FETCH_COLUMN);
         $notifTitle = CLI_MODE ? "Automated Backup" : "Manual Backup";
-        $pdo->prepare("INSERT INTO notifications (user_id, title, message, type) VALUES (?, ?, ?, 'success')")
-            ->execute([$targetAdminId, $notifTitle, "System backup created successfully in $partLabel: " . basename($generatedZips[0])]);
+        $notifStmt = $pdo->prepare("INSERT INTO notifications (user_id, title, message, type) VALUES (?, ?, ?, 'success')");
+        foreach ($adminIds as $adminId) {
+            $notifStmt->execute([$adminId, $notifTitle, "System backup created successfully in $partLabel: " . basename($generatedZips[0])]);
+        }
     } catch (Exception $e) {
     }
 
@@ -332,6 +372,17 @@ if ($success && $allValid && count($generatedZips) > 0) {
     // [EARLY WARNING ALERT] Log Failure to Dashboard
     $pdo->exec("INSERT INTO system_settings (setting_key, setting_value) VALUES ('backup_last_status', 'FAILED') ON DUPLICATE KEY UPDATE setting_value = 'FAILED'");
 
+    // [FIX] Always create a notification for Admins so the failure is visible in the UI
+    try {
+        $adminIds = $pdo->query("SELECT id FROM users WHERE role = 'ADMIN'")->fetchAll(PDO::FETCH_COLUMN);
+        $notifTitle = CLI_MODE ? "Automated Backup Failed" : "Manual Backup Failed";
+        $notifStmt = $pdo->prepare("INSERT INTO notifications (user_id, title, message, type) VALUES (?, ?, ?, 'danger')");
+        foreach ($adminIds as $adminId) {
+            $notifStmt->execute([$adminId, $notifTitle, "System backup failed: " . ($errorMessage ?: "Internal server error")]);
+        }
+    } catch (Exception $e) {
+    }
+
     // failure path
     if (CLI_MODE) {
         $msg = "❌ Backup Failed.";
@@ -348,27 +399,17 @@ if ($success && $allValid && count($generatedZips) > 0) {
         }
         $body .= "\n\nTime: " . date('Y-m-d H:i:s');
         mail($alertEmail, "⚠️ HR System Backup Failed", $body);
+    }
 
-        if ($isAjax) {
-            echo json_encode(['status' => 'error', 'message' => $errorMessage ?: "Backup execution failed."]);
-            exit;
-        }
-        if (!CLI_MODE) {
-            // in web mode redirect back with error message
-            $redirectMsg = "❌ Backup Failed.";
-            if ($errorMessage) {
-                $redirectMsg .= " Reason: $errorMessage";
-            }
-            header("Location: settings.php?error=" . urlencode($redirectMsg));
-            exit;
-        }
-        exit(1);
-    } else {
+    if ($isAjax) {
+        echo json_encode(['status' => 'error', 'message' => $errorMessage ?: "Backup execution failed."]);
+        exit;
+    }
+    if (!CLI_MODE) {
         $redirectMsg = "❌ Backup Failed.";
-        if ($errorMessage) {
-            $redirectMsg .= " Reason: $errorMessage";
-        }
+        if ($errorMessage) $redirectMsg .= " Reason: $errorMessage";
         header("Location: settings.php?error=" . urlencode($redirectMsg));
         exit;
     }
+    exit(1);
 }

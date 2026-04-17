@@ -109,9 +109,36 @@ if (strlen($password) > 50) {
 $incVault = isset($_POST['include_vault']); // Checkbox from modal
 
 $useZip = ($password || $incVault);
-$tempZipPath = '';
 $generatedZips = [];
 $pendingUnlink = [];
+
+// [FIX] Database Export Logic - Generate the SQL file before attempting to ZIP or Copy
+$tmpSqlFile = tempnam(sys_get_temp_dir(), 'hr201_bk_');
+$pendingUnlink[] = $tmpSqlFile;
+$handle = fopen($tmpSqlFile, 'w');
+if (!$handle) {
+    die("Server Error: Unable to create temporary storage for database dump.");
+}
+
+fwrite($handle, "-- MANUAL BACKUP\nSET FOREIGN_KEY_CHECKS=0;\n\n");
+foreach ($tables as $table) {
+    $q = $pdo->query("SHOW CREATE TABLE `$table` ");
+    $res = $q ? $q->fetch(PDO::FETCH_NUM) : false;
+    if (!$res) continue;
+
+    fwrite($handle, "DROP TABLE IF EXISTS `$table`;\n" . $res[1] . ";\n\n");
+
+    $stmt = $pdo->prepare("SELECT * FROM `$table` ");
+    $stmt->execute();
+    while ($r = $stmt->fetch(PDO::FETCH_ASSOC)) {
+        $values = array_map(fn($v) => ($v === null) ? "NULL" : $pdo->quote((string)$v), $r);
+        fwrite($handle, "INSERT INTO `$table` VALUES (" . implode(', ', $values) . ");\n");
+    }
+    fwrite($handle, "\n");
+}
+fwrite($handle, "SET FOREIGN_KEY_CHECKS=1;");
+fclose($handle);
+$handle = null; // Clear handle after closing
 
 // [FIX] Force ZIP if password is set OR if vault is included
 if ($useZip) {
@@ -154,20 +181,18 @@ if ($useZip) {
     };
 
     $sqlSize = filesize($tmpSqlFile);
-    // If the current part already has data and adding the SQL would exceed the limit, start a new part
-    if ($currentBytes > 0 && ($currentBytes + $sqlSize > $maxSizeBytes)) {
-        $partNumber++;
-        $startNewZip();
-    }
+
+    // Ensure first part is initialized
     if ($zip === null) {
         $startNewZip();
     }
 
-    /** @var ZipArchive $zip */
-    $zip->addFile($tmpSqlFile, $sql_filename_in_zip);
-    if ($password) {
-        if (!$zip->setEncryptionName($sql_filename_in_zip, ZipArchive::EM_AES_256, $password)) {
-            $cleanupOnError("Server Error: Encryption not supported by libzip for $sql_filename_in_zip.");
+    if ($zip instanceof ZipArchive) {
+        $zip->addFile($tmpSqlFile, $sql_filename_in_zip);
+        if ($password) {
+            if (!$zip->setEncryptionName($sql_filename_in_zip, ZipArchive::EM_AES_256, $password)) {
+                $cleanupOnError("Server Error: Encryption failed for $sql_filename_in_zip.");
+            }
         }
     }
     $currentBytes += $sqlSize;
@@ -206,16 +231,19 @@ if ($useZip) {
                     if (!$file->isDir()) {
                         $filePath = $file->getRealPath();
                         $fsize = filesize($filePath);
-                        if ($currentBytes > 0 && ($currentBytes + $fsize > $maxSizeBytes)) {
+
+                        if ($currentBytes > 0 && ($currentBytes + $fsize > $maxSizeBytes) && $zip instanceof ZipArchive) {
                             $partNumber++;
                             $startNewZip();
                         }
                         $relativePath = 'vault/' . substr($filePath, strlen($vaultPath) + 1);
-                        /** @var ZipArchive $zip */
-                        $zip->addFile($filePath, $relativePath);
-                        if ($password) {
-                            if (!$zip->setEncryptionName($relativePath, ZipArchive::EM_AES_256, $password)) {
-                                $cleanupOnError("Server Error: Encryption not supported by libzip for $relativePath.");
+
+                        if ($zip instanceof ZipArchive) {
+                            $zip->addFile($filePath, $relativePath);
+                            if ($password) {
+                                if (!$zip->setEncryptionName($relativePath, ZipArchive::EM_AES_256, $password)) {
+                                    $cleanupOnError("Encryption error for $relativePath.");
+                                }
                             }
                         }
                         $currentBytes += $fsize;
@@ -369,11 +397,13 @@ if ($mode === 'server') {
                 <div id="statusText" class="text-primary mb-3 fw-bold"><span class="spinner-border spinner-border-sm"></span> Downloading Part 1...</div>
 
                 <div class="d-grid gap-2 mb-3">
+                    <button type="button" id="startDlBtn" class="btn btn-primary fw-bold" onclick="dl()"><i class="bi bi-download"></i> Start Automatic Downloads</button>
+                    <hr>
                     <?php foreach ($downloadLinks as $i => $link): ?>
                         <a href="<?php echo $link; ?>" class="btn btn-outline-dark" target="_blank"><i class="bi bi-file-zip"></i> Download Part <?php echo $i + 1; ?></a>
                     <?php endforeach; ?>
                 </div>
-                <p class="small text-muted mb-0">If the automatic downloads do not start, please click the buttons above.</p>
+                <p class="small text-muted mb-0">If the automatic downloads are blocked, please click the buttons above individually.</p>
                 <button class="btn btn-link mt-2" onclick="window.close()">Close Window</button>
             </div>
             <script>
@@ -381,6 +411,7 @@ if ($mode === 'server') {
                 let i = 0;
 
                 function dl() {
+                    if (document.getElementById('startDlBtn')) document.getElementById('startDlBtn').style.display = 'none';
                     if (i < files.length) {
                         document.getElementById('statusText').innerHTML = `<span class="spinner-border spinner-border-sm"></span> Downloading Part ${i+1}...`;
                         let a = document.createElement('a');
@@ -390,13 +421,12 @@ if ($mode === 'server') {
                         a.click();
                         document.body.removeChild(a);
                         i++;
-                        setTimeout(dl, 3000);
+                        setTimeout(dl, 4000); // 4s delay to satisfy browser security rules
                     } else {
                         document.getElementById('statusText').innerText = "All parts downloaded!";
                         document.getElementById('statusText').classList.replace('text-primary', 'text-success');
                     }
                 }
-                setTimeout(dl, 1500);
             </script>
         </body>
 

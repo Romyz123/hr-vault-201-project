@@ -2,6 +2,7 @@
 require '../config/db.php';
 require '../src/Security.php';
 require '../src/Logger.php';
+require '../src/FileService.php';
 require 'options.php';
 session_start();
 
@@ -80,6 +81,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate_bulk'])) {
         'probationary' => 'templates/contract_probationary.php',
         'project'      => 'templates/contract_project.php',
         'data_consent' => 'templates/data_consent.php',
+        'coe'          => 'templates/coe.php',
         'confidentiality' => 'templates/confidentiality_agreement.php',
         'notice_to_explain' => 'templates/notice_to_explain.php',
         'notice_of_decision' => 'templates/notice_of_decision.php',
@@ -95,6 +97,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate_bulk'])) {
         'confidentiality'   => 'Confidentiality Agreement',
         'notice_to_explain' => 'Notice to Explain',
         'notice_of_decision' => 'Notice of Decision',
+        'coe'               => 'Certificate of Employment',
         'employee_pledge'   => 'Employee Safety Pledge',
         'whistleblowing'    => 'Whistle Blowing Consent Form'
     ];
@@ -268,6 +271,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate_bulk'])) {
                     // 1. Construct File Name per requested format
                     $baseName = "Unsigned Digital Copy of the Document ($friendlyTitle)";
                     $fileExt = "html";
+                    $category = (strpos($type, 'notice') !== false) ? 'Disciplinary' : 'Contract';
 
                     // [NEW] Append Status to Filename for Non-Active Employees
                     $empStatus = $emp['status'] ?? 'Active';
@@ -285,21 +289,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate_bulk'])) {
                         $counter++;
                     }
 
-                    // 3. Save Physical File to Vault
-                    $vaultFilename = "GEN_" . time() . "_" . bin2hex(random_bytes(4)) . "." . $fileExt;
-
+                    // 3. Save Securely to Vault (Using FileService for Encryption)
+                    $fileService = new FileService($vaultPath);
+                    $tmp = tempnam(sys_get_temp_dir(), 'bulk_gen_');
                     $standaloneHtml = '<!DOCTYPE html><html><head><meta charset="UTF-8"><style>' .
                         'body { font-family: sans-serif; padding: 20mm; } ' .
                         'p { text-align: justify; line-height: 1.5; }' .
                         '</style></head><body>' . $content . '</body></html>';
+                    file_put_contents($tmp, $standaloneHtml);
 
-                    if (file_put_contents($vaultPath . $vaultFilename, $standaloneHtml)) {
+                    $storedName = $fileService->saveFile($tmp, $finalDisplayName);
+                    if ($storedName) {
                         // 4. Register in Documents Table
                         $ins = $pdo->prepare("INSERT INTO documents (file_uuid, employee_id, original_name, file_path, category, uploaded_by, description) 
-                                              VALUES (UUID(), ?, ?, ?, 'System Generated', ?, 'Auto-generated unsigned copy.')");
-                        $ins->execute([$emp['emp_id'], $finalDisplayName, $vaultFilename, $_SESSION['user_id']]);
+                                              VALUES (UUID(), ?, ?, ?, ?, ?, 'Auto-generated unsigned copy.')");
+                        $ins->execute([$emp['emp_id'], $finalDisplayName, $storedName, $category, $_SESSION['user_id']]);
                         $logger->log($_SESSION['user_id'], 'AUTO_SAVE_COPY', "Auto-saved unsigned copy: $finalDisplayName for employee {$emp['emp_id']}");
                     }
+                    @unlink($tmp);
                 }
 
                 // [FIX] Strip outer HTML tags to prevent layout breakage in bulk mode
@@ -456,6 +463,7 @@ $allDepts = $pdo->query("SELECT DISTINCT dept FROM employees WHERE dept != '' OR
                             <select name="doc_type" id="docType" class="form-select" required onchange="toggleFields()">
                                 <option value="project">Project Contract</option>
                                 <option value="probationary">Probationary Contract</option>
+                                <option value="coe">Certificate of Employment (COE)</option>
                                 <option value="data_consent">Data Privacy Consent Form</option>
                                 <option value="confidentiality">Confidentiality (NDA)</option>
                                 <option value="notice_to_explain">Notice to Explain (NTE)</option>

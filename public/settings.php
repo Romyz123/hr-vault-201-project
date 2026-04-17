@@ -117,6 +117,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
                 }
 
+                // [SECURITY] Validate Backup Schedule Format
+                if ($key === 'backup_time') {
+                    if (!empty($value) && !preg_match('/^(?:[01]\d|2[0-3]):[0-5]\d$/', $value)) {
+                        $errors[] = "Invalid Backup Time format. Expected HH:MM (24-hour).";
+                    }
+                }
+                if ($key === 'backup_day') {
+                    $allowedDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+                    if (!empty($value) && !in_array($value, $allowedDays)) {
+                        $errors[] = "Invalid Backup Day selected.";
+                    }
+                }
+
                 // [SECURITY] Strict Path Validation for Backups (Prevent Directory Traversal)
                 if ($key === 'backup_path' || $key === 'secondary_backup_path') {
                     $clean = str_replace("\0", '', $value);

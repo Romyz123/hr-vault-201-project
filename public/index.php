@@ -85,199 +85,35 @@ if ($userRole === 'ADMIN') {
     $alertEmail  = $bkSettings['backup_alert_email'] ?? '';
     $secondaryPath = $bkSettings['secondary_backup_path'] ?? '';
 
-    // Determine Target Path
-    $primaryBackupPath = (!empty($customPath) && is_dir($customPath)) ? $customPath : realpath(__DIR__ . '/../backups');
+    $primaryBackupPath = (!empty($customPath) && is_dir($customPath)) ? $customPath : __DIR__ . '/../backups';
+
+    // Normalize path for comparisons
+    $primaryBackupPath = rtrim($primaryBackupPath, '/\\');
 
     // Ensure primary path exists
     if ($primaryBackupPath && !is_dir($primaryBackupPath)) {
         @mkdir($primaryBackupPath, 0755, true);
     }
 
-    // Check Schedule & Existence
-    $todayStr = date('Y-m-d'); // e.g. 2023-10-27
-    $todayDay = date('D');     // e.g. Fri
+    $triggerAutoBackup = false;
+    if (date('D') === $scheduleDay && date('H:i') >= $scheduleTime) {
+        // Look for any backup made today in the primary directory
+        $todayPattern = $primaryBackupPath . DIRECTORY_SEPARATOR . 'AutoBackup_' . date('Y-m-d') . '*.*';
+        $files = glob($todayPattern);
 
-    // Look for ANY backup made today (zip or sql)
-    $existingBackups = glob(rtrim($primaryBackupPath, '/\\') . '/AutoBackup_' . $todayStr . '*.*');
-
-    if ($todayDay === $scheduleDay && empty($existingBackups)) {
-        // Check Time Requirement
-        if (date('H:i') >= $scheduleTime) {
-            // Time is acceptable, proceed with backup
-            ini_set('memory_limit', '-1');
-            ignore_user_abort(true);
-            set_time_limit(600); // 10 minutes
-
-            $baseFilename = 'AutoBackup_' . date('Y-m-d_H-i-s');
-            $sqlFilename  = $baseFilename . '.sql';
-
-            $maxSizeGB = (float)($bkSettings['backup_max_size_gb'] ?? 1.9);
-            $maxSizeBytes = $maxSizeGB * 1024 * 1024 * 1024;
-            $currentBytes = 0;
-            $partNumber = 1;
-            $generatedZips = [];
-            $pendingUnlink = [];
-            $zip = null;
-            $backupFailed = !class_exists('ZipArchive');
-
-            // Closure to handle ZIP volume rotation
-            $startNewZip = function () use (&$zip, &$generatedZips, $primaryBackupPath, $baseFilename, &$partNumber, &$currentBytes) {
-                if ($zip instanceof ZipArchive) $zip->close();
-                $path = rtrim($primaryBackupPath, '/\\') . DIRECTORY_SEPARATOR . $baseFilename . "_Part{$partNumber}.zip";
-                $generatedZips[] = $path;
-                $zip = new ZipArchive();
-                if ($zip->open($path, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== TRUE) {
-                    return false;
-                }
-                $currentBytes = 0;
-                return true;
-            };
-
-            $tables = [];
-            $query  = $pdo->query('SHOW TABLES');
-            if ($query) {
-                while ($row = $query->fetch(PDO::FETCH_NUM)) {
-                    $tables[] = $row[0];
-                }
-            }
-
-            // Initialize first part
-            if ($backupFailed || !$startNewZip()) {
-                @mail($alertEmail, "⚠️ Backup Failed", "Could not create initial ZIP volume.");
-                $pdo->exec("INSERT INTO system_settings (setting_key, setting_value) VALUES ('backup_last_status', 'FAILED') ON DUPLICATE KEY UPDATE setting_value = 'FAILED'");
-                $backupFailed = true;
-                goto backup_finish;
-            }
-
-            if (!$backupFailed) {
-                // Stream SQL to parts
-                $tmpSqlFile = tempnam(sys_get_temp_dir(), 'hr201_auto_');
-                $pendingUnlink[] = $tmpSqlFile;
-                $handle = fopen($tmpSqlFile, 'w');
-                if (!$handle) {
-                    $backupFailed = true;
-                    goto backup_finish;
-                }
-
-                fwrite($handle, "-- AUTOMATED BACKUP\nSET FOREIGN_KEY_CHECKS=0;\n\n");
-                $sqlBytes = 40; // Approx header size
-
-                foreach ($tables as $table) {
-                    $q = $pdo->query("SHOW CREATE TABLE `$table` ");
-                    $res = $q ? $q->fetch(PDO::FETCH_NUM) : false;
-                    if (!$res) continue;
-                    $createSql = "DROP TABLE IF EXISTS `$table`;\n" . $res[1] . ";\n\n";
-                    fwrite($handle, $createSql);
-                    $sqlBytes += strlen($createSql);
-
-                    $stmt = $pdo->prepare("SELECT * FROM `$table` ");
-                    $stmt->execute();
-                    while ($r = $stmt->fetch(PDO::FETCH_ASSOC)) {
-                        $values = [];
-                        foreach ($r as $v) {
-                            $values[] = ($v === null) ? "NULL" : $pdo->quote((string)$v);
-                        }
-                        $line = "INSERT INTO `$table` VALUES (" . implode(', ', $values) . ");\n";
-                        $len = strlen($line);
-
-                        // Check if we need to split volume before adding this line
-                        if ($currentBytes + $sqlBytes + $len > $maxSizeBytes) {
-                            fwrite($handle, "SET FOREIGN_KEY_CHECKS=1;");
-                            fclose($handle);
-                            if ($zip instanceof ZipArchive) {
-                                $zip->addFile($tmpSqlFile, "database_Part{$partNumber}.sql");
-                                if ($zipPass) $zip->setEncryptionName("database_Part{$partNumber}.sql", ZipArchive::EM_AES_256, $zipPass);
-                            }
-
-                            $partNumber++;
-                            if (!$startNewZip()) {
-                                $backupFailed = true;
-                                goto backup_finish;
-                            }
-
-                            $tmpSqlFile = tempnam(sys_get_temp_dir(), 'hr201_auto_');
-                            $pendingUnlink[] = $tmpSqlFile;
-                            $handle = fopen($tmpSqlFile, 'w');
-                            if (!$handle) {
-                                $backupFailed = true;
-                                goto backup_finish;
-                            }
-                            fwrite($handle, "-- AUTOMATED BACKUP PART {$partNumber}\nSET FOREIGN_KEY_CHECKS=0;\n\n");
-                            $sqlBytes = 50;
-                        }
-                        fwrite($handle, $line);
-                        $sqlBytes += $len;
-                    }
-                }
-            }
-
-            if (!$backupFailed && isset($handle) && is_resource($handle)) {
-                fwrite($handle, "\nSET FOREIGN_KEY_CHECKS=1;");
-                fclose($handle);
-                $handle = null;
-
-                // Add final SQL part
-                $finalSqlName = "database_Part{$partNumber}.sql";
-                if ($zip instanceof ZipArchive) {
-                    $zip->addFile($tmpSqlFile, $finalSqlName);
-                    if ($zipPass) $zip->setEncryptionName($finalSqlName, ZipArchive::EM_AES_256, $zipPass);
-                }
-                $currentBytes += $sqlBytes;
-
-                if ($incVault) {
-                    // [LOGICAL FIX] Include config.php to preserve VAULT_KEY
-                    $configPath = realpath(__DIR__ . '/../config/config.php');
-                    if ($zip instanceof ZipArchive && $configPath && file_exists($configPath)) {
-                        $zip->addFile($configPath, 'config/config.php');
-                        if ($zipPass) $zip->setEncryptionName('config/config.php', ZipArchive::EM_AES_256, $zipPass);
-                    }
-
-                    // [PHP SMART SYNC] Mirror Vault instead of Zipping
-                    $vaultPath = realpath(__DIR__ . '/../vault');
-                    $mirrorPath = rtrim($primaryBackupPath, '/\\') . DIRECTORY_SEPARATOR . 'vault_mirror';
-                    if (!is_dir($mirrorPath)) @mkdir($mirrorPath, 0755, true);
-
-                    if ($vaultPath && is_dir($vaultPath)) {
-                        $files = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($vaultPath), RecursiveIteratorIterator::LEAVES_ONLY);
-                        foreach ($files as $name => $file) {
-                            if (!$file->isDir()) {
-                                $src = $file->getRealPath();
-                                $dest = $mirrorPath . DIRECTORY_SEPARATOR . $file->getFilename();
-                                // Delta Sync: Only copy if missing or modified
-                                if (!file_exists($dest) || filemtime($src) > filemtime($dest) || filesize($src) !== filesize($dest)) {
-                                    @copy($src, $dest);
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            // Cleanup Process
-            backup_finish:
-            if ($zip instanceof ZipArchive) $zip->close();
-            if (isset($handle) && is_resource($handle)) fclose($handle);
-            foreach ($pendingUnlink as $f) if (file_exists($f)) @unlink($f);
-
-            // Finalize Status
-            $allValid = !empty($generatedZips);
-            foreach ($generatedZips as $gz) {
-                if (!file_exists($gz) || filesize($gz) === 0) {
-                    $allValid = false;
+        $validBackupFound = false;
+        if (!empty($files)) {
+            foreach ($files as $f) {
+                // Only skip if the backup file actually has content (> 1KB)
+                if (is_file($f) && filesize($f) > 1024) {
+                    $validBackupFound = true;
                     break;
                 }
             }
+        }
 
-            if ($allValid && !$backupFailed) {
-                $logger->log($_SESSION['user_id'], 'AUTO_BACKUP', "Automatic backup created: " . basename($generatedZips[0] ?? 'unknown'));
-                $notifMsg = "Automated backup created successfully: " . basename($generatedZips[0] ?? 'unknown');
-                if (count($generatedZips) > 1) $notifMsg .= " (Split into " . count($generatedZips) . " parts)";
-
-                $pdo->prepare("INSERT INTO notifications (user_id, title, message, type) VALUES (?, 'System Backup', ?, 'success')")
-                    ->execute([$_SESSION['user_id'], $notifMsg]);
-            } else {
-                $pdo->exec("INSERT INTO system_settings (setting_key, setting_value) VALUES ('backup_last_status', 'FAILED') ON DUPLICATE KEY UPDATE setting_value = 'FAILED'");
-            }
+        if (!$validBackupFound) {
+            $triggerAutoBackup = true;
         }
     }
 }
@@ -2472,6 +2308,17 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
         setInterval(refreshSystem, <?php echo (int)$refreshInterval * 1000; ?>);
 
         refreshSystem(); // Run once on load
+
+        <?php if (isset($triggerAutoBackup) && $triggerAutoBackup): ?>
+            // [NEW] Trigger automated backup via AJAX to prevent dashboard hanging
+            fetch('cron_backup.php?ajax=1')
+                .then(r => r.json())
+                .then(() => {
+                    refreshSystem(); // Always update UI to show either success or failure notification
+                }).catch(() => {
+                    refreshSystem();
+                });
+        <?php endif; ?>
     });
 </script>
 

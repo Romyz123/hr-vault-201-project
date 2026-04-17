@@ -329,3 +329,11 @@ Stack trace:
 #0 C:\xampp\htdocs\hr 201\public\backup.php(167): ZipArchive->addFile('', 'TESP_HR_BACKUP_...')
 #1 {main}
   thrown in C:\xampp\htdocs\hr 201\public\backup.php on line 167
+[17-Apr-2026 08:16:27 Asia/Manila] PHP Warning:  Undefined variable $tmpSqlFile in C:\xampp\htdocs\hr 201\public\backup.php on line 156
+[17-Apr-2026 08:16:27 Asia/Manila] PHP Warning:  Undefined variable $tmpSqlFile in C:\xampp\htdocs\hr 201\public\backup.php on line 167
+[17-Apr-2026 08:16:27 Asia/Manila] PHP Fatal error:  Uncaught ValueError: ZipArchive::addFile(): Argument #1 ($filepath) cannot be empty in C:\xampp\htdocs\hr 201\public\backup.php:167
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\backup.php(167): ZipArchive->addFile('', 'TESP_HR_BACKUP_...')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\backup.php on line 167
+[17-Apr-2026 10:32:08 Asia/Manila] Failed to copy vault file: C:\xampp\htdocs\hr 201\vault\.htaccess to U:\01_TESP\09_MAINTENANCE DOCS\041_GAG\201 FILES\sample\vault_mirror\

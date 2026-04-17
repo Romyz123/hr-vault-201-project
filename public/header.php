@@ -58,13 +58,13 @@ if (isset($_SESSION['user_id'])) {
             $docQuery = "SELECT d.id, d.original_name, d.expiry_date, e.emp_id AS real_emp_id FROM documents d JOIN employees e ON d.employee_id = e.emp_id WHERE d.is_resolved = 0 AND d.expiry_date IS NOT NULL AND d.expiry_date <= :alertDate";
 
             // Check for deleted_at column
-            $chk = $pdo->query("SHOW COLUMNS FROM documents LIKE 'deleted_at'");
-            if ($chk->rowCount() > 0) $docQuery .= " AND d.deleted_at IS NULL";
+            $chk = $pdo->query("SHOW COLUMNS FROM documents LIKE 'deleted_at'")->fetch();
+            if ($chk) $docQuery .= " AND d.deleted_at IS NULL";
 
             // [SECURITY] Only filter by owner if not privileged AND the column exists
             $isRestrictedUpload = false;
-            $chkUp = $pdo->query("SHOW COLUMNS FROM documents LIKE 'uploaded_by'");
-            if ($chkUp->rowCount() > 0 && !in_array($userRole, ['ADMIN', 'MANAGER', 'HR'])) {
+            $chkUp = $pdo->query("SHOW COLUMNS FROM documents LIKE 'uploaded_by'")->fetch();
+            if ($chkUp && !in_array($userRole, ['ADMIN', 'MANAGER', 'HR'])) {
                 $docQuery .= " AND d.uploaded_by = :uid";
                 $isRestrictedUpload = true;
             }

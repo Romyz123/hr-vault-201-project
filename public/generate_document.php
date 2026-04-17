@@ -12,9 +12,14 @@ session_start();
 
 // 1. SECURITY: Admin/Manager/HR/Staff
 $userRole = isset($_SESSION['role']) ? strtoupper(trim((string)$_SESSION['role'])) : '';
-if (!in_array($userRole, ['ADMIN', 'MANAGER', 'HR', 'STAFF'])) {
+if (!isset($_SESSION['user_id']) || !in_array($userRole, ['ADMIN', 'MANAGER', 'HR', 'STAFF'])) {
     die("ACCESS DENIED");
 }
+
+// [FIX] Robust Config Loading for Auto-Save Feature
+$configEnv = require '../config/config.php';
+$vaultPath = $configEnv['VAULT_PATH'] ?? dirname(__DIR__) . DIRECTORY_SEPARATOR . 'vault' . DIRECTORY_SEPARATOR;
+$fileService = new FileService($vaultPath);
 
 $logger = new Logger($pdo);
 
@@ -407,9 +412,6 @@ if ($format === 'word') {
                 // --- [NEW] PER-EMPLOYEE AUTO-ATTACH LOGIC ---
                 if (isset($_GET['auto_save_copy']) && !empty($renderedContent)) {
                     try {
-                        $vaultPath = isset($config['VAULT_PATH']) ? $config['VAULT_PATH'] : dirname(__DIR__) . DIRECTORY_SEPARATOR . 'vault' . DIRECTORY_SEPARATOR;
-                        $fileService = new FileService($vaultPath);
-
                         // 1. requested formal naming
                         $baseName = "Unsigned Digital Copy of the Document ($friendlyTitle)";
                         $fileExt = "html";
