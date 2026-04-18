@@ -368,6 +368,26 @@ $tableSchema = [
         `last_follow_up` DATE DEFAULT NULL,
         `notes` TEXT,
         `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;",
+
+    'courses_catalog' => "CREATE TABLE IF NOT EXISTS `courses_catalog` (
+        `id` INT AUTO_INCREMENT PRIMARY KEY,
+        `name` VARCHAR(100) NOT NULL UNIQUE,
+        `category` VARCHAR(50) NOT NULL,
+        `provider` VARCHAR(100) NULL,
+        `validity_months` INT DEFAULT 0,
+        `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;",
+
+    'employee_training' => "CREATE TABLE IF NOT EXISTS `employee_training` (
+        `id` INT AUTO_INCREMENT PRIMARY KEY,
+        `employee_id` VARCHAR(50) NOT NULL,
+        `course_id` INT NOT NULL,
+        `completion_date` DATE NOT NULL,
+        `expiry_date` DATE NULL,
+        `certificate_path` VARCHAR(255) NULL,
+        `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (`course_id`) REFERENCES `courses_catalog`(`id`) ON DELETE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;"
 ];
 

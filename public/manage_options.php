@@ -183,6 +183,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $activeTab = 'agency';
         } elseif (strpos($action, 'role') !== false) {
             $activeTab = 'role';
+        } elseif (strpos($action, 'course') !== false) {
+            $activeTab = 'course';
         } elseif (strpos($action, 'dept') !== false || strpos($action, 'section') !== false) {
             $activeTab = 'dept';
         } elseif (strpos($action, 'violation') !== false) {
@@ -259,6 +261,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $logger->log($_SESSION['user_id'], 'EDIT_ROLE', "Updated duties for Role ID $id");
                     $redirectMsg = "✅ Role duties updated successfully.";
                 }
+            }
+        }
+
+        // --- COURSES ---
+        elseif (empty($error) && $action === 'add_course' && !empty($name)) {
+            $cat = strtoupper(trim($_POST['category'] ?? 'TECHNICAL'));
+            $prov = trim($_POST['provider'] ?? '');
+            $val = (int)($_POST['validity'] ?? 0);
+            try {
+                $pdo->prepare("INSERT INTO courses_catalog (name, category, provider, validity_months) VALUES (?, ?, ?, ?)")
+                    ->execute([$name, $cat, $prov, $val]);
+                $logger->log($_SESSION['user_id'], 'ADD_COURSE', "Added course: $name");
+                $redirectMsg = "✅ Course added to catalog.";
+            } catch (Exception $e) {
+                $error = "Course already exists.";
+            }
+        } elseif ($action === 'delete_course' && $id > 0) {
+            $chk = $pdo->prepare("SELECT COUNT(*) FROM employee_training WHERE course_id = ?");
+            $chk->execute([$id]);
+            if ($chk->fetchColumn() > 0) {
+                $error = "❌ Cannot delete: Employees have records linked to this course.";
+            } else {
+                $pdo->prepare("DELETE FROM courses_catalog WHERE id = ?")->execute([$id]);
+                $logger->log($_SESSION['user_id'], 'DELETE_COURSE', "Deleted course ID: $id");
+                $redirectMsg = "✅ Course deleted.";
             }
         }
 
@@ -399,6 +426,7 @@ $agencies = $pdo->query("SELECT * FROM agencies ORDER BY name ASC")->fetchAll();
 $roles    = $pdo->query("SELECT * FROM system_roles ORDER BY name ASC")->fetchAll();
 $depts    = $pdo->query("SELECT * FROM departments ORDER BY name ASC")->fetchAll();
 $vList    = $pdo->query("SELECT * FROM disciplinary_violations ORDER BY category, name")->fetchAll();
+$cList    = $pdo->query("SELECT * FROM courses_catalog ORDER BY category, name")->fetchAll();
 $rList    = $pdo->query("SELECT * FROM company_rules ORDER BY name")->fetchAll();
 
 $sections = [];
@@ -450,6 +478,7 @@ if (isset($_GET['tab'])) $activeTab = $_GET['tab'];
         <ul class="nav nav-tabs mb-4" id="optionTabs" role="tablist">
             <li class="nav-item"><button class="nav-link <?php echo $activeTab === 'agency' ? 'active' : ''; ?> fw-bold" id="agency-tab" data-bs-toggle="tab" data-bs-target="#agency" type="button">🏢 Agencies</button></li>
             <li class="nav-item"><button class="nav-link <?php echo $activeTab === 'role' ? 'active' : ''; ?> fw-bold" id="role-tab" data-bs-toggle="tab" data-bs-target="#role" type="button">💼 System Roles & Duties</button></li>
+            <li class="nav-item"><button class="nav-link fw-bold text-success" id="course-tab" data-bs-toggle="tab" data-bs-target="#course" type="button">🎓 Training Catalog</button></li>
             <li class="nav-item"><button class="nav-link <?php echo $activeTab === 'dept' ? 'active' : ''; ?> fw-bold" id="dept-tab" data-bs-toggle="tab" data-bs-target="#dept" type="button">📂 Departments & Sections</button></li>
             <li class="nav-item"><button class="nav-link <?php echo $activeTab === 'violation' ? 'active' : ''; ?> fw-bold text-danger" id="violation-tab" data-bs-toggle="tab" data-bs-target="#violation" type="button">⚠️ Violations</button></li>
             <li class="nav-item"><button class="nav-link <?php echo $activeTab === 'rule' ? 'active' : ''; ?> fw-bold text-danger" id="rule-tab" data-bs-toggle="tab" data-bs-target="#rule" type="button">📜 Company Rules</button></li>
@@ -556,6 +585,72 @@ if (isset($_GET['tab'])) $activeTab = $_GET['tab'];
                                                         <button type="submit" class="btn btn-sm btn-danger"><i class="bi bi-trash"></i></button>
                                                     </form>
                                                 </div>
+                                            </td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="tab-pane fade <?php echo $activeTab === 'course' ? 'show active' : ''; ?>" id="course" role="tabpanel">
+                <div class="card shadow-sm border-success">
+                    <div class="card-body">
+                        <form method="POST" class="row g-2 mb-4 align-items-end p-3 bg-light border rounded">
+                            <input type="hidden" name="csrf_token" value="<?php echo $_SESSION['csrf_token']; ?>">
+                            <input type="hidden" name="action" value="add_course">
+                            <div class="col-md-4">
+                                <label class="form-label fw-bold">Course Name</label>
+                                <input type="text" name="name" class="form-control form-control-sm" placeholder="e.g. Basic Safety Training" required maxlength="100">
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label fw-bold">Category</label>
+                                <select name="category" class="form-select form-select-sm">
+                                    <option value="TECHNICAL">TECHNICAL</option>
+                                    <option value="SAFETY">SAFETY</option>
+                                    <option value="SOFT SKILLS">SOFT SKILLS</option>
+                                    <option value="COMPLIANCE">COMPLIANCE</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label fw-bold">Provider</label>
+                                <input type="text" name="provider" class="form-control form-control-sm" placeholder="e.g. TESDA, Red Cross">
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label fw-bold">Validity (Months)</label>
+                                <input type="number" name="validity" class="form-control form-control-sm" value="0" min="0">
+                            </div>
+                            <div class="col-md-1">
+                                <button type="submit" class="btn btn-success btn-sm w-100 fw-bold">Add</button>
+                            </div>
+                        </form>
+                        <div class="table-responsive">
+                            <table class="table table-sm table-hover align-middle">
+                                <thead class="table-dark">
+                                    <tr>
+                                        <th>Course Name</th>
+                                        <th>Category</th>
+                                        <th>Provider</th>
+                                        <th>Validity</th>
+                                        <th class="text-end">Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php foreach ($cList as $c): ?>
+                                        <tr>
+                                            <td class="fw-bold"><?php echo h($c['name']); ?></td>
+                                            <td><span class="badge bg-secondary"><?php echo h($c['category']); ?></span></td>
+                                            <td><?php echo h($c['provider']); ?></td>
+                                            <td><?php echo (int)$c['validity_months'] > 0 ? $c['validity_months'] . ' Mos' : 'Permanent'; ?></td>
+                                            <td class="text-end">
+                                                <form method="POST" onsubmit="return confirm('Delete this course?');">
+                                                    <input type="hidden" name="csrf_token" value="<?php echo $_SESSION['csrf_token']; ?>">
+                                                    <input type="hidden" name="action" value="delete_course">
+                                                    <input type="hidden" name="id" value="<?php echo $c['id']; ?>">
+                                                    <button type="submit" class="btn btn-sm btn-outline-danger border-0"><i class="bi bi-trash"></i></button>
+                                                </form>
                                             </td>
                                         </tr>
                                     <?php endforeach; ?>

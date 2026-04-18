@@ -97,6 +97,17 @@ try {
 } catch (PDOException $e) {
 }
 
+// [NEW] Fetch Training Records
+$trainings = [];
+$allCourses = [];
+try {
+    $tStmt = $pdo->prepare("SELECT t.*, c.name as course_name, c.category as course_category FROM employee_training t JOIN courses_catalog c ON t.course_id = c.id WHERE t.employee_id = ? ORDER BY t.completion_date DESC");
+    $tStmt->execute([$emp['emp_id']]);
+    $trainings = $tStmt->fetchAll(PDO::FETCH_ASSOC);
+    $allCourses = $pdo->query("SELECT * FROM courses_catalog ORDER BY name ASC")->fetchAll(PDO::FETCH_ASSOC);
+} catch (PDOException $e) {
+}
+
 // [NEW] Fetch Dynamic Categories for the Edit Document Modal
 try {
     // [FIX] Check if table exists before querying to prevent PDOExceptions
@@ -808,6 +819,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <li class="nav-item"><button class="nav-link active fw-bold" id="details-tab" data-bs-toggle="tab" data-bs-target="#details" type="button"><i class="bi bi-person-vcard"></i> Personal Details</button></li>
                 <li class="nav-item"><button class="nav-link fw-bold" id="docs-tab" data-bs-toggle="tab" data-bs-target="#docs" type="button"><i class="bi bi-folder2-open"></i> Digital 201 File <span class="badge bg-secondary rounded-pill ms-1"><?php echo count($myDocs); ?></span></button></li>
                 <li class="nav-item"><button class="nav-link fw-bold" id="eval-tab" data-bs-toggle="tab" data-bs-target="#eval" type="button"><i class="bi bi-graph-up-arrow"></i> Evaluation</button></li>
+                <li class="nav-item"><button class="nav-link fw-bold" id="training-tab" data-bs-toggle="tab" data-bs-target="#training" type="button"><i class="bi bi-mortarboard-fill"></i> Training <span class="badge bg-secondary rounded-pill ms-1"><?php echo count($trainings); ?></span></button></li>
                 <li class="nav-item"><button class="nav-link fw-bold" id="history-tab" data-bs-toggle="tab" data-bs-target="#history" type="button"><i class="bi bi-clock-history"></i> History</button></li>
             </ul>
 
@@ -1232,6 +1244,66 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     </div>
                 </div>
 
+                <!-- TAB 5: TRAINING & CERTIFICATIONS -->
+                <div class="tab-pane fade" id="training" role="tabpanel">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h6 class="fw-bold text-primary mb-0">🎓 Training History</h6>
+                        <button class="btn btn-sm btn-success" data-bs-toggle="modal" data-bs-target="#addTrainingModal"><i class="bi bi-plus-circle"></i> Add Training Record</button>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Completion Date</th>
+                                    <th>Course Name</th>
+                                    <th>Category</th>
+                                    <th>Expiry</th>
+                                    <th>Certificate</th>
+                                    <th class="text-end">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php foreach ($trainings as $t): ?>
+                                    <tr>
+                                        <td><?php echo h(date('M d, Y', strtotime($t['completion_date']))); ?></td>
+                                        <td class="fw-bold"><?php echo h($t['course_name']); ?></td>
+                                        <td><span class="badge bg-info text-dark"><?php echo h($t['course_category']); ?></span></td>
+                                        <td>
+                                            <?php if ($t['expiry_date']): ?>
+                                                <span class="text-<?php echo (strtotime($t['expiry_date']) < time()) ? 'danger fw-bold' : 'dark'; ?>">
+                                                    <?php echo h(date('M d, Y', strtotime($t['expiry_date']))); ?>
+                                                </span>
+                                            <?php else: ?>
+                                                <span class="text-muted italic">Permanent</span>
+                                            <?php endif; ?>
+                                        </td>
+                                        <td>
+                                            <?php if ($t['certificate_path']): ?>
+                                                <a href="view_doc.php?id=<?php echo urlencode($t['certificate_path']); ?>" target="_blank" class="btn btn-sm btn-outline-primary"><i class="bi bi-file-earmark-pdf"></i> View</a>
+                                            <?php else: ?>
+                                                <span class="text-muted small">No File</span>
+                                            <?php endif; ?>
+                                        </td>
+                                        <td class="text-end">
+                                            <form method="POST" onsubmit="return confirm('Delete this record?');" class="m-0">
+                                                <input type="hidden" name="action" value="delete_training">
+                                                <input type="hidden" name="csrf_token" value="<?php echo $_SESSION['csrf_token']; ?>">
+                                                <input type="hidden" name="training_id" value="<?php echo $t['id']; ?>">
+                                                <button type="submit" class="btn btn-sm btn-outline-danger border-0"><i class="bi bi-trash"></i></button>
+                                            </form>
+                                        </td>
+                                    </tr>
+                                <?php endforeach; ?>
+                                <?php if (empty($trainings)): ?>
+                                    <tr>
+                                        <td colspan="6" class="text-center text-muted p-4">No verified training records found.</td>
+                                    </tr>
+                                <?php endif; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
                 <!-- TAB 4: HISTORY TIMELINE -->
                 <div class="tab-pane fade" id="history" role="tabpanel">
                     <div class="d-flex justify-content-between align-items-center mb-4">
@@ -1415,6 +1487,47 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
                 <button type="submit" class="btn btn-primary">Save</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- ADD TRAINING MODAL -->
+<div class="modal fade" id="addTrainingModal" tabindex="-1">
+    <div class="modal-dialog">
+        <form class="modal-content" method="POST" enctype="multipart/form-data">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title">Add Training Record</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" name="action" value="add_training">
+                <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
+
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Select Course</label>
+                    <input type="text" name="course_search" id="courseSearchInput" class="form-control" list="courseList" placeholder="Search course catalog..." required>
+                    <datalist id="courseList">
+                        <?php foreach ($allCourses as $c): ?>
+                            <option value="<?php echo h($c['name']); ?>">
+                            <?php endforeach; ?>
+                    </datalist>
+                    <div class="form-text small">If the course is not in the list, type it and click "Suggest New" (requires approval).</div>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Completion Date</label>
+                    <input type="date" name="completion_date" class="form-control" value="<?php echo date('Y-m-d'); ?>" required>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Upload Certificate (PDF/Image)</label>
+                    <input type="file" name="certificate" class="form-control" accept=".pdf,.jpg,.jpeg,.png">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="submit" class="btn btn-success">Save Record</button>
             </div>
         </form>
     </div>

@@ -184,6 +184,9 @@ while (ob_get_level()) {
     ob_end_clean();
 }
 
+// [FIX] Release session lock so large document views don't block the user's session in other windows
+session_write_close();
+
 // [SECURITY] Decrypt file content
 $fileService = new FileService($vaultPath);
 $content = $fileService->getFileContent($file['file_path']);

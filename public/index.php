@@ -2311,6 +2311,7 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
 
         <?php if (isset($triggerAutoBackup) && $triggerAutoBackup): ?>
             // [NEW] Trigger automated backup via AJAX to prevent dashboard hanging
+            console.log("Automatic Backup Triggered: Connecting to cron_backup.php...");
             fetch('cron_backup.php?ajax=1')
                 .then(r => r.json())
                 .then(() => {

@@ -313,6 +313,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                     $logger->log($adminId, 'APPROVED_EDIT_DOC', "Approved edit for Doc ID: " . $docId);
                 }
 
+                // 6. VERIFY TRAINING
+                elseif ($req['request_type'] === 'VERIFY_TRAINING') {
+                    $expDate = null;
+                    if (!empty($data['completion_date'])) {
+                        $stmtC = $pdo->prepare("SELECT validity_months FROM courses_catalog WHERE id = ?");
+                        $stmtC->execute([$data['course_id']]);
+                        $valMonths = (int)$stmtC->fetchColumn();
+                        if ($valMonths > 0) {
+                            $expDate = date('Y-m-d', strtotime($data['completion_date'] . " + $valMonths months"));
+                        }
+                    }
+
+                    $stmt = $pdo->prepare("INSERT INTO employee_training (employee_id, course_id, completion_date, expiry_date, certificate_path) VALUES (?, ?, ?, ?, ?)");
+                    $stmt->execute([$data['employee_id'], $data['course_id'], $data['completion_date'], $expDate, $data['certificate_path']]);
+                    
+                    $pdo->prepare("INSERT INTO notifications (user_id, title, message, type) VALUES (?, 'Training Verified', 'Your training record has been verified and added to your profile.', 'success')")
+                        ->execute([$req['user_id']]);
+                    $logger->log($adminId, 'VERIFIED_TRAINING', "Verified training for Emp: " . $data['employee_id']);
+                }
+
+                // 7. SUGGEST COURSE
+                elseif ($req['request_type'] === 'SUGGEST_COURSE') {
+                    $pdo->prepare("INSERT INTO courses_catalog (name, category, provider, validity_months) VALUES (?, ?, ?, ?)")
+                        ->execute([$data['name'], $data['category'], $data['provider'], $data['validity_months']]);
+                    
+                    $pdo->prepare("INSERT INTO notifications (user_id, title, message, type) VALUES (?, 'Course Approved', ?, 'success')")
+                        ->execute([$req['user_id'], "The course '" . $data['name'] . "' is now available in the catalog."]);
+                    $logger->log($adminId, 'APPROVED_NEW_COURSE', "Added suggested course to catalog: " . $data['name']);
+                }
+
                 // [MHI 5.2] ARCHIVE REQUEST (Retention) - Do not delete
                 $pdo->prepare("UPDATE requests SET status = 'APPROVED', admin_comment = ? WHERE id = ?")->execute(["Approved by " . $_SESSION['username'], $current_req_id]);
                 $pdo->commit(); // [DATA INTEGRITY] Commit All Changes

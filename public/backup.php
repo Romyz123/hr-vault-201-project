@@ -61,6 +61,9 @@ if (isset($_GET['download_part'])) {
     while (ob_get_level()) ob_end_clean();
     if (ini_get('zlib.output_compression')) ini_set('zlib.output_compression', 'Off');
 
+    // [FIX] Release session lock before streaming to allow the browser to continue the download even if the user logs out
+    session_write_close();
+
     ignore_user_abort(true);
     header('Content-Type: application/zip');
     header('Content-Disposition: attachment; filename="' . $requested . '"');
@@ -371,6 +374,9 @@ if ($mode === 'server') {
     // [FIX] Clear output buffer to prevent ZIP corruption
     if (ob_get_length()) ob_end_clean();
     if (ini_get('zlib.output_compression')) ini_set('zlib.output_compression', 'Off');
+
+    // [FIX] Release session lock before starting the file stream to prevent the site from hanging in other tabs
+    session_write_close();
 
     if ($useZip && count($generatedZips) > 1) {
         // MULTI-PART UI & AUTO-DOWNLOADER

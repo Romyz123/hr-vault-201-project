@@ -25,6 +25,9 @@ if (!CLI_MODE) {
         }
         die("Access Denied");
     }
+
+    // [FIX] Release session lock so the dashboard remains responsive while the backup generates in the background
+    session_write_close();
 }
 
 require '../config/db.php';

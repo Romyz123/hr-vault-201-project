@@ -440,6 +440,20 @@ try {
 } catch (Exception $e) {
 }
 
+// 14) TRAINING COMPLIANCE
+$trainingStmt = $pdo->prepare("SELECT 
+    (SELECT COUNT(DISTINCT employee_id) FROM employee_training) as trained,
+    (SELECT COUNT(*) FROM employees WHERE status = 'Active') as total");
+$trainingStmt->execute();
+$tStats = $trainingStmt->fetch();
+$trainedCount = (int)$tStats['trained'];
+$untrainedCount = max(0, (int)$tStats['total'] - $trainedCount);
+
+// 15) TRAINING TREND (Monthly)
+$tTrendStmt = $pdo->prepare("SELECT DATE_FORMAT(completion_date, '%Y-%m') as ym, COUNT(*) as count FROM employee_training WHERE completion_date >= DATE_SUB(NOW(), INTERVAL 12 MONTH) GROUP BY ym ORDER BY ym ASC");
+$tTrendStmt->execute();
+$tTrendData = $tTrendStmt->fetchAll(PDO::FETCH_KEY_PAIR);
+
 // 12) EXPIRY FORECAST (Next 6 Months)
 $formattedExpLabels = [];
 $expiryDatasets = [];
