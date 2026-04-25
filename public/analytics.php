@@ -150,6 +150,23 @@ $countStmt->execute($params);
 $countResult = $countStmt->fetchColumn();
 $totalHeadcount = ($countResult !== false && $countResult !== null) ? (int)$countResult : 0;
 
+// [NEW] EDUCATION ATTAINMENT
+$gradCount = 0;
+$undergradCount = $totalHeadcount;
+try {
+    $gradStmt = $pdo->prepare("SELECT COUNT(*) FROM employees $activeSQL AND college_degree IS NOT NULL AND college_degree != ''");
+    $gradStmt->execute($params);
+    $res = $gradStmt->fetchColumn();
+    if ($res !== false) {
+        $gradCount = (int)$res;
+        $undergradCount = max(0, $totalHeadcount - $gradCount);
+    }
+} catch (Exception $e) {
+}
+
+$eduLabels = json_encode(['College Graduate', 'No Degree Info / Undergrad']);
+$eduCounts = json_encode([$gradCount, $undergradCount]);
+
 // 2) AGENCY BREAKDOWN (Active)
 $agencyStmt = $pdo->prepare("
     SELECT COALESCE(NULLIF(agency_name, ''), 'TESP Direct') AS entity, COUNT(*) AS count
@@ -359,7 +376,7 @@ $bandLabels = [
     'b4' => '10+ Yrs',
 ];
 
-$rawStmt = $pdo->prepare("SELECT emp_id, dept, birth_date, hire_date, gender FROM employees $activeSQL");
+$rawStmt = $pdo->prepare("SELECT emp_id, dept, birth_date, hire_date, gender, college_degree FROM employees $activeSQL");
 $rawStmt->execute($params);
 $rows = $rawStmt->fetchAll(PDO::FETCH_ASSOC);
 
@@ -604,6 +621,7 @@ $ageBands          = ['18-25' => 0, '26-35' => 0, '36-45' => 0, '46-55' => 0, '5
 $genderCounts      = ['Male' => 0, 'Female' => 0];
 $tenureBandsCounts = array_fill_keys($bandOrder, 0);
 $tenureMatrix      = []; // dept => [b0..b4]
+$eduProgress       = []; // dept => ['total' => 0, 'graduates' => 0]
 $columnTotals      = array_fill_keys($bandOrder, 0);
 
 // [OPTIMIZATION] Re-use $asOf date to ensure historical accuracy across Age Demographics
@@ -670,12 +688,30 @@ foreach ($rows as $r) {
         $tenureMatrix[$dept] = array_fill_keys($bandOrder, 0);
     }
     $tenureMatrix[$dept][$slug]++;
+
+    if (!isset($eduProgress[$dept])) {
+        $eduProgress[$dept] = ['total' => 0, 'graduates' => 0];
+    }
+    $eduProgress[$dept]['total']++;
+    if (!empty($r['college_degree'])) {
+        $eduProgress[$dept]['graduates']++;
+    }
     $columnTotals[$slug]++;
 }
 
 ksort($tenureMatrix, SORT_STRING);
+ksort($eduProgress, SORT_STRING);
 
 // --- JSON Encode for Charts (safe for <script> embedding) ---
+$eduProgLabelsArr = [];
+$eduProgPercentsArr = [];
+foreach ($eduProgress as $d => $counts) {
+    $eduProgLabelsArr[] = $d;
+    $eduProgPercentsArr[] = ($counts['total'] > 0) ? round(($counts['graduates'] / $counts['total']) * 100, 1) : 0;
+}
+$eduProgLabels   = json_encode($eduProgLabelsArr);
+$eduProgPercents = json_encode($eduProgPercentsArr);
+
 $deptLabels   = json_encode(array_keys($deptData));
 $deptCounts   = json_encode(array_values($deptData));
 
@@ -1308,6 +1344,18 @@ if ($debug) {
         </div>
 
         <div class="row mb-4">
+            <div class="col-12">
+                <div class="card shadow-sm h-100">
+                    <div class="card-header border-bottom-0 d-flex justify-content-between align-items-center">
+                        <span><i class="bi bi-mortarboard-fill"></i> Education Progress (Graduate % per Department)</span>
+                        <button class="btn btn-sm btn-link text-secondary p-0" onclick="openFullScreen('eduProgChart', 'Education Progress by Department')"><i class="bi bi-arrows-fullscreen"></i></button>
+                    </div>
+                    <div class="card-body position-relative" style="min-height: 300px;"><canvas id="eduProgChart"></canvas></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row mb-4">
             <div class="col-md-6 mb-3">
                 <div class="card shadow-sm h-100">
                     <div class="card-header border-bottom-0 d-flex justify-content-between align-items-center">
@@ -1882,6 +1930,12 @@ if ($debug) {
                 data: <?php echo $bdayDistCounts; ?>,
                 type: 'bar',
                 bg: '#0dcaf0'
+            },
+            'eduProgChart': {
+                labels: <?php echo $eduProgLabels; ?>,
+                data: <?php echo $eduProgPercents; ?>,
+                type: 'bar',
+                bg: '#0d6efd'
             }
         };
 
@@ -2378,6 +2432,39 @@ if ($debug) {
                         ticks: {
                             stepSize: 1
                         }
+                    }
+                }
+            }
+        });
+
+        // Education Progress (Graduates % by Dept)
+        charts.eduProgChart = new Chart(document.getElementById('eduProgChart'), {
+            type: 'bar',
+            data: {
+                labels: <?php echo $eduProgLabels; ?>,
+                datasets: [{
+                    label: 'Graduate Percentage',
+                    data: <?php echo $eduProgPercents; ?>,
+                    backgroundColor: '#0d6efd',
+                    borderRadius: 4
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                indexAxis: 'y', // Horizontal bars are easier to read for many depts
+                scales: {
+                    x: {
+                        beginAtZero: true,
+                        max: 100,
+                        ticks: {
+                            callback: value => value + '%'
+                        }
+                    }
+                },
+                plugins: {
+                    legend: {
+                        display: false
                     }
                 }
             }

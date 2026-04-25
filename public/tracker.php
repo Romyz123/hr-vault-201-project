@@ -4,12 +4,18 @@
 // [STATUS] Phase 3: Missing Document Tracker (Visual)
 // ======================================================
 
+// ---------- 1) CONFIGURATION & ACCESS CONTROL ----------
 require '../config/db.php';
 require '../src/Security.php';
 require '../src/Logger.php';
 require '../src/Validator.php';
 require '../src/SearchHelper.php';
 require 'options.php';
+
+// [FIX] Ensure checkSessionTimeout is defined before calling it
+if (!function_exists('checkSessionTimeout')) {
+    require_once __DIR__ . '/../config/db.php';
+}
 session_start();
 checkSessionTimeout($pdo); // [SECURITY] Enforce Timeout
 
@@ -53,7 +59,7 @@ if (empty($_SESSION['csrf_token'])) {
     $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 }
 
-// 2. HANDLE ACTIONS (Add/Edit/Delete Requirements)
+// ---------- 2) ACTION HANDLERS (CRUD) ----------
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($_SESSION['role'], ['ADMIN', 'MANAGER', 'HR', 'STAFF'])) {
     // [SECURITY] Verify CSRF Token
     if (empty($_POST['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'])) {
@@ -531,14 +537,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($_SESSION['role'], ['ADMIN
     }
 }
 
-// 3. GET FILTERS
+// ---------- 3) SCANNERS & DATA MAPPING ----------
 // 3. FETCH CONFIGURATION (Dynamic)
 $REQUIRED_DOCS = [];
 $reqList = []; // For the management modal
 
 try {
     $stmt = $pdo->query("SELECT * FROM document_requirements ORDER BY id ASC");
-    $reqList = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    $reqList = $stmt ? $stmt->fetchAll(PDO::FETCH_ASSOC) : [];
 
     foreach ($reqList as $r) {
         $REQUIRED_DOCS[$r['name']] = array_map('trim', explode(',', $r['keywords']));
@@ -934,7 +940,7 @@ $paginatedEmployees = array_slice($employees, $offset, $perPage);
                     <button type="button" class="btn btn-outline-primary btn-sm" onclick="submitBulkReminders()"><i class="bi bi-clipboard-check"></i> Log Bulk Reminders</button>
                 </div>
                 <div class="col-12 col-md-auto">
-                    <button type="button" class="btn btn-outline-warning btn-sm" data-bs-toggle="modal" data-bs-target="#misclassifiedModal"><i class="bi bi-exclamation-triangle"></i> Misclassified Report</button>
+                    <button type="button" class="btn btn-outline-warning btn-sm" data-bs-toggle="modal" data-bs-target="#misclassifiedModal" onclick="runIntegrityScan()"><i class="bi bi-shield-check"></i> Integrity Fix Tool</button>
                 </div>
                 <?php if (in_array($_SESSION['role'], ['ADMIN', 'MANAGER', 'HR'])): ?>
                     <div class="col-12 col-md-auto">
@@ -964,6 +970,8 @@ $paginatedEmployees = array_slice($employees, $offset, $perPage);
         <div class="card-header d-flex justify-content-between">
 
             <h6 class="mb-0 pt-1">Compliance Matrix</h6>
+            <?php // ---------- 5) COMPLIANCE MATRIX ---------- 
+            ?>
             <span class="badge bg-light text-dark"><?php echo $totalRows; ?> Employees Found</span>
         </div>
         <form id="bulkForm" method="POST">
@@ -1120,6 +1128,8 @@ $paginatedEmployees = array_slice($employees, $offset, $perPage);
     <?php endif; ?>
 </div>
 
+<?php // ---------- 6) MODAL DIALOGS ---------- 
+?>
 <!-- MANAGE REQUIREMENTS MODAL -->
 <div class="modal fade" id="manageReqModal" tabindex="-1">
     <div class="modal-dialog modal-lg">
@@ -1367,6 +1377,8 @@ $paginatedEmployees = array_slice($employees, $offset, $perPage);
 </form>
 
 <script src="assets/bootstrap.bundle.min.js"></script>
+<?php // ---------- 7) JAVASCRIPT & TAG LOGIC ---------- 
+?>
 <script src="assets/sweetalert2.all.min.js"></script>
 <script>
     // [NEW] Tag Logic

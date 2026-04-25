@@ -4,6 +4,7 @@
 // [STATUS] FULL VERSION: Status + Exit Date + Exit Reason
 // ======================================================
 
+// ---------- 1) SYSTEM INITIALIZATION ----------
 require '../config/db.php';
 require '../src/Security.php';
 require '../src/Logger.php';
@@ -52,6 +53,7 @@ try {
     ];
 }
 
+// ---------- 2) DATA FETCHING ----------
 // 2. FETCH EMPLOYEE
 $id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
 if ($id <= 0) {
@@ -156,6 +158,7 @@ if (empty($_SESSION['csrf_token'])) {
     $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 }
 
+// ---------- 3) FORM SUBMISSION HANDLERS ----------
 // 4. HANDLE SUBMIT
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
@@ -464,6 +467,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $emergency_address = post('emergency_address', $emp['emergency_address']);
 
     $education  = post('education', $emp['education'] ?? '');
+    $college_degree = post('college_degree', $emp['college_degree'] ?? '');
+    $college_course = post('college_course', $emp['college_course'] ?? '');
+    $college_year   = post('college_year', $emp['college_year'] ?? '');
     $experience = post('experience', $emp['experience'] ?? '');
     $skills     = post('skills', $emp['skills'] ?? '');
     $licenses   = post('licenses', $emp['licenses'] ?? '');
@@ -505,6 +511,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'emergency_contact' => 25,
         'emergency_address' => 150,
         'education'         => 1000,
+        'college_degree'    => 100,
+        'college_course'    => 100,
+        'college_year'      => 10,
         'experience'        => 1000,
         'skills'            => 1000,
         'licenses'          => 1000,
@@ -655,6 +664,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'emergency_contact' => $emergency_contact,
             'emergency_address' => $emergency_address,
             'education' => $education,
+            'college_degree' => $college_degree,
+            'college_course' => $college_course,
+            'college_year' => $college_year,
             'experience' => $experience,
             'skills' => $skills,
             'licenses' => $licenses,
@@ -815,6 +827,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </div>
 
             <!-- TABS NAVIGATION -->
+            <?php // ---------- 5) TAB NAVIGATION ---------- 
+            ?>
             <ul class="nav nav-tabs mb-4" id="profileTabs" role="tablist">
                 <li class="nav-item"><button class="nav-link active fw-bold" id="details-tab" data-bs-toggle="tab" data-bs-target="#details" type="button"><i class="bi bi-person-vcard"></i> Personal Details</button></li>
                 <li class="nav-item"><button class="nav-link fw-bold" id="docs-tab" data-bs-toggle="tab" data-bs-target="#docs" type="button"><i class="bi bi-folder2-open"></i> Digital 201 File <span class="badge bg-secondary rounded-pill ms-1"><?php echo count($myDocs); ?></span></button></li>
@@ -825,7 +839,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             <div class="tab-content" id="profileTabsContent">
                 <!-- TAB 1: PERSONAL DETAILS -->
+                <?php // ---------- 6) PERSONAL DETAILS TAB ---------- 
+                ?>
                 <div class="tab-pane fade show active" id="details" role="tabpanel">
+                    <h4 class="mb-4">Personal Details</h4>
                     <form id="editEmployeeForm" method="POST" enctype="multipart/form-data">
                         <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
                         <input type="hidden" name="remove_avatar" id="removeAvatarFlag" value="0">
@@ -1024,6 +1041,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                         <h6 class="text-secondary border-bottom pb-2 mb-3 mt-4">Qualifications & Educational Background</h6>
                         <div class="row g-3">
+                            <div class="col-md-5">
+                                <label class="form-label">College Degree</label>
+                                <input type="text" name="college_degree" class="form-control" value="<?php echo val('college_degree'); ?>" placeholder="e.g. Bachelor's Degree" list="degree_list" maxlength="100">
+                                <datalist id="degree_list">
+                                    <option value="Bachelor's Degree">
+                                    <option value="Master's Degree">
+                                    <option value="Doctorate Degree">
+                                    <option value="Associate Degree">
+                                    <option value="Vocational Course">
+                                </datalist>
+                            </div>
+                            <div class="col-md-5">
+                                <label class="form-label">Course / Major</label>
+                                <input type="text" name="college_course" class="form-control" value="<?php echo val('college_course'); ?>" placeholder="e.g. BS Computer Science" list="course_list" maxlength="100">
+                                <datalist id="course_list">
+                                    <?php foreach ($college_courses_list as $course): ?>
+                                        <option value="<?php echo h($course['course_name']); ?>">
+                                        <?php endforeach; ?>
+                                </datalist>
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label">Year Finished</label>
+                                <input type="text" name="college_year" class="form-control" value="<?php echo val('college_year'); ?>" placeholder="e.g. 2020" maxlength="10">
+                            </div>
                             <div class="col-12">
                                 <label class="form-label">Education</label>
                                 <textarea name="education" class="form-control" rows="2" maxlength="1000" spellcheck="true" lang="en" style="text-align: center; white-space: pre-wrap; word-wrap: break-word;" oninput="this.value = this.value.replace(/[^a-zA-Z0-9\s\.,\-\(\)\/\':]/g, '')"><?php echo val('education'); ?></textarea>
@@ -1086,7 +1127,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 </div>
 
                 <!-- TAB 2: DIGITAL 201 FILE -->
+                <?php // ---------- 7) DIGITAL 201 FILE TAB ---------- 
+                ?>
                 <div class="tab-pane fade" id="docs" role="tabpanel">
+                    <h4 class="mb-4">Digital 201 File</h4>
                     <div class="d-flex justify-content-between align-items-center mb-3">
                         <h6 class="fw-bold text-primary mb-0">📂 Uploaded Documents</h6>
                         <div>
@@ -1193,7 +1237,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 </div>
 
                 <!-- TAB 3: EVALUATION -->
+                <?php // ---------- 8) EVALUATION TAB ---------- 
+                ?>
                 <div class="tab-pane fade" id="eval" role="tabpanel">
+                    <h4 class="mb-4">Evaluation</h4>
                     <div class="d-flex justify-content-between align-items-center mb-3">
                         <h6 class="fw-bold text-primary mb-0">📊 Evaluation History</h6>
                         <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#addEvalModal"><i class="bi bi-plus-circle"></i> Add Evaluation</button>
@@ -1245,7 +1292,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 </div>
 
                 <!-- TAB 5: TRAINING & CERTIFICATIONS -->
+                <?php // ---------- 9) TRAINING RECORDS TAB ---------- 
+                ?>
                 <div class="tab-pane fade" id="training" role="tabpanel">
+                    <h4 class="mb-4">Training</h4>
                     <div class="d-flex justify-content-between align-items-center mb-3">
                         <h6 class="fw-bold text-primary mb-0">🎓 Training History</h6>
                         <button class="btn btn-sm btn-success" data-bs-toggle="modal" data-bs-target="#addTrainingModal"><i class="bi bi-plus-circle"></i> Add Training Record</button>
@@ -1305,7 +1355,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 </div>
 
                 <!-- TAB 4: HISTORY TIMELINE -->
+                <?php // ---------- 10) CAREER TIMELINE TAB ---------- 
+                ?>
                 <div class="tab-pane fade" id="history" role="tabpanel">
+                    <h4 class="mb-4">History</h4>
                     <div class="d-flex justify-content-between align-items-center mb-4">
                         <h6 class="fw-bold text-primary mb-0">📅 Employment History</h6>
                         <div>
@@ -1377,6 +1430,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 </form>
 
 <!-- EDIT DOCUMENT MODAL -->
+<?php // ---------- 11) MODAL DIALOGS ---------- 
+?>
 <div class="modal fade" id="editDocModal" tabindex="-1">
     <div class="modal-dialog">
         <form method="POST" class="modal-content">
@@ -1505,14 +1560,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
 
                 <div class="mb-3">
-                    <label class="form-label fw-bold">Select Course</label>
-                    <input type="text" name="course_search" id="courseSearchInput" class="form-control" list="courseList" placeholder="Search course catalog..." required>
-                    <datalist id="courseList">
-                        <?php foreach ($allCourses as $c): ?>
-                            <option value="<?php echo h($c['name']); ?>">
-                            <?php endforeach; ?>
-                    </datalist>
-                    <div class="form-text small">If the course is not in the list, type it and click "Suggest New" (requires approval).</div>
+                    <label class="form-label fw-bold">Select Course from Catalog</label>
+                    <select name="course_id" class="form-select" required>
+                        <option value="" disabled selected>-- Choose Verified Course --</option>
+                        <?php
+                        $lastCat = '';
+                        foreach ($allCourses as $c):
+                            if ($c['category'] !== $lastCat):
+                                if ($lastCat !== '') echo '</optgroup>';
+                                echo '<optgroup label="' . h($c['category']) . '">';
+                                $lastCat = $c['category'];
+                            endif;
+                        ?>
+                            <option value="<?php echo $c['id']; ?>"><?php echo h($c['name']); ?></option>
+                        <?php endforeach;
+                        if ($lastCat !== '') echo '</optgroup>'; ?>
+                    </select>
+                    <div class="form-text small">Course categories are managed in <strong>Manage Options</strong>.</div>
                 </div>
 
                 <div class="mb-3">
@@ -2409,6 +2473,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     function autoResize(el) {
         el.style.height = 'auto';
         el.style.height = el.scrollHeight + 'px';
+    }
+
+    function openEditDocModal(id, name, category, expiryDate) {
+        document.getElementById('edit_doc_id').value = id;
+        document.getElementById('edit_file_name').value = name;
+        document.getElementById('edit_expiry_date').value = expiryDate || '';
+        const select = document.getElementById('edit_category');
+        if (select) select.value = category;
+        const modalEl = document.getElementById('editDocModal');
+        bootstrap.Modal.getOrCreateInstance(modalEl).show();
     }
 
     function toggleEditOther() {

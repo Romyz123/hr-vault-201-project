@@ -20,6 +20,24 @@ if (empty($_SESSION['csrf_token'])) {
 }
 $msg = "";
 
+// [NEW] Handle Quick Date Adjustment
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'update_date') {
+    if (!isset($_POST['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'])) {
+        die("CSRF Failed");
+    }
+    $docId = (int)$_POST['doc_id'];
+    $newDate = $_POST['new_date'];
+
+    $stmt = $pdo->prepare("UPDATE documents SET expiry_date = ?, is_resolved = 0, updated_at = NOW() WHERE id = ?");
+    if ($stmt->execute([$newDate, $docId])) {
+        $msg = "✅ Expiry date updated successfully.";
+        // [FIX] Instantiate logger properly to record the action
+        require_once '../src/Logger.php';
+        $logger = new Logger($pdo);
+        $logger->log($_SESSION['user_id'], 'UPDATE_DOC_EXPIRY', "Updated expiry date for Doc ID: $docId to $newDate");
+    }
+}
+
 // [NEW] Handle Manual 90-Day Cleanup
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'cleanup') {
     if (!isset($_POST['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'])) {
@@ -131,6 +149,8 @@ $docs = $stmt->fetchAll(PDO::FETCH_ASSOC);
     <link href="assets/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="assets/icons/bootstrap-icons.css">
     <link rel="icon" type="image/png" href="assets/tesp-logo.png?v=4">
+    <!-- [FIX] Include SweetAlert2 for the adjustment modal to work -->
+    <script src="assets/sweetalert2.all.min.js"></script>
     <style>
         /* Yellow for coming soon */
         @media print {
@@ -180,6 +200,9 @@ $docs = $stmt->fetchAll(PDO::FETCH_ASSOC);
                     <input type="hidden" name="date_to" value="<?php echo h($dateTo); ?>">
                     <button type="submit" class="btn btn-warning shadow-sm fw-bold"><i class="bi bi-magic"></i> Clean Old Alerts</button>
                 </form>
+                <button type="button" id="bulkDownloadBtn" class="btn btn-primary shadow-sm fw-bold" style="display:none;" onclick="submitBulkDownload()">
+                    <i class="bi bi-file-earmark-zip-fill"></i> Download Selected (<span id="selectedDocCountDl">0</span>)
+                </button>
                 <button type="button" id="bulkResolveBtn" class="btn btn-success shadow-sm fw-bold" style="display:none;" onclick="submitBulkResolve()">
                     <i class="bi bi-check-circle-fill"></i> Resolve Selected (<span id="selectedDocCount">0</span>)
                 </button>
@@ -269,10 +292,32 @@ $docs = $stmt->fetchAll(PDO::FETCH_ASSOC);
                                             <?php endif; ?>
                                         </td>
                                         <td class="no-print">
-                                            <a href="index.php?search=<?php echo urlencode($doc['real_emp_id']); ?>"
-                                                class="btn btn-sm btn-primary shadow-sm" target="_blank">
-                                                <i class="bi bi-arrow-right"></i> Fix
-                                            </a>
+                                            <div class="btn-group btn-group-sm shadow-sm">
+                                                <a href="view_doc.php?id=<?php echo $doc['file_uuid']; ?>"
+                                                    class="btn btn-primary" target="_blank" title="View Document Directly">
+                                                    <i class="bi bi-file-earmark-text"></i>
+                                                </a>
+                                                <a href="index.php?search=<?php echo urlencode($doc['real_emp_id']); ?>&resolve_doc=<?php echo $doc['id']; ?>"
+                                                    class="btn btn-outline-primary" target="_blank" title="View in Dashboard Context">
+                                                    <i class="bi bi-speedometer2"></i>
+                                                </a>
+                                                <a href="upload_form.php?emp_id=<?php echo urlencode($doc['real_emp_id']); ?>&category=<?php echo urlencode($doc['category']); ?>"
+                                                    class="btn btn-success" title="Renew Document (Re-upload)">
+                                                    <i class="bi bi-arrow-repeat"></i>
+                                                </a>
+                                                <button type="button" class="btn btn-info text-white" title="Quick Adjust Date" onclick="editExpiryDate(<?php echo $doc['id']; ?>, '<?php echo $doc['expiry_date']; ?>')">
+                                                    <i class="bi bi-calendar-event"></i>
+                                                </button>
+                                                <button type="button" class="btn btn-outline-info" title="Copy Reminder for Employee" onclick="copyExpiryReminder('<?php echo h($doc['first_name']); ?>', '<?php echo h($doc['original_name']); ?>', '<?php echo $doc['expiry_date']; ?>')">
+                                                    <i class="bi bi-chat-left-text"></i>
+                                                </button>
+                                                <?php if ($timeLeft < 0): ?>
+                                                    <a href="disciplinary.php?emp_id=<?php echo urlencode($doc['real_emp_id']); ?>&violation=Expired Document&rule=General Provisions&desc=The document '<?php echo urlencode($doc['original_name']); ?>' expired on <?php echo $doc['expiry_date']; ?> and has not been renewed."
+                                                        class="btn btn-danger" title="Escalate to Disciplinary (NTE)">
+                                                        <i class="bi bi-gavel"></i>
+                                                    </a>
+                                                <?php endif; ?>
+                                            </div>
                                         </td>
                                     </tr>
                                 <?php endforeach; ?>
@@ -284,8 +329,22 @@ $docs = $stmt->fetchAll(PDO::FETCH_ASSOC);
         </form>
     </div>
 
+    <!-- [NEW] Hidden form for date update -->
+    <form id="updateDateForm" method="POST" style="display:none;">
+        <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
+        <input type="hidden" name="action" value="update_date">
+        <input type="hidden" name="doc_id" id="updateDateDocId">
+        <input type="hidden" name="new_date" id="updateDateValue">
+    </form>
+
+    <!-- [NEW] Hidden form for bulk download -->
+    <form id="bulkDownloadForm" action="api/bulk_download_expiry.php" method="POST" target="_blank" style="display:none;">
+        <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
+        <div id="bulkDownloadIdsContainer"></div>
+    </form>
+
     <script src="assets/bootstrap.bundle.min.js"></script>
-    <script src="dark_mode.js"></script>
+    <script src="assets/dark_mode.js"></script>
     <script>
         // [NEW] Bulk Resolve Logic
         document.addEventListener('DOMContentLoaded', function() {
@@ -303,17 +362,90 @@ $docs = $stmt->fetchAll(PDO::FETCH_ASSOC);
             updateSelectionCount(); // Initial count on load
         });
 
+        /**
+         * [NEW] Quick Date Adjustment Modal
+         */
+        function editExpiryDate(id, current) {
+            Swal.fire({
+                title: 'Adjust Expiry Date',
+                input: 'date',
+                inputValue: current,
+                showCancelButton: true,
+                confirmButtonText: 'Save Change',
+                inputValidator: (value) => {
+                    if (!value) return 'Date is required!';
+                }
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    document.getElementById('updateDateDocId').value = id;
+                    document.getElementById('updateDateValue').value = result.value;
+                    document.getElementById('updateDateForm').submit();
+                }
+            });
+        }
+
+        /**
+         * [NEW] Copy pre-formatted reminder to clipboard
+         */
+        function copyExpiryReminder(name, docName, date) {
+            const text = `Hi ${name},\n\nThis is a reminder from HR that your document "${docName}" expired/will expire on ${date}. Please process your renewal or submit an updated copy as soon as possible.\n\nThank you!`;
+            navigator.clipboard.writeText(text).then(() => {
+                Swal.fire({
+                    toast: true,
+                    position: 'top-end',
+                    icon: 'success',
+                    title: 'Reminder copied!',
+                    showConfirmButton: false,
+                    timer: 2000
+                });
+            });
+        }
+
         function updateSelectionCount() {
-            const checkedCount = document.querySelectorAll('.doc-checkbox:checked').length;
+            const checked = document.querySelectorAll('.doc-checkbox:checked');
+            const checkedCount = checked.length;
             const bulkBtn = document.getElementById('bulkResolveBtn');
+            const bulkDlBtn = document.getElementById('bulkDownloadBtn');
             const selectedCountSpan = document.getElementById('selectedDocCount');
+            const selectedCountDlSpan = document.getElementById('selectedDocCountDl');
 
             if (checkedCount > 0) {
                 selectedCountSpan.textContent = checkedCount;
+                selectedCountDlSpan.textContent = checkedCount;
                 bulkBtn.style.display = 'inline-block';
+                bulkDlBtn.style.display = 'inline-block';
             } else {
                 bulkBtn.style.display = 'none';
+                bulkDlBtn.style.display = 'none';
             }
+        }
+
+        /**
+         * [NEW] Bulk Download Logic
+         */
+        function submitBulkDownload() {
+            const checked = document.querySelectorAll('.doc-checkbox:checked');
+            const container = document.getElementById('bulkDownloadIdsContainer');
+            container.innerHTML = '';
+
+            checked.forEach(cb => {
+                const input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = 'doc_ids[]';
+                input.value = cb.value;
+                container.appendChild(input);
+            });
+
+            document.getElementById('bulkDownloadForm').submit();
+
+            Swal.fire({
+                toast: true,
+                position: 'top-end',
+                icon: 'info',
+                title: 'Preparing ZIP...',
+                showConfirmButton: false,
+                timer: 3000
+            });
         }
 
         function submitBulkResolve() {
@@ -345,6 +477,18 @@ $docs = $stmt->fetchAll(PDO::FETCH_ASSOC);
                     document.getElementById('bulkResolveForm').submit();
                 }
             });
+        }
+
+        // [NEW] Scroll Memory Logic
+        const scrollKey = 'hr201_scroll_pos_' + window.location.pathname;
+        window.addEventListener('beforeunload', () => {
+            sessionStorage.setItem(scrollKey, window.scrollY);
+        });
+
+        const urlParamsForScroll = new URLSearchParams(window.location.search);
+        if (urlParamsForScroll.has('msg') || urlParamsForScroll.has('days') || urlParamsForScroll.has('dept') || urlParamsForScroll.has('status')) {
+            const savedPos = sessionStorage.getItem(scrollKey);
+            if (savedPos) window.scrollTo(0, parseInt(savedPos));
         }
     </script>
 </body>

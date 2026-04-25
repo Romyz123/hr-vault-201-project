@@ -117,7 +117,7 @@ try {
             echo '
             <li class="border-bottom py-2 px-3">
                 <div class="d-flex justify-content-between align-items-center">
-                    <a href="index.php?search=' . htmlspecialchars($notif['emp_id']) . '" class="text-decoration-none text-body w-100">
+                    <a href="index.php?search=' . htmlspecialchars($notif['emp_id']) . '&resolve_doc=' . $notif['id'] . '&doc_name=' . urlencode($notif['original_name']) . '" class="text-decoration-none text-body w-100">
                         <div class="d-flex align-items-center">
                             <i class="bi ' . $icon . ' ' . $color . ' fs-5 me-2"></i>
                             <div style="line-height: 1.2;">
@@ -175,6 +175,15 @@ try {
     $REQUIRED_DOCS = [];
     foreach ($reqList as $r) {
         $REQUIRED_DOCS[$r['name']] = array_map('trim', explode(',', $r['keywords']));
+    }
+    if (empty($REQUIRED_DOCS)) {
+        $REQUIRED_DOCS = [
+            '201 Files' => ['201', 'PDS', 'Data Sheet', 'Resume'],
+            'Valid ID'  => ['ID', 'Passport', 'License', 'SSS', 'PhilHealth'],
+            'Contract'  => ['Contract', 'Appointment', 'Offer'],
+            'Medical'   => ['Medical', 'Fit to Work', 'Exam'],
+            'Clearance' => ['NBI', 'Police', 'Barangay']
+        ];
     }
 
     // Fetch all active documents for active employees (matching index.php logic)

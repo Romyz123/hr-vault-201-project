@@ -4,6 +4,11 @@ require '../src/Security.php';
 require '../src/Logger.php';
 require '../src/FileService.php';
 require 'options.php';
+
+// [FIX] Ensure checkSessionTimeout is defined before calling it
+if (!function_exists('checkSessionTimeout')) {
+    require_once __DIR__ . '/../config/db.php';
+}
 session_start();
 
 // 1. SECURITY: Admin, Manager & HR Only

@@ -4,6 +4,11 @@ require '../src/Security.php';
 session_start();
 checkSessionTimeout($pdo); // [SECURITY] Enforce Timeout
 
+// [FIX] Ensure checkSessionTimeout is defined before calling it
+if (!function_exists('checkSessionTimeout')) {
+    require_once __DIR__ . '/../config/db.php';
+}
+
 // [UX] Fetch Client Timeout
 $clientTimeout = 900;
 try {

@@ -26,12 +26,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if (!isset($_SESSION['user_id'])) die("ACCESS DENIED");
 
-    if (empty($_POST)) {
-        sendResponse('error', "Upload failed: File is too large (Server Limit: " . ini_get('post_max_size') . ") or request was empty.");
-    }
-
     // CSRF Token Validation (Check AFTER size check)
-    if (empty($_POST['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'])) {
+    // [FIX] CSRF check MUST happen FIRST, before any POST data processing
+    if (empty($_POST['csrf_token']) || !hash_equals($_SESSION['csrf_token'] ?? '', $_POST['csrf_token'])) {
         // Debugging: Log the mismatch to help troubleshoot
         $postedToken = $_POST['csrf_token'] ?? '';
         $sessionToken = $_SESSION['csrf_token'] ?? '';
@@ -41,6 +38,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         error_log("CSRF Mismatch in process_upload.php. POST: $logPost, SESSION: $logSess");
 
         sendResponse('error', "Security token expired or invalid. Please refresh and try again.");
+    }
+
+    // [FIX] Now check if POST is empty (meaning file was too large)
+    if (empty($_POST)) {
+        sendResponse('error', "Upload failed: File is too large (Server Limit: " . ini_get('post_max_size') . ") or request was empty.");
     }
 
     // 1. GATHER INPUTS

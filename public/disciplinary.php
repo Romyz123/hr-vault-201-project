@@ -4,12 +4,18 @@
 // [STATUS] FINAL: Standard UUIDs + Auto-Repair Logic
 // ======================================================
 
+// ---------- 1) SYSTEM IMPORTS & ACCESS CONTROL ----------
 require '../config/db.php';
 require '../src/Logger.php';
 require '../src/Security.php';
 require '../src/Validator.php';
 require '../src/SearchHelper.php';
 require 'options.php';
+
+// [FIX] Ensure checkSessionTimeout is defined before calling it
+if (!function_exists('checkSessionTimeout')) {
+    require_once __DIR__ . '/../config/db.php';
+}
 session_start();
 checkSessionTimeout($pdo); // [SECURITY] Enforce Timeout
 
@@ -38,7 +44,7 @@ if (empty($_SESSION['csrf_token'])) {
     $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 }
 
-// 2. HANDLE FORM SUBMISSION
+// ---------- 2) FORM PROCESSING: ADD/EDIT CASE ----------
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] == 'add_case') {
     // [SECURITY] Verify CSRF Token
     if (empty($_POST['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'])) {
@@ -374,7 +380,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     }
 }
 
-// 3. CLOSE CASE
+// ---------- 3) CASE STATUS MANAGEMENT ----------
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'close_case') {
     if (empty($_POST['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'])) {
         die("Invalid CSRF Token");
@@ -384,7 +390,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     exit;
 }
 
-// 3.5 REOPEN CASE (UNDO)
+// ---------- 4) DATA FETCHING & FILTERS ----------
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'reopen_case') {
     if (empty($_POST['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'])) {
         die("Invalid CSRF Token");
@@ -482,6 +488,7 @@ if (isset($_GET['msg'])) {
 ?>
 
 <!DOCTYPE html>
+// ---------- 5) MODAL UI & FORMS ----------
 <html lang="en">
 
 <head>
@@ -861,6 +868,8 @@ if (isset($_GET['msg'])) {
     </div>
 
     <script src="assets/bootstrap.bundle.min.js"></script>
+    <?php // ---------- 6) JAVASCRIPT UX LOGIC ---------- 
+    ?>
     <script src="assets/dark_mode.js"></script>
     <script>
         // [UX STABILIZATION] Scroll Memory Helper

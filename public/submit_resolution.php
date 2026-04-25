@@ -48,13 +48,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SESSION['user_id'])) {
     $user_id = $_SESSION['user_id'];
     $data = [
         'doc_name' => $docName,
+        'doc_id'   => $doc_id,
         'note'     => $note,
         'resolved_by' => $user_id
     ];
     $payload = json_encode($data);
 
-    // CHECK ROLE
-    if ($_SESSION['role'] === 'STAFF') {
+    // [FIX] Normalize role and check system settings for direct approval
+    $userRole = strtoupper(trim($_SESSION['role'] ?? 'STAFF'));
+
+    $staffDirect = false;
+    try {
+        $stmtSetting = $pdo->query("SELECT setting_value FROM system_settings WHERE setting_key = 'staff_direct_approval'");
+        $staffDirect = ($stmtSetting && $stmtSetting->fetchColumn() === '1');
+    } catch (Exception $e) {
+        // Fallback to false if settings table is missing
+    }
+
+    // Determine if resolution should be immediate or require approval
+    if ($userRole === 'STAFF' && !$staffDirect) {
         // Create Request (Ticket)
         $stmt = $pdo->prepare("INSERT INTO requests (user_id, request_type, target_id, json_payload) VALUES (?, 'RESOLVE_ALERT', ?, ?)");
         $stmt->execute([$user_id, $doc_id, $payload]);
@@ -63,7 +75,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SESSION['user_id'])) {
         $logger->log($user_id, 'REQUEST_RESOLVE', "Submitted resolution report for Doc ID: $doc_id");
 
         header("Location: index.php?msg=Resolution Report Submitted for Approval");
-    } elseif (in_array($_SESSION['role'], ['ADMIN', 'MANAGER', 'HR'], true)) {
+    } elseif (in_array($userRole, ['ADMIN', 'MANAGER', 'HR'], true) || ($userRole === 'STAFF' && $staffDirect)) {
         // ADMIN/HR: Resolve Immediately
         $stmt = $pdo->prepare("UPDATE documents SET is_resolved = 1, resolution_note = ? WHERE id = ?");
         $stmt->execute([$note, $doc_id]);

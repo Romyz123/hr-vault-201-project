@@ -8,6 +8,11 @@ require '../config/db.php';
 require '../src/Security.php';
 require '../src/Logger.php';
 session_start();
+
+// [FIX] Ensure checkSessionTimeout is defined before calling it
+if (!function_exists('checkSessionTimeout')) {
+    require_once __DIR__ . '/../config/db.php';
+}
 checkSessionTimeout($pdo); // [SECURITY] Enforce Timeout
 
 // [NEW] Force Browser Cache Clear for this page so users always see new buttons

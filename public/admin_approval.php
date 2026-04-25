@@ -167,6 +167,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                         'experience',
                         'skills',
                         'licenses',
+                        'college_degree',
+                        'college_course',
+                        'college_year',
                         'status',
                         'exit_date',
                         'exit_reason',
@@ -214,7 +217,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                     // SAFETY: Remove the note so it doesn't break the SQL UPDATE
                     unset($profileData['request_note']);
 
-                    $allowedColumns = ['emp_id', 'first_name', 'middle_name', 'last_name', 'job_title', 'system_role', 'dept', 'section', 'employment_type', 'agency_name', 'company_name', 'previous_company', 'hire_date', 'gender', 'birth_date', 'contact_number', 'email', 'present_address', 'permanent_address', 'sss_no', 'tin_no', 'pagibig_no', 'philhealth_no', 'emergency_name', 'emergency_contact', 'emergency_address', 'education', 'experience', 'skills', 'licenses', 'status', 'exit_date', 'exit_reason', 'avatar_path'];
+                    $allowedColumns = ['emp_id', 'first_name', 'middle_name', 'last_name', 'job_title', 'system_role', 'dept', 'section', 'employment_type', 'agency_name', 'company_name', 'previous_company', 'hire_date', 'gender', 'birth_date', 'contact_number', 'email', 'present_address', 'permanent_address', 'sss_no', 'tin_no', 'pagibig_no', 'philhealth_no', 'emergency_name', 'emergency_contact', 'emergency_address', 'education', 'experience', 'skills', 'licenses', 'college_degree', 'college_course', 'college_year', 'status', 'exit_date', 'exit_reason', 'avatar_path'];
                     $filteredData = array_intersect_key($profileData, array_flip($allowedColumns));
                     if (!empty($filteredData)) {
                         $setParts = [];
@@ -327,7 +330,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 
                     $stmt = $pdo->prepare("INSERT INTO employee_training (employee_id, course_id, completion_date, expiry_date, certificate_path) VALUES (?, ?, ?, ?, ?)");
                     $stmt->execute([$data['employee_id'], $data['course_id'], $data['completion_date'], $expDate, $data['certificate_path']]);
-                    
+
                     $pdo->prepare("INSERT INTO notifications (user_id, title, message, type) VALUES (?, 'Training Verified', 'Your training record has been verified and added to your profile.', 'success')")
                         ->execute([$req['user_id']]);
                     $logger->log($adminId, 'VERIFIED_TRAINING', "Verified training for Emp: " . $data['employee_id']);
@@ -337,7 +340,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 elseif ($req['request_type'] === 'SUGGEST_COURSE') {
                     $pdo->prepare("INSERT INTO courses_catalog (name, category, provider, validity_months) VALUES (?, ?, ?, ?)")
                         ->execute([$data['name'], $data['category'], $data['provider'], $data['validity_months']]);
-                    
+
                     $pdo->prepare("INSERT INTO notifications (user_id, title, message, type) VALUES (?, 'Course Approved', ?, 'success')")
                         ->execute([$req['user_id'], "The course '" . $data['name'] . "' is now available in the catalog."]);
                     $logger->log($adminId, 'APPROVED_NEW_COURSE', "Added suggested course to catalog: " . $data['name']);
@@ -493,6 +496,7 @@ $tickets  = in_array('tickets', $enabledWidgets) ? $pdo->query("SELECT r.*, u.us
                             'tickets' => 'ticket',
                         };
                         echo "<div class='tab-pane fade $activeClass' id='tab-$key' role='tabpanel' aria-labelledby='tab-btn-$key'>";
+                        echo "<h4 class='mb-4'>{$widget['label']}</h4>";
                         renderTable($widget['data'], $dataType);
                         echo "</div>";
                     }
@@ -736,6 +740,7 @@ function renderTable($requests, $type)
                         <hr>
                         <p class="mb-1 text-primary fw-bold small text-uppercase">Action Taken${data.doc_name ? ' for ' + escapeHtml(data.doc_name) : ''}:</p>
                         <p class="fs-5 fw-bold text-body">"${escapeHtml(data.note)}"</p>
+                        ${data.doc_id ? `<div class="mt-3 text-end"><a href="view_doc.php?id=${data.doc_id}" target="_blank" class="btn btn-sm btn-outline-primary"><i class="bi bi-eye"></i> View Original Document</a></div>` : ''}
                     </div>`;
         }
         // 2. DOCUMENT

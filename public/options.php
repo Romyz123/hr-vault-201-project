@@ -162,3 +162,12 @@ if (empty($rule_options)) {
         "Data Privacy Policy"
     ];
 }
+
+// [NEW] College Courses for Normalization & Suggestions
+$college_courses_list = [];
+try {
+    $stmt = $pdo->query("SELECT course_name, keywords FROM college_courses ORDER BY course_name ASC");
+    $college_courses_list = $stmt->fetchAll(PDO::FETCH_ASSOC);
+} catch (Exception $e) {
+    // Fallback handled in UI
+}

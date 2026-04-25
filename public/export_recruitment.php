@@ -4,6 +4,11 @@ require '../config/db.php';
 session_start();
 checkSessionTimeout($pdo); // [SECURITY] Enforce Timeout
 
+// [FIX] Ensure checkSessionTimeout is defined before calling it
+if (!function_exists('checkSessionTimeout')) {
+    require_once __DIR__ . '/../config/db.php';
+}
+
 if (!isset($_SESSION['user_id']) || !in_array($_SESSION['role'], ['ADMIN', 'MANAGER', 'HR'])) {
     http_response_code(403);
     exit('Unauthorized');

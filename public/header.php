@@ -16,6 +16,10 @@ if (!function_exists('h')) {
     }
 }
 
+// [FIX] Ensure checkSessionTimeout is defined before calling it
+if (!function_exists('checkSessionTimeout')) {
+    require_once __DIR__ . '/../config/db.php';
+}
 require_once __DIR__ . '/options.php';
 
 // [NEW] Auto-fetch settings if not provided by parent page
@@ -121,13 +125,31 @@ if (isset($_SESSION['user_id'])) {
 }
 
 $csrf_token = $_SESSION['csrf_token'] ?? '';
+
+// Determine dynamic page title based on current file
+$currentPage = basename($_SERVER['PHP_SELF']);
+$pageTitles = [
+    'index.php'              => 'Dashboard',
+    'edit_employee.php'      => 'Edit Employee',
+    'admin_approval.php'     => 'Approval Center',
+    'system_recovery.php'    => 'System Recovery',
+    'analytics.php'          => 'Workforce Analytics',
+    'tracker.php'            => 'Compliance Tracker',
+    'performance_review.php' => 'Performance Reviews',
+    'maintenance_log.php'    => 'Hardware Maintenance',
+    'activity_logs.php'      => 'Security Audit Trail',
+    'access_review.php'      => 'User Access Review',
+    'my_requests.php'        => 'My Requests',
+    'profile_settings.php'   => 'Profile Settings'
+];
+$displayTitle = $pageTitles[$currentPage] ?? 'TESP HR 201 System';
 ?>
 <!DOCTYPE html>
 <html lang="en">
 
 <head>
     <meta charset="UTF-8">
-    <title>TESP HR 201 System</title>
+    <title><?php echo $displayTitle; ?> | TESP HR 201 System</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <?php
     $faviconPath = '../uploads/favicon.png';
@@ -276,27 +298,23 @@ $csrf_token = $_SESSION['csrf_token'] ?? '';
         }
 
         .preview-box {
-            height: 520px;
-            border: 2px dashed #dee2e6;
+            width: 100%;
+            height: 100%;
+            min-height: 500px;
             display: flex;
             align-items: center;
             justify-content: center;
             background: #f8f9fa;
-            border-radius: .5rem;
-            color: #6c757d;
+            border-radius: 8px;
+            overflow: hidden;
         }
 
-        .preview-iframe {
+        .preview-iframe,
+        .preview-img {
             width: 100%;
             height: 100%;
-            border: 0;
-            border-radius: .5rem;
-        }
-
-        .preview-img {
-            max-width: 100%;
-            max-height: 100%;
-            border-radius: .5rem;
+            border: none;
+            object-fit: contain;
         }
 
         .page-link {
@@ -359,6 +377,10 @@ $csrf_token = $_SESSION['csrf_token'] ?? '';
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4 px-3">
         <div class="container-fluid">
             <a class="navbar-brand" href="index.php"><i class="bi bi-house-door-fill me-2"></i> Dashboard</a>
+
+            <button onclick="history.back()" class="btn btn-sm btn-outline-light me-2 no-print" title="Go Back">
+                <i class="bi bi-arrow-left"></i> Back
+            </button>
 
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarContent" aria-controls="navbarContent" aria-expanded="false" aria-label="Toggle navigation">
                 <span class="navbar-toggler-icon"></span>

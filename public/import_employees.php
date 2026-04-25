@@ -4,12 +4,19 @@
 // [STATUS] Reverted to User's working version + Custom Import
 // ======================================================
 
+// ---------- 1) SYSTEM IMPORTS & INITIALIZATION ----------
 require '../config/db.php';
 require '../src/Security.php';
 require '../src/Logger.php';
 require 'options.php'; // Fetch dynamic options for agencies
+
+// [FIX] Ensure checkSessionTimeout is defined before calling it
+if (!function_exists('checkSessionTimeout')) {
+    require_once __DIR__ . '/../config/db.php';
+}
 session_start();
 
+// ---------- 2) SECURITY & ACCESS CONTROL ----------
 // 1. SECURITY: Admin, Manager & HR Only
 if (!isset($_SESSION['role']) || !in_array($_SESSION['role'], ['ADMIN', 'MANAGER', 'HR'])) {
     die("ACCESS DENIED");
@@ -35,6 +42,7 @@ if (empty($_SESSION['csrf_token'])) {
     $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 }
 
+// ---------- 3) DEPARTMENT MAPPING CONFIGURATION ----------
 // ---------------- CONFIGURATION ----------------
 // [IMPORTANT] Order matters! Specific departments (SQP, SIGCOM) come first
 // to prevent generic keywords (like "IT" or "Safety") from being grabbed by Admin.
@@ -103,6 +111,7 @@ $deptMap = [
     "SUBCONS-OTHERS" => ["OTHERS"]
 ];
 
+// ---------- 4) HELPER FUNCTIONS ----------
 function findDept($section, $map)
 {
     $section = strtoupper(trim($section));
@@ -149,8 +158,26 @@ function parseDate($dateStr)
     return NULL;
 }
 
-// ======================================================
-// 2. HANDLE UNDO ACTION
+// [NEW] Normalizer for College Courses using Keywords
+function normalizeCourse($input, $masterList)
+{
+    $input = strtoupper(trim($input));
+    if (empty($input)) return '';
+
+    foreach ($masterList as $item) {
+        // Match 1: Official Name
+        if ($input === strtoupper($item['course_name'])) return $item['course_name'];
+
+        // Match 2: Keywords/Tags
+        $keywords = explode(',', $item['keywords']);
+        foreach ($keywords as $k) {
+            if ($input === strtoupper(trim($k))) return $item['course_name'];
+        }
+    }
+    return $input; // No match? Keep raw data
+}
+
+// ---------- 5) HANDLE UNDO ACTION ----------
 // ======================================================
 if (isset($_POST['undo_batch'])) {
     // [SECURITY] Verify CSRF Token
@@ -288,7 +315,10 @@ if (isset($_POST['undo_batch'])) {
                 'licenses',
                 'exit_date',
                 'exit_reason',
-                'updated_at'
+                'updated_at',
+                'college_degree',
+                'college_course',
+                'college_year'
             ];
             $restored_count = 0;
             foreach ($rollbacks as $rb) {
@@ -336,8 +366,7 @@ if (isset($_POST['undo_batch'])) {
 }
 
 
-// ======================================================
-// 3. HANDLE IMPORT ACTION
+// ---------- 6) HANDLE IMPORT ACTION ----------
 // ======================================================
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['undo_batch'])) {
 
@@ -413,6 +442,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['undo_batch'])) {
                     $emg_name = "";
                     $emg_contact = "";
                     $emg_addr = "";
+                    $college_degree = "";
+                    $college_course = "";
+                    $college_year = "";
 
                     // ----------------------------------------------------
                     // SWITCH LOGIC: MAP COLUMNS BASED ON AGENCY
@@ -545,6 +577,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['undo_batch'])) {
                         $education      = $getVal(['EDUCATION ATTAINMENT', 'EDUCATION', 'EDUCATIONAL ATTAINMENT', 'DEGREE']);
                         $experience     = $getVal(['EXPERIENCE', 'WORK EXPERIENCE']);
                         $licenses       = $getVal(['LICENSES / CERTIFICATIONS', 'LICENSES', 'CERTIFICATIONS']);
+                        $college_degree = $getVal(['COLLEGE DEGREE', 'DEGREE TYPE']);
+                        $college_course = $getVal(['COLLEGE COURSE', 'COURSE', 'MAJOR']);
+                        $college_year   = $getVal(['YEAR FINISHED', 'GRADUATION YEAR', 'COLLEGE YEAR']);
+
+                        // [SYNC] Normalize the Course based on Keywords
+                        $college_course = normalizeCourse($college_course, $college_courses_list);
 
                         if (!empty($gender_raw)) {
                             $g = strtolower($gender_raw);
@@ -638,6 +676,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['undo_batch'])) {
                     $experience = substr(preg_replace('/[^a-zA-Z0-9\s\.,\-\(\)\/\':]/', '', $experience ?? ''), 0, 1000);
                     $licenses   = substr(preg_replace('/[^a-zA-Z0-9\s\.,\-\(\)\/\':]/', '', $licenses ?? ''), 0, 1000);
 
+                    $college_degree = substr(preg_replace('/[^a-zA-Z0-9\s\-\.\(\)]/', '', $college_degree ?? ''), 0, 100);
+                    $college_course = substr(preg_replace('/[^a-zA-Z0-9\s\-\.\(\)]/', '', $college_course ?? ''), 0, 100);
+                    $college_year   = substr(preg_replace('/[^0-9]/', '', $college_year ?? ''), 0, 10);
+
                     // Defaults
                     $photo  = "default.png";
                     $status = "Active";
@@ -687,6 +729,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['undo_batch'])) {
                                         'education' => $education,
                                         'experience' => $experience,
                                         'licenses' => $licenses,
+                                        'college_degree' => $college_degree,
+                                        'college_course' => $college_course,
+                                        'college_year' => $college_year,
                                         'request_note' => 'Bulk Import Update'
                                     ];
                                     $payload = json_encode($updateData, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
@@ -729,7 +774,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['undo_batch'])) {
                                         present_address=?, permanent_address=?, sss_no=?, tin_no=?, pagibig_no=?, philhealth_no=?, email=?,
                                         emergency_name=?, emergency_contact=?, emergency_address=?,
                                         education=?, experience=?, licenses=?,
-                                        import_batch=?, updated_at=NOW()
+                                        import_batch=?, updated_at=NOW(),
+                                        college_degree=?, college_course=?, college_year=?
                                         WHERE id=?";
                                     $stmt = $pdo->prepare($sql);
                                     $stmt->execute([
@@ -759,6 +805,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['undo_batch'])) {
                                         $experience,
                                         $licenses,
                                         $batch_id,
+                                        $college_degree,
+                                        $college_course,
+                                        $college_year,
                                         $existingId
                                     ]);
                                     $updated_count++;
@@ -796,6 +845,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['undo_batch'])) {
                                         'education' => $education,
                                         'experience' => $experience,
                                         'skills' => '',
+                                        'college_degree' => $college_degree,
+                                        'college_course' => $college_course,
+                                        'college_year' => $college_year,
                                         'licenses' => $licenses,
                                         'status' => $status,
                                         'avatar_path' => $photo,
@@ -817,8 +869,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['undo_batch'])) {
                                     present_address, permanent_address, avatar_path, import_batch,
                                     sss_no, tin_no, pagibig_no, philhealth_no, email,
                                     emergency_name, emergency_contact, emergency_address,
-                                    education, experience, licenses) 
-                                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+                                    education, experience, licenses,
+                                    college_degree, college_course, college_year) 
+                                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
                                     $stmt = $pdo->prepare($sql);
                                     $stmt->execute([
@@ -850,7 +903,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['undo_batch'])) {
                                         $emg_addr,
                                         $education,
                                         $experience,
-                                        $licenses
+                                        $licenses,
+                                        $college_degree,
+                                        $college_course,
+                                        $college_year
                                     ]);
                                     $success_count++;
                                 }
@@ -883,11 +939,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['undo_batch'])) {
     }
 }
 
+// ---------- 7) DATA FETCHING ----------
 // Fetch history for the table below
 $history = $pdo->query("SELECT import_batch, MAX(agency_name) as agency_name, COUNT(*) as count, MAX(created_at) as time FROM employees WHERE import_batch IS NOT NULL GROUP BY import_batch ORDER BY time DESC LIMIT 5")->fetchAll(PDO::FETCH_ASSOC);
 ?>
 
 <!DOCTYPE html>
+// ---------- 8) HTML DOCUMENT HEAD & NAVIGATION ----------
 <html lang="en">
 
 <head>
@@ -942,6 +1000,7 @@ $history = $pdo->query("SELECT import_batch, MAX(agency_name) as agency_name, CO
 
     <div class="container">
 
+        <?php // ---------- 9) FORMAT INSTRUCTIONS ---------- ?>
         <div id="instr_tesp" class="alert alert-info shadow-sm mb-4 format-box">
             <div class="d-flex justify-content-between align-items-center mb-2">
                 <h6 class="fw-bold mb-0">Standard Format (TESP / GUNJIN)</h6>
@@ -1087,7 +1146,7 @@ $history = $pdo->query("SELECT import_batch, MAX(agency_name) as agency_name, CO
                             <th colspan="4">Government IDs</th>
                             <th colspan="3">Emergency Contact</th>
                             <th colspan="4">Job Details</th>
-                            <th colspan="3">Qualifications</th>
+                            <th colspan="6">Qualifications</th>
                         </tr>
                         <tr>
                             <th>First Name</th>
@@ -1115,6 +1174,9 @@ $history = $pdo->query("SELECT import_batch, MAX(agency_name) as agency_name, CO
                             <th>Education Attainment</th>
                             <th>JobExperience</th>
                             <th>Licenses / Certifications</th>
+                            <th>College Degree</th>
+                            <th>College Course</th>
+                            <th>Year Finished</th>
                         </tr>
                     </thead>
                     <tbody class="text-center">
@@ -1144,12 +1206,16 @@ $history = $pdo->query("SELECT import_batch, MAX(agency_name) as agency_name, CO
                             <td>BS Computer Science</td>
                             <td>Jolibee Crew</td>
                             <td>Civil Service Professional</td>
+                            <td>Bachelor's Degree</td>
+                            <td>BS Computer Science</td>
+                            <td>2020</td>
                         </tr>
                     </tbody>
                 </table>
             </div>
         </div>
 
+        <?php // ---------- 10) BULK IMPORT FORM ---------- ?>
         <div class="card shadow mb-4">
             <div class="card-header bg-success text-white">
                 <h5 class="mb-0">Bulk Import</h5>
@@ -1203,6 +1269,7 @@ $history = $pdo->query("SELECT import_batch, MAX(agency_name) as agency_name, CO
             </div>
         </div>
 
+        <?php // ---------- 11) IMPORT HISTORY & UNDO UI ---------- ?>
         <?php if (count($history) > 0): ?>
             <div class="card shadow border-danger">
                 <div class="card-header bg-danger text-white">
@@ -1263,6 +1330,7 @@ $history = $pdo->query("SELECT import_batch, MAX(agency_name) as agency_name, CO
 
     </div>
 
+    <?php // ---------- 12) JAVASCRIPT LOGIC ---------- ?>
     <script>
         function toggleFormat() {
             const format = document.getElementById('agency_select').value;

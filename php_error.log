@@ -337,3 +337,592 @@ Stack trace:
 #1 {main}
   thrown in C:\xampp\htdocs\hr 201\public\backup.php on line 167
 [17-Apr-2026 10:32:08 Asia/Manila] Failed to copy vault file: C:\xampp\htdocs\hr 201\vault\.htaccess to U:\01_TESP\09_MAINTENANCE DOCS\041_GAG\201 FILES\sample\vault_mirror\
+[20-Apr-2026 08:41:03 Asia/Manila] PHP Fatal error:  Uncaught PDOException: SQLSTATE[42S02]: Base table or view not found: 1146 Table 'hr201_local.college_degrees_catalog' doesn't exist in C:\xampp\htdocs\hr 201\public\manage_options.php:453
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\manage_options.php(453): PDO->query('SELECT * FROM c...')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\manage_options.php on line 453
+[20-Apr-2026 08:50:39 Asia/Manila] PHP Fatal error:  Uncaught PDOException: SQLSTATE[42S02]: Base table or view not found: 1146 Table 'hr201_local.college_degrees_catalog' doesn't exist in C:\xampp\htdocs\hr 201\public\manage_options.php:465
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\manage_options.php(465): PDO->query('SELECT * FROM c...')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\manage_options.php on line 465
+[20-Apr-2026 08:50:41 Asia/Manila] PHP Fatal error:  Uncaught PDOException: SQLSTATE[42S02]: Base table or view not found: 1146 Table 'hr201_local.college_degrees_catalog' doesn't exist in C:\xampp\htdocs\hr 201\public\manage_options.php:465
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\manage_options.php(465): PDO->query('SELECT * FROM c...')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\manage_options.php on line 465
+[22-Apr-2026 09:25:44 Asia/Manila] PHP Fatal error:  Uncaught PDOException: SQLSTATE[42S02]: Base table or view not found: 1146 Table 'hr201_local.college_courses' doesn't exist in C:\xampp\htdocs\hr 201\public\manage_options.php:482
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\manage_options.php(482): PDO->query('SELECT * FROM c...')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\manage_options.php on line 482
+[22-Apr-2026 09:25:45 Asia/Manila] PHP Fatal error:  Uncaught PDOException: SQLSTATE[42S02]: Base table or view not found: 1146 Table 'hr201_local.college_courses' doesn't exist in C:\xampp\htdocs\hr 201\public\manage_options.php:482
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\manage_options.php(482): PDO->query('SELECT * FROM c...')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\manage_options.php on line 482
+[22-Apr-2026 09:25:47 Asia/Manila] PHP Fatal error:  Uncaught PDOException: SQLSTATE[42S02]: Base table or view not found: 1146 Table 'hr201_local.college_courses' doesn't exist in C:\xampp\htdocs\hr 201\public\manage_options.php:482
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\manage_options.php(482): PDO->query('SELECT * FROM c...')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\manage_options.php on line 482
+[22-Apr-2026 09:28:07 Asia/Manila] PHP Fatal error:  Uncaught PDOException: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'college_degree' in 'where clause' in C:\xampp\htdocs\hr 201\public\analytics.php:154
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\analytics.php(154): PDO->prepare('SELECT COUNT(*)...')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\analytics.php on line 154
+[22-Apr-2026 09:28:10 Asia/Manila] PHP Fatal error:  Uncaught PDOException: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'college_degree' in 'where clause' in C:\xampp\htdocs\hr 201\public\analytics.php:154
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\analytics.php(154): PDO->prepare('SELECT COUNT(*)...')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\analytics.php on line 154
+[22-Apr-2026 09:28:39 Asia/Manila] PHP Fatal error:  Uncaught PDOException: SQLSTATE[42S02]: Base table or view not found: 1146 Table 'hr201_local.college_courses' doesn't exist in C:\xampp\htdocs\hr 201\public\manage_options.php:482
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\manage_options.php(482): PDO->query('SELECT * FROM c...')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\manage_options.php on line 482
+[22-Apr-2026 09:35:43 Asia/Manila] Database Error in add_employee.php: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'college_degree' in 'field list'. Stack: #0 C:\xampp\htdocs\hr 201\src\EmployeeService.php(46): PDO->prepare('INSERT INTO emp...')
+#1 C:\xampp\htdocs\hr 201\public\add_employee.php(291): EmployeeService->create(Array, 1)
+#2 {main}
+[22-Apr-2026 09:42:52 Asia/Manila] Database Error in add_employee.php: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'college_degree' in 'field list'. Stack: #0 C:\xampp\htdocs\hr 201\src\EmployeeService.php(46): PDO->prepare('INSERT INTO emp...')
+#1 C:\xampp\htdocs\hr 201\public\add_employee.php(291): EmployeeService->create(Array, 1)
+#2 {main}
+[22-Apr-2026 09:43:04 Asia/Manila] Database Error in add_employee.php: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'college_degree' in 'field list'. Stack: #0 C:\xampp\htdocs\hr 201\src\EmployeeService.php(46): PDO->prepare('INSERT INTO emp...')
+#1 C:\xampp\htdocs\hr 201\public\add_employee.php(291): EmployeeService->create(Array, 1)
+#2 {main}
+[22-Apr-2026 09:47:58 Asia/Manila] PHP Fatal error:  Uncaught PDOException: SQLSTATE[42S02]: Base table or view not found: 1146 Table 'hr201_local.college_courses' doesn't exist in C:\xampp\htdocs\hr 201\public\manage_options.php:482
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\manage_options.php(482): PDO->query('SELECT * FROM c...')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\manage_options.php on line 482
+[22-Apr-2026 09:55:14 Asia/Manila] PHP Fatal error:  Uncaught PDOException: SQLSTATE[42S02]: Base table or view not found: 1146 Table 'hr201_local.college_courses' doesn't exist in C:\xampp\htdocs\hr 201\public\manage_options.php:497
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\manage_options.php(497): PDO->query('SELECT * FROM c...')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\manage_options.php on line 497
+[22-Apr-2026 09:55:16 Asia/Manila] PHP Fatal error:  Uncaught PDOException: SQLSTATE[42S02]: Base table or view not found: 1146 Table 'hr201_local.college_courses' doesn't exist in C:\xampp\htdocs\hr 201\public\manage_options.php:497
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\manage_options.php(497): PDO->query('SELECT * FROM c...')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\manage_options.php on line 497
+[22-Apr-2026 09:58:14 Asia/Manila] PHP Fatal error:  Uncaught PDOException: SQLSTATE[42S02]: Base table or view not found: 1146 Table 'hr201_local.college_courses' doesn't exist in C:\xampp\htdocs\hr 201\public\manage_options.php:500
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\manage_options.php(500): PDO->query('SELECT * FROM c...')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\manage_options.php on line 500
+[22-Apr-2026 09:58:16 Asia/Manila] PHP Fatal error:  Uncaught PDOException: SQLSTATE[42S02]: Base table or view not found: 1146 Table 'hr201_local.college_courses' doesn't exist in C:\xampp\htdocs\hr 201\public\manage_options.php:500
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\manage_options.php(500): PDO->query('SELECT * FROM c...')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\manage_options.php on line 500
+[24-Apr-2026 09:51:47 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 926
+[24-Apr-2026 09:51:47 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 926
+[24-Apr-2026 09:53:34 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 926
+[24-Apr-2026 09:53:34 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 926
+[24-Apr-2026 09:53:37 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 926
+[24-Apr-2026 09:53:37 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 926
+[24-Apr-2026 09:56:03 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 926
+[24-Apr-2026 09:56:03 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 926
+[24-Apr-2026 09:59:28 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 926
+[24-Apr-2026 09:59:28 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 926
+[24-Apr-2026 09:59:36 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 926
+[24-Apr-2026 09:59:36 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 926
+[24-Apr-2026 09:59:42 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 926
+[24-Apr-2026 09:59:42 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 926
+[24-Apr-2026 09:59:47 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 926
+[24-Apr-2026 09:59:47 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 926
+[24-Apr-2026 09:59:50 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 926
+[24-Apr-2026 09:59:50 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 926
+[24-Apr-2026 09:59:56 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 926
+[24-Apr-2026 09:59:56 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 926
+[24-Apr-2026 09:59:58 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 926
+[24-Apr-2026 09:59:58 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 926
+[24-Apr-2026 10:00:01 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 926
+[24-Apr-2026 10:00:01 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 926
+[24-Apr-2026 10:00:05 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 926
+[24-Apr-2026 10:00:05 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 926
+[24-Apr-2026 10:01:40 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 926
+[24-Apr-2026 10:01:40 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 926
+[24-Apr-2026 10:03:30 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 926
+[24-Apr-2026 10:03:30 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 926
+[24-Apr-2026 10:03:34 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 926
+[24-Apr-2026 10:03:34 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 926
+[24-Apr-2026 10:03:58 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 926
+[24-Apr-2026 10:03:58 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 926
+[24-Apr-2026 10:08:22 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 10:08:22 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 10:08:38 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 10:08:38 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 10:10:46 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 10:10:46 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 10:11:01 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 10:11:01 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 10:15:39 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 10:15:39 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 10:15:39 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 10:15:39 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 10:23:02 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 10:23:02 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 10:23:36 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 10:23:36 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 10:23:38 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 10:23:38 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 10:23:41 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 10:23:41 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 10:26:01 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 10:26:01 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 10:27:11 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 10:27:11 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 10:29:34 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 10:29:34 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 10:32:01 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 10:32:01 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 10:35:04 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 10:35:04 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 10:36:18 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 10:36:18 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 10:36:22 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 10:36:22 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 10:36:26 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 10:36:26 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 10:36:30 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 10:36:30 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 10:36:34 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 10:36:34 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 10:36:49 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 10:36:49 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 10:36:51 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 10:36:51 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 10:36:59 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 10:36:59 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 10:37:04 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 10:37:04 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 10:37:34 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 10:37:34 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 10:39:39 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 10:39:39 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 10:39:49 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 10:39:49 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 10:40:04 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 10:40:04 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 10:40:42 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 10:40:42 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 10:40:47 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 10:40:47 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 10:40:58 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 10:40:58 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 10:41:41 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 10:41:41 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 10:42:01 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 10:42:01 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 10:42:04 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 10:42:04 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 10:42:11 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 10:42:11 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 10:45:05 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 10:45:05 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 10:45:10 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 10:45:10 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 10:51:08 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 10:51:08 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 10:51:13 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 10:51:13 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 10:51:49 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 10:51:49 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 10:53:57 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 10:53:57 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 10:54:33 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 10:54:33 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 10:54:36 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 10:54:36 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 10:56:23 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 10:56:23 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 10:56:30 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 10:56:30 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 10:56:33 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 10:56:33 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 10:56:35 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 10:56:35 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 10:57:57 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 10:57:57 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 10:57:59 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 10:57:59 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 10:58:29 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 10:58:29 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 10:59:01 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 10:59:01 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 11:09:43 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 11:09:43 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 11:10:16 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 11:10:16 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 11:10:51 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 11:10:51 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 11:10:58 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 11:10:58 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 11:11:42 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 11:11:42 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 11:12:01 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 11:12:01 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 11:18:07 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 11:18:07 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 11:23:30 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 11:23:30 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 11:25:27 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 11:25:27 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 11:26:29 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 11:26:29 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 11:26:57 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 11:26:57 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 11:27:13 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 11:27:13 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 13:11:59 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 13:11:59 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 13:12:09 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 13:12:09 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 13:12:11 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 13:12:11 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 13:12:17 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 13:12:17 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 13:16:39 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 13:16:39 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 13:16:42 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 13:16:42 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 13:20:41 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 13:20:41 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 13:20:42 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 13:20:42 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 13:20:46 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 13:20:46 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 13:21:00 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 13:21:00 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 13:21:03 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 13:21:03 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 13:21:06 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 13:21:06 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 13:21:50 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 13:21:50 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 13:21:55 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 13:21:55 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 13:22:01 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 13:22:01 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 13:22:03 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 13:22:03 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 13:23:03 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 13:23:03 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 13:23:05 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 13:23:05 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 13:26:11 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 13:26:11 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 13:26:24 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 13:26:24 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 13:28:12 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 949
+[24-Apr-2026 13:28:12 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 949
+[24-Apr-2026 13:28:14 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 949
+[24-Apr-2026 13:28:14 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 949
+[24-Apr-2026 13:28:16 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 949
+[24-Apr-2026 13:28:16 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 949
+[24-Apr-2026 13:28:18 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 949
+[24-Apr-2026 13:28:18 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 949
+[24-Apr-2026 13:28:20 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 949
+[24-Apr-2026 13:28:20 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 949
+[24-Apr-2026 13:28:22 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 949
+[24-Apr-2026 13:28:22 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 949
+[24-Apr-2026 13:28:23 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 949
+[24-Apr-2026 13:28:23 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 949
+[24-Apr-2026 13:29:41 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 949
+[24-Apr-2026 13:29:41 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 949
+[24-Apr-2026 13:31:24 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 949
+[24-Apr-2026 13:31:24 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 949
+[24-Apr-2026 13:34:40 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 949
+[24-Apr-2026 13:34:40 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 949
+[24-Apr-2026 13:34:46 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 949
+[24-Apr-2026 13:34:46 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 949
+[24-Apr-2026 13:34:55 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 949
+[24-Apr-2026 13:34:55 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 949
+[24-Apr-2026 13:36:01 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 949
+[24-Apr-2026 13:36:01 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 949
+[24-Apr-2026 13:36:02 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 949
+[24-Apr-2026 13:36:02 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 949
+[24-Apr-2026 13:36:55 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 949
+[24-Apr-2026 13:36:55 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 949
+[24-Apr-2026 13:37:34 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 949
+[24-Apr-2026 13:37:34 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 949
+[24-Apr-2026 13:38:04 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 949
+[24-Apr-2026 13:38:04 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 949
+[24-Apr-2026 13:40:17 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 949
+[24-Apr-2026 13:40:17 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 949
+[24-Apr-2026 13:42:00 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 949
+[24-Apr-2026 13:42:00 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 949
+[24-Apr-2026 13:48:14 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 949
+[24-Apr-2026 13:48:14 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 949
+[24-Apr-2026 13:48:18 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 949
+[24-Apr-2026 13:48:18 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 949
+[24-Apr-2026 13:48:52 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 949
+[24-Apr-2026 13:48:52 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 949
+[24-Apr-2026 13:48:56 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 949
+[24-Apr-2026 13:48:56 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 949
+[24-Apr-2026 13:49:00 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 949
+[24-Apr-2026 13:49:00 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 949
+[24-Apr-2026 13:51:16 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 949
+[24-Apr-2026 13:51:16 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 949
+[24-Apr-2026 13:55:47 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 949
+[24-Apr-2026 13:55:47 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 949
+[24-Apr-2026 13:55:49 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 949
+[24-Apr-2026 13:55:49 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 949
+[24-Apr-2026 13:55:54 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 949
+[24-Apr-2026 13:55:54 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 949
+[24-Apr-2026 14:01:11 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 14:01:11 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 14:01:14 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 14:01:14 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 14:05:32 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 14:05:32 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 14:09:50 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 14:09:50 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 14:13:31 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 14:13:31 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 14:15:35 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 14:15:35 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 14:27:25 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 14:27:25 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 14:31:58 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 14:31:58 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 14:40:29 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 14:40:29 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 14:40:35 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 14:40:35 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 14:40:37 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 14:40:37 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 14:40:39 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 14:40:39 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 14:40:49 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 14:40:49 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 14:41:11 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 14:41:11 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 14:50:43 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 14:50:43 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 14:51:47 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 14:51:47 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 14:51:49 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 14:51:49 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 14:51:54 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 14:51:54 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 14:53:59 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 14:53:59 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 14:54:08 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 14:54:08 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 14:54:20 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 14:54:20 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 14:54:54 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 14:54:54 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 14:55:58 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 14:55:58 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 14:56:03 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 14:56:03 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 14:56:06 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 14:56:06 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 15:02:59 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 15:02:59 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 15:09:51 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 15:09:51 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 15:11:04 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 15:11:04 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 15:11:14 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 15:11:14 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 15:11:16 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 15:11:16 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 16:01:21 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 16:01:21 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 16:04:38 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 16:04:38 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 16:35:16 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 16:35:16 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 16:35:20 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 16:35:20 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 16:35:24 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 16:35:24 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 16:54:24 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 16:54:24 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 19:23:14 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 19:23:14 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 19:23:18 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 19:23:18 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 19:23:20 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[24-Apr-2026 19:23:20 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[25-Apr-2026 08:32:31 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 946
+[25-Apr-2026 08:32:31 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 946
+[25-Apr-2026 08:32:39 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 946
+[25-Apr-2026 08:32:39 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 946
+[25-Apr-2026 08:32:45 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 946
+[25-Apr-2026 08:32:45 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 946
+[25-Apr-2026 08:34:07 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 946
+[25-Apr-2026 08:34:07 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 946
+[25-Apr-2026 08:34:17 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 946
+[25-Apr-2026 08:34:17 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 946
+[25-Apr-2026 08:48:06 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 946
+[25-Apr-2026 08:48:06 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 946
+[25-Apr-2026 08:48:19 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 946
+[25-Apr-2026 08:48:19 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 946
+[25-Apr-2026 09:18:46 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[25-Apr-2026 09:18:46 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[25-Apr-2026 09:18:48 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[25-Apr-2026 09:18:48 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[25-Apr-2026 09:18:56 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[25-Apr-2026 09:18:56 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[25-Apr-2026 09:19:22 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[25-Apr-2026 09:19:22 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[25-Apr-2026 09:19:24 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[25-Apr-2026 09:19:24 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[25-Apr-2026 09:20:23 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[25-Apr-2026 09:20:23 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[25-Apr-2026 09:20:27 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[25-Apr-2026 09:20:27 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[25-Apr-2026 09:21:14 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[25-Apr-2026 09:21:14 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[25-Apr-2026 09:21:17 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[25-Apr-2026 09:21:17 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[25-Apr-2026 09:21:19 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[25-Apr-2026 09:21:19 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[25-Apr-2026 09:21:24 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[25-Apr-2026 09:21:24 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[25-Apr-2026 09:21:27 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[25-Apr-2026 09:21:27 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[25-Apr-2026 09:24:04 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[25-Apr-2026 09:24:04 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[25-Apr-2026 09:24:08 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[25-Apr-2026 09:24:08 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[25-Apr-2026 09:24:12 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[25-Apr-2026 09:24:12 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[25-Apr-2026 09:24:14 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[25-Apr-2026 09:24:14 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[25-Apr-2026 09:31:14 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 948
+[25-Apr-2026 09:31:14 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 948
+[25-Apr-2026 09:31:17 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 948
+[25-Apr-2026 09:31:17 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 948
+[25-Apr-2026 09:31:19 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 948
+[25-Apr-2026 09:31:19 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 948
+[25-Apr-2026 09:32:36 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 948
+[25-Apr-2026 09:32:36 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 948
+[25-Apr-2026 09:32:54 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 948
+[25-Apr-2026 09:32:54 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 948
+[25-Apr-2026 09:34:42 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 948
+[25-Apr-2026 09:34:42 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 948
+[25-Apr-2026 09:34:54 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 948
+[25-Apr-2026 09:34:54 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 948
+[25-Apr-2026 10:03:01 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 948
+[25-Apr-2026 10:03:01 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 948
+[25-Apr-2026 10:03:16 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 948
+[25-Apr-2026 10:03:16 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 948
+[25-Apr-2026 10:13:45 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 948
+[25-Apr-2026 10:13:45 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 948
+[25-Apr-2026 10:17:23 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 948
+[25-Apr-2026 10:17:23 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 948
+[25-Apr-2026 10:26:46 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 948
+[25-Apr-2026 10:26:46 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 948
+[25-Apr-2026 10:37:01 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 948
+[25-Apr-2026 10:37:01 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 948
+[25-Apr-2026 10:37:26 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 948
+[25-Apr-2026 10:37:26 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 948
+[25-Apr-2026 10:38:50 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 948
+[25-Apr-2026 10:38:50 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 948
+[25-Apr-2026 11:21:28 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 948
+[25-Apr-2026 11:21:28 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 948
+[25-Apr-2026 11:46:53 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[25-Apr-2026 11:46:53 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[25-Apr-2026 11:53:46 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[25-Apr-2026 11:53:46 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[25-Apr-2026 13:11:43 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[25-Apr-2026 13:11:43 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[25-Apr-2026 13:40:29 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[25-Apr-2026 13:40:29 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[25-Apr-2026 13:46:47 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[25-Apr-2026 13:46:47 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[25-Apr-2026 13:47:09 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[25-Apr-2026 13:47:09 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[25-Apr-2026 14:33:06 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[25-Apr-2026 14:33:06 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[25-Apr-2026 14:33:15 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[25-Apr-2026 14:33:15 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[25-Apr-2026 14:33:39 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[25-Apr-2026 14:33:39 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[25-Apr-2026 14:55:09 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[25-Apr-2026 14:55:09 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[25-Apr-2026 15:12:55 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[25-Apr-2026 15:12:55 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 938
+[25-Apr-2026 16:15:56 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 941
+[25-Apr-2026 16:15:56 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 941
+[25-Apr-2026 16:19:12 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 941
+[25-Apr-2026 16:19:12 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 941
+[25-Apr-2026 16:19:20 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 941
+[25-Apr-2026 16:19:20 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 941
+[25-Apr-2026 16:19:26 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 941
+[25-Apr-2026 16:19:26 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 941
+[25-Apr-2026 16:19:29 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 941
+[25-Apr-2026 16:19:29 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 941
+[25-Apr-2026 16:19:32 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 941
+[25-Apr-2026 16:19:32 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 941
+[25-Apr-2026 16:19:35 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 941
+[25-Apr-2026 16:19:35 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 941
+[25-Apr-2026 16:19:38 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 941
+[25-Apr-2026 16:19:38 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 941
+[25-Apr-2026 16:19:42 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 941
+[25-Apr-2026 16:19:42 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 941
+[25-Apr-2026 16:21:12 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 941
+[25-Apr-2026 16:21:12 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 941
+[25-Apr-2026 16:21:13 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 941
+[25-Apr-2026 16:21:13 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 941
+[25-Apr-2026 17:28:22 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 941
+[25-Apr-2026 17:28:22 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 941
+[25-Apr-2026 17:29:18 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 941
+[25-Apr-2026 17:29:18 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 941
+[25-Apr-2026 17:47:59 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 940
+[25-Apr-2026 17:47:59 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 940
+[25-Apr-2026 17:48:03 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 940
+[25-Apr-2026 17:48:03 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 940
+[25-Apr-2026 17:48:10 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 940
+[25-Apr-2026 17:48:10 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 940
+[25-Apr-2026 17:48:18 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 940
+[25-Apr-2026 17:48:18 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 940
+[25-Apr-2026 17:48:21 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 940
+[25-Apr-2026 17:48:21 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 940
+[25-Apr-2026 17:48:25 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 940
+[25-Apr-2026 17:48:25 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 940
+[25-Apr-2026 17:48:30 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 940
+[25-Apr-2026 17:48:30 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 940
+[25-Apr-2026 17:48:33 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 940
+[25-Apr-2026 17:48:33 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 940
+[25-Apr-2026 17:48:36 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 940
+[25-Apr-2026 17:48:36 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 940
+[25-Apr-2026 17:48:45 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 940
+[25-Apr-2026 17:48:45 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 940
+[25-Apr-2026 17:48:48 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 940
+[25-Apr-2026 17:48:48 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 940
+[25-Apr-2026 17:48:51 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 940
+[25-Apr-2026 17:48:51 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 940
+[25-Apr-2026 17:49:00 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 940
+[25-Apr-2026 17:49:00 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 940
+[25-Apr-2026 17:49:03 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 940
+[25-Apr-2026 17:49:03 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 940
+[25-Apr-2026 17:57:47 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 940
+[25-Apr-2026 17:57:47 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 940
+[25-Apr-2026 17:57:52 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 940
+[25-Apr-2026 17:57:52 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 940
+[25-Apr-2026 17:57:53 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 940
+[25-Apr-2026 17:57:53 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 940
+[25-Apr-2026 18:11:06 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 940
+[25-Apr-2026 18:11:06 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 940
+[25-Apr-2026 18:11:14 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 940
+[25-Apr-2026 18:11:14 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 940
+[25-Apr-2026 18:11:20 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 940
+[25-Apr-2026 18:11:20 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 940
+[25-Apr-2026 18:11:25 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 940
+[25-Apr-2026 18:11:25 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 940
+[25-Apr-2026 18:11:28 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 940
+[25-Apr-2026 18:11:28 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 940
+[25-Apr-2026 18:22:03 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 950
+[25-Apr-2026 18:22:03 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 950
+[25-Apr-2026 18:22:07 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 950
+[25-Apr-2026 18:22:07 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 950
+[25-Apr-2026 18:30:50 Asia/Manila] PHP Warning:  Undefined variable $recentActivity in C:\xampp\htdocs\hr 201\public\index.php on line 950
+[25-Apr-2026 18:30:50 Asia/Manila] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\hr 201\public\index.php on line 950

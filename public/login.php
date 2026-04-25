@@ -33,6 +33,13 @@ if (isset($_SESSION['login_attempts']) && $_SESSION['login_attempts'] >= 5) {
     $time_since_last = time() - ($_SESSION['last_login_attempt'] ?? 0);
     if ($time_since_last < $lockout_time) {
         $lockoutSeconds = $lockout_time - $time_since_last;
+    } else {
+        // [FIX] Lockout period has expired, reset session attempts
+        $_SESSION['login_attempts'] = 0;
+        unset($_SESSION['last_login_attempt']);
+        $lockoutSeconds = 0;
+        // Also clear any DB-based temporary lock if it's just a session lockout
+        // (Permanent DB lockouts are handled by admin reset)
     }
 }
 

@@ -2,6 +2,7 @@
 // public/settings.php
 require '../config/db.php';
 require '../src/Security.php';
+// ---------- 1) SYSTEM INITIALIZATION ----------
 require '../src/Logger.php';
 session_start();
 checkSessionTimeout($pdo); // [SECURITY] Enforce Timeout
@@ -24,6 +25,7 @@ $diskTotalGB = $diskTotalBytes ? floor($diskTotalBytes / 1024 / 1024 / 1024) : 1
 if ($diskTotalGB < 1) $diskTotalGB = 1; // Fallback minimum
 
 // 2. HANDLE FORM SUBMISSION
+// ---------- 2) SETTINGS PROCESSING ----------
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
         $security->checkCSRF($_POST['csrf_token']);
@@ -279,6 +281,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 // 3. FETCH AND PREPARE DATA
+// ---------- 3) DATA PREPARATION ----------
 $currentSettings = [];
 try {
     $stmt = $pdo->query("SELECT setting_key, setting_value FROM system_settings");
@@ -338,6 +341,8 @@ $msg = $_GET['msg'] ?? "";
 include 'header.php';
 ?>
 
+<?php // ---------- 4) SETTINGS UI ---------- 
+?>
 <div class="container">
     <?php if ($msg): ?><div class="alert alert-success"><?= htmlspecialchars($msg) ?></div><?php endif; ?>
     <?php if ($error): ?>
@@ -618,6 +623,9 @@ include 'header.php';
 <script src="assets/sweetalert2.all.min.js"></script>
 <script src="main.js"></script>
 <script>
+    <?php // ---------- 5) JAVASCRIPT SETTINGS LOGIC ---------- 
+    ?>
+
     function togglePass(id) {
         const input = document.getElementById(id);
         if (!input) return;

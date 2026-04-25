@@ -13,6 +13,10 @@ if (empty($_SESSION['csrf_token'])) {
     $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 }
 
+// [FIX] Ensure checkSessionTimeout is defined before calling it
+if (!function_exists('checkSessionTimeout')) {
+    require_once __DIR__ . '/../config/db.php';
+}
 checkSessionTimeout($pdo); // [SECURITY] Enforce Timeout
 
 // [UX] Fetch Client Timeout
@@ -68,6 +72,11 @@ $devFilesExist = false;
 foreach ($devFiles as $f) {
     if (file_exists($basePath . $f)) $devFilesExist = true;
 }
+
+// Check for Migration Staging Folder
+$tempImportPath = realpath(__DIR__ . '/../temp_import');
+$tempImportExists = ($tempImportPath && is_dir($tempImportPath));
+
 
 // [NEW] Handle Dev File Cleanup directly from Checklist
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['cleanup_dev_files'])) {
@@ -148,7 +157,10 @@ $columnSchema = [
         'deleted_at' => "DATETIME NULL",
         'import_batch' => "VARCHAR(50) NULL",
         'agency_name' => "VARCHAR(100) NULL",
-        'employment_type' => "VARCHAR(50) NULL"
+        'employment_type' => "VARCHAR(50) NULL",
+        'college_degree' => "VARCHAR(100) NULL",
+        'college_course' => "VARCHAR(100) NULL",
+        'college_year' => "VARCHAR(10) NULL"
     ],
     'documents' => [
         'deleted_at' => "DATETIME NULL",
@@ -680,10 +692,22 @@ foreach ($indexSchema as $table => $indexes) {
                         </div>
                     <?php endif; ?>
                 </li>
+                <!-- Migration Folder -->
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                    <div>
+                        <strong>2. Migration Staging Area</strong><br>
+                        <small class="text-muted">Folder <code>temp_import/</code> should be removed after bulk migration.</small>
+                    </div>
+                    <?php if (!$tempImportExists): ?>
+                        <span class="badge bg-success rounded-pill px-3 py-2"><i class="bi bi-check-circle-fill"></i> Clean</span>
+                    <?php else: ?>
+                        <span class="badge bg-warning text-dark rounded-pill px-3 py-2"><i class="bi bi-folder-symlink"></i> Folder Active</span>
+                    <?php endif; ?>
+                </li>
                 <!-- 2. Error Reporting -->
                 <li class="list-group-item d-flex justify-content-between align-items-center">
                     <div>
-                        <strong>2. Lock Down config/db.php</strong><br>
+                        <strong>3. Lock Down config/db.php</strong><br>
                         <small class="text-muted">Ensure <code>display_errors = 0</code> to prevent path leakage.</small>
                     </div>
                     <?php if ($errorsOff): ?>

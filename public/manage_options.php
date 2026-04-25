@@ -9,8 +9,10 @@ require '../src/Security.php';
 require '../src/Logger.php';
 session_start();
 
-// 1. SECURITY
-if (!isset($_SESSION['user_id']) || !in_array($_SESSION['role'], ['ADMIN', 'MANAGER'])) {
+$userRole = strtoupper(trim($_SESSION['role'] ?? ''));
+
+// 1. SECURITY: Admin and Manager Only
+if (!isset($_SESSION['user_id']) || !in_array($userRole, ['ADMIN', 'MANAGER'])) {
     header("Location: index.php");
     exit;
 }
@@ -29,22 +31,17 @@ if (empty($_SESSION['csrf_token'])) {
     $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 }
 
-// [AUTO-UPGRADE] Ensure 'duties' column exists in system_roles
-try {
-    $pdo->query("SELECT duties FROM system_roles LIMIT 1");
-} catch (Exception $e) {
-    // Column missing? Add it automatically.
-    $pdo->exec("ALTER TABLE system_roles ADD COLUMN duties TEXT DEFAULT NULL");
-}
-
 // 2. AUTO-INIT DATABASE TABLES & SEEDING
 try {
     // A. Agencies
     $pdo->exec("CREATE TABLE IF NOT EXISTS agencies (
         id INT AUTO_INCREMENT PRIMARY KEY,
+        duties TEXT DEFAULT NULL,
         name VARCHAR(100) NOT NULL UNIQUE
     )");
-    if ($pdo->query("SELECT COUNT(*) FROM agencies")->fetchColumn() == 0) {
+    $stmtAgencies = $pdo->query("SELECT COUNT(*) FROM agencies");
+    $agencyCount = $stmtAgencies ? $stmtAgencies->fetchColumn() : false;
+    if ($agencyCount !== false && (int)$agencyCount == 0) {
         $defaults = ["TESP DIRECT", "GUNJIN", "JORATECH", "UNLISOLUTIONS", "OTHERS - SUBCONS"];
         $stmt = $pdo->prepare("INSERT INTO agencies (name) VALUES (?)");
         foreach ($defaults as $d) try {
@@ -56,9 +53,21 @@ try {
     // B. System Roles
     $pdo->exec("CREATE TABLE IF NOT EXISTS system_roles (
         id INT AUTO_INCREMENT PRIMARY KEY,
-        name VARCHAR(100) NOT NULL UNIQUE
+        name VARCHAR(100) NOT NULL UNIQUE,
+        duties TEXT DEFAULT NULL
     )");
-    if ($pdo->query("SELECT COUNT(*) FROM system_roles")->fetchColumn() == 0) {
+
+    // [AUTO-UPGRADE] Duties column check
+    try {
+        $pdo->query("SELECT duties FROM system_roles LIMIT 1");
+    } catch (Exception $e) {
+        $pdo->exec("ALTER TABLE system_roles ADD COLUMN duties TEXT DEFAULT NULL");
+    }
+
+    $checkRoles = $pdo->query("SELECT COUNT(*) FROM system_roles");
+    $roleCount = $checkRoles ? $checkRoles->fetchColumn() : 0;
+
+    if ((int)$roleCount == 0) {
         $defaults = ["Manager", "Head", "Advisor", "Engineer", "Technician", "Officer", "IT", "Driver", "Staff", "Maintenance"];
         $stmt = $pdo->prepare("INSERT INTO system_roles (name) VALUES (?)");
         foreach ($defaults as $d) try {
@@ -83,7 +92,10 @@ try {
     )");
 
     // Seed Departments & Sections if empty
-    if ($pdo->query("SELECT COUNT(*) FROM departments")->fetchColumn() == 0) {
+    $checkDepts = $pdo->query("SELECT COUNT(*) FROM departments");
+    $deptsCount = $checkDepts ? $checkDepts->fetchColumn() : 0;
+
+    if ((int)$deptsCount == 0) {
         $seedMap = [
             "SQP"     => ["GENERAL", "SAFETY", "QA", "PLANNING", "IT"],
             "ADMIN"   => ["GENERAL", "GAG", "TKG", "PCG", "ACG", "MED", "CLEANERS"],
@@ -130,7 +142,10 @@ try {
         description TEXT NULL,
         UNIQUE KEY unique_viol (category, name)
     )");
-    if ($pdo->query("SELECT COUNT(*) FROM disciplinary_violations")->fetchColumn() == 0) {
+    $checkViol = $pdo->query("SELECT COUNT(*) FROM disciplinary_violations");
+    $violCount = $checkViol ? $checkViol->fetchColumn() : 0;
+
+    if ((int)$violCount == 0) {
         $vDefaults = [
             "Attendance" => ["Tardiness / Late", "AWOL (Absence Without Leave)", "Abandonment of Work", "Undertime"],
             "Conduct"    => ["Insubordination", "Disrespect to Superior", "Fighting / Assault", "Gambling on Premises"],
@@ -153,13 +168,39 @@ try {
         name VARCHAR(100) NOT NULL UNIQUE,
         description TEXT NULL
     )");
-    if ($pdo->query("SELECT COUNT(*) FROM company_rules")->fetchColumn() == 0) {
+    $checkRules = $pdo->query("SELECT COUNT(*) FROM company_rules");
+    $rulesCount = $checkRules ? $checkRules->fetchColumn() : 0;
+
+    if ((int)$rulesCount == 0) {
         $rDefaults = ["Rule I - Attendance and Punctuality", "Rule II - Conduct and Decorum", "Rule III - Safety and Health", "Rule IV - Company Property", "Rule V - Honesty and Integrity", "Rule VI - General Provisions", "Project-Specific Safety Protocol", "Data Privacy Policy"];
         $stmt = $pdo->prepare("INSERT INTO company_rules (name) VALUES (?)");
         foreach ($rDefaults as $r) try {
             $stmt->execute([$r]);
         } catch (Exception $e) {
         }
+    }
+
+    // G. Training Catalog
+    $pdo->exec("CREATE TABLE IF NOT EXISTS courses_catalog (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        name VARCHAR(100) NOT NULL UNIQUE,
+        category VARCHAR(50) NOT NULL,
+        provider VARCHAR(100) NULL,
+        validity_months INT DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;");
+
+    // H. College Courses
+    $pdo->exec("CREATE TABLE IF NOT EXISTS college_courses (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        course_name VARCHAR(100) NOT NULL UNIQUE,
+        keywords TEXT DEFAULT NULL
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;");
+
+    // [AUTO-UPGRADE] Add keywords column if missing
+    $chkKeys = $pdo->query("SHOW COLUMNS FROM college_courses LIKE 'keywords'");
+    if ($chkKeys->rowCount() == 0) {
+        $pdo->exec("ALTER TABLE college_courses ADD COLUMN keywords TEXT DEFAULT NULL AFTER course_name");
     }
 } catch (PDOException $e) {
     die("Database Initialization Error: " . $e->getMessage());
@@ -168,6 +209,7 @@ try {
 // 3. HANDLE ACTIONS
 $msg = "";
 $error = "";
+$redirectMsg = "";
 $activeTab = 'agency';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -183,6 +225,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $activeTab = 'agency';
         } elseif (strpos($action, 'role') !== false) {
             $activeTab = 'role';
+        } elseif (strpos($action, 'college') !== false) {
+            $activeTab = 'college';
         } elseif (strpos($action, 'course') !== false) {
             $activeTab = 'course';
         } elseif (strpos($action, 'dept') !== false || strpos($action, 'section') !== false) {
@@ -193,13 +237,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $activeTab = 'rule';
         }
 
-        if (strlen($name) > 100) $error = "Name is too long (Max 100 chars).";
+        // [FIX] Generic name length check moved to specific actions for better context
 
         // --- AGENCIES ---
         if (empty($error) && $action === 'add_agency' && !empty($name)) {
             try {
                 $stmt = $pdo->prepare("INSERT INTO agencies (name) VALUES (?)");
                 $stmt->execute([$name]);
+                if (strlen($name) > 100) $error = "Agency name is too long (Max 100 chars).";
+                elseif (!preg_match('/^[A-Za-z0-9\s\-\.]+$/', $name)) $error = "Agency name contains invalid characters.";
+
                 $logger->log($_SESSION['user_id'], 'ADD_AGENCY', "Added agency: $name");
                 $redirectMsg = "✅ Agency '$name' added successfully.";
             } catch (PDOException $e) {
@@ -207,6 +254,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         } elseif (empty($error) && $action === 'edit_agency' && !empty($name) && $id > 0) {
             try {
+                if (strlen($name) > 100) $error = "Agency name is too long (Max 100 chars).";
+                elseif (!preg_match('/^[A-Za-z0-9\s\-\.]+$/', $name)) $error = "Agency name contains invalid characters.";
+
                 $stmt = $pdo->prepare("UPDATE agencies SET name = ? WHERE id = ?");
                 $stmt->execute([$name, $id]);
                 $logger->log($_SESSION['user_id'], 'EDIT_AGENCY', "Updated agency ID $id to $name");
@@ -229,6 +279,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // --- ROLES ---
         elseif (empty($error) && $action === 'add_role' && !empty($name)) {
             try {
+                if (strlen($name) > 100) $error = "Role name is too long (Max 100 chars).";
+                elseif (!preg_match('/^[A-Za-z0-9\s\-\.]+$/', $name)) $error = "Role name contains invalid characters.";
                 $pdo->prepare("INSERT INTO system_roles (name) VALUES (?)")->execute([$name]);
                 $logger->log($_SESSION['user_id'], 'ADD_ROLE', "Added system role: $name");
                 $redirectMsg = "✅ Role added.";
@@ -267,15 +319,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // --- COURSES ---
         elseif (empty($error) && $action === 'add_course' && !empty($name)) {
             $cat = strtoupper(trim($_POST['category'] ?? 'TECHNICAL'));
+            // [FIX] Ensure provider is trimmed before length check
+            // [FIX] Ensure name is trimmed before length check
             $prov = trim($_POST['provider'] ?? '');
             $val = (int)($_POST['validity'] ?? 0);
-            try {
-                $pdo->prepare("INSERT INTO courses_catalog (name, category, provider, validity_months) VALUES (?, ?, ?, ?)")
-                    ->execute([$name, $cat, $prov, $val]);
-                $logger->log($_SESSION['user_id'], 'ADD_COURSE', "Added course: $name");
-                $redirectMsg = "✅ Course added to catalog.";
-            } catch (Exception $e) {
-                $error = "Course already exists.";
+
+            // [SECURITY] Input Validation & Character Limits
+            if (strlen($name) > 100 || !preg_match('/^[a-zA-Z0-9\s\-\.\(\)\.]+$/', $name)) {
+                $error = "❌ Invalid Course Name (Max 100 chars, Alphanumeric, dots, parens only).";
+            } elseif (strlen($prov) > 100 || (!empty($prov) && !preg_match('/^[a-zA-Z0-9\s\-\.\,]+$/', $prov))) {
+                $error = "❌ Invalid Provider (Max 100 chars, Alphanumeric and standard punctuation only).";
+            } elseif (!in_array($cat, ['TECHNICAL', 'SAFETY', 'SOFT SKILLS', 'COMPLIANCE'])) {
+                $error = "❌ Invalid Category selected.";
+            } elseif ($val < 0 || $val > 999) {
+                $error = "❌ Validity months must be between 0 and 999.";
+            }
+
+            if (empty($error)) {
+                try {
+                    $pdo->prepare("INSERT INTO courses_catalog (name, category, provider, validity_months) VALUES (?, ?, ?, ?)")
+                        ->execute([$name, $cat, $prov, $val]);
+                    $logger->log($_SESSION['user_id'], 'ADD_COURSE', "Added course: $name");
+                    $redirectMsg = "✅ Course added to catalog.";
+                } catch (Exception $e) {
+                    $error = "Course already exists.";
+                }
             }
         } elseif ($action === 'delete_course' && $id > 0) {
             $chk = $pdo->prepare("SELECT COUNT(*) FROM employee_training WHERE course_id = ?");
@@ -287,11 +355,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $logger->log($_SESSION['user_id'], 'DELETE_COURSE', "Deleted course ID: $id");
                 $redirectMsg = "✅ Course deleted.";
             }
+        } elseif ($action === 'edit_course' && $id > 0) {
+            $cat = strtoupper(trim($_POST['category'] ?? 'TECHNICAL'));
+            $prov = trim($_POST['provider'] ?? '');
+            $val = (int)($_POST['validity'] ?? 0);
+
+            // [SECURITY] Input Validation & Character Limits (Sync with add_course)
+            if (strlen($name) > 100 || !preg_match('/^[a-zA-Z0-9\s\-\.\(\)\.]+$/', $name)) {
+                $error = "❌ Invalid Course Name (Max 100 chars, Alphanumeric, dots, parens only).";
+            } elseif (strlen($prov) > 100 || (!empty($prov) && !preg_match('/^[a-zA-Z0-9\s\-\.\,]+$/', $prov))) {
+                $error = "❌ Invalid Provider (Max 100 chars, Alphanumeric and standard punctuation only).";
+            } elseif (!in_array($cat, ['TECHNICAL', 'SAFETY', 'SOFT SKILLS', 'COMPLIANCE'])) {
+                $error = "❌ Invalid Category selected.";
+            } elseif ($val < 0 || $val > 999) {
+                $error = "❌ Validity months must be between 0 and 999.";
+            }
+
+            if (empty($error)) {
+                try {
+                    $pdo->prepare("UPDATE courses_catalog SET name = ?, category = ?, provider = ?, validity_months = ? WHERE id = ?")
+                        ->execute([$name, $cat, $prov, $val, $id]);
+                    $logger->log($_SESSION['user_id'], 'EDIT_COURSE', "Updated course ID $id to $name");
+                    $redirectMsg = "✅ Course updated successfully.";
+                } catch (Exception $e) {
+                    $error = "Error updating course. Name might already be in use.";
+                }
+            }
         }
 
         // --- DEPARTMENTS ---
         elseif (empty($error) && $action === 'add_dept' && !empty($name)) {
             try {
+                if (strlen($name) > 100) $error = "Department name is too long (Max 100 chars).";
+                elseif (!preg_match('/^[A-Za-z0-9\s\-\.]+$/', $name)) $error = "Department name contains invalid characters.";
                 $pdo->prepare("INSERT INTO departments (name) VALUES (?)")->execute([$name]);
                 $logger->log($_SESSION['user_id'], 'ADD_DEPT', "Added department: $name");
                 $redirectMsg = "✅ Department added.";
@@ -314,6 +410,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         elseif (empty($error) && $action === 'add_section' && !empty($name)) {
             $deptId = (int)$_POST['dept_id'];
             if ($deptId > 0) {
+                if (strlen($name) > 100) $error = "Section name is too long (Max 100 chars).";
+                elseif (!preg_match('/^[A-Za-z0-9\s\-\.]+$/', $name)) $error = "Section name contains invalid characters.";
                 try {
                     $pdo->prepare("INSERT INTO sections (department_id, name) VALUES (?, ?)")->execute([$deptId, $name]);
                     $logger->log($_SESSION['user_id'], 'ADD_SECTION', "Added section '$name' to Dept ID: $deptId");
@@ -339,9 +437,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $cat = strtoupper(trim($_POST['category'] ?? 'GENERAL'));
             $desc = trim($_POST['description'] ?? '');
 
-            if (strlen($cat) > 50) $error = "❌ Category name is too long (Max 50 chars).";
-            elseif (strlen($name) > 100) $error = "❌ Violation name is too long (Max 100 chars).";
-            elseif (strlen($desc) > 1000) $error = "❌ Description is too long (Max 1000 chars).";
+            if (strlen($cat) > 50 || !preg_match('/^[A-Za-z0-9\s\-\.]+$/', $cat)) $error = "❌ Category name is too long or contains invalid characters (Max 50 chars).";
+            elseif (strlen($name) > 100 || !preg_match('/^[a-zA-Z0-9\s\-\.\,\(\)]+$/', $name)) $error = "❌ Violation name is too long or contains invalid characters (Max 100 chars).";
+            elseif (strlen($desc) > 1000 || (!empty($desc) && !preg_match('/^[a-zA-Z0-9\s\.,\-\(\)\/\':]*$/', $desc))) $error = "❌ Description is too long or contains invalid characters (Max 1000 chars).";
 
             $chk = $pdo->prepare("SELECT id FROM disciplinary_violations WHERE name = ? AND category = ?");
             $chk->execute([$name, $cat]);
@@ -357,8 +455,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $pdo->prepare("DELETE FROM disciplinary_violations WHERE id = ?")->execute([$id]);
             $redirectMsg = "✅ Violation removed.";
         } elseif ($action === 'edit_violation' && $id > 0) {
-            $desc = trim($_POST['description'] ?? '');
             $cat = strtoupper(trim($_POST['category'] ?? ''));
+            $desc = trim($_POST['description'] ?? ''); // [FIX] Trim description here
 
             if (strlen($cat) > 50) $error = "❌ Category name is too long.";
             elseif (strlen($name) > 100) $error = "❌ Violation name is too long.";
@@ -379,8 +477,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // --- RULES ---
         elseif ($action === 'add_rule' && !empty($name)) {
             $desc = trim($_POST['description'] ?? '');
-            if (strlen($name) > 100) $error = "❌ Rule name is too long.";
-            elseif (strlen($desc) > 2000) $error = "❌ Rule description is too long (Max 2000 chars).";
+            if (strlen($name) > 100 || !preg_match('/^[a-zA-Z0-9\s\-\.\,\(\)]+$/', $name)) $error = "❌ Rule name is too long or contains invalid characters (Max 100 chars).";
+            elseif (strlen($desc) > 2000 || (!empty($desc) && !preg_match('/^[a-zA-Z0-9\s\.,\-\(\)\/\':]*$/', $desc))) $error = "❌ Rule description is too long or contains invalid characters (Max 2000 chars).";
 
             $chk = $pdo->prepare("SELECT id FROM company_rules WHERE name = ?");
             $chk->execute([$name]);
@@ -396,8 +494,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $pdo->prepare("DELETE FROM company_rules WHERE id = ?")->execute([$id]);
             $redirectMsg = "✅ Rule removed.";
         } elseif ($action === 'edit_rule' && $id > 0) {
-            $desc = trim($_POST['description'] ?? '');
-            if (strlen($name) > 100) $error = "❌ Rule name is too long.";
+            $desc = trim($_POST['description'] ?? ''); // [FIX] Trim description here
+            if (strlen($name) > 100 || !preg_match('/^[a-zA-Z0-9\s\-\.\,\(\)]+$/', $name)) $error = "❌ Rule name is too long or contains invalid characters (Max 100 chars).";
             elseif (strlen($desc) > 2000) $error = "❌ Rule description is too long.";
 
             $chk = $pdo->prepare("SELECT id FROM company_rules WHERE name = ? AND id != ?");
@@ -412,6 +510,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
 
+        // --- COLLEGE COURSES ---
+        elseif (empty($error) && $action === 'add_college_course' && !empty($name)) {
+            $keys = strtoupper(trim($_POST['keywords'] ?? ''));
+            if (strlen($name) > 100) $error = "Course name is too long (Max 100 chars).";
+            elseif (strlen($keys) > 255) $error = "Keywords are too long (Max 255 chars).";
+            try {
+                $pdo->prepare("INSERT INTO college_courses (course_name, keywords) VALUES (?, ?)")->execute([$name, $keys]);
+                $logger->log($_SESSION['user_id'], 'ADD_COLLEGE_COURSE', "Added college course: $name");
+                $redirectMsg = "✅ College course added.";
+            } catch (Exception $e) {
+                $error = "Course already exists.";
+            }
+        } elseif (empty($error) && $action === 'edit_college_course' && !empty($name) && $id > 0) {
+            if (strlen($name) > 100) $error = "Course name is too long (Max 100 chars).";
+            elseif (strlen($keys) > 255) $error = "Keywords are too long (Max 255 chars).";
+            $keys = strtoupper(trim($_POST['keywords'] ?? ''));
+            try {
+                $stmt = $pdo->prepare("UPDATE college_courses SET course_name = ?, keywords = ? WHERE id = ?");
+                $stmt->execute([$name, $keys, $id]);
+                $logger->log($_SESSION['user_id'], 'EDIT_COLLEGE_COURSE', "Updated college course ID $id to $name");
+                $redirectMsg = "✅ College course updated successfully.";
+            } catch (PDOException $e) {
+                $error = "Error: Course name already exists.";
+            }
+        } elseif ($action === 'delete_college_course' && $id > 0) {
+            $pdo->prepare("DELETE FROM college_courses WHERE id = ?")->execute([$id]);
+            $logger->log($_SESSION['user_id'], 'DELETE_COLLEGE_COURSE', "Deleted college course ID: $id");
+            $redirectMsg = "✅ College course deleted.";
+        }
+
         // Regenerate CSRF token on success
         if (!empty($redirectMsg)) {
             $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
@@ -422,12 +550,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 // 4. FETCH DATA
-$agencies = $pdo->query("SELECT * FROM agencies ORDER BY name ASC")->fetchAll();
-$roles    = $pdo->query("SELECT * FROM system_roles ORDER BY name ASC")->fetchAll();
-$depts    = $pdo->query("SELECT * FROM departments ORDER BY name ASC")->fetchAll();
-$vList    = $pdo->query("SELECT * FROM disciplinary_violations ORDER BY category, name")->fetchAll();
-$cList    = $pdo->query("SELECT * FROM courses_catalog ORDER BY category, name")->fetchAll();
-$rList    = $pdo->query("SELECT * FROM company_rules ORDER BY name")->fetchAll();
+$stmtAg = $pdo->query("SELECT * FROM agencies ORDER BY name ASC");
+$agencies = $stmtAg ? $stmtAg->fetchAll() : [];
+
+$stmtRo = $pdo->query("SELECT * FROM system_roles ORDER BY name ASC");
+$roles = $stmtRo ? $stmtRo->fetchAll() : [];
+
+$stmtDp = $pdo->query("SELECT * FROM departments ORDER BY name ASC");
+$depts = $stmtDp ? $stmtDp->fetchAll() : [];
+
+$stmtVl = $pdo->query("SELECT * FROM disciplinary_violations ORDER BY category, name");
+$vList = $stmtVl ? $stmtVl->fetchAll() : [];
+
+$stmtRl = $pdo->query("SELECT * FROM company_rules ORDER BY name");
+$rList = $stmtRl ? $stmtRl->fetchAll() : [];
+
+// [FIX] Use safe query results to prevent 500 errors if tables were just created
+$stmtCourses = $pdo->query("SELECT * FROM courses_catalog ORDER BY category, name");
+$cList = $stmtCourses ? $stmtCourses->fetchAll() : [];
+$stmtCollege = $pdo->query("SELECT * FROM college_courses ORDER BY course_name ASC");
+$collegeCourses = $stmtCollege ? $stmtCollege->fetchAll() : [];
 
 $sections = [];
 $stmt = $pdo->query("SELECT s.id, s.name, s.department_id FROM sections s ORDER BY s.name ASC");
@@ -452,6 +594,53 @@ if (isset($_GET['tab'])) $activeTab = $_GET['tab'];
     <link rel="icon" type="image/png" href="../uploads/tesp-logo.png">
     <link rel="shortcut icon" type="image/png" href="../uploads/tesp-logo.png">
     <link rel="apple-touch-icon" href="../uploads/tesp-logo.png">
+    <style>
+        .tag-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+            padding: 5px;
+            border: 1px solid var(--bs-border-color);
+            border-radius: 0.25rem;
+            background-color: var(--bs-body-bg);
+            min-height: 38px;
+            align-items: center;
+        }
+
+        .tag-chip {
+            background-color: var(--bs-tertiary-bg);
+            color: var(--bs-body-color);
+            border: 1px solid var(--bs-border-color);
+            border-radius: 3px;
+            padding: 2px 6px;
+            font-size: 0.85rem;
+            display: flex;
+            align-items: center;
+        }
+
+        .tag-chip span {
+            margin-right: 5px;
+        }
+
+        .tag-chip i {
+            cursor: pointer;
+            font-size: 0.8rem;
+            color: #6c757d;
+        }
+
+        .tag-chip i:hover {
+            color: #dc3545;
+        }
+
+        .tag-input {
+            border: none;
+            outline: none;
+            flex-grow: 1;
+            min-width: 100px;
+            font-size: 0.9rem;
+            padding: 2px;
+        }
+    </style>
 </head>
 
 <body class="bg-body-tertiary">
@@ -478,7 +667,8 @@ if (isset($_GET['tab'])) $activeTab = $_GET['tab'];
         <ul class="nav nav-tabs mb-4" id="optionTabs" role="tablist">
             <li class="nav-item"><button class="nav-link <?php echo $activeTab === 'agency' ? 'active' : ''; ?> fw-bold" id="agency-tab" data-bs-toggle="tab" data-bs-target="#agency" type="button">🏢 Agencies</button></li>
             <li class="nav-item"><button class="nav-link <?php echo $activeTab === 'role' ? 'active' : ''; ?> fw-bold" id="role-tab" data-bs-toggle="tab" data-bs-target="#role" type="button">💼 System Roles & Duties</button></li>
-            <li class="nav-item"><button class="nav-link fw-bold text-success" id="course-tab" data-bs-toggle="tab" data-bs-target="#course" type="button">🎓 Training Catalog</button></li>
+            <li class="nav-item"><button class="nav-link <?php echo $activeTab === 'college' ? 'active' : ''; ?> fw-bold" id="college-tab" data-bs-toggle="tab" data-bs-target="#college" type="button">🎓 College Courses</button></li>
+            <li class="nav-item"><button class="nav-link <?php echo $activeTab === 'course' ? 'active' : ''; ?> fw-bold text-success" id="course-tab" data-bs-toggle="tab" data-bs-target="#course" type="button">🎓 Training Catalog</button></li>
             <li class="nav-item"><button class="nav-link <?php echo $activeTab === 'dept' ? 'active' : ''; ?> fw-bold" id="dept-tab" data-bs-toggle="tab" data-bs-target="#dept" type="button">📂 Departments & Sections</button></li>
             <li class="nav-item"><button class="nav-link <?php echo $activeTab === 'violation' ? 'active' : ''; ?> fw-bold text-danger" id="violation-tab" data-bs-toggle="tab" data-bs-target="#violation" type="button">⚠️ Violations</button></li>
             <li class="nav-item"><button class="nav-link <?php echo $activeTab === 'rule' ? 'active' : ''; ?> fw-bold text-danger" id="rule-tab" data-bs-toggle="tab" data-bs-target="#rule" type="button">📜 Company Rules</button></li>
@@ -487,13 +677,14 @@ if (isset($_GET['tab'])) $activeTab = $_GET['tab'];
         <div class="tab-content" id="optionTabsContent">
 
             <div class="tab-pane fade <?php echo $activeTab === 'agency' ? 'show active' : ''; ?>" id="agency" role="tabpanel">
+                <h4 class="mb-4">Agencies</h4>
                 <div class="card shadow-sm">
                     <div class="card-body">
                         <form method="POST" class="row g-2 mb-4 align-items-end">
                             <input type="hidden" name="csrf_token" value="<?php echo $_SESSION['csrf_token']; ?>">
                             <input type="hidden" name="action" value="add_agency">
                             <div class="col-md-9">
-                                <label class="form-label fw-bold">Add New Agency</label>
+                                <label class="form-label fw-bold">Add New Agency <span class="text-danger">*</span></label>
                                 <input type="text" name="name" class="form-control" placeholder="e.g. NEW AGENCY INC." required maxlength="100" pattern="[A-Za-z0-9 \-\.]+" title="Alphanumeric, spaces, dashes, dots">
                             </div>
                             <div class="col-md-3">
@@ -537,14 +728,72 @@ if (isset($_GET['tab'])) $activeTab = $_GET['tab'];
                 </div>
             </div>
 
+            <div class="tab-pane fade <?php echo $activeTab === 'college' ? 'show active' : ''; ?>" id="college" role="tabpanel">
+                <h4 class="mb-4">College Courses</h4>
+                <div class="card shadow-sm">
+                    <div class="card-body">
+                        <form method="POST" class="row g-2 mb-4 align-items-end">
+                            <input type="hidden" name="csrf_token" value="<?php echo $_SESSION['csrf_token']; ?>">
+                            <input type="hidden" name="action" value="add_college_course">
+                            <div class="col-md-4">
+                                <label class="form-label fw-bold">Add Standard College Course <span class="text-danger">*</span></label>
+                                <input type="text" name="name" class="form-control" placeholder="e.g. BS COMPUTER SCIENCE" required maxlength="100">
+                            </div>
+                            <div class="col-md-5">
+                                <label class="form-label fw-bold">Tags / Keywords (e.g. BSCS, IT) <span class="text-danger">*</span></label>
+                                <div class="tag-container" id="new_college_tags" onclick="focusTagInput(this)">
+                                    <input type="text" class="tag-input" placeholder="Type & Enter..." maxlength="255">
+                                </div>
+                                <input type="hidden" name="keywords" id="new_college_keys">
+                            </div>
+                            <div class="col-md-3">
+                                <button type="submit" class="btn btn-success w-100"><i class="bi bi-plus-lg"></i> Add</button>
+                            </div>
+                        </form>
+                        <div class="table-responsive">
+                            <table class="table table-hover align-middle">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Course Name</th>
+                                        <th>Keywords</th>
+                                        <th class="text-end">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php foreach ($collegeCourses as $cc): ?>
+                                        <tr>
+                                            <td class="fw-bold"><?php echo htmlspecialchars($cc['course_name']); ?></td>
+                                            <td><small class="text-muted"><?php echo h($cc['keywords'] ?? 'None'); ?></small></td>
+                                            <td class="text-end">
+                                                <button type="button" class="btn btn-sm btn-outline-primary border-0 me-1"
+                                                    onclick='editCollegeCourse(<?php echo $cc["id"]; ?>, <?php echo h(json_encode($cc["course_name"])); ?>, <?php echo h(json_encode($cc["keywords"] ?? "")); ?>)'>
+                                                    <i class="bi bi-pencil-square"></i>
+                                                </button>
+                                                <form method="POST" onsubmit="return confirm('Delete this course suggestion?');">
+                                                    <input type="hidden" name="csrf_token" value="<?php echo $_SESSION['csrf_token']; ?>">
+                                                    <input type="hidden" name="action" value="delete_college_course">
+                                                    <input type="hidden" name="id" value="<?php echo $cc['id']; ?>">
+                                                    <button type="submit" class="btn btn-sm btn-danger"><i class="bi bi-trash"></i></button>
+                                                </form>
+                                            </td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <div class="tab-pane fade <?php echo $activeTab === 'role' ? 'show active' : ''; ?>" id="role" role="tabpanel">
+                <h4 class="mb-4">System Roles & Duties</h4>
                 <div class="card shadow-sm">
                     <div class="card-body">
                         <form method="POST" class="row g-2 mb-4 align-items-end">
                             <input type="hidden" name="csrf_token" value="<?php echo $_SESSION['csrf_token']; ?>">
                             <input type="hidden" name="action" value="add_role">
                             <div class="col-md-9">
-                                <label class="form-label fw-bold">Add New Role</label>
+                                <label class="form-label fw-bold">Add New Role <span class="text-danger">*</span></label>
                                 <input type="text" name="name" class="form-control" placeholder="e.g. SUPERVISOR" required maxlength="100" pattern="[A-Za-z0-9 \-\.]+" title="Alphanumeric, spaces, dashes, dots">
                             </div>
                             <div class="col-md-3">
@@ -596,19 +845,20 @@ if (isset($_GET['tab'])) $activeTab = $_GET['tab'];
             </div>
 
             <div class="tab-pane fade <?php echo $activeTab === 'course' ? 'show active' : ''; ?>" id="course" role="tabpanel">
+                <h4 class="mb-4">Training Catalog</h4>
                 <div class="card shadow-sm border-success">
                     <div class="card-body">
                         <form method="POST" class="row g-2 mb-4 align-items-end p-3 bg-light border rounded">
                             <input type="hidden" name="csrf_token" value="<?php echo $_SESSION['csrf_token']; ?>">
                             <input type="hidden" name="action" value="add_course">
                             <div class="col-md-4">
-                                <label class="form-label fw-bold">Course Name</label>
-                                <input type="text" name="name" class="form-control form-control-sm" placeholder="e.g. Basic Safety Training" required maxlength="100">
+                                <label class="form-label fw-bold">Course Name <span class="text-danger">*</span></label>
+                                <input type="text" name="name" class="form-control form-control-sm" placeholder="e.g. Basic Safety Training" required maxlength="100" pattern="[a-zA-Z0-9\s\-\.\(\)\.]+" title="Alphanumeric, spaces, dots, parens, dashes">
                             </div>
                             <div class="col-md-2">
-                                <label class="form-label fw-bold">Category</label>
+                                <label class="form-label fw-bold">Category <span class="text-danger">*</span></label>
                                 <select name="category" class="form-select form-select-sm">
-                                    <option value="TECHNICAL">TECHNICAL</option>
+                                    <option value="TECHNICAL" selected>TECHNICAL</option>
                                     <option value="SAFETY">SAFETY</option>
                                     <option value="SOFT SKILLS">SOFT SKILLS</option>
                                     <option value="COMPLIANCE">COMPLIANCE</option>
@@ -616,11 +866,11 @@ if (isset($_GET['tab'])) $activeTab = $_GET['tab'];
                             </div>
                             <div class="col-md-3">
                                 <label class="form-label fw-bold">Provider</label>
-                                <input type="text" name="provider" class="form-control form-control-sm" placeholder="e.g. TESDA, Red Cross">
+                                <input type="text" name="provider" class="form-control form-control-sm" placeholder="e.g. TESDA, Red Cross" maxlength="100" pattern="[a-zA-Z0-9\s\-\.\,]+" title="Alphanumeric, spaces, dashes, dots, commas">
                             </div>
                             <div class="col-md-2">
                                 <label class="form-label fw-bold">Validity (Months)</label>
-                                <input type="number" name="validity" class="form-control form-control-sm" value="0" min="0">
+                                <input type="number" name="validity" class="form-control form-control-sm" value="0" min="0" max="999" oninput="if(this.value.length > 3) this.value = this.value.slice(0, 3);">
                             </div>
                             <div class="col-md-1">
                                 <button type="submit" class="btn btn-success btn-sm w-100 fw-bold">Add</button>
@@ -645,7 +895,11 @@ if (isset($_GET['tab'])) $activeTab = $_GET['tab'];
                                             <td><?php echo h($c['provider']); ?></td>
                                             <td><?php echo (int)$c['validity_months'] > 0 ? $c['validity_months'] . ' Mos' : 'Permanent'; ?></td>
                                             <td class="text-end">
-                                                <form method="POST" onsubmit="return confirm('Delete this course?');">
+                                                <button type="button" class="btn btn-sm btn-outline-primary border-0 me-1"
+                                                    onclick='editCourse(<?php echo $c["id"]; ?>, <?php echo h(json_encode($c["name"])); ?>, <?php echo h(json_encode($c["category"])); ?>, <?php echo h(json_encode($c["provider"] ?? "")); ?>, <?php echo $c["validity_months"]; ?>)'>
+                                                    <i class="bi bi-pencil-square"></i>
+                                                </button>
+                                                <form method="POST" onsubmit="return confirm('Delete this course?');" class="d-inline">
                                                     <input type="hidden" name="csrf_token" value="<?php echo $_SESSION['csrf_token']; ?>">
                                                     <input type="hidden" name="action" value="delete_course">
                                                     <input type="hidden" name="id" value="<?php echo $c['id']; ?>">
@@ -662,6 +916,7 @@ if (isset($_GET['tab'])) $activeTab = $_GET['tab'];
             </div>
 
             <div class="tab-pane fade <?php echo $activeTab === 'dept' ? 'show active' : ''; ?>" id="dept" role="tabpanel">
+                <h4 class="mb-4">Departments & Sections</h4>
                 <div class="row">
                     <div class="col-md-5">
                         <div class="card shadow-sm h-100">
@@ -719,18 +974,19 @@ if (isset($_GET['tab'])) $activeTab = $_GET['tab'];
             </div>
 
             <div class="tab-pane fade <?php echo $activeTab === 'violation' ? 'show active' : ''; ?>" id="violation" role="tabpanel">
+                <h4 class="mb-4">Violations</h4>
                 <div class="card shadow-sm border-danger">
                     <div class="card-body">
                         <form method="POST" class="row g-2 mb-4 align-items-end p-3 bg-light border rounded">
                             <input type="hidden" name="csrf_token" value="<?php echo $_SESSION['csrf_token']; ?>">
                             <input type="hidden" name="action" value="add_violation">
                             <div class="col-md-3">
-                                <label class="form-label fw-bold">Category</label>
-                                <input type="text" name="category" class="form-control form-control-sm" placeholder="e.g. ATTENDANCE" required maxlength="50" oninput="this.value = this.value.toUpperCase()">
+                                <label class="form-label fw-bold">Category <span class="text-danger">*</span></label>
+                                <input type="text" name="category" class="form-control form-control-sm" placeholder="e.g. ATTENDANCE" required maxlength="50" pattern="[A-Za-z0-9\s\-\.]+" title="Alphanumeric, spaces, dashes, dots" oninput="this.value = this.value.toUpperCase()">
                             </div>
                             <div class="col-md-4">
-                                <label class="form-label fw-bold">Violation Name</label>
-                                <input type="text" name="name" class="form-control form-control-sm" placeholder="e.g. Excessive Tardiness" required maxlength="100">
+                                <label class="form-label fw-bold">Violation Name <span class="text-danger">*</span></label>
+                                <input type="text" name="name" class="form-control form-control-sm" placeholder="e.g. Excessive Tardiness" required maxlength="100" pattern="[a-zA-Z0-9\s\-\.\,\(\)]+" title="Alphanumeric, spaces, dots, parens, dashes, commas">
                             </div>
                             <div class="col-md-3">
                                 <label class="form-label fw-bold">Policy Description</label>
@@ -775,14 +1031,15 @@ if (isset($_GET['tab'])) $activeTab = $_GET['tab'];
             </div>
 
             <div class="tab-pane fade <?php echo $activeTab === 'rule' ? 'show active' : ''; ?>" id="rule" role="tabpanel">
+                <h4 class="mb-4">Company Rules</h4>
                 <div class="card shadow-sm border-danger">
                     <div class="card-body">
                         <form method="POST" class="row g-2 mb-4 align-items-end p-3 bg-light border rounded">
                             <input type="hidden" name="csrf_token" value="<?php echo $_SESSION['csrf_token']; ?>">
                             <input type="hidden" name="action" value="add_rule">
                             <div class="col-md-5">
-                                <label class="form-label fw-bold">Rule Name / Header</label>
-                                <input type="text" name="name" class="form-control form-control-sm" placeholder="e.g. Rule I - Section 1" required maxlength="100">
+                                <label class="form-label fw-bold">Rule Name / Header <span class="text-danger">*</span></label>
+                                <input type="text" name="name" class="form-control form-control-sm" placeholder="e.g. Rule I - Section 1" required maxlength="100" pattern="[a-zA-Z0-9\s\-\.\,\(\)]+" title="Alphanumeric, spaces, dots, parens, dashes, commas">
                             </div>
                             <div class="col-md-5">
                                 <label class="form-label fw-bold">Full Rule Description</label>
@@ -855,6 +1112,38 @@ if (isset($_GET['tab'])) $activeTab = $_GET['tab'];
         </div>
     </div>
 
+    <!-- EDIT COLLEGE COURSE MODAL -->
+    <div class="modal fade" id="editCollegeCourseModal" tabindex="-1">
+        <div class="modal-dialog">
+            <form method="POST" class="modal-content">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title">Edit College Course</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" name="csrf_token" value="<?php echo $_SESSION['csrf_token']; ?>">
+                    <input type="hidden" name="action" value="edit_college_course">
+                    <input type="hidden" name="id" id="editCollegeId">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Course Name <span class="text-danger">*</span></label>
+                        <input type="text" name="name" id="editCollegeName" class="form-control" required maxlength="100">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Keywords (Comma Separated)</label>
+                        <div class="tag-container" id="edit_college_tags" onclick="focusTagInput(this)">
+                            <input type="text" class="tag-input" placeholder="Add tag...">
+                        </div>
+                        <input type="hidden" name="keywords" id="editCollegeKeys">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Update Course</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <div class="modal fade" id="editViolationModal" tabindex="-1">
         <div class="modal-dialog">
             <form method="POST" class="modal-content">
@@ -867,12 +1156,12 @@ if (isset($_GET['tab'])) $activeTab = $_GET['tab'];
                     <input type="hidden" name="action" value="edit_violation">
                     <input type="hidden" name="id" id="editViolId">
                     <div class="mb-3">
-                        <label class="form-label fw-bold">Category</label>
-                        <input type="text" name="category" id="editViolCat" class="form-control" required maxlength="50">
+                        <label class="form-label fw-bold">Category <span class="text-danger">*</span></label>
+                        <input type="text" name="category" id="editViolCat" class="form-control" required maxlength="50" pattern="[A-Za-z0-9\s\-\.]+" title="Alphanumeric, spaces, dashes, dots">
                     </div>
                     <div class="mb-3">
-                        <label class="form-label fw-bold">Violation Name</label>
-                        <input type="text" name="name" id="editViolName" class="form-control" required maxlength="100">
+                        <label class="form-label fw-bold">Violation Name <span class="text-danger">*</span></label>
+                        <input type="text" name="name" id="editViolName" class="form-control" required maxlength="100" pattern="[a-zA-Z0-9\s\-\.\,\(\)]+" title="Alphanumeric, spaces, dots, parens, dashes, commas">
                     </div>
                     <div class="mb-3">
                         <label class="form-label fw-bold">Policy Description</label>
@@ -899,8 +1188,8 @@ if (isset($_GET['tab'])) $activeTab = $_GET['tab'];
                     <input type="hidden" name="action" value="edit_rule">
                     <input type="hidden" name="id" id="editRuleId">
                     <div class="mb-3">
-                        <label class="form-label fw-bold">Rule Name / Header</label>
-                        <input type="text" name="name" id="editRuleName" class="form-control" required maxlength="100">
+                        <label class="form-label fw-bold">Rule Name / Header <span class="text-danger">*</span></label>
+                        <input type="text" name="name" id="editRuleName" class="form-control" required maxlength="100" pattern="[a-zA-Z0-9\s\-\.\,\(\)]+" title="Alphanumeric, spaces, dots, parens, dashes, commas">
                     </div>
                     <div class="mb-3">
                         <label class="form-label fw-bold">Full Rule Description</label>
@@ -910,6 +1199,47 @@ if (isset($_GET['tab'])) $activeTab = $_GET['tab'];
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
                     <button type="submit" class="btn btn-primary">Update Rule</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="modal fade" id="editCourseModal" tabindex="-1">
+        <div class="modal-dialog">
+            <form method="POST" class="modal-content">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title">Edit Course</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" name="csrf_token" value="<?php echo $_SESSION['csrf_token']; ?>">
+                    <input type="hidden" name="action" value="edit_course">
+                    <input type="hidden" name="id" id="editCourseId">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Course Name <span class="text-danger">*</span></label>
+                        <input type="text" name="name" id="editCourseName" class="form-control" required maxlength="100" pattern="[a-zA-Z0-9\s\-\.\(\)\.]+" title="Alphanumeric, spaces, dots, parens, dashes">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Category <span class="text-danger">*</span></label>
+                        <select name="category" id="editCourseCat" class="form-select">
+                            <option value="TECHNICAL">TECHNICAL</option>
+                            <option value="SAFETY">SAFETY</option>
+                            <option value="SOFT SKILLS">SOFT SKILLS</option>
+                            <option value="COMPLIANCE">COMPLIANCE</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Provider</label>
+                        <input type="text" name="provider" id="editCourseProv" class="form-control" maxlength="100" pattern="[a-zA-Z0-9\s\-\.\,]+" title="Alphanumeric, spaces, dashes, dots, commas">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Validity (Months)</label>
+                        <input type="number" name="validity" id="editCourseVal" class="form-control" min="0" max="999" oninput="if(this.value.length > 3) this.value = this.value.slice(0, 3);">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Update Course</button>
                 </div>
             </form>
         </div>
@@ -945,6 +1275,95 @@ if (isset($_GET['tab'])) $activeTab = $_GET['tab'];
             document.getElementById('editRuleDesc').value = desc;
             new bootstrap.Modal(document.getElementById('editRuleModal')).show();
         }
+
+        function editCourse(id, name, cat, prov, val) {
+            document.getElementById('editCourseId').value = id;
+            document.getElementById('editCourseName').value = name;
+            document.getElementById('editCourseCat').value = cat;
+            document.getElementById('editCourseProv').value = prov;
+            document.getElementById('editCourseVal').value = val;
+            new bootstrap.Modal(document.getElementById('editCourseModal')).show();
+        }
+
+        function editCollegeCourse(id, name, keywords) {
+            document.getElementById('editCollegeId').value = id;
+            document.getElementById('editCollegeName').value = name;
+            document.getElementById('editCollegeKeys').value = keywords; // [FIX] Ensure keywords are passed
+            initTags('edit_college_tags', 'editCollegeKeys');
+            new bootstrap.Modal(document.getElementById('editCollegeCourseModal')).show();
+        }
+
+        // --- TAG SYSTEM LOGIC (Mirrored from tracker.php) ---
+        function initTags(containerId, hiddenInputId) {
+            const container = document.getElementById(containerId);
+            const hiddenInput = document.getElementById(hiddenInputId);
+            if (!container || !hiddenInput) return;
+            const input = container.querySelector('.tag-input');
+            const initialVal = hiddenInput.value;
+            Array.from(container.querySelectorAll('.tag-chip')).forEach(el => el.remove());
+            if (initialVal) {
+                initialVal.split(',').map(s => s.trim()).filter(s => s).forEach(tag => {
+                    addChip(container, tag);
+                }); // [FIX] Add chip to container
+            }
+        }
+
+        function addChip(container, text) {
+            const input = container.querySelector('.tag-input');
+            const chip = document.createElement('div');
+            chip.className = 'tag-chip';
+            const label = document.createElement('span');
+            label.textContent = text;
+            const closeIcon = document.createElement('i');
+            closeIcon.className = 'bi bi-x';
+            closeIcon.onclick = () => {
+                chip.remove();
+                updateHiddenInput(container);
+            };
+            chip.appendChild(label); // [FIX] Append label to chip
+            chip.appendChild(closeIcon);
+            container.insertBefore(chip, input);
+        }
+
+        function handleTagKey(e, input) {
+            if (e.key === 'Enter' || e.key === ',') {
+                e.preventDefault();
+                const val = input.value.trim().toUpperCase().replace(/,/g, '');
+                if (val && val.length <= 255) { // [FIX] Add length check for individual tags
+                    addChip(input.parentElement, val);
+                    input.value = '';
+                    updateHiddenInput(input.parentElement);
+                }
+            } else if (e.key === 'Backspace' && !input.value) {
+                const chips = input.parentElement.querySelectorAll('.tag-chip');
+                if (chips.length > 0) {
+                    chips[chips.length - 1].remove();
+                    updateHiddenInput(input.parentElement);
+                }
+            }
+        }
+
+        function focusTagInput(container) {
+            if (event.target === container) {
+                container.querySelector('.tag-input').focus();
+            }
+        }
+
+        function updateHiddenInput(container) {
+            const chips = container.querySelectorAll('.tag-chip span');
+            const values = Array.from(chips).map(c => c.innerText);
+            let hiddenId;
+            if (container.id === 'new_college_tags') hiddenId = 'new_college_keys';
+            else if (container.id === 'edit_college_tags') hiddenId = 'editCollegeKeys';
+            const hidden = document.getElementById(hiddenId);
+            if (hidden) hidden.value = values.join(', ');
+        }
+        document.addEventListener('DOMContentLoaded', () => {
+            const newTagInput = document.querySelector('#new_college_tags .tag-input');
+            if (newTagInput) newTagInput.onkeydown = (e) => handleTagKey(e, newTagInput);
+            const editTagInput = document.querySelector('#edit_college_tags .tag-input');
+            if (editTagInput) editTagInput.onkeydown = (e) => handleTagKey(e, editTagInput);
+        });
 
         function previewDuties() {
             const text = document.getElementById('modalDuties').value;
@@ -1014,6 +1433,18 @@ if (isset($_GET['tab'])) $activeTab = $_GET['tab'];
 
         if (window.history.replaceState) {
             window.history.replaceState(null, null, window.location.href);
+        }
+
+        // [NEW] Scroll Memory Logic
+        const scrollKey = 'hr201_scroll_pos_' + window.location.pathname;
+        window.addEventListener('beforeunload', () => {
+            sessionStorage.setItem(scrollKey, window.scrollY);
+        });
+
+        const urlParamsForScroll = new URLSearchParams(window.location.search);
+        if (urlParamsForScroll.has('msg') || urlParamsForScroll.has('tab')) {
+            const savedPos = sessionStorage.getItem(scrollKey);
+            if (savedPos) window.scrollTo(0, parseInt(savedPos));
         }
     </script>
     <script src="assets/dark_mode.js"></script>

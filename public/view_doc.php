@@ -17,17 +17,23 @@ if (!isset($_SESSION['user_id'])) {
     die("Access Denied");
 }
 
+// [FIX] Security Headers: Allow embedding in iframes for the modal viewer
+if (isset($_GET['embed']) && $_GET['embed'] == '1') {
+    header('X-Frame-Options: SAMEORIGIN', true);
+}
+
 // 2. VALIDATE INPUT
 $file_uuid = $_GET['id'] ?? '';
 $embed     = isset($_GET['embed']);     // ?embed=1 (Raw stream for img/iframe)
 $download  = isset($_GET['download']);  // ?download=1 (Force download)
 
-if (!preg_match('/^[a-zA-Z0-9-]+$/', $file_uuid)) {
+if (!preg_match('/^[a-zA-Z0-9-]+$/', $file_uuid) && !is_numeric($file_uuid)) {
     die("Invalid File ID");
 }
 
 // 3. FETCH FILE INFO
-$stmt = $pdo->prepare("SELECT file_path, original_name, deleted_at FROM documents WHERE file_uuid = ?");
+$where = is_numeric($file_uuid) ? "id = ?" : "file_uuid = ?";
+$stmt = $pdo->prepare("SELECT file_path, original_name, deleted_at FROM documents WHERE $where");
 $stmt->execute([$file_uuid]);
 $file = $stmt->fetch();
 

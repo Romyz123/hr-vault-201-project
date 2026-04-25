@@ -54,9 +54,15 @@ if ($type === 'JORATECH') {
         'Employee ID Number',
         'Department',
         'Position / Job Title',
-        'Date Hired'
+        'Date Hired',
+        'Education Attainment',
+        'JobExperience',
+        'Licenses / Certifications',
+        'College Degree',
+        'College Course',
+        'Year Finished'
     ]);
-    fputcsv($output, ['Juan', 'Dela', 'Cruz', '', '1/15/1990', 'Man', 'Single', '09123456789', 'juan.delacruz@example.com', '123 Main St, Quezon City', 'Same as present', '12-3456789-0', '1234-5678-9012', '12-345678901-2', '123-456-789-000', 'Maria Cruz', '09987654321', '123 Main St, Quezon City', 'CUST-001', 'ADMIN', 'Staff', '5/1/2024']);
+    fputcsv($output, ['Juan', 'Dela', 'Cruz', '', '1/15/1990', 'Man', 'Single', '09123456789', 'juan.delacruz@example.com', '123 Main St, Quezon City', 'Same as present', '12-3456789-0', '1234-5678-9012', '12-345678901-2', '123-456-789-000', 'Maria Cruz', '09987654321', '123 Main St, Quezon City', 'CUST-001', 'ADMIN', 'Staff', '5/1/2024', 'College Graduate', '3 Years Experience', 'N/A', "Bachelor's Degree", 'BS Computer Science', '2020']);
 } else {
     // TESP, GUNJIN, OTHERS (Standard Format)
     fputcsv($output, ['NO.', 'EMPLOYEE CODE', 'PICTURE', 'NAME', 'SECTION', 'CONTACT DETAILS:', 'BIRTHDAY', 'DATE OF HIRED', 'SSS', 'TIN', 'PAG-IBIG', 'PHILHEALTH']);

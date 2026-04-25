@@ -9,6 +9,11 @@ require '../src/Security.php';
 require '../src/Logger.php';
 require '../src/Validator.php';
 require '../src/SearchHelper.php';
+
+// [FIX] Ensure checkSessionTimeout is defined before calling it
+if (!function_exists('checkSessionTimeout')) {
+    require_once __DIR__ . '/../config/db.php';
+}
 session_start();
 checkSessionTimeout($pdo); // [SECURITY] Enforce Timeout
 
@@ -635,6 +640,18 @@ $historyLogs = $pdo->query("SELECT a.*, u.username FROM activity_logs a LEFT JOI
                 }
             });
         });
+
+        // [NEW] Scroll Memory Logic
+        const scrollKey = 'hr201_scroll_pos_' + window.location.pathname;
+        window.addEventListener('beforeunload', () => {
+            sessionStorage.setItem(scrollKey, window.scrollY);
+        });
+
+        const urlParamsForScroll = new URLSearchParams(window.location.search);
+        if (urlParamsForScroll.has('msg') || urlParamsForScroll.has('search') || urlParamsForScroll.has('dept')) {
+            const savedPos = sessionStorage.getItem(scrollKey);
+            if (savedPos) window.scrollTo(0, parseInt(savedPos));
+        }
     </script>
 </body>
 

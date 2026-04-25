@@ -1,5 +1,6 @@
 <?php
 
+// ---------- 1) ERROR HANDLING & HEADERS ----------
 // [SECURITY] Production Error Handling
 // Hide errors from users, log them to server instead
 ini_set('display_errors', 0);
@@ -17,14 +18,12 @@ header('X-Frame-Options: SAMEORIGIN');
 header('X-Content-Type-Options: nosniff');
 header('Referrer-Policy: strict-origin-when-cross-origin');
 
+// ---------- 2) ENVIRONMENT LOAD ----------
 // Load settings directly from PHP file instead of .env to avoid permission errors
 $configPath = __DIR__ . '/config.php';
 $_ENV = file_exists($configPath) ? require $configPath : [];
 
-// ========================================================================
-// [SECURITY] GLOBAL INPUT SANITIZATION
-// Automatically neutralize XSS and Null-Byte injection on all incoming requests
-// ========================================================================
+// ---------- 3) GLOBAL INPUT SANITIZATION ----------
 function sanitize_global_input(&$array)
 {
     foreach ($array as $key => &$value) {
@@ -43,6 +42,7 @@ function sanitize_global_input(&$array)
 sanitize_global_input($_POST);
 sanitize_global_input($_GET);
 
+// ---------- 4) SECURITY PROTOCOLS (HTTPS/SESSION) ----------
 // [MHI 5.4] Enforce HTTPS (Skip for Localhost or CLI to avoid ERR_SSL_PROTOCOL_ERROR)
 // To test compliance locally, you can temporarily remove '127.0.0.1' from the array below.
 $isLocal = (php_sapi_name() === 'cli' || in_array($_SERVER['REMOTE_ADDR'] ?? '', ['127.0.0.1', '::1']));
@@ -67,6 +67,8 @@ if (session_status() === PHP_SESSION_NONE) {
     ini_set('session.cookie_secure', $isHttps ? 1 : 0);
     ini_set('session.cookie_samesite', 'Lax');
 }
+
+// ---------- 5) DATABASE CONNECTION ----------
 try {
     $options = [
         PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
@@ -115,6 +117,7 @@ try {
     die("Database connection error: " . $e->getMessage());
 }
 
+// ---------- 6) SESSION TIMEOUT LOGIC ----------
 // [SECURITY] Strict Session Timeout Enforcer
 function checkSessionTimeout($pdo, $serverTimeout = null)
 {

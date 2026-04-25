@@ -1,5 +1,4 @@
 <?php
-// --- START: UI REPAIR ---
 // ======================================================
 // TESP HR 201 System - Dashboard & Notification Center
 // ======================================================
@@ -38,19 +37,8 @@ if (!isset($_SESSION['user_id'])) {
     exit;
 }
 
-// [SECURITY FIX] Normalize role to uppercase with default fallback
-$userRole = strtoupper(trim($_SESSION['role'] ?? 'STAFF'));
-
-// [SECURITY FIX] Validate role is one of the expected values to prevent access control bypass
-$validRoles = ['ADMIN', 'MANAGER', 'HR', 'STAFF', 'EMPLOYEE'];
-if (!in_array($userRole, $validRoles)) {
-    // Log suspicious role and force re-login
-    $logger = new Logger($pdo);
-    $logger->log($_SESSION['user_id'] ?? 0, 'INVALID_ROLE', "Invalid role detected: $userRole");
-    session_destroy();
-    header('Location: login.php?error=' . urlencode('Session invalid. Please log in again.'));
-    exit;
-}
+// Normalize role to uppercase (handles 'hr', 'HR', etc.)
+$userRole = isset($_SESSION['role']) ? strtoupper((string)$_SESSION['role']) : '';
 
 $security = new Security($pdo);
 $logger   = new Logger($pdo);
@@ -83,41 +71,141 @@ if ($userRole === 'ADMIN') {
     $zipPass     = $bkSettings['backup_password'] ?? '';
     $incVault    = ($bkSettings['backup_include_vault'] ?? '0') === '1';
     $alertEmail  = $bkSettings['backup_alert_email'] ?? '';
-    $secondaryPath = $bkSettings['secondary_backup_path'] ?? '';
 
-    $primaryBackupPath = (!empty($customPath) && is_dir($customPath)) ? $customPath : __DIR__ . '/../backups';
-
-    // Normalize path for comparisons
-    $primaryBackupPath = rtrim($primaryBackupPath, '/\\');
+    // Determine Target Path
+    $primaryBackupPath = (!empty($customPath) && is_dir($customPath)) ? $customPath : dirname(__DIR__) . DIRECTORY_SEPARATOR . 'backups';
 
     // Ensure primary path exists
-    if ($primaryBackupPath && !is_dir($primaryBackupPath)) {
+    if (!is_dir($primaryBackupPath)) {
         @mkdir($primaryBackupPath, 0755, true);
     }
 
-    $triggerAutoBackup = false;
-    if (date('D') === $scheduleDay && date('H:i') >= $scheduleTime) {
-        // Look for any backup made today in the primary directory
-        $todayPattern = $primaryBackupPath . DIRECTORY_SEPARATOR . 'AutoBackup_' . date('Y-m-d') . '*.*';
-        $files = glob($todayPattern);
+    // Check Schedule & Existence
+    $todayStr = date('Y-m-d'); // e.g. 2023-10-27
+    $todayDay = date('D');     // e.g. Fri
+    $currentTime = date('H:i');
 
-        $validBackupFound = false;
-        if (!empty($files)) {
-            foreach ($files as $f) {
-                // Only skip if the backup file actually has content (> 1KB)
-                if (is_file($f) && filesize($f) > 1024) {
-                    $validBackupFound = true;
-                    break;
+    // [FIX] Robust Schedule Check:
+    // 1. Is it the scheduled day?
+    // 2. Is it past the scheduled time?
+    // 3. Has a backup already been performed TODAY?
+
+    $isScheduledDay = ($todayDay === $scheduleDay);
+    $isPastTime = ($currentTime >= $scheduleTime);
+
+    // Look for any backup matching today's date
+    $backupsToday = glob(rtrim($primaryBackupPath, '/\\') . DIRECTORY_SEPARATOR . 'AutoBackup_' . $todayStr . '*.*');
+
+    if ($isScheduledDay && $isPastTime && empty($backupsToday)) {
+        // START BACKUP PROCESS
+        ini_set('memory_limit', '512M');
+        set_time_limit(0); // [FIX] Remove time limit to prevent "Network Error" on large backups
+        ignore_user_abort(true); // [FIX] Ensure backup finishes even if the page load is cancelled
+
+        $baseFilename = 'AutoBackup_' . date('Y-m-d_H-i-s');
+        $sqlFilename  = $baseFilename . '.sql';
+
+        $tables = [];
+        $query  = $pdo->query('SHOW TABLES');
+        while ($row = $query->fetch(PDO::FETCH_NUM)) {
+            $tables[] = $row[0];
+        }
+
+        $content  = "-- AUTOMATED FRIDAY BACKUP\n";
+        $content .= "-- Date: " . date("Y-m-d H:i:s") . "\n\n";
+        $content .= "SET FOREIGN_KEY_CHECKS=0;\n\n";
+
+        foreach ($tables as $table) {
+            $stmt = $pdo->query("SHOW CREATE TABLE `$table`");
+            $row  = $stmt->fetch(PDO::FETCH_NUM);
+            $content .= "DROP TABLE IF EXISTS `$table`;\n" . $row[1] . ";\n\n";
+
+            $stmt = $pdo->query("SELECT * FROM `$table`");
+            while ($r = $stmt->fetch(PDO::FETCH_ASSOC)) {
+                $values = [];
+                foreach ($r as $v) {
+                    if ($v === null) {
+                        $values[] = "NULL";
+                        continue;
+                    }
+                    // Use PDO quote instead of addslashes for safe escaping
+                    $values[] = $pdo->quote((string)$v);
+                }
+                $content .= "INSERT INTO `$table` VALUES (" . implode(', ', $values) . ");\n";
+            }
+            $content .= "\n";
+        }
+        $content .= "\nSET FOREIGN_KEY_CHECKS=1;";
+
+        // ZIP CREATION
+        $zip = new ZipArchive();
+        $zipFile = rtrim($primaryBackupPath, '/\\') . '/' . $baseFilename . '.zip';
+
+        if ($zip->open($zipFile, ZipArchive::CREATE) === TRUE) {
+            // Add SQL
+            $zip->addFromString($sqlFilename, $content);
+            if ($zipPass) $zip->setEncryptionName($sqlFilename, ZipArchive::EM_AES_256, $zipPass);
+
+            // Add Vault (if enabled)
+            if ($incVault) {
+                // [LOGICAL FIX] Include config.php to preserve VAULT_KEY
+                $configPath = realpath(__DIR__ . '/../config/config.php');
+                if ($configPath && file_exists($configPath)) {
+                    $zip->addFile($configPath, 'config/config.php');
+                    if ($zipPass) $zip->setEncryptionName('config/config.php', ZipArchive::EM_AES_256, $zipPass);
+                }
+
+                // [PHP SMART SYNC] Mirror Vault instead of Zipping
+                $vaultPath = realpath(__DIR__ . '/../vault');
+                $mirrorPath = rtrim($primaryBackupPath, '/\\') . DIRECTORY_SEPARATOR . 'vault_mirror';
+                if (!is_dir($mirrorPath)) @mkdir($mirrorPath, 0755, true);
+
+                if ($vaultPath && is_dir($vaultPath)) {
+                    $files = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($vaultPath), RecursiveIteratorIterator::LEAVES_ONLY);
+                    foreach ($files as $name => $file) {
+                        if (!$file->isDir()) {
+                            $src = $file->getRealPath();
+                            $dest = $mirrorPath . DIRECTORY_SEPARATOR . $file->getFilename();
+                            // Delta Sync: Only copy if missing or modified
+                            if (!file_exists($dest) || filemtime($src) > filemtime($dest) || filesize($src) !== filesize($dest)) {
+                                @copy($src, $dest);
+                            }
+                        }
+                    }
                 }
             }
-        }
 
-        if (!$validBackupFound) {
-            $triggerAutoBackup = true;
+            $zip->close();
+
+            if (file_exists($zipFile)) {
+                $logger->log($_SESSION['user_id'], 'AUTO_BACKUP', "Backup created: " . basename($zipFile));
+                $_SESSION['backup_msg'] = "✅ Automated Backup Completed (" . basename($zipFile) . ")";
+
+                // [NEW] Add to Notification Center (Bell Icon)
+                $admins = $pdo->query("SELECT id FROM users WHERE role IN ('ADMIN', 'MANAGER')")->fetchAll(PDO::FETCH_COLUMN);
+                if (!empty($admins)) {
+                    $notifStmt = $pdo->prepare("INSERT INTO notifications (user_id, title, message, type) VALUES (?, 'System Backup', ?, 'success')");
+                    foreach ($admins as $adminId) {
+                        $notifStmt->execute([$adminId, "Automated backup created successfully: " . basename($zipFile)]);
+                    }
+                    // Clear notification cache for live updates
+                    $pdo->exec("DELETE FROM rate_limits WHERE ip_address = 'SYSTEM_NOTIF_CACHE'");
+                }
+            } else {
+                // [NEW] Failure Alert
+                if ($alertEmail) {
+                    mail($alertEmail, "⚠️ HR System Backup Failed", "The automated backup process failed to create the ZIP file on server.\n\nTime: " . date('Y-m-d H:i:s'));
+                }
+                $logger->log($_SESSION['user_id'], 'AUTO_BACKUP_FAIL', "Backup failed: ZIP file not created.");
+            }
+        } else {
+            if ($alertEmail) {
+                mail($alertEmail, "⚠️ HR System Backup Failed", "Could not open/create ZIP archive.\n\nTime: " . date('Y-m-d H:i:s'));
+            }
         }
     }
+    skip_backup:
 }
-
 
 // ---------- 3) HELPERS ----------
 function h($v)
@@ -144,11 +232,8 @@ function keepQuery(array $override = []): string
 {
     $q = $_GET;
     foreach ($override as $k => $v) {
-        if ($v === null) {
-            unset($q[$k]);
-        } else {
-            $q[$k] = $v;
-        }
+        if ($v === null) unset($q[$k]);
+        else $q[$k] = $v;
     }
     $qs = http_build_query($q);
     return $qs ? ('?' . $qs) : '';
@@ -310,6 +395,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     $targetDept = trim($_POST['target_dept'] ?? '');
     $targetSection = trim($_POST['target_section'] ?? '');
     $targetStatus = trim($_POST['target_status'] ?? '');
+    $targetRole = trim($_POST['target_role'] ?? '');
+    $targetAgency = trim($_POST['target_agency'] ?? '');
     $redirectQuery = trim($_POST['redirect_query'] ?? '');
 
     $redirectUrl = 'index.php';
@@ -336,6 +423,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     if ($targetStatus !== '') {
         $updates[] = 'status = ?';
         $params[] = $targetStatus;
+    }
+    if ($targetRole !== '') {
+        $updates[] = 'system_role = ?';
+        $params[] = $targetRole;
+    }
+    if ($targetAgency !== '') {
+        $updates[] = 'agency_name = ?';
+        $params[] = $targetAgency;
+        $updates[] = 'employment_type = ?';
+        $params[] = (stripos($targetAgency, 'TESP') !== false) ? 'TESP Direct' : 'Agency';
     }
 
     if (!empty($updates)) {
@@ -465,25 +562,35 @@ if ($filter_section !== '') {
 // Document Category filter (from Chart click)
 if ($filter_doc_cat !== '') {
     if ($filter_doc_cat === 'Uncategorized' || $filter_doc_cat === 'Documents for Employee') {
-        // Subquery: Find employees where at least one document doesn't match any known requirements
-        $subConditions = ["(category = 'Others' OR category IS NULL OR category = '')"];
+        // [FIX] Standardize Uncategorized logic to find documents matching NO requirement rules
+        $matchOrs = [];
         foreach ($REQUIRED_DOCS as $name => $keys) {
-            $subConditions[] = "original_name NOT LIKE " . $pdo->quote("%$name%");
-            foreach ($keys as $k) if ($k !== '') $subConditions[] = "original_name NOT LIKE " . $pdo->quote("%$k%");
+            $matchOrs[] = "category = " . $pdo->quote($name);
+            foreach ($keys as $k) {
+                if ($k === '') continue;
+                $qK = $pdo->quote("%$k%");
+                $matchOrs[] = "original_name LIKE $qK";
+                $matchOrs[] = "category LIKE $qK";
+            }
         }
-        // [FIX] Apply the full keyword check logic to the subquery for accurate filtering
-        $where[] = 'emp_id IN (SELECT employee_id FROM documents WHERE ' . implode(' AND ', $subConditions) . ')';
+        $categorizedSql = !empty($matchOrs) ? implode(' OR ', $matchOrs) : "1=0";
+        $docTableFilter = $hasDeletedAtColumn ? "deleted_at IS NULL" : "1=1";
+
+        $where[] = "emp_id IN (SELECT employee_id FROM documents WHERE $docTableFilter AND NOT ($categorizedSql))";
     } else {
-        // Filter for a specific requirement: Match category name OR keywords in original_name
-        $subConditions = ["category = ?"];
-        $subParams = [$filter_doc_cat];
+        // [FIX] Standardize category filtering to match Dashboard and Tracker logic
+        $subConditions = ["category = ?", "category LIKE ?"];
+        $subParams = [$filter_doc_cat, "%$filter_doc_cat%"];
         $keywords = $REQUIRED_DOCS[$filter_doc_cat] ?? [];
         foreach ($keywords as $k) {
             if ($k === '') continue;
             $subConditions[] = "original_name LIKE ?";
+            $subConditions[] = "category LIKE ?";
+            $subParams[] = "%$k%";
             $subParams[] = "%$k%";
         }
-        $where[] = 'emp_id IN (SELECT employee_id FROM documents WHERE ' . implode(' OR ', $subConditions) . ')';
+        $docTableFilter = $hasDeletedAtColumn ? "deleted_at IS NULL AND " : "";
+        $where[] = "emp_id IN (SELECT employee_id FROM documents WHERE $docTableFilter (" . implode(' OR ', $subConditions) . "))";
         $params = array_merge($params, $subParams);
     }
 }
@@ -818,27 +925,37 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
         </div>
     <?php endif; ?>
 
+    <?php // ---------- 10) DASHBOARD WIDGETS ---------- 
+    ?>
     <div class="row mb-4">
         <div class="col-lg-8 mb-3 mb-lg-0">
             <div class="card h-100 shadow-soft">
                 <div class="card-header d-flex align-items-center">
                     <i class="bi bi-graph-up-arrow me-2 text-primary"></i>
-                    <span class="fw-semibold me-auto">Document Analytics</span>
-                    <button class="btn btn-sm btn-link text-secondary p-0" onclick="downloadSpecificChart('hrChart', 'Document_Analytics_Overview')" title="Download Image">
-                        <i class="bi bi-download"></i>
-                    </button>
+                    <span class="fw-semibold">Document Analytics</span>
                 </div>
                 <div class="card-body position-relative">
                     <canvas id="hrChart" style="width: 100%; height: 100%; min-height: 300px;"></canvas>
                 </div>
             </div>
         </div>
-        <div class="col-lg-4">
+        <div class="col-lg-4 d-flex flex-column gap-3">
             <div class="card h-100 shadow-soft">
                 <div class="card-header d-flex align-items-center">
-                    <i class="bi bi-lightning-charge-fill me-2 text-warning"></i>
-                    <span class="fw-semibold">Actions</span>
+                    <i class="bi bi-clock-history me-2 text-info"></i>
+                    <span class="fw-semibold">Recent Activity</span>
                 </div>
+                <div class="card-body p-0">
+                    <ul id="recent-activity-list" class="list-group list-group-flush small">
+                        <?php foreach ($recentActivity as $act): ?>
+                            <li class="list-group-item border-0 border-bottom">
+                                <strong><?= h($act['first_name'] . ' ' . $act['last_name']) ?></strong> uploaded <span class="text-primary"><?= h($act['original_name']) ?></span>
+                            </li>
+                        <?php endforeach; ?>
+                    </ul>
+                </div>
+            </div>
+            <div class="card shadow-soft">
                 <div class="card-body d-grid gap-2">
                     <a href="upload_form.php" class="btn btn-primary"><i class="bi bi-cloud-arrow-up"></i> Upload Document</a>
 
@@ -930,10 +1047,18 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
     </div>
 
     <!-- Directory Search / Filters -->
+    <?php // ---------- 11) DIRECTORY SEARCH & FILTERS ---------- 
+    ?>
     <div class="card mb-4 shadow-soft" id="directory-search-bar">
         <div class="card-body">
-            <div class="d-flex justify-content-between align-items-center mb-3">
-                <h5 class="text-muted mb-0"><i class="bi bi-funnel-fill"></i> Directory Search</h5>
+            <div class="d-flex justify-content-between align-items-center mb-3 no-print">
+                <div class="d-flex align-items-center gap-3">
+                    <h5 class="text-muted mb-0"><i class="bi bi-funnel-fill"></i> Directory Search</h5>
+                    <div class="btn-group btn-group-sm shadow-sm">
+                        <button type="button" class="btn btn-outline-primary active" id="btn-view-cards" onclick="switchView('cards')"><i class="bi bi-grid-fill"></i> Cards</button>
+                        <button type="button" class="btn btn-outline-primary" id="btn-view-grid" onclick="switchView('grid')"><i class="bi bi-table"></i> Spreadsheet</button>
+                    </div>
+                </div>
                 <a href="index.php" class="btn btn-sm btn-outline-secondary">Reset Filters</a>
             </div>
 
@@ -1075,1255 +1200,1478 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
         </div>
     </div>
 
-    <!-- Results -->
-    <?php if (empty($employees)): ?>
-        <div class="alert alert-warning text-center shadow-sm">No employees found matching your search.</div>
-        <?php if ($didYouMean): ?>
-            <div class="alert alert-info text-center shadow-sm mt-2">
-                <i class="bi bi-lightbulb-fill me-2"></i> Did you mean:
-                <a href="<?php echo $didYouMeanLink; ?>" class="fw-bold text-dark text-decoration-underline"><?php echo h($didYouMean); ?></a>?
+    <!-- [FIX] Wrapper for Card View - Moved up to include alerts for total separation -->
+    <?php // ---------- 12) EMPLOYEE DIRECTORY RESULTS ---------- 
+    ?>
+    <div id="view-cards">
+
+        <?php if (empty($employees)): ?>
+            <div class="alert alert-warning text-center shadow-sm">No employees found matching your search.</div>
+            <?php if ($didYouMean): ?>
+                <div class="alert alert-info text-center shadow-sm mt-2">
+                    <i class="bi bi-lightbulb-fill me-2"></i> Did you mean:
+                    <a href="<?php echo $didYouMeanLink; ?>" class="fw-bold text-dark text-decoration-underline"><?php echo h($didYouMean); ?></a>?
+                </div>
+            <?php endif; ?>
+        <?php endif; ?>
+
+        <?php if ($filter_doc_cat !== ''): ?>
+            <div class="alert alert-info alert-dismissible fade show shadow-sm mb-4" role="alert">
+                <i class="bi bi-funnel-fill me-2"></i>
+                Filtering by Document Category: <strong><?php echo h($filter_doc_cat); ?></strong>
+                <a href="index.php" class="btn-close" aria-label="Close"></a>
             </div>
         <?php endif; ?>
-    <?php endif; ?>
 
-    <?php if ($filter_doc_cat !== ''): ?>
-        <div class="alert alert-info alert-dismissible fade show shadow-sm mb-4" role="alert">
-            <i class="bi bi-funnel-fill me-2"></i>
-            Filtering by Document Category: <strong><?php echo h($filter_doc_cat); ?></strong>
-            <a href="index.php" class="btn-close" aria-label="Close"></a>
-        </div>
-    <?php endif; ?>
+        <div class="row" id="directory-results">
+            <?php foreach ($employees as $emp):
+                $statusClass = match ($emp['status']) {
+                    'Active'     => 'status-active',
+                    'Resigned'   => 'status-agency',
+                    'Terminated' => 'status-terminated',
+                    default      => 'border-secondary'
+                };
+                $statusBadge = match ($emp['status']) {
+                    'Active'     => 'bg-success',
+                    'Resigned'   => 'bg-warning',
+                    'Terminated' => 'bg-dark',
+                    default      => 'bg-secondary'
+                };
 
-    <div class="row" id="directory-results">
-        <?php foreach ($employees as $emp):
-            // --- PHP 7 COMPATIBLE BADGE LOGIC ---
-            $status = $emp['status'] ?? '';
+                // [NEW] System Role Badge Colors
+                $sysRole = $emp['system_role'] ?? 'Staff';
+                $roleBadge = match (strtoupper($sysRole)) {
+                    'MANAGER', 'HEAD' => 'bg-danger',
+                    'ENGINEER', 'ADVISOR' => 'bg-primary',
+                    'IT' => 'bg-dark',
+                    'OFFICER', 'SUPERVISOR' => 'bg-info text-dark',
+                    'MAINTENANCE', 'TECHNICIAN' => 'bg-warning text-dark',
+                    'DRIVER' => 'bg-secondary',
+                    default => 'bg-light text-dark border'
+                };
 
-            // 1. Status Colors
-            $statusClass = 'border-secondary';
-            $statusBadge = 'bg-secondary';
-            if ($status === 'Active') {
-                $statusClass = 'status-active';
-                $statusBadge = 'bg-success';
-            } elseif ($status === 'Resigned') {
-                $statusClass = 'status-agency';
-                $statusBadge = 'bg-warning';
-            } elseif ($status === 'Terminated') {
-                $statusClass = 'status-terminated';
-                $statusBadge = 'bg-dark';
-            }
+                // Color-coded employer badges
+                $agName = strtoupper($emp['agency_name'] ?? '');
+                if (($emp['employment_type'] ?? '') === 'TESP Direct') {
+                    $employerBadge = '<span class="badge bg-primary">TESP DIRECT</span>';
+                } elseif ($agName === 'JORATECH') {
+                    $employerBadge = '<span class="badge bg-success">JORATECH</span>';
+                } elseif ($agName === 'UNLISOLUTIONS') {
+                    $employerBadge = '<span class="badge bg-warning text-dark">UNLISOLUTIONS</span>';
+                } elseif ($agName === 'GUNJIN') {
+                    $employerBadge = '<span class="badge bg-danger">GUNJIN</span>';
+                } else {
+                    $employerBadge = '<span class="badge bg-secondary">' . h($agName ?: 'AGENCY') . '</span>';
+                }
+                $deptDisplay = h($emp['dept']);
+                if (!empty($emp['section']) && $emp['section'] !== 'Main Unit') {
+                    $deptDisplay .= ' &gt; ' . h($emp['section']);
+                }
+                $files      = $filesByEmp[$emp['emp_id']] ?? [];
+                $modalId    = 'viewModal' . (int)$emp['id'];
+                $previewBoxId = 'preview-' . (int)$emp['id'];
 
-            // 2. System Role Badge Colors
-            $sysRole = strtoupper($emp['system_role'] ?? 'STAFF');
-            $roleBadge = 'bg-light text-dark border'; // Default
-
-            if ($sysRole === 'MANAGER' || $sysRole === 'HEAD') {
-                $roleBadge = 'bg-danger';
-            } elseif ($sysRole === 'ENGINEER' || $sysRole === 'ADVISOR') {
-                $roleBadge = 'bg-primary';
-            } elseif ($sysRole === 'IT') {
-                $roleBadge = 'bg-dark';
-            } elseif ($sysRole === 'OFFICER' || $sysRole === 'SUPERVISOR') {
-                $roleBadge = 'bg-info text-dark';
-            } elseif ($sysRole === 'MAINTENANCE' || $sysRole === 'TECHNICIAN') {
-                $roleBadge = 'bg-warning text-dark';
-            } elseif ($sysRole === 'DRIVER') {
-                $roleBadge = 'bg-secondary';
-            }
-
-            // Color-coded employer badges
-            $agName = strtoupper($emp['agency_name'] ?? '');
-            if (($emp['employment_type'] ?? '') === 'TESP Direct') {
-                $employerBadge = '<span class="badge bg-primary">TESP DIRECT</span>';
-            } elseif ($agName === 'JORATECH') {
-                $employerBadge = '<span class="badge bg-success">JORATECH</span>';
-            } elseif ($agName === 'UNLISOLUTIONS') {
-                $employerBadge = '<span class="badge bg-warning text-dark">UNLISOLUTIONS</span>';
-            } elseif ($agName === 'GUNJIN') {
-                $employerBadge = '<span class="badge bg-danger">GUNJIN</span>';
-            } else {
-                $employerBadge = '<span class="badge bg-secondary">' . h($agName ?: 'AGENCY') . '</span>';
-            }
-            $deptDisplay = h($emp['dept']);
-            if (!empty($emp['section']) && $emp['section'] !== 'Main Unit') {
-                $deptDisplay .= ' &gt; ' . h($emp['section']);
-            }
-            $files      = $filesByEmp[$emp['emp_id']] ?? [];
-            $modalId    = 'viewModal' . (int)$emp['id'];
-            $previewBoxId = 'preview-' . (int)$emp['id'];
-
-            // [NEW] Identify Employees with Uncategorized Files for the label
-            $hasUncategorized = false;
-            foreach ($files as $f) {
-                $matched = false;
-                $cat = trim($f['category'] ?? '');
-                foreach ($REQUIRED_DOCS as $reqName => $keywords) {
-                    if (strcasecmp($cat, $reqName) === 0) {
-                        $matched = true;
+                // [NEW] Identify Employees with Uncategorized Files for the label
+                $hasUncategorized = false;
+                foreach ($files as $f) {
+                    $matched = false;
+                    $cat = trim($f['category'] ?? '');
+                    foreach ($REQUIRED_DOCS as $reqName => $keywords) {
+                        if (strcasecmp($cat, $reqName) === 0) {
+                            $matched = true;
+                            break;
+                        }
+                        foreach ($keywords as $k) {
+                            if ($k !== '' && (stripos($f['original_name'], $k) !== false || stripos($cat, $k) !== false)) {
+                                $matched = true;
+                                break 2;
+                            }
+                        }
+                    }
+                    if (!$matched) {
+                        $hasUncategorized = true;
                         break;
                     }
-                    foreach ($keywords as $k) {
-                        if ($k !== '' && (stripos($f['original_name'], $k) !== false || stripos($cat, $k) !== false)) {
-                            $matched = true;
-                            break 2;
-                        }
+                }
+
+                // [NEW] Check Completeness & Recency
+                $missingFields = [];
+                $requiredFields = ['sss_no', 'tin_no', 'philhealth_no', 'pagibig_no', 'contact_number', 'present_address', 'emergency_name', 'emergency_contact'];
+                foreach ($requiredFields as $field) {
+                    if (empty($emp[$field])) $missingFields[] = $field;
+                }
+                $isComplete = empty($missingFields);
+
+                // Check if updated in last 7 days
+                $isRecentlyUpdated = false;
+                // Note: Ensure 'updated_at' is selected in your SQL query if it exists
+                if (!empty($emp['updated_at'] ?? null)) {
+                    if (strtotime($emp['updated_at']) > strtotime('-7 days')) {
+                        $isRecentlyUpdated = true;
                     }
                 }
-                if (!$matched) {
-                    $hasUncategorized = true;
-                    break;
-                }
-            }
+            ?>
+                <div class="col-md-6 col-lg-4 mb-4">
+                    <div class="card h-100 employee-card <?php echo $statusClass; ?>"
+                        role="button"
+                        data-bs-toggle="modal"
+                        data-bs-target="#<?php echo h($modalId); ?>"
+                        data-emp-id-str="<?php echo h($emp['emp_id']); ?>">
+                        <!-- [NEW] Selection Checkbox -->
+                        <div class="position-absolute top-0 start-0 p-2" style="z-index: 10;">
+                            <input type="checkbox" class="form-check-input emp-select-check" value="<?php echo (int)$emp['id']; ?>" onclick="event.stopPropagation(); setEmployeeSelected(this.value, this.checked);">
+                        </div>
 
-            // [NEW] Check Completeness & Recency
-            $missingFields = [];
-            $requiredFields = ['sss_no', 'tin_no', 'philhealth_no', 'pagibig_no', 'contact_number', 'present_address', 'emergency_name', 'emergency_contact'];
-            foreach ($requiredFields as $field) {
-                if (empty($emp[$field])) $missingFields[] = $field;
-            }
-            $isComplete = empty($missingFields);
-
-            // Check if updated in last 7 days
-            $isRecentlyUpdated = false;
-            // Note: Ensure 'updated_at' is selected in your SQL query if it exists
-            if (!empty($emp['updated_at'] ?? null)) {
-                if (strtotime($emp['updated_at']) > strtotime('-7 days')) {
-                    $isRecentlyUpdated = true;
-                }
-            }
-        ?>
-            <div class="col-md-6 col-lg-4 mb-4">
-                <div class="card h-100 employee-card <?php echo $statusClass; ?>"
-                    role="button"
-                    data-bs-toggle="modal"
-                    data-bs-target="#<?php echo h($modalId); ?>"
-                    data-emp-id-str="<?php echo h($emp['emp_id']); ?>">
-                    <!-- [NEW] Selection Checkbox -->
-                    <div class="position-absolute top-0 start-0 p-2" style="z-index: 10;">
-                        <input type="checkbox" class="form-check-input emp-select-check" value="<?php echo (int)$emp['id']; ?>" onclick="event.stopPropagation(); setEmployeeSelected(this.value, this.checked);">
-                    </div>
-
-                    <div class="card-body">
-                        <div class="d-flex justify-content-between align-items-start mb-3">
-                            <div class="me-3">
-                                <img src="uploads/avatars/<?php echo h($emp['avatar_path'] ?: 'default.png'); ?>"
-                                    class="card-img-top avatar-circle"
-                                    alt="Profile"
-                                    onerror="this.onerror=null; this.src='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI1MCIgZmlsbD0iI2UzZTNlMyIvPjxwYXRoIGQ9Ik01MCA1MCBhMjAgMjAgMCAxIDAgMC00MCAyMCAyMCAwIDEgMCAwIDQwIHptMCAxMCBjLTE1IDAtMzUgMTAtMzUgMzAgdjEwIGg3MCB2LTEwIGMtMC0yMC0yMC0zMC0zNS0zMCIgZmlsbD0iI2FhYSIvPjwvc3ZnPg==';">
-                            </div>
-                            <div class="flex-grow-1">
-                                <h5 class="card-title mb-1 fw-bold"><?php echo h($emp['first_name'] . ' ' . $emp['last_name']); ?></h5>
-                                <small class="text-muted d-block mb-1"><?php echo $deptDisplay; ?></small>
-                                <?php if ($hasUncategorized): ?>
-                                    <div class="mb-1"><span class="badge bg-danger-subtle text-danger border border-danger-subtle extra-small"><i class="bi bi-exclamation-triangle-fill"></i> Uncategorized Files</span></div>
-                                <?php endif; ?>
-                                <span class="badge <?php echo $statusBadge; ?> rounded-pill"><?php echo h($emp['status']); ?></span>
-                                <span class="badge <?php echo $roleBadge; ?> rounded-pill ms-1" title="System Role"><i class="bi bi-person-badge"></i> <?php echo h($sysRole); ?></span>
-                            </div>
-                            <div class="d-flex flex-column align-items-end">
-                                <div class="mb-2"><?php echo $employerBadge; ?></div>
-                                <a href="print_employee.php?id=<?php echo (int)$emp['id']; ?>" class="btn btn-sm btn-outline-dark py-0 px-2 mt-1" target="_blank" onclick="event.stopPropagation();" aria-label="Print employee">
-                                    <i class="bi bi-printer-fill"></i>
-                                </a>
-                                <?php if (isset($_SESSION['user_id'])): ?>
-                                    <a href="edit_employee.php?id=<?php echo (int)$emp['id']; ?>" class="btn btn-sm btn-outline-secondary py-0 px-2 mt-1" onclick="event.stopPropagation();" aria-label="Edit employee">
-                                        <i class="bi bi-pencil-square"></i> Edit
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-start mb-3">
+                                <div class="me-3">
+                                    <img src="uploads/avatars/<?php echo h($emp['avatar_path'] ?: 'default.png'); ?>"
+                                        class="card-img-top avatar-circle"
+                                        alt="Profile"
+                                        onerror="this.onerror=null; this.src='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI1MCIgZmlsbD0iI2UzZTNlMyIvPjxwYXRoIGQ9Ik01MCA1MCBhMjAgMjAgMCAxIDAgMC00MCAyMCAyMCAwIDEgMCAwIDQwIHptMCAxMCBjLTE1IDAtMzUgMTAtMzUgMzAgdjEwIGg3MCB2LTEwIGMtMC0yMC0yMC0zMC0zNS0zMCIgZmlsbD0iI2FhYSIvPjwvc3ZnPg==';">
+                                </div>
+                                <div class="flex-grow-1">
+                                    <h5 class="card-title mb-1 fw-bold"><?php echo h($emp['first_name'] . ' ' . $emp['last_name']); ?></h5>
+                                    <small class="text-muted d-block mb-1"><?php echo $deptDisplay; ?></small>
+                                    <?php if ($hasUncategorized): ?>
+                                        <div class="mb-1"><span class="badge bg-danger-subtle text-danger border border-danger-subtle extra-small"><i class="bi bi-exclamation-triangle-fill"></i> Uncategorized Files</span></div>
+                                    <?php endif; ?>
+                                    <span class="badge <?php echo $statusBadge; ?> rounded-pill"><?php echo h($emp['status']); ?></span>
+                                    <span class="badge <?php echo $roleBadge; ?> rounded-pill ms-1" title="System Role"><i class="bi bi-person-badge"></i> <?php echo h($sysRole); ?></span>
+                                </div>
+                                <div class="d-flex flex-column align-items-end">
+                                    <div class="mb-2"><?php echo $employerBadge; ?></div>
+                                    <a href="print_employee.php?id=<?php echo (int)$emp['id']; ?>" class="btn btn-sm btn-outline-dark py-0 px-2 mt-1" target="_blank" onclick="event.stopPropagation();" aria-label="Print employee">
+                                        <i class="bi bi-printer-fill"></i>
                                     </a>
-                                <?php endif; ?>
+                                    <?php if (isset($_SESSION['user_id'])): ?>
+                                        <a href="edit_employee.php?id=<?php echo (int)$emp['id']; ?>" class="btn btn-sm btn-outline-secondary py-0 px-2 mt-1" onclick="event.stopPropagation();" aria-label="Edit employee">
+                                            <i class="bi bi-pencil-square"></i> Edit
+                                        </a>
+                                    <?php endif; ?>
+                                </div>
                             </div>
                         </div>
                     </div>
-                </div>
 
-                <!-- EMPLOYEE MODAL -->
-                <div class="modal fade" id="<?php echo h($modalId); ?>" tabindex="-1" aria-hidden="true" data-emp-id-str="<?php echo h($emp['emp_id']); ?>">
-                    <div class="modal-dialog modal-xl modal-dialog-scrollable">
-                        <div class="modal-content">
-                            <div class="modal-header modal-header-custom p-4">
-                                <div class="d-flex align-items-center w-100">
-                                    <img src="uploads/avatars/<?php echo h($emp['avatar_path'] ?: 'default.png'); ?>" class="rounded-circle border border-3 border-white shadow-sm" width="100" height="100" onerror="this.onerror=null; this.src='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI1MCIgZmlsbD0iI2UzZTNlMyIvPjxwYXRoIGQ9Ik01MCA1MCBhMjAgMjAgMCAxIDAgMC00MCAyMCAyMCAwIDEgMCAwIDQwIHptMCAxMCBjLTE1IDAtMzUgMTAtMzUgMzAgdjEwIGg3MCB2LTEwIGMtMC0yMC0yMC0zMC0zNS0zMCIgZmlsbD0iI2FhYSIvPjwvc3ZnPg==';" alt="Avatar">
-                                    <div class="ms-3 flex-grow-1">
-                                        <h3 class="mb-0 fw-bold"><?php echo h($emp['first_name'] . ' ' . $emp['last_name']); ?></h3>
-                                        <div class="badge bg-light text-dark mt-1"><?php echo h($emp['emp_id']); ?></div>
-                                        <div class="badge bg-white text-dark mt-1"><?php echo h($emp['job_title']); ?></div>
+                    <!-- EMPLOYEE MODAL -->
+                    <div class="modal fade" id="<?php echo h($modalId); ?>" tabindex="-1" aria-hidden="true" data-emp-id-str="<?php echo h($emp['emp_id']); ?>">
+                        <div class="modal-dialog modal-xl modal-dialog-scrollable">
+                            <div class="modal-content">
+                                <div class="modal-header modal-header-custom p-4">
+                                    <div class="d-flex align-items-center w-100">
+                                        <img src="uploads/avatars/<?php echo h($emp['avatar_path'] ?: 'default.png'); ?>" class="rounded-circle border border-3 border-white shadow-sm" width="100" height="100" onerror="this.onerror=null; this.src='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI1MCIgZmlsbD0iI2UzZTNlMyIvPjxwYXRoIGQ9Ik01MCA1MCBhMjAgMjAgMCAxIDAgMC00MCAyMCAyMCAwIDEgMCAwIDQwIHptMCAxMCBjLTE1IDAtMzUgMTAtMzUgMzAgdjEwIGg3MCB2LTEwIGMtMC0yMC0yMC0zMC0zNS0zMCIgZmlsbD0iI2FhYSIvPjwvc3ZnPg==';" alt="Avatar">
+                                        <div class="ms-3 flex-grow-1">
+                                            <h3 class="mb-0 fw-bold"><?php echo h($emp['first_name'] . ' ' . $emp['last_name']); ?></h3>
+                                            <div class="badge bg-light text-dark mt-1"><?php echo h($emp['emp_id']); ?></div>
+                                            <div class="badge bg-white text-dark mt-1"><?php echo h($emp['job_title']); ?></div>
 
-                                        <?php if ($isRecentlyUpdated): ?>
-                                            <span class="badge bg-info text-dark mt-1"><i class="bi bi-stars"></i> Recently Updated</span>
-                                        <?php endif; ?>
-                                        <?php if (!$isComplete): ?>
-                                            <span class="badge bg-warning text-dark mt-1" title="Missing: <?php echo htmlspecialchars(count($missingFields)); ?> fields"><i class="bi bi-exclamation-triangle"></i> Incomplete Profile</span>
-                                        <?php else: ?>
-                                            <span class="badge bg-success mt-1"><i class="bi bi-check-circle"></i> Profile Complete</span>
-                                        <?php endif; ?>
-                                    </div>
-                                    <button type="button" class="btn-close btn-close-white align-self-start" data-bs-dismiss="modal" aria-label="Close"></button>
-                                </div>
-                            </div>
-                            <div class="modal-body p-0">
-                                <div class="d-flex h-100">
-                                    <div class="nav flex-column nav-pills p-3 border-end" style="width: 260px;">
-                                        <button class="nav-link active text-start mb-2" data-bs-toggle="pill" data-bs-target="#info-<?php echo (int)$emp['id']; ?>">Profile</button>
-                                        <button class="nav-link text-start" data-bs-toggle="pill" data-bs-target="#files-<?php echo (int)$emp['id']; ?>">Documents (<?php echo (int)count($files); ?>)</button>
-                                    </div>
-                                    <div class="tab-content flex-grow-1 p-4">
-                                        <div class="tab-pane fade show active" id="info-<?php echo (int)$emp['id']; ?>">
-                                            <h6 class="text-primary fw-bold mb-3 border-bottom pb-2"><i class="bi bi-briefcase"></i> Work Information</h6>
-                                            <div class="row g-3 mb-4">
-                                                <div class="col-6"><span class="info-label">Department:</span><br><span class="fw-medium"><?php echo h($emp['dept']); ?></span></div>
-                                                <div class="col-6"><span class="info-label">Section:</span><br><span class="fw-medium"><?php echo h($emp['section']); ?></span></div>
-                                                <div class="col-6"><span class="info-label">Employment Type:</span><br><span class="fw-medium"><?php echo h($emp['employment_type']); ?></span></div>
-                                                <div class="col-6"><span class="info-label">Date Hired:</span><br><span class="fw-medium"><?php echo h($emp['hire_date'] ? date('M d, Y', strtotime($emp['hire_date'])) : 'Not specified'); ?></span></div>
-                                            </div>
-
-                                            <h6 class="text-primary fw-bold mb-3 border-bottom pb-2"><i class="bi bi-person-lines-fill"></i> Personal Details</h6>
-                                            <div class="row g-3 mb-4">
-                                                <div class="col-6"><span class="info-label">Contact:</span><br><span class="fw-medium"><?php echo h($emp['contact_number']); ?></span></div>
-                                                <div class="col-6"><span class="info-label">Email:</span><br><span class="fw-medium"><?php echo h($emp['email'] ?: 'N/A'); ?></span></div>
-                                                <div class="col-12"><span class="info-label">Present Address:</span><br><span class="fw-medium"><?php echo h($emp['present_address']); ?></span></div>
-                                            </div>
-
-                                            <h6 class="text-primary fw-bold mb-3 border-bottom pb-2"><i class="bi bi-card-checklist"></i> Government IDs</h6>
-                                            <div class="row g-3 mb-4">
-                                                <div class="col-6"><span class="info-label">SSS No:</span><br><span class="fw-medium font-monospace"><?php echo h($emp['sss_no'] ?: 'N/A'); ?></span></div>
-                                                <div class="col-6"><span class="info-label">TIN:</span><br><span class="fw-medium font-monospace"><?php echo h($emp['tin_no'] ?: 'N/A'); ?></span></div>
-                                                <div class="col-6"><span class="info-label">PhilHealth:</span><br><span class="fw-medium font-monospace"><?php echo h($emp['philhealth_no'] ?: 'N/A'); ?></span></div>
-                                                <div class="col-6"><span class="info-label">Pag-IBIG:</span><br><span class="fw-medium font-monospace"><?php echo h($emp['pagibig_no'] ?: 'N/A'); ?></span></div>
-                                            </div>
-
-                                            <h6 class="text-primary fw-bold mb-3 border-bottom pb-2"><i class="bi bi-mortarboard"></i> Qualifications</h6>
-                                            <div class="row g-3 mb-4">
-                                                <div class="col-12"><span class="info-label">Education:</span><br><span class="fw-medium"><?php echo !empty($emp['education']) ? nl2br(h($emp['education'])) : '<span class="text-muted fst-italic">Not specified</span>'; ?></span></div>
-                                                <div class="col-12"><span class="info-label">Experience:</span><br><span class="fw-medium"><?php echo !empty($emp['experience']) ? nl2br(h($emp['experience'])) : '<span class="text-muted fst-italic">Not specified</span>'; ?></span></div>
-                                                <div class="col-12"><span class="info-label">Licenses / Certifications:</span><br><span class="fw-medium"><?php echo !empty($emp['licenses']) ? nl2br(h($emp['licenses'])) : '<span class="text-muted fst-italic">Not specified</span>'; ?></span></div>
-                                            </div>
-
-                                            <h6 class="text-danger fw-bold mb-3 border-bottom pb-2"><i class="bi bi-heart-pulse"></i> Emergency Contact</h6>
-                                            <div class="row g-3">
-                                                <div class="col-6"><span class="info-label">Name:</span><br><span class="fw-medium"><?php echo h($emp['emergency_name'] ?: 'N/A'); ?></span></div>
-                                                <div class="col-6"><span class="info-label">Contact No:</span><br><span class="fw-medium"><?php echo h($emp['emergency_contact'] ?: 'N/A'); ?></span></div>
-                                            </div>
+                                            <?php if ($isRecentlyUpdated): ?>
+                                                <span class="badge bg-info text-dark mt-1"><i class="bi bi-stars"></i> Recently Updated</span>
+                                            <?php endif; ?>
+                                            <?php if (!$isComplete): ?>
+                                                <span class="badge bg-warning text-dark mt-1" title="Missing: <?php echo htmlspecialchars(count($missingFields)); ?> fields"><i class="bi bi-exclamation-triangle"></i> Incomplete Profile</span>
+                                            <?php else: ?>
+                                                <span class="badge bg-success mt-1"><i class="bi bi-check-circle"></i> Profile Complete</span>
+                                            <?php endif; ?>
                                         </div>
-                                        <div class="tab-pane fade" id="files-<?php echo (int)$emp['id']; ?>">
-                                            <div class="row h-100">
-                                                <div class="col-4 border-end">
-                                                    <div class="d-grid gap-2 mb-3">
-                                                        <a href="upload_form.php?emp_id=<?php echo h($emp['emp_id']); ?>" class="btn btn-primary btn-sm">
-                                                            <i class="bi bi-cloud-arrow-up-fill"></i> Upload New File
-                                                        </a>
-                                                    </div>
-                                                    <div class="list-group">
-                                                        <?php foreach ($files as $file):
-                                                            $previewUrl     = "view_doc.php?id=" . $file['file_uuid'] . "&embed=1";
-                                                            $type           = (stripos($file['original_name'], '.pdf') !== false) ? 'pdf' : 'img';
-                                                            $previewTarget  = 'preview-' . (int)$emp['id'];
-                                                            $isTarget       = ($targetDocId !== '' && (string)$targetDocId === (string)$file['id']);
-                                                            $rowClass       = $isTarget ? 'highlight-target' : '';
+                                        <button type="button" class="btn-close btn-close-white align-self-start" data-bs-dismiss="modal" aria-label="Close"></button>
+                                    </div>
+                                </div>
+                                <div class="modal-body p-0">
+                                    <div class="d-flex h-100">
+                                        <div class="nav flex-column nav-pills p-3 border-end" style="width: 260px;">
+                                            <button class="nav-link active text-start mb-2" data-bs-toggle="pill" data-bs-target="#info-<?php echo (int)$emp['id']; ?>">Profile</button>
+                                            <button class="nav-link text-start" data-bs-toggle="pill" data-bs-target="#files-<?php echo (int)$emp['id']; ?>">Documents (<?php echo (int)count($files); ?>)</button>
+                                        </div>
+                                        <div class="tab-content flex-grow-1 p-4">
+                                            <div class="tab-pane fade show active" id="info-<?php echo (int)$emp['id']; ?>">
+                                                <h6 class="text-primary fw-bold mb-3 border-bottom pb-2"><i class="bi bi-briefcase"></i> Work Information</h6>
+                                                <div class="row g-3 mb-4">
+                                                    <div class="col-6"><span class="info-label">Department:</span><br><span class="fw-medium"><?php echo h($emp['dept']); ?></span></div>
+                                                    <div class="col-6"><span class="info-label">Section:</span><br><span class="fw-medium"><?php echo h($emp['section']); ?></span></div>
+                                                    <div class="col-6"><span class="info-label">Employment Type:</span><br><span class="fw-medium"><?php echo h($emp['employment_type']); ?></span></div>
+                                                    <div class="col-6"><span class="info-label">Date Hired:</span><br><span class="fw-medium"><?php echo h($emp['hire_date'] ? date('M d, Y', strtotime($emp['hire_date'])) : 'Not specified'); ?></span></div>
+                                                </div>
 
-                                                            // [NEW] Check if this specific file is uncategorized
-                                                            $isThisDocUncategorized = true;
-                                                            $fCat = trim($file['category'] ?? '');
-                                                            $fName = $file['original_name'];
-                                                            foreach ($REQUIRED_DOCS as $reqName => $keywords) {
-                                                                if (strcasecmp($fCat, $reqName) === 0) {
-                                                                    $isThisDocUncategorized = false;
-                                                                    break;
-                                                                }
-                                                                foreach ($keywords as $k) {
-                                                                    if ($k !== '' && (stripos($fName, $k) !== false || stripos($fCat, $k) !== false)) {
+                                                <h6 class="text-primary fw-bold mb-3 border-bottom pb-2"><i class="bi bi-person-lines-fill"></i> Personal Details</h6>
+                                                <div class="row g-3 mb-4">
+                                                    <div class="col-6"><span class="info-label">Contact:</span><br><span class="fw-medium"><?php echo h($emp['contact_number']); ?></span></div>
+                                                    <div class="col-6"><span class="info-label">Email:</span><br><span class="fw-medium"><?php echo h($emp['email'] ?: 'N/A'); ?></span></div>
+                                                    <div class="col-12"><span class="info-label">Present Address:</span><br><span class="fw-medium"><?php echo h($emp['present_address']); ?></span></div>
+                                                </div>
+
+                                                <h6 class="text-primary fw-bold mb-3 border-bottom pb-2"><i class="bi bi-card-checklist"></i> Government IDs</h6>
+                                                <div class="row g-3 mb-4">
+                                                    <div class="col-6"><span class="info-label">SSS No:</span><br><span class="fw-medium font-monospace"><?php echo h($emp['sss_no'] ?: 'N/A'); ?></span></div>
+                                                    <div class="col-6"><span class="info-label">TIN:</span><br><span class="fw-medium font-monospace"><?php echo h($emp['tin_no'] ?: 'N/A'); ?></span></div>
+                                                    <div class="col-6"><span class="info-label">PhilHealth:</span><br><span class="fw-medium font-monospace"><?php echo h($emp['philhealth_no'] ?: 'N/A'); ?></span></div>
+                                                    <div class="col-6"><span class="info-label">Pag-IBIG:</span><br><span class="fw-medium font-monospace"><?php echo h($emp['pagibig_no'] ?: 'N/A'); ?></span></div>
+                                                </div>
+
+                                                <h6 class="text-primary fw-bold mb-3 border-bottom pb-2"><i class="bi bi-mortarboard"></i> Qualifications</h6>
+                                                <div class="row g-3 mb-4">
+                                                    <div class="col-12"><span class="info-label">Education:</span><br><span class="fw-medium"><?php echo !empty($emp['education']) ? nl2br(h($emp['education'])) : '<span class="text-muted fst-italic">Not specified</span>'; ?></span></div>
+                                                    <div class="col-12"><span class="info-label">Experience:</span><br><span class="fw-medium"><?php echo !empty($emp['experience']) ? nl2br(h($emp['experience'])) : '<span class="text-muted fst-italic">Not specified</span>'; ?></span></div>
+                                                    <div class="col-12"><span class="info-label">Licenses / Certifications:</span><br><span class="fw-medium"><?php echo !empty($emp['licenses']) ? nl2br(h($emp['licenses'])) : '<span class="text-muted fst-italic">Not specified</span>'; ?></span></div>
+                                                </div>
+
+                                                <h6 class="text-danger fw-bold mb-3 border-bottom pb-2"><i class="bi bi-heart-pulse"></i> Emergency Contact</h6>
+                                                <div class="row g-3">
+                                                    <div class="col-6"><span class="info-label">Name:</span><br><span class="fw-medium"><?php echo h($emp['emergency_name'] ?: 'N/A'); ?></span></div>
+                                                    <div class="col-6"><span class="info-label">Contact No:</span><br><span class="fw-medium"><?php echo h($emp['emergency_contact'] ?: 'N/A'); ?></span></div>
+                                                </div>
+                                            </div>
+                                            <div class="tab-pane fade" id="files-<?php echo (int)$emp['id']; ?>">
+                                                <div class="row h-100">
+                                                    <div class="col-4 border-end">
+                                                        <div class="d-grid gap-2 mb-3">
+                                                            <a href="upload_form.php?emp_id=<?php echo h($emp['emp_id']); ?>" class="btn btn-primary btn-sm">
+                                                                <i class="bi bi-cloud-arrow-up-fill"></i> Upload New File
+                                                            </a>
+                                                        </div>
+                                                        <div class="list-group">
+                                                            <?php foreach ($files as $file):
+                                                                $previewUrl     = "view_doc.php?id=" . $file['file_uuid'] . "&embed=1";
+                                                                $type           = (stripos($file['original_name'], '.pdf') !== false) ? 'pdf' : 'img';
+                                                                $previewTarget  = 'preview-' . (int)$emp['id'];
+                                                                $isTarget       = ($targetDocId !== '' && (string)$targetDocId === (string)$file['id']);
+                                                                $rowClass       = $isTarget ? 'highlight-target' : '';
+
+                                                                // [NEW] Check if this specific file is uncategorized
+                                                                $isThisDocUncategorized = true;
+                                                                $fCat = trim($file['category'] ?? '');
+                                                                $fName = $file['original_name'];
+                                                                foreach ($REQUIRED_DOCS as $reqName => $keywords) {
+                                                                    if (strcasecmp($fCat, $reqName) === 0) {
                                                                         $isThisDocUncategorized = false;
-                                                                        break 2;
+                                                                        break;
+                                                                    }
+                                                                    foreach ($keywords as $k) {
+                                                                        if ($k !== '' && (stripos($fName, $k) !== false || stripos($fCat, $k) !== false)) {
+                                                                            $isThisDocUncategorized = false;
+                                                                            break 2;
+                                                                        }
                                                                     }
                                                                 }
-                                                            }
-                                                        ?>
-                                                            <div class="list-group-item list-group-item-action d-flex justify-content-between align-items-center p-2 <?php echo $rowClass; ?>">
-                                                                <a href="javascript:void(0);" class="text-decoration-none text-body text-truncate w-75"
-                                                                    onclick="showPreview('<?php echo h($previewUrl); ?>', '<?php echo h($type); ?>', '<?php echo h($previewTarget); ?>'); return false;">
-                                                                    <?php if ($isTarget): ?>
-                                                                        <span class="badge bg-danger me-1"><i class="bi bi-exclamation-triangle-fill"></i> ACTION REQUIRED</span>
-                                                                    <?php endif; ?>
-                                                                    <strong><?php echo h($file['original_name']); ?></strong>
-                                                                    <?php if ($isThisDocUncategorized): ?>
-                                                                        <span class="badge bg-danger-subtle text-danger border border-danger-subtle ms-1" style="font-size: 0.65rem;"><i class="bi bi-tag-fill"></i> Needs Categorization</span>
-                                                                    <?php endif; ?>
-                                                                    <br>
-                                                                    <small class="text-secondary"><?php echo h($file['category']); ?></small>
-                                                                    <?php if (!empty($file['is_resolved']) && !empty($file['resolution_note'])): ?>
-                                                                        <br><span class="badge bg-success mt-1" style="font-size: 0.70rem; white-space: normal; cursor: pointer;" title="Edit Resolution Note" onclick="event.stopPropagation(); openResolveModal(<?php echo (int)$file['id']; ?>, <?php echo htmlspecialchars(json_encode($file['original_name']), ENT_QUOTES, 'UTF-8'); ?>, <?php echo htmlspecialchars(json_encode($file['resolution_note']), ENT_QUOTES, 'UTF-8'); ?>)"><i class="bi bi-check-circle-fill"></i> Resolved: <?php echo h($file['resolution_note']); ?> <i class="bi bi-pencil ms-1"></i></span>
-                                                                    <?php endif; ?>
-                                                                </a>
+                                                            ?>
+                                                                <div class="list-group-item list-group-item-action d-flex justify-content-between align-items-center p-2 <?php echo $rowClass; ?>">
+                                                                    <a href="javascript:void(0);" class="text-decoration-none text-body text-truncate w-75"
+                                                                        onclick="showPreview('<?php echo h($previewUrl); ?>', '<?php echo h($type); ?>', '<?php echo h($previewTarget); ?>'); return false;">
+                                                                        <?php if ($isTarget): ?>
+                                                                            <span class="badge bg-danger me-1"><i class="bi bi-exclamation-triangle-fill"></i> ACTION REQUIRED</span>
+                                                                        <?php endif; ?>
+                                                                        <strong><?php echo h($file['original_name']); ?></strong>
+                                                                        <?php if ($isThisDocUncategorized): ?>
+                                                                            <span class="badge bg-danger-subtle text-danger border border-danger-subtle ms-1" style="font-size: 0.65rem;"><i class="bi bi-tag-fill"></i> Needs Categorization</span>
+                                                                        <?php endif; ?>
+                                                                        <br>
+                                                                        <small class="text-secondary"><?php echo h($file['category']); ?></small>
+                                                                        <?php if (!empty($file['is_resolved']) && !empty($file['resolution_note'])): ?>
+                                                                            <br><span class="badge bg-success mt-1" style="font-size: 0.70rem; white-space: normal; cursor: pointer;" title="Edit Resolution Note" onclick="event.stopPropagation(); openResolveModal(<?php echo (int)$file['id']; ?>, <?php echo htmlspecialchars(json_encode($file['original_name']), ENT_QUOTES, 'UTF-8'); ?>, <?php echo htmlspecialchars(json_encode($file['resolution_note']), ENT_QUOTES, 'UTF-8'); ?>)"><i class="bi bi-check-circle-fill"></i> Resolved: <?php echo h($file['resolution_note']); ?> <i class="bi bi-pencil ms-1"></i></span>
+                                                                        <?php endif; ?>
+                                                                    </a>
 
-                                                                <?php if ((int)$file['is_resolved'] === 0 && !empty($file['expiry_date']) && $file['expiry_date'] <= date('Y-m-d', strtotime('+30 days'))): ?>
-                                                                    <button class="btn btn-warning btn-sm ms-2 shadow-sm"
-                                                                        title="Fix Issue"
-                                                                        onclick="event.stopPropagation(); openResolveModal(<?php echo (int)$file['id']; ?>, <?php echo htmlspecialchars(json_encode($file['original_name']), ENT_QUOTES, 'UTF-8'); ?>)">
-                                                                        <i class="bi bi-wrench-adjustable-circle-fill"></i> Fix
-                                                                    </button>
-                                                                <?php endif; ?>
+                                                                    <?php if ((int)$file['is_resolved'] === 0 && !empty($file['expiry_date']) && $file['expiry_date'] <= date('Y-m-d', strtotime('+30 days'))): ?>
+                                                                        <button class="btn btn-warning btn-sm ms-2 shadow-sm"
+                                                                            title="Fix Issue"
+                                                                            onclick="event.stopPropagation(); openResolveModal(<?php echo (int)$file['id']; ?>, <?php echo htmlspecialchars(json_encode($file['original_name']), ENT_QUOTES, 'UTF-8'); ?>)">
+                                                                            <i class="bi bi-wrench-adjustable-circle-fill"></i> Fix
+                                                                        </button>
+                                                                    <?php endif; ?>
 
-                                                                <a href="view_doc.php?id=<?php echo $file['file_uuid']; ?>&download=1" class="btn btn-sm btn-outline-primary border-0 ms-1" title="Download">
-                                                                    <i class="bi bi-download"></i>
-                                                                </a>
+                                                                    <a href="view_doc.php?id=<?php echo $file['file_uuid']; ?>&download=1" class="btn btn-sm btn-outline-primary border-0 ms-1" title="Download">
+                                                                        <i class="bi bi-download"></i>
+                                                                    </a>
 
-                                                                <?php if (in_array($userRole, ['ADMIN', 'MANAGER', 'HR'], true)): ?>
-                                                                    <button type="button" class="btn btn-sm btn-outline-danger border-0"
-                                                                        onclick="confirmDelete(<?php echo htmlspecialchars(json_encode($file['file_uuid']), ENT_QUOTES, 'UTF-8'); ?>, <?php echo htmlspecialchars(json_encode($emp['emp_id']), ENT_QUOTES, 'UTF-8'); ?>)"
-                                                                        title="Delete File">
-                                                                        <i class="bi bi-trash"></i>
-                                                                    </button>
-                                                                <?php endif; ?>
-                                                            </div>
-                                                        <?php endforeach; ?>
+                                                                    <?php if (in_array($userRole, ['ADMIN', 'MANAGER', 'HR'], true)): ?>
+                                                                        <button type="button" class="btn btn-sm btn-outline-danger border-0"
+                                                                            onclick="confirmDelete(<?php echo htmlspecialchars(json_encode($file['file_uuid']), ENT_QUOTES, 'UTF-8'); ?>, <?php echo htmlspecialchars(json_encode($emp['emp_id']), ENT_QUOTES, 'UTF-8'); ?>)"
+                                                                            title="Delete File">
+                                                                            <i class="bi bi-trash"></i>
+                                                                        </button>
+                                                                    <?php endif; ?>
+                                                                </div>
+                                                            <?php endforeach; ?>
+                                                        </div>
+                                                    </div>
+                                                    <div class="col-8">
+                                                        <div id="<?php echo h($previewBoxId); ?>" class="preview-box">Select a file to preview</div>
                                                     </div>
                                                 </div>
-                                                <div class="col-8">
-                                                    <div id="<?php echo h($previewBoxId); ?>" class="preview-box">Select a file to preview</div>
-                                                </div>
-                                            </div>
-                                        </div> <!-- /tab -->
+                                            </div> <!-- /tab -->
+                                        </div>
                                     </div>
                                 </div>
                             </div>
                         </div>
+                    </div> <!-- /modal -->
+                </div>
+            <?php endforeach; ?>
+        </div>
+
+        <!-- [NEW] Spreadsheet View Container -->
+        <?php // ---------- 13) SPREADSHEET VIEW ---------- 
+        ?>
+        <div id="view-spreadsheet" style="display: none;">
+            <div class="card shadow-sm mb-4 border-primary">
+                <div class="card-header bg-white d-flex justify-content-between align-items-center py-3">
+                    <h5 class="mb-0 text-primary fw-bold"><i class="bi bi-table me-2"></i> Master Employee Directory</h5>
+                    <div class="d-flex gap-2">
+                        <button id="download-csv" class="btn btn-sm btn-outline-secondary fw-bold shadow-sm" title="Download CSV"><i class="bi bi-file-earmark-text"></i> CSV</button>
+                        <button id="download-xlsx" class="btn btn-sm btn-success fw-bold shadow-sm" title="Download Excel"><i class="bi bi-file-earmark-spreadsheet"></i> Excel</button>
                     </div>
-                </div> <!-- /modal -->
+                </div>
+                <div class="card-body p-0">
+                    <div id="employee-master-grid" style="height: 600px;"></div>
+                </div>
             </div>
-        <?php endforeach; ?>
+        </div>
+
+        <?php if ($totalPages > 1): ?>
+            <nav class="mt-3" aria-label="Employee pagination">
+                <ul class="pagination justify-content-center">
+                    <?php $prevDisabled = ($page <= 1) ? ' disabled' : '';
+                    $nextDisabled = ($page >= $totalPages) ? ' disabled' : ''; ?>
+                    <li class="page-item<?php echo $prevDisabled; ?>">
+                        <a class="page-link" href="<?php echo h(keepQuery(['page' => max(1, $page - 1)])); ?>#directory-results" aria-label="Previous"><span aria-hidden="true">&laquo;</span></a>
+                    </li>
+                    <?php
+                    $window = 2;
+                    $start = max(1, $page - $window);
+                    $end   = min($totalPages, $page + $window);
+                    if ($start > 1) {
+                        echo '<li class="page-item"><a class="page-link" href="' . h(keepQuery(['page' => 1])) . '#directory-results">1</a></li>';
+                        if ($start > 2) echo '<li class="page-item disabled"><span class="page-link">…</span></li>';
+                    }
+                    for ($p = $start; $p <= $end; $p++) {
+                        $active = ($p === $page) ? ' active' : '';
+                        echo '<li class="page-item' . $active . '"><a class="page-link" href="' . h(keepQuery(['page' => $p])) . '#directory-results">' . (int)$p . '</a></li>';
+                    }
+                    if ($end < $totalPages) {
+                        if ($end < $totalPages - 1) echo '<li class="page-item disabled"><span class="page-link">…</span></li>';
+                        echo '<li class="page-item"><a class="page-link" href="' . h(keepQuery(['page' => $totalPages])) . '#directory-results">' . (int)$totalPages . '</a></li>';
+                    }
+                    ?>
+                    <li class="page-item<?php echo $nextDisabled; ?>">
+                        <a class="page-link" href="<?php echo h(keepQuery(['page' => min($totalPages, $page + 1)])); ?>#directory-results" aria-label="Next"><span aria-hidden="true">&raquo;</span></a>
+                    </li>
+                </ul>
+                <p class="text-center text-muted small mb-0">
+                    Showing <strong><?php echo htmlspecialchars((int)count($employees)); ?></strong> of <strong><?php echo htmlspecialchars((int)$totalRows); ?></strong> employees — Page <?php echo htmlspecialchars((int)$page); ?> / <?php echo htmlspecialchars((int)$totalPages); ?>
+                </p>
+            </nav>
+        <?php endif; ?>
+
     </div>
 
-    <?php if ($totalPages > 1): ?>
-        <nav class="mt-3" aria-label="Employee pagination">
-            <ul class="pagination justify-content-center">
-                <?php $prevDisabled = ($page <= 1) ? ' disabled' : '';
-                $nextDisabled = ($page >= $totalPages) ? ' disabled' : ''; ?>
-                <li class="page-item<?php echo $prevDisabled; ?>">
-                    <a class="page-link" href="<?php echo h(keepQuery(['page' => max(1, $page - 1)])); ?>#directory-results" aria-label="Previous"><span aria-hidden="true">&laquo;</span></a>
-                </li>
-                <?php
-                $window = 2;
-                $start = max(1, $page - $window);
-                $end   = min($totalPages, $page + $window);
-                if ($start > 1) {
-                    echo '<li class="page-item"><a class="page-link" href="' . h(keepQuery(['page' => 1])) . '#directory-results">1</a></li>';
-                    if ($start > 2) echo '<li class="page-item disabled"><span class="page-link">…</span></li>';
-                }
-                for ($p = $start; $p <= $end; $p++) {
-                    $active = ($p === $page) ? ' active' : '';
-                    echo '<li class="page-item' . $active . '"><a class="page-link" href="' . h(keepQuery(['page' => $p])) . '#directory-results">' . (int)$p . '</a></li>';
-                }
-                if ($end < $totalPages) {
-                    if ($end < $totalPages - 1) echo '<li class="page-item disabled"><span class="page-link">…</span></li>';
-                    echo '<li class="page-item"><a class="page-link" href="' . h(keepQuery(['page' => $totalPages])) . '#directory-results">' . (int)$totalPages . '</a></li>';
-                }
-                ?>
-                <li class="page-item<?php echo $nextDisabled; ?>">
-                    <a class="page-link" href="<?php echo h(keepQuery(['page' => min($totalPages, $page + 1)])); ?>#directory-results" aria-label="Next"><span aria-hidden="true">&raquo;</span></a>
-                </li>
-            </ul>
-            <p class="text-center text-muted small mb-0">
-                Showing <strong><?php echo htmlspecialchars((int)count($employees)); ?></strong> of <strong><?php echo htmlspecialchars((int)$totalRows); ?></strong> employees — Page <?php echo htmlspecialchars((int)$page); ?> / <?php echo htmlspecialchars((int)$totalPages); ?>
-            </p>
-        </nav>
-    <?php endif; ?>
-
-</div>
-
-<!-- Delete confirmation modal -->
-<div class="modal fade" id="deleteModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-header bg-danger text-white">
-                <h5 class="modal-title"><i class="bi bi-exclamation-triangle-fill me-2"></i> Confirm Deletion</h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body text-center p-4">
-                <div class="text-danger mb-3">
-                    <i class="bi bi-trash3-fill" style="font-size: 3rem;"></i>
+    <!-- Delete confirmation modal -->
+    <div class="modal fade" id="deleteModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header bg-danger text-white">
+                    <h5 class="modal-title"><i class="bi bi-exclamation-triangle-fill me-2"></i> Confirm Deletion</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                 </div>
-                <h5 class="fw-bold">Are you sure?</h5>
-                <p class="text-muted">Do you really want to permanently delete this file?<br>This process cannot be undone.</p>
-                <form action="delete_document.php" method="POST">
-                    <input type="hidden" name="file_uuid" id="del_file_uuid">
-                    <input type="hidden" name="emp_id" id="del_emp_id">
-                    <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
-                    <div class="d-flex justify-content-center gap-2 mt-4">
-                        <button type="button" class="btn btn-secondary px-4" data-bs-dismiss="modal">Cancel</button>
-                        <button type="submit" class="btn btn-danger px-4">Yes, Delete It</button>
+                <div class="modal-body text-center p-4">
+                    <div class="text-danger mb-3">
+                        <i class="bi bi-trash3-fill" style="font-size: 3rem;"></i>
                     </div>
-                </form>
+                    <h5 class="fw-bold">Are you sure?</h5>
+                    <p class="text-muted">Do you really want to permanently delete this file?<br>This process cannot be undone.</p>
+                    <form action="delete_document.php" method="POST">
+                        <input type="hidden" name="file_uuid" id="del_file_uuid">
+                        <input type="hidden" name="emp_id" id="del_emp_id">
+                        <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
+                        <div class="d-flex justify-content-center gap-2 mt-4">
+                            <button type="button" class="btn btn-secondary px-4" data-bs-dismiss="modal">Cancel</button>
+                            <button type="submit" class="btn btn-danger px-4">Yes, Delete It</button>
+                        </div>
+                    </form>
+                </div>
             </div>
         </div>
     </div>
-</div>
 
-<!-- Resolve/Report Modal (single instance) -->
-<div class="modal fade" id="resolveModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog">
-        <form action="submit_resolution.php" method="POST" class="modal-content">
-            <div class="modal-header bg-success text-white">
-                <h5 class="modal-title"><i class="bi bi-clipboard2-check me-2"></i> Report Action Taken</h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <input type="hidden" name="doc_id" id="res_doc_id">
-                <input type="hidden" name="csrf_token" value="<?php echo h($_SESSION['csrf_token']); ?>">
-                <p>Resolving alert for: <strong id="res_cat_name"></strong></p>
-                <textarea name="resolution_note" id="res_note" class="form-control" rows="3" required placeholder="Action taken..." maxlength="500"></textarea>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button type="submit" class="btn btn-success">Submit Report</button>
-            </div>
-        </form>
+    <!-- Resolve/Report Modal (single instance) -->
+    <div class="modal fade" id="resolveModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+            <form action="submit_resolution.php" method="POST" class="modal-content">
+                <div class="modal-header bg-success text-white">
+                    <h5 class="modal-title"><i class="bi bi-clipboard2-check me-2"></i> Report Action Taken</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" name="doc_id" id="res_doc_id">
+                    <input type="hidden" name="csrf_token" value="<?php echo h($_SESSION['csrf_token']); ?>">
+                    <p>Resolving alert for: <strong id="res_cat_name"></strong></p>
+                    <textarea name="resolution_note" id="res_note" class="form-control" rows="3" required placeholder="Action taken..." maxlength="500"></textarea>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-success">Submit Report</button>
+                </div>
+            </form>
+        </div>
     </div>
-</div>
 
-<!-- Export Modal (single instance) -->
-<div class="modal fade" id="exportModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog">
-        <form action="export_files.php" method="POST" class="modal-content" onsubmit="showExportLoader(this)">
-            <div class="modal-header bg-success text-white">
-                <h5 class="modal-title"><i class="bi bi-archive-fill"></i> Bulk Export</h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <input type="hidden" name="csrf_token" value="<?php echo h($_SESSION['csrf_token']); ?>">
-
-                <div class="mb-3 p-2 bg-light border rounded position-relative">
-                    <label class="form-label fw-bold text-primary">Search Employee (Optional)</label>
-                    <input type="text" id="exportSearch" name="search" class="form-control" placeholder="Type Name or ID..." autocomplete="off" maxlength="50" pattern="[a-zA-Z0-9\-_ ,]+" title="Allowed: Letters, Numbers, Spaces, Dashes, Underscores, Commas">
-                    <div id="exportSuggestionBox" class="list-group position-absolute w-100 shadow" style="display:none; z-index:2000; top:75px;"></div>
-                    <div class="form-text small">Typing a name makes "Department" optional.</div>
+    <!-- Export Modal (single instance) -->
+    <div class="modal fade" id="exportModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+            <form action="export_files.php" method="POST" class="modal-content" onsubmit="showExportLoader(this)">
+                <div class="modal-header bg-success text-white">
+                    <h5 class="modal-title"><i class="bi bi-archive-fill"></i> Bulk Export</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                 </div>
+                <div class="modal-body">
+                    <input type="hidden" name="csrf_token" value="<?php echo h($_SESSION['csrf_token']); ?>">
 
-                <hr>
-
-                <div class="mb-3">
-                    <label class="form-label fw-bold">Department</label>
-                    <select name="dept" id="exportDept" class="form-select">
-                        <option value="" selected>-- Select Scope --</option>
-                        <?php foreach (array_keys($deptMap) as $d): ?>
-                            <option value="<?php echo htmlspecialchars($d); ?>"><?php echo htmlspecialchars($d); ?></option>
-                        <?php endforeach; ?>
-                    </select>
-                </div>
-
-                <div class="mb-3">
-                    <label class="form-label fw-bold">Section (Filtered by Dept)</label>
-                    <select name="section" id="exportSection" class="form-select" disabled>
-                        <option value="">-- All Sections --</option>
-                        <?php foreach ($deptMap as $d => $sections): ?>
-                            <optgroup label="<?php echo htmlspecialchars($d); ?>">
-                                <?php foreach ($sections as $s): ?>
-                                    <option value="<?php echo htmlspecialchars($s); ?>"><?php echo htmlspecialchars($s); ?></option>
-                                <?php endforeach; ?>
-                            </optgroup>
-                        <?php endforeach; ?>
-                    </select>
-                </div>
-
-                <div class="row">
-                    <div class="col-6 mb-3">
-                        <label class="form-label fw-bold">Agency</label>
-                        <select name="employment_type" class="form-select">
-                            <option value="">-- All --</option>
-                            <option value="TESP DIRECT">TESP DIRECT</option>
-                            <option value="GUNJIN">GUNJIN</option>
-                            <option value="JORATECH">JORATECH</option>
-                            <option value="UNLISOLUTIONS">UNLISOLUTIONS</option>
-                            <option value="OTHERS - SUBCONS">OTHERS - SUBCONS</option>
-                        </select>
+                    <div class="mb-3 p-2 bg-light border rounded position-relative">
+                        <label class="form-label fw-bold text-primary">Search Employee (Optional)</label>
+                        <input type="text" id="exportSearch" name="search" class="form-control" placeholder="Type Name or ID..." autocomplete="off" maxlength="50" pattern="[a-zA-Z0-9\-_ ,]+" title="Allowed: Letters, Numbers, Spaces, Dashes, Underscores, Commas">
+                        <div id="exportSuggestionBox" class="list-group position-absolute w-100 shadow" style="display:none; z-index:2000; top:75px;"></div>
+                        <div class="form-text small">Typing a name makes "Department" optional.</div>
                     </div>
-                    <div class="col-6 mb-3">
-                        <label class="form-label fw-bold">Category</label>
-                        <select name="category" class="form-select">
-                            <option value="">-- All --</option>
-                            <?php foreach ($dynamicCats as $cat): ?>
-                                <option value="<?php echo htmlspecialchars($cat); ?>"><?php echo htmlspecialchars($cat); ?></option>
+
+                    <hr>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Department</label>
+                        <select name="dept" id="exportDept" class="form-select">
+                            <option value="" selected>-- Select Scope --</option>
+                            <?php foreach (array_keys($deptMap) as $d): ?>
+                                <option value="<?php echo htmlspecialchars($d); ?>"><?php echo htmlspecialchars($d); ?></option>
                             <?php endforeach; ?>
-                            <option value="Others">Others</option>
                         </select>
                     </div>
-                </div>
 
-                <hr>
-                <div class="mb-2">
-                    <label class="form-label fw-bold text-danger">ZIP Password (Optional)</label>
-                    <div class="input-group">
-                        <input type="password" name="zip_password" id="exportZipPass" class="form-control" placeholder="Leave blank for no password" maxlength="50">
-                        <button class="btn btn-outline-secondary" type="button" onclick="togglePass('exportZipPass')"><i class="bi bi-eye"></i></button>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Section (Filtered by Dept)</label>
+                        <select name="section" id="exportSection" class="form-select" disabled>
+                            <option value="">-- All Sections --</option>
+                            <?php foreach ($deptMap as $d => $sections): ?>
+                                <optgroup label="<?php echo htmlspecialchars($d); ?>">
+                                    <?php foreach ($sections as $s): ?>
+                                        <option value="<?php echo htmlspecialchars($s); ?>"><?php echo htmlspecialchars($s); ?></option>
+                                    <?php endforeach; ?>
+                                </optgroup>
+                            <?php endforeach; ?>
+                        </select>
                     </div>
-                    <div class="form-text">Sets a password to open the downloaded ZIP file.</div>
-                </div>
 
-                <div class="alert alert-warning small mb-0 mt-3 border-warning">
-                    <i class="bi bi-info-circle-fill"></i> <strong>Massive Data Reminder:</strong> If your requested export exceeds the <strong>1.9 GB</strong> limit, the system will automatically split it into multiple volumes (Part 1, Part 2, etc.) and download them consecutively.
-                </div>
-
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
-                <button type="submit" class="btn btn-success"><i class="bi bi-download"></i> Download ZIP</button>
-            </div>
-        </form>
-    </div>
-</div>
-
-<!-- [FIX] UNIFIED BULK ACTION MODAL -->
-<div class="modal fade" id="bulkActionModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog">
-        <form method="POST" class="modal-content" id="bulkActionForm">
-            <input type="hidden" name="action" value="bulk_move_dept">
-            <input type="hidden" name="csrf_token" value="<?php echo h($_SESSION['csrf_token']); ?>">
-            <input type="hidden" name="redirect_query" value="<?php echo h($_SERVER['QUERY_STRING']); ?>">
-            <div id="bulkMoveIdsContainer"></div>
-
-            <div class="modal-header bg-dark text-white">
-                <h5 class="modal-title"><i class="bi bi-layers-half"></i> Bulk Actions</h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <p>Update <strong id="modalSelectedCount">0</strong> selected employees:</p>
-                <div class="mb-3">
-                    <label class="form-label fw-bold">Change Department</label>
-                    <select name="target_dept" id="bulkTargetDept" class="form-select" onchange="updateBulkSections()">
-                        <option value="">-- No Change --</option>
-                        <?php foreach (array_keys($deptMap) as $d): ?>
-                            <option value="<?php echo h($d); ?>"><?php echo h($d); ?></option>
-                        <?php endforeach; ?>
-                    </select>
-                </div>
-                <div class="mb-3">
-                    <label class="form-label fw-bold">Change Section</label>
-                    <select name="target_section" id="bulkTargetSection" class="form-select">
-                        <option value="">-- All Sections --</option>
-                    </select>
-                </div>
-                <hr>
-                <div class="mb-3">
-                    <label class="form-label fw-bold">Update Status</label>
-                    <select name="target_status" class="form-select">
-                        <option value="">-- No Change --</option>
-                        <option value="Active">Active</option>
-                        <option value="Resigned">Resigned</option>
-                        <option value="Terminated">Terminated</option>
-                        <option value="AWOL">AWOL</option>
-                    </select>
-                </div>
-                <hr>
-                <!-- [NEW] COE Specific Fields for Bulk -->
-                <div id="bulkCoeFields" class="mb-3 p-3 bg-light border rounded">
-                    <h6 class="text-primary fw-bold"><i class="bi bi-calendar-event"></i> COE Employment Period Options</h6>
-                    <div class="form-check mb-2">
-                        <input class="form-check-input" type="checkbox" id="bulkManualEndDateOverride">
-                        <label class="form-check-label small fw-bold" for="bulkManualEndDateOverride">Override End Date (Default: Present)</label>
+                    <div class="row">
+                        <div class="col-6 mb-3">
+                            <label class="form-label fw-bold">Agency</label>
+                            <select name="employment_type" class="form-select">
+                                <option value="">-- All --</option>
+                                <option value="TESP DIRECT">TESP DIRECT</option>
+                                <option value="GUNJIN">GUNJIN</option>
+                                <option value="JORATECH">JORATECH</option>
+                                <option value="UNLISOLUTIONS">UNLISOLUTIONS</option>
+                                <option value="OTHERS - SUBCONS">OTHERS - SUBCONS</option>
+                            </select>
+                        </div>
+                        <div class="col-6 mb-3">
+                            <label class="form-label fw-bold">Category</label>
+                            <select name="category" class="form-select">
+                                <option value="">-- All --</option>
+                                <?php foreach ($dynamicCats as $cat): ?>
+                                    <option value="<?php echo htmlspecialchars($cat); ?>"><?php echo htmlspecialchars($cat); ?></option>
+                                <?php endforeach; ?>
+                                <option value="Others">Others</option>
+                            </select>
+                        </div>
                     </div>
-                    <input type="date" id="bulkManualEndDateValue" class="form-control form-control-sm" style="display:none;">
+
+                    <hr>
+                    <div class="mb-2">
+                        <label class="form-label fw-bold text-danger">ZIP Password (Optional)</label>
+                        <div class="input-group">
+                            <input type="password" name="zip_password" id="exportZipPass" class="form-control" placeholder="Leave blank for no password" maxlength="50">
+                            <button class="btn btn-outline-secondary" type="button" onclick="togglePass('exportZipPass')"><i class="bi bi-eye"></i></button>
+                        </div>
+                        <div class="form-text">Sets a password to open the downloaded ZIP file.</div>
+                    </div>
+
+                    <div class="alert alert-warning small mb-0 mt-3 border-warning">
+                        <i class="bi bi-info-circle-fill"></i> <strong>Massive Data Reminder:</strong> If your requested export exceeds the <strong>1.9 GB</strong> limit, the system will automatically split it into multiple volumes (Part 1, Part 2, etc.) and download them consecutively.
+                    </div>
+
                 </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-outline-primary fw-bold" onclick="submitBulkCOE()"><i class="bi bi-file-earmark-pdf"></i> Generate COE</button>
-                <button type="submit" class="btn btn-success fw-bold">Apply Changes</button>
-            </div>
-        </form>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="submit" class="btn btn-success"><i class="bi bi-download"></i> Download ZIP</button>
+                </div>
+            </form>
+        </div>
     </div>
-</div>
 
-<!-- SINGLE Bootstrap bundle include -->
-<script src="assets/bootstrap.bundle.min.js?v=3"></script>
+    <!-- [FIX] UNIFIED BULK ACTION MODAL -->
+    <div class="modal fade" id="bulkActionModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+            <form method="POST" class="modal-content" id="bulkActionForm">
+                <input type="hidden" name="action" value="bulk_move_dept">
+                <input type="hidden" name="csrf_token" value="<?php echo h($_SESSION['csrf_token']); ?>">
+                <input type="hidden" name="redirect_query" value="<?php echo h($_SERVER['QUERY_STRING']); ?>">
+                <div id="bulkMoveIdsContainer"></div>
 
-<script>
-    // ---------- Chart ----------
-    document.addEventListener('DOMContentLoaded', () => {
-        // [NEW] 100% Offline Custom DataLabels Plugin
-        const offlineDataLabels = {
-            id: 'offlineDataLabels',
-            afterDatasetsDraw(chart, args, options) {
-                const {
-                    ctx
-                } = chart;
-                ctx.save();
-                ctx.font = 'bold 12px Helvetica, Arial, sans-serif';
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'middle';
+                <div class="modal-header bg-dark text-white">
+                    <h5 class="modal-title"><i class="bi bi-layers-half"></i> Bulk Actions</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p>Update <strong id="modalSelectedCount">0</strong> selected employees:</p>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Change Department</label>
+                        <select name="target_dept" id="bulkTargetDept" class="form-select" onchange="updateBulkSections()">
+                            <option value="">-- No Change --</option>
+                            <?php foreach (array_keys($deptMap) as $d): ?>
+                                <option value="<?php echo h($d); ?>"><?php echo h($d); ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Change Section</label>
+                        <select name="target_section" id="bulkTargetSection" class="form-select">
+                            <option value="">-- All Sections --</option>
+                        </select>
+                    </div>
+                    <hr>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Change System Role</label>
+                        <select name="target_role" id="bulkTargetRole" class="form-select">
+                            <option value="">-- No Change --</option>
+                            <?php foreach ($system_roles as $role): ?>
+                                <option value="<?php echo h($role); ?>"><?php echo h($role); ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Change Agency</label>
+                        <select name="target_agency" id="bulkTargetAgency" class="form-select">
+                            <option value="">-- No Change --</option>
+                            <?php foreach ($agencies as $agency): ?>
+                                <option value="<?php echo h($agency); ?>"><?php echo h($agency); ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <hr>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Update Status</label>
+                        <select name="target_status" class="form-select">
+                            <option value="">-- No Change --</option>
+                            <option value="Active">Active</option>
+                            <option value="Resigned">Resigned</option>
+                            <option value="Terminated">Terminated</option>
+                            <option value="AWOL">AWOL</option>
+                        </select>
+                    </div>
+                    <hr>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-success fw-bold" onclick="confirmBulkAction()">Apply Changes</button>
+                </div>
+            </form>
+        </div>
+    </div>
 
-                chart.data.datasets.forEach((dataset, i) => {
-                    const meta = chart.getDatasetMeta(i);
-                    if (meta.hidden) return;
+    <!-- SINGLE Bootstrap bundle include -->
+    <script src="assets/bootstrap.bundle.min.js?v=3"></script>
 
-                    meta.data.forEach((element, index) => {
-                        let dataVal = dataset.data[index];
-                        if (dataVal === undefined || dataVal === null || Number(dataVal) === 0) return;
+    <!-- [NEW] Grid Libraries -->
+    <?php // ---------- 15) JAVASCRIPT INITIALIZATION ---------- 
+    ?>
+    <link href="assets/css/tabulator_bootstrap5.min.css" rel="stylesheet">
+    <script src="assets/js/tabulator.min.js"></script>
 
-                        let text = dataVal.toString();
-                        if (chart.config.type === 'pie' || chart.config.type === 'doughnut') {
-                            let total = dataset.data.reduce((a, b) => Number(a) + Number(b), 0);
-                            let percent = Math.round((dataVal / total) * 100);
-                            if (percent < 5) return;
-                            text = `${dataVal} (${percent}%)`;
-                        }
+    <script>
+        // [FIX] Data for Bulk Modal Dropdowns
+        const deptMapData = <?php echo json_encode($deptMap); ?>;
 
-                        if (typeof element.tooltipPosition !== 'function') return;
-                        let pos = element.tooltipPosition();
-                        let x = pos.x;
-                        let y = pos.y;
-                        if ((chart.config.type === 'bar' || meta.type === 'bar') && element.base !== undefined) {
-                            y = (element.base + pos.y) / 2;
-                        }
-                        ctx.strokeStyle = 'rgba(0, 0, 0, 0.75)';
-                        ctx.lineWidth = 3;
-                        ctx.strokeText(text, x, y);
-                        ctx.fillStyle = '#ffffff';
-                        ctx.fillText(text, x, y);
+        // ---------- Chart ----------
+        document.addEventListener('DOMContentLoaded', () => {
+            // [NEW] 100% Offline Custom DataLabels Plugin
+            const offlineDataLabels = {
+                id: 'offlineDataLabels',
+                afterDatasetsDraw(chart, args, options) {
+                    const {
+                        ctx
+                    } = chart;
+                    ctx.save();
+                    ctx.font = 'bold 12px Helvetica, Arial, sans-serif';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+
+                    chart.data.datasets.forEach((dataset, i) => {
+                        const meta = chart.getDatasetMeta(i);
+                        if (meta.hidden) return;
+
+                        meta.data.forEach((element, index) => {
+                            let dataVal = dataset.data[index];
+                            if (dataVal === undefined || dataVal === null || Number(dataVal) === 0) return;
+
+                            let text = dataVal.toString();
+                            if (chart.config.type === 'pie' || chart.config.type === 'doughnut') {
+                                let total = dataset.data.reduce((a, b) => Number(a) + Number(b), 0);
+                                let percent = Math.round((dataVal / total) * 100);
+                                if (percent < 5) return;
+                                text = `${dataVal} (${percent}%)`;
+                            }
+
+                            if (typeof element.tooltipPosition !== 'function') return;
+                            let pos = element.tooltipPosition();
+                            let x = pos.x;
+                            let y = pos.y;
+                            if ((chart.config.type === 'bar' || meta.type === 'bar') && element.base !== undefined) {
+                                y = (element.base + pos.y) / 2;
+                            }
+                            ctx.strokeStyle = 'rgba(0, 0, 0, 0.75)';
+                            ctx.lineWidth = 3;
+                            ctx.strokeText(text, x, y);
+                            ctx.fillStyle = '#ffffff';
+                            ctx.fillText(text, x, y);
+                        });
                     });
-                });
-                ctx.restore();
-            }
-        };
-        Chart.register(offlineDataLabels);
+                    ctx.restore();
+                }
+            };
+            Chart.register(offlineDataLabels);
 
-        // [NEW] Global Download Function
-        window.downloadSpecificChart = function(canvasId, filename) {
-            const canvas = document.getElementById(canvasId);
-            if (!canvas) {
-                console.error('Canvas not found:', canvasId);
-                return;
-            }
-            try {
-                const destinationCanvas = document.createElement("canvas");
-                destinationCanvas.width = canvas.width;
-                destinationCanvas.height = canvas.height;
-                const destCtx = destinationCanvas.getContext('2d');
-                destCtx.fillStyle = '#FFFFFF';
-                destCtx.fillRect(0, 0, canvas.width, canvas.height);
-                destCtx.drawImage(canvas, 0, 0);
+            const ctx = document.getElementById('hrChart');
+            if (!ctx) return;
 
-                const link = document.createElement('a');
-                link.style.display = 'none';
-                link.download = filename + '_' + new Date().toISOString().split('T')[0] + '.png';
-                link.href = destinationCanvas.toDataURL('image/png');
+            const labels = <?php echo $labels ?: '[]'; ?>;
+            const values = <?php echo $data   ?: '[]'; ?>;
 
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
+            // [NEW] Custom Color Palette Mapping - Edit hex codes here to customize colors
+            const categoryColorMap = {
+                '201 Files': '#4BC0C0',
+                'Contract': '#36A2EB',
+                'Valid ID': '#FFCE56',
+                'Medical': '#9966FF',
+                'Clearance': '#FF9F40',
+                'Uncategorized': '#dc3545' // Keep Red for attention or change to any Hex
+            };
+            const defaultPalette = ['#4BC0C0', '#36A2EB', '#FFCE56', '#9966FF', '#FF9F40', '#FF6384'];
 
-                Swal.fire({
-                    toast: true,
-                    position: 'top-end',
-                    icon: 'success',
-                    title: 'Chart downloaded!',
-                    showConfirmButton: false,
-                    timer: 2000
-                });
-            } catch (e) {
-                console.error('Download failed:', e);
-            }
-        };
-
-        const ctx = document.getElementById('hrChart');
-        if (!ctx) return;
-
-        const labels = <?php echo $labels ?: '[]'; ?>;
-        const values = <?php echo $data   ?: '[]'; ?>;
-
-        // [NEW] Custom Color Palette Mapping - Edit hex codes here to customize colors
-        const categoryColorMap = {
-            '201 Files': '#4BC0C0',
-            'Contract': '#36A2EB',
-            'Valid ID': '#FFCE56',
-            'Medical': '#9966FF',
-            'Clearance': '#FF9F40',
-            'Uncategorized': '#dc3545' // Keep Red for attention or change to any Hex
-        };
-        const defaultPalette = ['#4BC0C0', '#36A2EB', '#FFCE56', '#9966FF', '#FF9F40', '#FF6384'];
-
-        window.hrChartInstance = new Chart(ctx, {
-            type: 'bar',
-            data: {
-                labels,
-                datasets: [{
-                    label: 'Documents',
-                    data: values,
-                    backgroundColor: (ctx) => {
-                        if (ctx.dataIndex != null) {
-                            const lbl = ctx.chart.data.labels[ctx.dataIndex];
-                            return categoryColorMap[lbl] || defaultPalette[ctx.dataIndex % defaultPalette.length];
-                        }
-                        return '#36A2EB';
-                    },
-                    borderRadius: 6,
-                    barPercentage: 0.6, // Controls bar width (0.5 = thin, 0.9 = wide)
-                    categoryPercentage: 1.0
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        display: false
-                    }
-                },
-                scales: {
-                    x: {
-                        ticks: {
-                            color: '#6c757d'
-                        }
-                    },
-                    y: {
-                        beginAtZero: true,
-                        ticks: {
-                            precision: 0,
-                            color: '#6c757d'
+            window.hrChartInstance = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels,
+                    datasets: [{
+                        label: 'Documents',
+                        data: values,
+                        backgroundColor: (ctx) => {
+                            if (ctx.dataIndex != null) {
+                                const lbl = ctx.chart.data.labels[ctx.dataIndex];
+                                return categoryColorMap[lbl] || defaultPalette[ctx.dataIndex % defaultPalette.length];
+                            }
+                            return '#36A2EB';
                         },
-                        grid: {
-                            color: 'rgba(0,0,0,.05)'
-                        }
-                    }
+                        borderRadius: 6,
+                        barPercentage: 0.6, // Controls bar width (0.5 = thin, 0.9 = wide)
+                        categoryPercentage: 1.0
+                    }]
                 },
-                onClick: (e, elements) => {
-                    if (elements.length > 0) {
-                        const index = elements[0].index;
-                        const label = window.hrChartInstance.data.labels[index];
-                        // [NEW] Redirect Uncategorized clicks directly to the Quick Fix tool in the tracker
-                        if (label === 'Uncategorized' || label === 'Documents for Employee') {
-                            window.location.href = 'tracker.php?report=quick_fix';
-                        } else {
-                            window.location.href = `index.php?doc_cat=${encodeURIComponent(label)}`;
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
                         }
+                    },
+                    scales: {
+                        x: {
+                            ticks: {
+                                color: '#6c757d'
+                            }
+                        },
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                precision: 0,
+                                color: '#6c757d'
+                            },
+                            grid: {
+                                color: 'rgba(0,0,0,.05)'
+                            }
+                        }
+                    },
+                    onClick: (e, elements) => {
+                        if (elements.length > 0) {
+                            const index = elements[0].index;
+                            const label = window.hrChartInstance.data.labels[index];
+                            // [NEW] Redirect Uncategorized clicks directly to the Quick Fix tool in the tracker
+                            if (label === 'Uncategorized' || label === 'Documents for Employee') {
+                                window.location.href = 'tracker.php?report=quick_fix';
+                            } else {
+                                window.location.href = `index.php?doc_cat=${encodeURIComponent(label)}`;
+                            }
+                        }
+                    },
+                    onHover: (event, chartElement) => {
+                        event.native.target.style.cursor = chartElement[0] ? 'pointer' : 'default';
                     }
-                },
-                onHover: (event, chartElement) => {
-                    event.native.target.style.cursor = chartElement[0] ? 'pointer' : 'default';
+                }
+            });
+
+            // [NEW] Dark Mode Adapter for Chart
+            function updateChartTheme() {
+                const isDark = document.documentElement.getAttribute('data-bs-theme') === 'dark';
+                const textColor = isDark ? '#adb5bd' : '#6c757d';
+                const gridColor = isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)';
+
+                if (window.hrChartInstance) {
+                    window.hrChartInstance.options.scales.x.ticks.color = textColor;
+                    window.hrChartInstance.options.scales.y.ticks.color = textColor;
+                    window.hrChartInstance.options.scales.y.grid.color = gridColor;
+
+                    if (window.hrChartInstance.options.plugins && window.hrChartInstance.options.plugins.legend) {
+                        window.hrChartInstance.options.plugins.legend.labels = window.hrChartInstance.options.plugins.legend.labels || {};
+                        window.hrChartInstance.options.plugins.legend.labels.color = textColor;
+                    }
+                    window.hrChartInstance.update();
                 }
             }
+
+            // Watch for theme changes
+            new MutationObserver(updateChartTheme).observe(document.documentElement, {
+                attributes: true,
+                attributeFilter: ['data-bs-theme']
+            });
+            updateChartTheme(); // Initial check
         });
 
-        // [NEW] Dark Mode Adapter for Chart
-        function updateChartTheme() {
-            const isDark = document.documentElement.getAttribute('data-bs-theme') === 'dark';
-            const textColor = isDark ? '#adb5bd' : '#6c757d';
-            const gridColor = isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)';
+        // ---------- Typeahead Suggestions (Directory Search) ----------
+        (() => {
+            const searchInput = document.getElementById('mainSearch');
+            const suggestionBox = document.getElementById('suggestionBox');
+            if (!searchInput || !suggestionBox) return;
 
-            if (window.hrChartInstance) {
-                window.hrChartInstance.options.scales.x.ticks.color = textColor;
-                window.hrChartInstance.options.scales.y.ticks.color = textColor;
-                window.hrChartInstance.options.scales.y.grid.color = gridColor;
+            // [NEW] Recent Searches Data
+            const recentSearches = <?php echo json_encode($recentSearches); ?>;
 
-                if (window.hrChartInstance.options.plugins && window.hrChartInstance.options.plugins.legend) {
-                    window.hrChartInstance.options.plugins.legend.labels = window.hrChartInstance.options.plugins.legend.labels || {};
-                    window.hrChartInstance.options.plugins.legend.labels.color = textColor;
-                }
-                window.hrChartInstance.update();
-            }
-        }
-
-        // Watch for theme changes
-        new MutationObserver(updateChartTheme).observe(document.documentElement, {
-            attributes: true,
-            attributeFilter: ['data-bs-theme']
-        });
-        updateChartTheme(); // Initial check
-    });
-
-    // ---------- Typeahead Suggestions (Directory Search) ----------
-    (() => {
-        const searchInput = document.getElementById('mainSearch');
-        const suggestionBox = document.getElementById('suggestionBox');
-        if (!searchInput || !suggestionBox) return;
-
-        // [NEW] Recent Searches Data
-        const recentSearches = <?php echo json_encode($recentSearches); ?>;
-
-        function showRecent() {
-            if (searchInput.value.trim() === '' && recentSearches.length > 0) {
-                suggestionBox.innerHTML = '<div class="list-group-item list-group-item-secondary small fw-bold text-muted"><i class="bi bi-clock-history me-1"></i> Recent Searches</div>';
-                recentSearches.forEach(term => {
-                    const a = document.createElement('a');
-                    a.href = `index.php?search=${encodeURIComponent(term)}`;
-                    a.className = 'list-group-item list-group-item-action small';
-                    a.textContent = term;
-                    suggestionBox.appendChild(a);
-                });
-                suggestionBox.style.display = 'block';
-            } else if (searchInput.value.trim() === '') {
-                suggestionBox.style.display = 'none';
-            }
-        }
-
-        let debounceTimer = null;
-
-        searchInput.addEventListener('focus', showRecent);
-
-        searchInput.addEventListener('input', function() {
-            const q = this.value.trim();
-            if (q.length < 2) {
-                if (q.length === 0) showRecent();
-                else {
-                    suggestionBox.innerHTML = '';
+            function showRecent() {
+                if (searchInput.value.trim() === '' && recentSearches.length > 0) {
+                    suggestionBox.innerHTML = '<div class="list-group-item list-group-item-secondary small fw-bold text-muted"><i class="bi bi-clock-history me-1"></i> Recent Searches</div>';
+                    recentSearches.forEach(term => {
+                        const a = document.createElement('a');
+                        a.href = `index.php?search=${encodeURIComponent(term)}`;
+                        a.className = 'list-group-item list-group-item-action small';
+                        a.textContent = term;
+                        suggestionBox.appendChild(a);
+                    });
+                    suggestionBox.style.display = 'block';
+                } else if (searchInput.value.trim() === '') {
                     suggestionBox.style.display = 'none';
                 }
-                return;
             }
-            clearTimeout(debounceTimer);
-            debounceTimer = setTimeout(() => {
-                fetch(`api/search_suggestions.php?q=${encodeURIComponent(q)}`)
-                    .then(r => r.json())
-                    .then(data => {
-                        suggestionBox.innerHTML = '';
-                        if (Array.isArray(data) && data.length > 0) {
-                            suggestionBox.style.display = 'block';
-                            data.slice(0, 8).forEach(emp => {
-                                const a = document.createElement('a');
-                                a.href = `index.php?search=${encodeURIComponent(emp.emp_id)}`;
-                                a.className = 'list-group-item list-group-item-action d-flex align-items-center';
 
-                                // Create img element safely
-                                const img = document.createElement('img');
-                                img.src = `uploads/avatars/${(emp.avatar_path || 'default.png').replace(/[^a-zA-Z0-9._-]/g, '')}`;
-                                img.width = 30;
-                                img.height = 30;
-                                img.className = 'rounded-circle me-2';
-                                img.onerror = function() {
-                                    this.onerror = null;
-                                    this.src = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI1MCIgZmlsbD0iI2UzZTNlMyIvPjxwYXRoIGQ9Ik01MCA1MCBhMjAgMjAgMCAxIDAgMC00MCAyMCAyMCAwIDEgMCAwIDQwIHptMCAxMCBjLTE1IDAtMzUgMTAtMzUgMzAgdjEwIGg3MCB2LTEwIGMtMC0yMC0yMC0zMC0zNS0zMCIgZmlsbD0iI2FhYSIvPjwvc3ZnPg==';
-                                };
-                                a.appendChild(img);
+            let debounceTimer = null;
 
-                                // Create name/id div safely
-                                const div = document.createElement('div');
-                                const strong = document.createElement('strong');
-                                strong.textContent = (emp.first_name || '') + ' ' + (emp.last_name || '');
-                                const small = document.createElement('small');
-                                small.className = 'text-muted';
-                                small.textContent = emp.emp_id || '';
-                                const br = document.createElement('br');
-                                div.appendChild(strong);
-                                div.appendChild(br);
-                                div.appendChild(small);
-                                a.appendChild(div);
+            searchInput.addEventListener('focus', showRecent);
 
-                                suggestionBox.appendChild(a);
-                            });
-                        } else {
-                            suggestionBox.style.display = 'none';
-                        }
-                    })
-                    .catch(() => {});
-            }, 250);
-        });
-
-        document.addEventListener('click', (e) => {
-            if (!searchInput.contains(e.target) && !suggestionBox.contains(e.target)) {
-                suggestionBox.style.display = 'none';
-            }
-        });
-    })();
-
-    // ---------- Export modal helpers (smart section filter + suggestions) ----------
-    document.addEventListener('DOMContentLoaded', function() {
-        const deptSelect = document.getElementById('exportDept');
-        const sectSelect = document.getElementById('exportSection');
-        if (deptSelect && sectSelect) {
-            const groups = sectSelect.querySelectorAll('optgroup');
-            deptSelect.addEventListener('change', function() {
-                const sel = this.value;
-                if (sel && sel !== 'ALL') {
-                    sectSelect.disabled = false;
-                    sectSelect.value = "";
-                    groups.forEach(g => {
-                        g.style.display = (g.label === sel) ? '' : 'none';
-                    });
-                } else {
-                    sectSelect.disabled = true;
-                    sectSelect.value = "";
-                    groups.forEach(g => {
-                        g.style.display = 'none';
-                    });
-                }
-            });
-            // init hide all grouped sections
-            groups.forEach(g => {
-                g.style.display = 'none';
-            });
-        }
-
-        const input = document.getElementById('exportSearch');
-        const box = document.getElementById('exportSuggestionBox');
-        if (input && box) {
-            let timer;
-            input.addEventListener('input', function() {
+            searchInput.addEventListener('input', function() {
                 const q = this.value.trim();
                 if (q.length < 2) {
-                    box.style.display = 'none';
+                    if (q.length === 0) showRecent();
+                    else {
+                        suggestionBox.innerHTML = '';
+                        suggestionBox.style.display = 'none';
+                    }
                     return;
                 }
-                clearTimeout(timer);
-                timer = setTimeout(() => {
+                clearTimeout(debounceTimer);
+                debounceTimer = setTimeout(() => {
                     fetch(`api/search_suggestions.php?q=${encodeURIComponent(q)}`)
                         .then(r => r.json())
                         .then(data => {
-                            box.innerHTML = '';
+                            suggestionBox.innerHTML = '';
                             if (Array.isArray(data) && data.length > 0) {
-                                box.style.display = 'block';
+                                suggestionBox.style.display = 'block';
                                 data.slice(0, 8).forEach(emp => {
-                                    const item = document.createElement('a');
-                                    item.className = 'list-group-item list-group-item-action';
-                                    item.style.cursor = 'pointer';
+                                    const a = document.createElement('a');
+                                    a.href = `index.php?search=${encodeURIComponent(emp.emp_id)}`;
+                                    a.className = 'list-group-item list-group-item-action d-flex align-items-center';
 
-                                    // Create name display safely using textContent
+                                    // Create img element safely
+                                    const img = document.createElement('img');
+                                    img.src = `uploads/avatars/${(emp.avatar_path || 'default.png').replace(/[^a-zA-Z0-9._-]/g, '')}`;
+                                    img.width = 30;
+                                    img.height = 30;
+                                    img.className = 'rounded-circle me-2';
+                                    img.onerror = function() {
+                                        this.onerror = null;
+                                        this.src = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI1MCIgZmlsbD0iI2UzZTNlMyIvPjxwYXRoIGQ9Ik01MCA1MCBhMjAgMjAgMCAxIDAgMC00MCAyMCAyMCAwIDEgMCAwIDQwIHptMCAxMCBjLTE1IDAtMzUgMTAtMzUgMzAgdjEwIGg3MCB2LTEwIGMtMC0yMC0yMC0zMC0zNS0zMCIgZmlsbD0iI2FhYSIvPjwvc3ZnPg==';
+                                    };
+                                    a.appendChild(img);
+
+                                    // Create name/id div safely
+                                    const div = document.createElement('div');
                                     const strong = document.createElement('strong');
                                     strong.textContent = (emp.first_name || '') + ' ' + (emp.last_name || '');
                                     const small = document.createElement('small');
                                     small.className = 'text-muted';
                                     small.textContent = emp.emp_id || '';
+                                    const br = document.createElement('br');
+                                    div.appendChild(strong);
+                                    div.appendChild(br);
+                                    div.appendChild(small);
+                                    a.appendChild(div);
 
-                                    item.appendChild(strong);
-                                    item.appendChild(document.createTextNode(' '));
-                                    item.appendChild(small);
-
-                                    item.onclick = function() {
-                                        input.value = emp.emp_id || '';
-                                        box.style.display = 'none';
-                                    };
-                                    box.appendChild(item);
+                                    suggestionBox.appendChild(a);
                                 });
                             } else {
-                                box.style.display = 'none';
+                                suggestionBox.style.display = 'none';
                             }
                         })
-                        .catch(() => {
-                            box.style.display = 'none';
-                        });
-                }, 250);
+                        .catch(() => {});
+                }, 180);
             });
+
             document.addEventListener('click', (e) => {
-                if (!input.contains(e.target) && !box.contains(e.target)) {
-                    box.style.display = 'none';
+                if (!searchInput.contains(e.target) && !suggestionBox.contains(e.target)) {
+                    suggestionBox.style.display = 'none';
                 }
             });
-        }
-    });
+        })();
 
-    // ---------- Document Preview ----------
-    function showPreview(url, type, containerId) {
-        const container = document.getElementById(containerId);
-        if (!container) return;
-        container.innerHTML = '<div class="d-flex justify-content-center align-items-center h-100 text-muted"><div class="spinner-border spinner-border-sm text-primary me-2"></div> Loading...</div>';
-        setTimeout(() => {
-            container.innerHTML = '';
-            if (type === 'pdf') {
-                const iframe = document.createElement('iframe');
-                iframe.src = url;
-                iframe.className = 'preview-iframe';
-                container.appendChild(iframe);
-            } else {
-                const img = document.createElement('img');
-                img.src = url;
-                img.className = 'preview-img';
-                img.alt = 'Preview';
-                container.appendChild(img);
+        // ---------- Export modal helpers (smart section filter + suggestions) ----------
+        document.addEventListener('DOMContentLoaded', function() {
+            const deptSelect = document.getElementById('exportDept');
+            const sectSelect = document.getElementById('exportSection');
+            if (deptSelect && sectSelect) {
+                const groups = sectSelect.querySelectorAll('optgroup');
+                deptSelect.addEventListener('change', function() {
+                    const sel = this.value;
+                    if (sel && sel !== 'ALL') {
+                        sectSelect.disabled = false;
+                        sectSelect.value = "";
+                        groups.forEach(g => {
+                            g.style.display = (g.label === sel) ? '' : 'none';
+                        });
+                    } else {
+                        sectSelect.disabled = true;
+                        sectSelect.value = "";
+                        groups.forEach(g => {
+                            g.style.display = 'none';
+                        });
+                    }
+                });
+                // init hide all grouped sections
+                groups.forEach(g => {
+                    g.style.display = 'none';
+                });
             }
-        }, 200);
-    }
 
-    // ---------- Delete confirmation ----------
-    function confirmDelete(uuid, empId) {
-        document.getElementById('del_file_uuid').value = uuid;
-        document.getElementById('del_emp_id').value = empId;
-        new bootstrap.Modal(document.getElementById('deleteModal')).show();
-    }
+            const input = document.getElementById('exportSearch');
+            const box = document.getElementById('exportSuggestionBox');
+            if (input && box) {
+                let timer;
+                input.addEventListener('input', function() {
+                    const q = this.value.trim();
+                    if (q.length < 2) {
+                        box.style.display = 'none';
+                        return;
+                    }
+                    clearTimeout(timer);
+                    timer = setTimeout(() => {
+                        fetch(`api/search_suggestions.php?q=${encodeURIComponent(q)}`)
+                            .then(r => r.json())
+                            .then(data => {
+                                box.innerHTML = '';
+                                if (Array.isArray(data) && data.length > 0) {
+                                    box.style.display = 'block';
+                                    data.slice(0, 8).forEach(emp => {
+                                        const item = document.createElement('a');
+                                        item.className = 'list-group-item list-group-item-action';
+                                        item.style.cursor = 'pointer';
 
-    // ---------- Resolve Modal ----------
-    function openResolveModal(id, fileName, currentNote = '') {
-        const idField = document.getElementById('res_doc_id');
-        const nameField = document.getElementById('res_cat_name');
-        const noteField = document.getElementById('res_note');
-        const modalEl = document.getElementById('resolveModal');
-        if (!idField || !nameField || !modalEl) return;
+                                        // Create name display safely using textContent
+                                        const strong = document.createElement('strong');
+                                        strong.textContent = (emp.first_name || '') + ' ' + (emp.last_name || '');
+                                        const small = document.createElement('small');
+                                        small.className = 'text-muted';
+                                        small.textContent = emp.emp_id || '';
 
-        idField.value = String(id);
-        nameField.innerText = fileName;
-        if (noteField) noteField.value = currentNote;
-        const modal = new bootstrap.Modal(modalEl);
-        modal.show();
-    }
+                                        item.appendChild(strong);
+                                        item.appendChild(document.createTextNode(' '));
+                                        item.appendChild(small);
 
-    // [NEW] Show Export Loader
-    function showExportLoader(form) {
-        Swal.fire({
-            title: 'Compiling Data...',
-            html: `
+                                        item.onclick = function() {
+                                            input.value = emp.emp_id || '';
+                                            box.style.display = 'none';
+                                        };
+                                        box.appendChild(item);
+                                    });
+                                } else {
+                                    box.style.display = 'none';
+                                }
+                            })
+                            .catch(() => {
+                                box.style.display = 'none';
+                            });
+                    }, 200);
+                });
+                document.addEventListener('click', (e) => {
+                    if (!input.contains(e.target) && !box.contains(e.target)) {
+                        box.style.display = 'none';
+                    }
+                });
+            }
+        });
+
+        // ---------- Document Preview ----------
+        function showPreview(url, type, containerId) {
+            const container = document.getElementById(containerId);
+            if (!container) return;
+            container.innerHTML = '<div class="d-flex justify-content-center align-items-center h-100 text-muted"><div class="spinner-border spinner-border-sm text-primary me-2"></div> Loading...</div>';
+            setTimeout(() => {
+                container.innerHTML = '';
+                if (type === 'pdf') {
+                    const iframe = document.createElement('iframe');
+                    iframe.src = url;
+                    iframe.className = 'preview-iframe';
+                    container.appendChild(iframe);
+                } else {
+                    const img = document.createElement('img');
+                    img.src = url;
+                    img.className = 'preview-img';
+                    img.alt = 'Preview';
+                    container.appendChild(img);
+                }
+            }, 200);
+        }
+
+        // ---------- Delete confirmation ----------
+        function confirmDelete(uuid, empId) {
+            document.getElementById('del_file_uuid').value = uuid;
+            document.getElementById('del_emp_id').value = empId;
+            new bootstrap.Modal(document.getElementById('deleteModal')).show();
+        }
+
+        // ---------- Resolve Modal ----------
+        function openResolveModal(id, fileName, currentNote = '') {
+            const idField = document.getElementById('res_doc_id');
+            const nameField = document.getElementById('res_cat_name');
+            const noteField = document.getElementById('res_note');
+            const modalEl = document.getElementById('resolveModal');
+            if (!idField || !nameField || !modalEl) return;
+
+            idField.value = String(id);
+            nameField.innerText = fileName;
+            if (noteField) noteField.value = currentNote;
+            const modal = new bootstrap.Modal(modalEl);
+            modal.show();
+        }
+
+        // [NEW] Show Export Loader
+        function showExportLoader(form) {
+            Swal.fire({
+                title: 'Compiling Data...',
+                html: `
                     <p class="text-muted small mb-3">Scanning files and building the ZIP archive. Please wait...</p>
                     <div class="progress mb-3" style="height: 25px;">
                         <div class="progress-bar progress-bar-striped progress-bar-animated bg-success" style="width: 100%"></div>
                     </div>
                     <span class="text-danger fw-bold small">This may take a few minutes. Do not close this window!</span>
                 `,
-            allowOutsideClick: false,
-            allowEscapeKey: false,
-            showConfirmButton: false
-        });
+                allowOutsideClick: false,
+                allowEscapeKey: false,
+                showConfirmButton: false
+            });
 
-        const csrf = form.querySelector('[name="csrf_token"]').value;
-        let attempts = 0;
-        const maxAttempts = 300; // 5 minutes
-        const checkCookie = setInterval(() => {
-            attempts++;
-            if (document.cookie.includes('downloadToken=' + csrf)) {
-                clearInterval(checkCookie);
-                Swal.close();
-                document.cookie = "downloadToken=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
-                return;
+            const csrf = form.querySelector('[name="csrf_token"]').value;
+            let attempts = 0;
+            const maxAttempts = 300; // 5 minutes
+            const checkCookie = setInterval(() => {
+                attempts++;
+                if (document.cookie.includes('downloadToken=' + csrf)) {
+                    clearInterval(checkCookie);
+                    Swal.close();
+                    document.cookie = "downloadToken=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+                    return;
+                }
+                if (attempts >= maxAttempts) {
+                    clearInterval(checkCookie);
+                    Swal.close();
+                    document.cookie = "downloadToken=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Timeout',
+                        text: 'The export did not start within a few minutes. Please try again or check your browser settings.'
+                    });
+                }
+            }, 1000);
+        }
+
+        // ---------- Bulk Selection Helpers ----------
+        const selectionStorageKey = 'hr201_selected_employees';
+        let selectedEmployeeIds = new Set();
+
+        function loadSelectedEmployees() {
+            const stored = localStorage.getItem(selectionStorageKey);
+            if (!stored) return;
+            try {
+                const ids = JSON.parse(stored);
+                if (Array.isArray(ids)) {
+                    selectedEmployeeIds = new Set(ids.map(id => String(id)).filter(id => id !== ''));
+                }
+            } catch (e) {
+                selectedEmployeeIds = new Set();
             }
-            if (attempts >= maxAttempts) {
-                clearInterval(checkCookie);
-                Swal.close();
-                document.cookie = "downloadToken=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
-                Swal.fire({
-                    icon: 'error',
-                    title: 'Timeout',
-                    text: 'The export did not start within a few minutes. Please try again or check your browser settings.'
+        }
+
+        function saveSelectedEmployees() {
+            localStorage.setItem(selectionStorageKey, JSON.stringify(Array.from(selectedEmployeeIds)));
+        }
+
+        function updateSelectionCount() {
+            const selectedCount = document.getElementById('selectedCount');
+            const bulkBtn = document.getElementById('bulkActionBtn');
+            const count = selectedEmployeeIds.size;
+            if (selectedCount) selectedCount.innerText = count;
+            if (bulkBtn) bulkBtn.classList.toggle('d-none', count === 0);
+            buildBulkIdsInputs();
+        }
+
+        function setEmployeeSelected(id, selected) {
+            if (!id) return;
+            if (selected) {
+                selectedEmployeeIds.add(String(id));
+            } else {
+                selectedEmployeeIds.delete(String(id));
+            }
+            saveSelectedEmployees();
+            updateSelectionCount();
+        }
+
+        function syncSelectionCheckboxes() {
+            document.querySelectorAll('.emp-select-check').forEach(cb => {
+                cb.checked = selectedEmployeeIds.has(String(cb.value));
+            });
+            updateSelectionCount();
+        }
+
+        function toggleSelectAllEmployees() {
+            const checkboxes = Array.from(document.querySelectorAll('.emp-select-check'));
+            if (checkboxes.length === 0) return;
+            const allChecked = checkboxes.every(cb => cb.checked);
+            checkboxes.forEach(cb => {
+                cb.checked = !allChecked;
+                if (!cb.disabled) {
+                    if (!allChecked) {
+                        selectedEmployeeIds.add(String(cb.value));
+                    } else {
+                        selectedEmployeeIds.delete(String(cb.value));
+                    }
+                }
+            });
+            saveSelectedEmployees();
+            updateSelectionCount();
+        }
+
+        function collectSelectedEmployeeIds() {
+            return Array.from(selectedEmployeeIds);
+        }
+
+        function buildBulkIdsInputs() {
+            const container = document.getElementById('bulkMoveIdsContainer');
+            if (!container) return;
+            container.innerHTML = '';
+            collectSelectedEmployeeIds().forEach(id => {
+                const input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = 'selected_ids[]';
+                input.value = id;
+                container.appendChild(input);
+            });
+            const modalCount = document.getElementById('modalSelectedCount');
+            if (modalCount) modalCount.innerText = collectSelectedEmployeeIds().length;
+        }
+
+        /**
+         * [FIX] Dynamic Section Filter for Bulk Modal
+         */
+        function updateBulkSections() {
+            const deptSelect = document.getElementById('bulkTargetDept');
+            const sectSelect = document.getElementById('bulkTargetSection');
+            if (!deptSelect || !sectSelect) return;
+
+            const selectedDept = deptSelect.value;
+            sectSelect.innerHTML = '<option value="">-- All Sections --</option>';
+
+            if (selectedDept && deptMapData[selectedDept]) {
+                deptMapData[selectedDept].forEach(section => {
+                    const opt = document.createElement('option');
+                    opt.value = section;
+                    opt.textContent = section;
+                    sectSelect.appendChild(opt);
                 });
             }
-        }, 1000);
-    }
+        }
 
-    // ---------- Bulk Selection Helpers ----------
-    const selectionStorageKey = 'hr201_selected_employees';
-    let selectedEmployeeIds = new Set();
+        /**
+         * [FIX] Confirmation popup that summarizes changes for safety
+         */
+        function confirmBulkAction() {
+            const form = document.getElementById('bulkActionForm');
+            const count = selectedEmployeeIds.size;
 
-    function loadSelectedEmployees() {
-        const stored = localStorage.getItem(selectionStorageKey);
-        if (!stored) return;
-        try {
-            const ids = JSON.parse(stored);
-            if (Array.isArray(ids)) {
-                selectedEmployeeIds = new Set(ids.map(id => String(id)).filter(id => id !== ''));
+            const dept = document.getElementById('bulkTargetDept').value;
+            const sect = document.getElementById('bulkTargetSection').value;
+            const role = document.getElementById('bulkTargetRole').value;
+            const agency = document.getElementById('bulkTargetAgency').value;
+            const status = form.querySelector('select[name="target_status"]').value;
+
+            if (!dept && !sect && !role && !agency && !status) {
+                Swal.fire('No Changes', 'Please select at least one field to update.', 'info');
+                return;
             }
-        } catch (e) {
-            selectedEmployeeIds = new Set();
+
+            let summary = '<ul class="text-start small">';
+            if (dept) summary += `<li>Department: <strong>${dept}</strong></li>`;
+            if (sect) summary += `<li>Section: <strong>${sect}</strong></li>`;
+            if (role) summary += `<li>System Role: <strong>${role}</strong></li>`;
+            if (agency) summary += `<li>Agency: <strong>${agency}</strong></li>`;
+            if (status) summary += `<li>Status: <strong>${status}</strong></li>`;
+            summary += '</ul>';
+
+            Swal.fire({
+                title: `Update ${count} Employees?`,
+                html: `<p>The following changes will be applied to all selected profiles:</p>${summary}`,
+                icon: 'question',
+                showCancelButton: true,
+                confirmButtonColor: '#198754',
+                confirmButtonText: 'Yes, Apply Changes'
+            }).then((result) => {
+                if (result.isConfirmed) form.submit();
+            });
         }
-    }
 
-    function saveSelectedEmployees() {
-        localStorage.setItem(selectionStorageKey, JSON.stringify(Array.from(selectedEmployeeIds)));
-    }
+        document.addEventListener('DOMContentLoaded', function() {
+            loadSelectedEmployees();
+            syncSelectionCheckboxes();
 
-    function updateSelectionCount() {
-        const selectedCount = document.getElementById('selectedCount');
-        const bulkBtn = document.getElementById('bulkActionBtn');
-        const count = selectedEmployeeIds.size;
-        if (selectedCount) selectedCount.innerText = count;
-        if (bulkBtn) bulkBtn.classList.toggle('d-none', count === 0);
-        buildBulkIdsInputs();
-    }
-
-    function setEmployeeSelected(id, selected) {
-        if (!id) return;
-        if (selected) {
-            selectedEmployeeIds.add(String(id));
-        } else {
-            selectedEmployeeIds.delete(String(id));
-        }
-        saveSelectedEmployees();
-        updateSelectionCount();
-    }
-
-    function syncSelectionCheckboxes() {
-        document.querySelectorAll('.emp-select-check').forEach(cb => {
-            cb.checked = selectedEmployeeIds.has(String(cb.value));
+            // [FIX] Ensure bulk modal checkbox list is built when opening
+            const bulkModal = document.getElementById('bulkActionModal');
+            if (bulkModal) {
+                bulkModal.addEventListener('show.bs.modal', buildBulkIdsInputs);
+            }
         });
-        updateSelectionCount();
-    }
 
-    function toggleSelectAllEmployees() {
-        const checkboxes = Array.from(document.querySelectorAll('.emp-select-check'));
-        if (checkboxes.length === 0) return;
-        const allChecked = checkboxes.every(cb => cb.checked);
-        checkboxes.forEach(cb => {
-            cb.checked = !allChecked;
-            if (!cb.disabled) {
-                if (!allChecked) {
-                    selectedEmployeeIds.add(String(cb.value));
-                } else {
-                    selectedEmployeeIds.delete(String(cb.value));
+        // [NEW] View Mode Logic
+        let table = null;
+
+        function switchView(mode) {
+            const cards = document.getElementById('view-cards');
+            const grid = document.getElementById('view-spreadsheet');
+            const btnCards = document.getElementById('btn-view-cards');
+            const btnGrid = document.getElementById('btn-view-grid');
+
+            if (mode === 'grid') {
+                if (cards) cards.style.display = 'none';
+                if (grid) grid.style.display = 'block';
+
+                btnGrid.classList.add('active');
+                btnCards.classList.remove('active');
+                localStorage.setItem('hr_preferred_view', 'grid');
+
+                // [FIX] Double requestAnimationFrame guarantees layout commitment 
+                // before we ask Tabulator to calculate its widths.
+                requestAnimationFrame(() => {
+                    requestAnimationFrame(() => {
+                        if (!table) initTabulator();
+                        else table.redraw(true);
+                    });
+                });
+            } else {
+                if (cards) cards.style.display = 'block';
+                if (grid) grid.style.display = 'none';
+                btnCards.classList.add('active');
+                btnGrid.classList.remove('active');
+                localStorage.setItem('hr_preferred_view', 'cards');
+            }
+        }
+
+        /**
+         * [FIXED] Robust Tabulator Initialization with Manual Data Fetch (Async)
+         */
+        async function initTabulator() {
+            const gridEl = document.getElementById("employee-master-grid");
+            if (!gridEl || typeof Tabulator === 'undefined') {
+                console.error("Tabulator library missing or container not found.");
+                return;
+            }
+
+            table = new Tabulator(gridEl, {
+                layout: "fitColumns",
+                placeholder: "<div class='p-5 text-center'><div class='spinner-border text-primary mb-3'></div><p class='text-muted'>Fetching live directory data...</p></div>",
+                pagination: "local",
+                paginationSize: 20,
+                height: "600px",
+                responsiveLayout: "collapse",
+                rowFormatter: function(row) {
+                    if (row.getData().status === 'Terminated') {
+                        row.getElement().style.backgroundColor = "#f8d7da";
+                        row.getElement().style.color = "#842029";
+                    }
+                },
+                rowClick: function(e, row) {
+                    const data = row.getData();
+                    const modalId = 'viewModal' + data.id;
+                    const modalEl = document.getElementById(modalId);
+                    if (modalEl) {
+                        const modal = new bootstrap.Modal(modalEl);
+                        modal.show();
+                    }
+                },
+                columns: [{
+                        title: "EMP ID",
+                        field: "emp_id",
+                        frozen: true,
+                        headerFilter: "input",
+                        width: 120
+                    },
+                    {
+                        title: "Last Name",
+                        field: "last_name",
+                        frozen: true,
+                        headerFilter: "input"
+                    },
+                    {
+                        title: "First Name",
+                        field: "first_name",
+                        frozen: true,
+                        headerFilter: "input"
+                    },
+                    {
+                        title: "Job Category",
+                        field: "system_role",
+                        headerFilter: "list",
+                        headerFilterParams: {
+                            valuesLookup: true,
+                            clearable: true
+                        }
+                    },
+                    {
+                        title: "Job Title",
+                        field: "job_title",
+                        headerFilter: "input"
+                    },
+                    {
+                        title: "Employer / Type",
+                        field: "agency_name",
+                        headerFilter: "list",
+                        headerFilterParams: {
+                            valuesLookup: true,
+                            clearable: true
+                        },
+                        formatter: (cell) => {
+                            const row = cell.getData();
+                            return cell.getValue() || row.employment_type || "TESP Direct";
+                        }
+                    },
+                    {
+                        title: "Department",
+                        field: "dept",
+                        headerFilter: "list",
+                        headerFilterParams: {
+                            valuesLookup: true,
+                            clearable: true
+                        }
+                    },
+                    {
+                        title: "Section",
+                        field: "section",
+                        headerFilter: "list",
+                        headerFilterParams: {
+                            valuesLookup: true,
+                            clearable: true
+                        }
+                    },
+                    {
+                        title: "Status",
+                        field: "status",
+                        headerFilter: "list",
+                        headerFilterParams: {
+                            values: ["Active", "Resigned", "Terminated"],
+                            clearable: true
+                        }
+                    },
+                ],
+            });
+
+            // Setup download buttons once
+            const csvBtn = document.getElementById("download-csv");
+            const xlsxBtn = document.getElementById("download-xlsx");
+            if (csvBtn) csvBtn.onclick = () => table.download("csv", "HR_Master_List.csv");
+            if (xlsxBtn) xlsxBtn.onclick = () => table.download("xlsx", "HR_Master_List.xlsx");
+
+            // Perform Manual Data Fetch with Cache Buster
+            try {
+                const response = await fetch("api/get_master_list.php?_=" + new Date().getTime());
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error("Server Response:", errorText);
+                    table.setPlaceholder("<div class='text-danger p-5'><i class='bi bi-exclamation-octagon fs-1'></i><br>Server Error: " + response.status + "</div>");
+                    return;
                 }
+
+                let data;
+                try {
+                    data = await response.json();
+                } catch (jsonErr) {
+                    console.error("JSON Parse Error. Server outputted non-JSON content.");
+                    table.setPlaceholder("<div class='text-danger p-5'><i class='bi bi-bug fs-1'></i><br>System Error: Malformed Data Received</div>");
+                    return;
+                }
+
+                if (data.error) {
+                    table.setPlaceholder("<div class='text-danger p-5'><i class='bi bi-exclamation-octagon fs-1'></i><br>System Error: " + data.error + "</div>");
+                } else {
+                    table.setData(data);
+                    // Force redraw after data injection to ensure proper alignment
+                    setTimeout(() => {
+                        if (table) table.redraw(true);
+                    }, 100);
+                    if (data.length === 0) {
+                        table.setPlaceholder("<div class='text-muted p-5'><i class='bi bi-inbox fs-1'></i><br>No employees found in the directory.</div>");
+                    }
+                }
+            } catch (err) {
+                console.error("Grid Sync Error:", err);
+                table.setPlaceholder("<div class='text-danger p-5'><i class='bi bi-wifi-off fs-1'></i><br>Unable to load data. Please check your connection.</div>");
             }
+        }
+
+        // [FIX] Global helper for HTML escaping
+        const h = (str) => {
+            if (!str) return '';
+            const div = document.createElement('div');
+            div.textContent = str;
+            return div.innerHTML;
+        };
+
+        // --- AUTO-REFRESH SYSTEM ---
+        let isPaused = false;
+
+        function refreshSystem() {
+            if (isPaused) return;
+            const spinner = document.getElementById('sync-spinner');
+            if (spinner) spinner.style.display = 'inline-block';
+
+            fetch('api/get_updates.php?_=' + new Date().getTime())
+                .then(response => response.json())
+                .then(data => {
+                    const notifBadge = document.getElementById('notifyBadge');
+                    const notifList = document.getElementById('notifyList');
+                    if (notifBadge) {
+                        notifBadge.innerText = data.count;
+                        const badgeClass = (data.msgCount > 0) ? 'bg-danger' : 'bg-warning text-dark';
+                        notifBadge.className = `position-absolute top-0 start-100 translate-middle badge rounded-pill ${badgeClass}`;
+                        notifBadge.style.display = (data.count > 0) ? '' : 'none';
+                    }
+                    if (notifList && data.html) notifList.innerHTML = data.html;
+                    if (window.hrChartInstance && data.chartLabels && data.chartValues) {
+                        window.hrChartInstance.data.labels = data.chartLabels;
+                        window.hrChartInstance.data.datasets[0].data = data.chartValues;
+                        window.hrChartInstance.update();
+                    }
+                })
+                .catch(() => {})
+                .finally(() => {
+                    if (spinner) spinner.style.display = 'none';
+                });
+        }
+
+        document.addEventListener("DOMContentLoaded", function() {
+            // [FIX] Restore View Preference on Load
+            const preferredView = localStorage.getItem('hr_preferred_view') || 'cards';
+            switchView(preferredView);
+
+            const toggleBtn = document.getElementById('refreshToggle');
+            if (toggleBtn) {
+                toggleBtn.addEventListener('click', function() {
+                    isPaused = !isPaused;
+                    this.innerHTML = isPaused ? '<i class="bi bi-play-circle-fill text-warning"></i>' : '<i class="bi bi-pause-circle"></i>';
+                    this.title = isPaused ? "Resume Dashboard Updates" : "Pause Dashboard Updates";
+                    if (!isPaused) refreshSystem();
+                });
+            }
+            setInterval(refreshSystem, <?php echo (int)$refreshInterval * 1000; ?>);
+
+            refreshSystem(); // Run once on load
         });
-        saveSelectedEmployees();
-        updateSelectionCount();
-    }
 
-    function collectSelectedEmployeeIds() {
-        return Array.from(selectedEmployeeIds);
-    }
+        // --- SweetAlert2 for PHP Session Messages ---
+        <?php if (!empty($_SESSION['backup_msg'])): ?>
+            Swal.fire({
+                icon: 'success',
+                title: 'System Update',
+                text: <?= json_encode($_SESSION['backup_msg']) ?>,
+                timer: 3000,
+                showConfirmButton: false
+            });
+            <?php unset($_SESSION['backup_msg']); ?>
+        <?php endif; ?>
+        <?php if (!empty($_SESSION['error'])): ?>
+            Swal.fire({
+                icon: 'error',
+                title: 'Action Failed',
+                text: <?= json_encode($_SESSION['error']) ?>
+            });
+            <?php unset($_SESSION['error']); ?>
+        <?php endif; ?>
 
-    function buildBulkIdsInputs() {
-        const container = document.getElementById('bulkMoveIdsContainer');
-        if (!container) return;
-        container.innerHTML = '';
-        collectSelectedEmployeeIds().forEach(id => {
-            const input = document.createElement('input');
-            input.type = 'hidden';
-            input.name = 'selected_ids[]';
-            input.value = id;
-            container.appendChild(input);
-        });
-        const modalCount = document.getElementById('modalSelectedCount');
-        if (modalCount) modalCount.innerText = collectSelectedEmployeeIds().length;
-    }
-
-    // [NEW] Toggle listener for Bulk Modal
-    document.getElementById('bulkManualEndDateOverride')?.addEventListener('change', function() {
-        document.getElementById('bulkManualEndDateValue').style.display = this.checked ? 'block' : 'none';
-    });
-
-    function submitBulkCOE() {
-        const ids = collectSelectedEmployeeIds();
-        if (ids.length === 0) {
-            Swal.fire('No selection', 'Please select at least one employee to generate COEs.', 'warning');
-            return;
+        // [NEW] Handle URL Messages (Success/Error) on Page Load
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.has('msg')) {
+            const msgText = urlParams.get('msg');
+            const isError = msgText.toLowerCase().includes('error') || msgText.toLowerCase().includes('failed');
+            Swal.fire({
+                icon: isError ? 'error' : 'success',
+                title: isError ? 'Action Failed' : 'Success',
+                text: msgText,
+                timer: isError ? undefined : 3000,
+                showConfirmButton: isError
+            });
+            if (window.history.replaceState) {
+                const url = new URL(window.location.href);
+                url.searchParams.delete('msg');
+                window.history.replaceState(null, null, url.toString());
+            }
+        }
+        if (urlParams.has('error')) {
+            Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: urlParams.get('error')
+            });
+            if (window.history.replaceState) {
+                const url = new URL(window.location.href);
+                url.searchParams.delete('error');
+                window.history.replaceState(null, null, url.toString());
+            }
         }
 
-        const override = document.getElementById('bulkManualEndDateOverride').checked ? 'on' : 'off';
-        const dateVal = document.getElementById('bulkManualEndDateValue').value;
-        const idParam = ids.join(',');
-
-        window.open(`generate_document.php?ids=${idParam}&type=coe&manual_end_date_override=${override}&manual_end_date_value=${dateVal}`, '_blank');
-    }
-
-    document.addEventListener('DOMContentLoaded', function() {
-        loadSelectedEmployees();
-        syncSelectionCheckboxes();
-        const bulkModal = document.getElementById('bulkActionModal');
-        if (bulkModal) {
-            bulkModal.addEventListener('show.bs.modal', buildBulkIdsInputs);
-        }
-    });
-
-    // ---------- Prevent "stuck" screen with nested modals ----------
-    document.addEventListener('hidden.bs.modal', function() {
-        const anyOpen = document.querySelectorAll('.modal.show').length > 0;
-        if (anyOpen) {
-            document.body.classList.add('modal-open');
-        } else {
-            document.body.classList.remove('modal-open');
-        }
-    });
-
-    // ---------- Auto-open target modal from notification & restore list on cancel ----------
-    document.addEventListener('DOMContentLoaded', function() {
-
-        // [UX STABILIZATION] Scroll Memory Helper
-        // Prevents the page from jumping to the top after an action redirect (e.g. status change, save)
+        // [NEW] Scroll Memory Logic
         const scrollKey = 'hr201_scroll_pos_' + window.location.pathname;
-
         window.addEventListener('beforeunload', () => {
             sessionStorage.setItem(scrollKey, window.scrollY);
         });
 
         const urlParamsForScroll = new URLSearchParams(window.location.search);
-        // Restore scroll if we have a message, error, or specific view params
-        if (urlParamsForScroll.has('msg') || urlParamsForScroll.has('error') || urlParamsForScroll.has('page') || urlParamsForScroll.has('doc_cat')) {
+        // Restore scroll if a message, error, page change, or search was performed
+        if (urlParamsForScroll.has('msg') || urlParamsForScroll.has('error') || urlParamsForScroll.has('page') || urlParamsForScroll.has('search') || urlParamsForScroll.has('doc_cat')) {
             const savedPos = sessionStorage.getItem(scrollKey);
-            if (savedPos) {
-                window.scrollTo(0, parseInt(savedPos));
-            }
+            if (savedPos) window.scrollTo(0, parseInt(savedPos));
         }
-
-        // [NEW] Prevent page from jumping to top when filtering
-        if (window.location.search && !window.location.hash && !window.location.search.includes('msg=')) {
-            const searchBar = document.getElementById('directory-search-bar');
-            if (searchBar) {
-                setTimeout(() => {
-                    searchBar.scrollIntoView({
-                        behavior: 'smooth',
-                        block: 'start'
-                    });
-                }, 100);
-            }
-        }
-
-        const params = new URLSearchParams(window.location.search);
-        const targetDoc = params.get('resolve_doc');
-        const targetEmp = params.get('search');
-
-        if (targetDoc && targetEmp) {
-            // Find the modal for the targeted employee on this page
-            const modalEl = document.querySelector(`.modal[data-emp-id-str="${CSS.escape(targetEmp)}"]`);
-            if (modalEl) {
-                const modal = new bootstrap.Modal(modalEl);
-                modal.show();
-
-                // When user closes the modal, go back to full list (no ?search=)
-                modalEl.addEventListener('hidden.bs.modal', function onHide() {
-                    modalEl.removeEventListener('hidden.bs.modal', onHide);
-                    window.location.href = 'index.php';
-                }, {
-                    once: true
-                });
-            }
-
-            // Clean noisy params from URL immediately to avoid refresh issues
-            const cleanUrl = window.location.pathname; // no query
-            window.history.replaceState({}, document.title, cleanUrl);
-        }
-    });
+    </script>
 
 
-    // --- AUTO-REFRESH SYSTEM ---
-    let isPaused = false;
+    </body>
 
-    function refreshSystem() {
-        if (isPaused) return;
-        const spinner = document.getElementById('sync-spinner');
-        if (spinner) spinner.style.display = 'inline-block';
-
-        fetch('api/get_updates.php?_=' + new Date().getTime())
-            .then(response => response.json())
-            .then(data => {
-                const notifBadge = document.getElementById('notifyBadge');
-                const notifList = document.getElementById('notifyList');
-                if (notifBadge) {
-                    notifBadge.innerText = data.count;
-                    const badgeClass = (data.msgCount > 0) ? 'bg-danger' : 'bg-warning text-dark';
-                    notifBadge.className = `position-absolute top-0 start-100 translate-middle badge rounded-pill ${badgeClass}`;
-                    notifBadge.style.display = (data.count > 0) ? '' : 'none';
-                }
-                if (notifList && data.html) notifList.innerHTML = data.html;
-                if (window.hrChartInstance && data.chartLabels && data.chartValues) {
-                    window.hrChartInstance.data.labels = data.chartLabels;
-                    window.hrChartInstance.data.datasets[0].data = data.chartValues;
-                    window.hrChartInstance.update();
-                }
-            })
-            .catch(() => {})
-            .finally(() => {
-                if (spinner) spinner.style.display = 'none';
-            });
-    }
-
-    document.addEventListener("DOMContentLoaded", function() {
-        setInterval(refreshSystem, <?php echo (int)$refreshInterval * 1000; ?>);
-
-        refreshSystem(); // Run once on load
-
-        <?php if (isset($triggerAutoBackup) && $triggerAutoBackup): ?>
-            // [NEW] Trigger automated backup via AJAX to prevent dashboard hanging
-            console.log("Automatic Backup Triggered: Connecting to cron_backup.php...");
-            fetch('cron_backup.php?ajax=1')
-                .then(r => r.json())
-                .then(() => {
-                    refreshSystem(); // Always update UI to show either success or failure notification
-                }).catch(() => {
-                    refreshSystem();
-                });
-        <?php endif; ?>
-    });
-</script>
-
-
-</body>
-
-</html>
+    </html>

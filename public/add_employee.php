@@ -126,6 +126,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $skills     = post('skills');
     $licenses   = post('licenses');
 
+    $college_degree = post('college_degree');
+    $college_course = post('college_course');
+    $college_year   = post('college_year');
+
     // 3. Logic: Map Employment Type
     if (!in_array($input_selection, $agencies, true)) {
         $errors[] = "Invalid Employment Type.";
@@ -166,6 +170,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         ['val' => $experience, 'name' => 'Experience', 'max' => 1000, 'pattern' => "/^[a-zA-Z0-9\s\.,\-\(\)\/\':]*$/"],
         ['val' => $skills, 'name' => 'Skills', 'max' => 1000, 'pattern' => "/^[a-zA-Z0-9\s\.,\-\(\)\/\':]*$/"],
         ['val' => $licenses, 'name' => 'Licenses', 'max' => 1000, 'pattern' => "/^[a-zA-Z0-9\s\.,\-\(\)\/\':]*$/"],
+        ['val' => $college_degree, 'name' => 'College Degree', 'max' => 100, 'pattern' => "/^[a-zA-Z0-9\s\-\.\(\)\',]*$/"],
+        ['val' => $college_course, 'name' => 'College Course', 'max' => 100, 'pattern' => "/^[a-zA-Z0-9\s\-\.\(\)\',]*$/"],
+        ['val' => $college_year, 'name' => 'Year Finished', 'max' => 10, 'pattern' => "/^[0-9]*$/"],
         ['val' => $dept, 'name' => 'Department', 'max' => 50],
         ['val' => $section, 'name' => 'Section', 'max' => 100],
         ['val' => post('request_note'), 'name' => 'Request Note', 'max' => 500],
@@ -221,6 +228,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'experience' => $experience,
         'skills' => $skills,
         'licenses' => $licenses,
+        'college_degree' => $college_degree,
+        'college_course' => $college_course,
+        'college_year' => $college_year,
         'status' => 'Active'
     ];
 
@@ -679,6 +689,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                     <h5 class="section-header mt-4">🎓 Qualifications & Educational Background</h5>
                     <div class="row g-3 mb-4">
+                        <div class="col-md-5">
+                            <label class="form-label">College Degree</label>
+                            <input type="text" name="college_degree" class="form-control" value="<?php echo old('college_degree'); ?>" placeholder="e.g. Bachelor's Degree" list="degree_list" maxlength="100">
+                            <datalist id="degree_list">
+                                <option value="Bachelor's Degree">
+                                <option value="Master's Degree">
+                                <option value="Doctorate Degree">
+                                <option value="Associate Degree">
+                                <option value="Vocational Course">
+                            </datalist>
+                        </div>
+                        <div class="col-md-5">
+                            <label class="form-label">Course / Major</label>
+                            <input type="text" name="college_course" class="form-control" value="<?php echo old('college_course'); ?>" placeholder="e.g. BS Computer Science" list="course_list" maxlength="100">
+                            <datalist id="course_list">
+                                <?php foreach ($college_courses_list as $course): ?>
+                                    <option value="<?php echo h($course['course_name']); ?>">
+                                    <?php endforeach; ?>
+                            </datalist>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">Year Finished</label>
+                            <input type="text" name="college_year" class="form-control" value="<?php echo old('college_year'); ?>" placeholder="e.g. 2020" maxlength="10">
+                        </div>
                         <div class="col-12">
                             <label class="form-label">Education <small class="text-muted">(Degrees, Certifications)</small></label>
                             <textarea name="education" class="form-control" rows="2" maxlength="1000" placeholder="e.g. BS Computer Science, Certified CPA" spellcheck="true" lang="en" style="text-align: justify; white-space: pre-wrap; word-wrap: break-word;" oninput="this.value = this.value.replace(/[^a-zA-Z0-9\s\.,\-\(\)\/\':]/g, '')"><?php echo old('education'); ?></textarea>

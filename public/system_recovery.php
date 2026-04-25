@@ -8,6 +8,11 @@ require '../config/db.php';
 require '../src/Security.php';
 require '../src/Logger.php';
 session_start();
+
+// [FIX] Ensure checkSessionTimeout is defined before calling it
+if (!function_exists('checkSessionTimeout')) {
+    require_once __DIR__ . '/../config/db.php';
+}
 checkSessionTimeout($pdo); // [SECURITY] Enforce Timeout
 
 // [UX] Fetch Client Timeout
@@ -676,6 +681,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         'experience',
                         'skills',
                         'licenses',
+                        'college_degree',
+                        'college_course',
                         'status',
                         'exit_date',
                         'exit_reason',
@@ -901,6 +908,7 @@ $bkMaxSize = $pdo->query("SELECT setting_value FROM system_settings WHERE settin
 
         <!-- ORPHANED FILES TAB -->
         <div class="tab-pane fade show active" id="orphans">
+            <h4 class="mb-4">Orphaned Files</h4>
             <div class="alert alert-info d-flex justify-content-between align-items-center">
                 <span><i class="bi bi-info-circle-fill"></i> <strong>Master Sync:</strong> Run this to fix dashboard counts and clean the vault in one go.</span>
                 <form method="POST" onsubmit="return confirm('WARNING: This will delete ALL orphaned files and broken database records. Ensure you have a backup first. Proceed?');">
@@ -972,6 +980,7 @@ $bkMaxSize = $pdo->query("SELECT setting_value FROM system_settings WHERE settin
 
         <!-- DELETED EMPLOYEES TAB -->
         <div class="tab-pane fade" id="deleted">
+            <h4 class="mb-4">Deleted Employees</h4>
             <div class="card shadow-sm">
                 <div class="card-header bg-secondary text-white d-flex justify-content-between align-items-center">
                     <div>
@@ -1031,6 +1040,7 @@ $bkMaxSize = $pdo->query("SELECT setting_value FROM system_settings WHERE settin
 
         <!-- BROKEN LINKS TAB -->
         <div class="tab-pane fade" id="broken">
+            <h4 class="mb-4">Broken Links</h4>
             <div class="card shadow-sm">
                 <div class="card-header bg-danger text-white">
                     <i class="bi bi-link-45deg"></i> <strong>Broken Database Links</strong>
@@ -1082,6 +1092,7 @@ $bkMaxSize = $pdo->query("SELECT setting_value FROM system_settings WHERE settin
 
         <!-- GHOST RECORDS TAB -->
         <div class="tab-pane fade" id="ghosts">
+            <h4 class="mb-4">Ghost Records</h4>
             <div class="card shadow-sm">
                 <div class="card-header bg-danger text-white fw-bold">
                     <i class="bi bi-exclamation-triangle"></i> Ghost Record Scanner
@@ -1143,6 +1154,7 @@ $bkMaxSize = $pdo->query("SELECT setting_value FROM system_settings WHERE settin
 
         <!-- DUPLICATES TAB -->
         <div class="tab-pane fade" id="duplicates">
+            <h4 class="mb-4">Duplicates</h4>
             <div class="card shadow-sm">
                 <div class="card-header bg-info text-white">
                     <i class="bi bi-files"></i> <strong>Duplicate Uploads</strong>
@@ -1192,6 +1204,7 @@ $bkMaxSize = $pdo->query("SELECT setting_value FROM system_settings WHERE settin
 
         <!-- COMPRESS VAULT TAB -->
         <div class="tab-pane fade" id="compress">
+            <h4 class="mb-4">Storage Optimization</h4>
             <div class="card shadow-sm border-warning">
                 <div class="card-header bg-warning text-dark">
                     <i class="bi bi-file-zip"></i> <strong>Compress & Archive Old Documents</strong>
