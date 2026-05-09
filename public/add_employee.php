@@ -27,25 +27,61 @@ if (($_SESSION['role'] ?? '') !== 'ADMIN') {
 }
 
 // ---------------- Helpers ----------------
-function h($v): string
-{
-    return htmlspecialchars((string)$v, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+
+/**
+ * Escape output safely for HTML.
+ * * @param mixed $v The value to escape
+ * @return string
+ */
+if (!function_exists('h')) {
+    // We declare $v as 'mixed' so the editor knows it can accept multiple types
+    function h(mixed $v): string
+    {
+        return htmlspecialchars((string)$v, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    }
 }
-function post($key, $default = '')
-{
-    return isset($_POST[$key]) ? trim((string)$_POST[$key]) : $default;
+
+/**
+ * Fetch a POST value safely as string.
+ */
+if (!function_exists('post')) {
+    function post(string $key, string $default = ''): string
+    {
+        if (!isset($_POST[$key])) {
+            return $default;
+        }
+
+        // Prevent unexpected array injection
+        if (is_array($_POST[$key])) {
+            return $default;
+        }
+
+        return trim((string)$_POST[$key]);
+    }
 }
-$old = $_POST ?: $_GET; // [FIX] Allow GET for pre-filling from Recruitment
+// Prefer POST, fallback to GET (for recruitment prefill)
+$old = [];
+if (!empty($_POST) && is_array($_POST)) {
+    $old = $_POST;
+} elseif (!empty($_GET) && is_array($_GET)) {
+    $old = $_GET;
+}
+
+// Merge prefill session data (POST/GET always wins)
 if (isset($_SESSION['prefill_employee']) && is_array($_SESSION['prefill_employee'])) {
-    // Merge prefill data, but allow POST/GET to override if present
     $old = array_merge($_SESSION['prefill_employee'], $old);
     unset($_SESSION['prefill_employee']);
 }
 
-function old($key, $default = '')
-{
-    global $old;
-    return h($old[$key] ?? $default);
+/**
+ * Retrieve old input value safely escaped.
+ */
+if (!function_exists('old')) {
+    function old(string $key, string $default = ''): string
+    {
+        global $old;
+        return h($old[$key] ?? $default);
+    }
 }
 
 $security = new Security($pdo);

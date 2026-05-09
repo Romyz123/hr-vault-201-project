@@ -4,13 +4,16 @@
 
 $doc_alerts = [];
 $msgCount = 0;
+$notifCount = 0;
+$all_notifications = [];
+$userRole = '';
 
 if (!isset($pdo)) {
     require_once __DIR__ . '/../config/db.php';
 }
 
 if (!function_exists('h')) {
-    function h($v)
+    function h(string $v): string
     {
         return htmlspecialchars((string)$v, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
     }
@@ -25,7 +28,7 @@ require_once __DIR__ . '/options.php';
 // [NEW] Auto-fetch settings if not provided by parent page
 if (isset($_SESSION['user_id'])) {
     $uid = (int)$_SESSION['user_id'];
-    $userRole = $userRole ?? strtoupper($_SESSION['role'] ?? '');
+    $userRole = ($userRole !== '') ? $userRole : strtoupper($_SESSION['role'] ?? '');
 
     // [FIX] Initialize variables to prevent 500 error on empty states
     $db_notifs = [];

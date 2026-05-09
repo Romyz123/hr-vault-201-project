@@ -7,9 +7,9 @@ session_start();
 // Load Config for Vault Path
 $config = require '../config/config.php';
 
-function h($v)
+function h($v): string
 {
-    return htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
+    return htmlspecialchars((string)$v, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 }
 
 // Generate CSRF token if not present
@@ -556,7 +556,7 @@ $tickets  = in_array('tickets', $enabledWidgets) ? $pdo->query("SELECT r.*, u.us
 
 <?php
 // HELPER FUNCTION TO RENDER TABLES
-function renderTable($requests, $type)
+function renderTable(array $requests, string $type): void
 {
     global $pdo; // Access DB for lookups
     if (empty($requests)) {
@@ -602,6 +602,7 @@ function renderTable($requests, $type)
         $jsonData = htmlspecialchars(json_encode($data), ENT_QUOTES, 'UTF-8');
 
         // Dynamic Summary
+        $summary = '';
         if ($type == 'hire') $summary = "<strong>New Employee:</strong> " . htmlspecialchars($data['first_name'], ENT_QUOTES, 'UTF-8') . " " . htmlspecialchars($data['last_name'], ENT_QUOTES, 'UTF-8');
         elseif ($type == 'edit') $summary = "<strong>Update Profile:</strong> ID " . intval($r['target_id']);
         elseif ($type == 'doc') $summary = "<strong>File Upload:</strong> " . htmlspecialchars($data['original_name'], ENT_QUOTES, 'UTF-8');
@@ -613,20 +614,30 @@ function renderTable($requests, $type)
             $summary = "<strong class='text-primary'><i class='bi bi-check2-circle'></i> Action Taken{$docLabel}:</strong> " . htmlspecialchars(substr($data['note'], 0, 100), ENT_QUOTES, 'UTF-8') . "...";
         }
 
-        echo "<tr>
-            <td><input type='checkbox' name='req_ids[]' value='{$r['id']}' class='form-check-input bulk-check-{$type}'></td>
-            <td>" . date('M d, H:i', strtotime($r['created_at'])) . "</td>
-            <td><span class='badge bg-secondary'>{$r['username']}</span></td>
-            <td>$summary</td>
-            <td class='text-end'>
-                <button type='button' class='btn btn-sm btn-info text-white me-2' onclick='openPreview($jsonData, \"$type\", {$r['id']})' title='View Details'><i class='bi bi-eye'></i> View</button>
-                <button type='button' class='btn btn-sm btn-success' title='Approve' onclick='submitSingle({$r['id']}, \"$tabName\", \"approve\")'><i class='bi bi-check-lg'></i></button>
-                <button type='button' class='btn btn-sm btn-danger' onclick='openRejectModal({$r['id']}, \"$tabName\")' title='Reject with Note'><i class='bi bi-x-lg'></i></button>
-            </td>
-        </tr>";
+        
+echo "<tr>
+    <td><input type='checkbox' name='req_ids[]' value='{$r['id']}' class='form-check-input bulk-check-{$type}'></td>
+    <td>" . date('M d, H:i', strtotime($r['created_at'])) . "</td>
+    <td><span class='badge bg-secondary'>{$r['username']}</span></td>
+    <td>$summary</td>
+    <td class='text-end'>
+        <button type='button' class='btn btn-sm btn-info text-white me-2'
+            onclick='openPreview($jsonData, \"$type\", {$r['id']})'>
+            <i class='bi bi-eye'></i> View
+        </button>
+        <button type='button' class='btn btn-sm btn-success'
+            onclick='submitSingle({$r['id']}, \"$tabName\", \"approve\")'>
+            <i class='bi bi-check-lg'></i>
+        </button>
+        <button type='button' class='btn btn-sm btn-danger'
+            onclick='openRejectModal({$r['id']}, \"$tabName\")'>
+            <i class='bi bi-x-lg'></i>
+        </button>
+    </td>
+</tr>";
+        }
+        echo '</tbody></table></form>';
     }
-    echo '</tbody></table></form>';
-}
 ?>
 
 <script src="assets/bootstrap.bundle.min.js"></script>

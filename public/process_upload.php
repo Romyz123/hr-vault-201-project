@@ -26,6 +26,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if (!isset($_SESSION['user_id'])) die("ACCESS DENIED");
 
+    // [FIX] Check if POST is empty FIRST (indicates file exceeds post_max_size)
+    if (empty($_POST) && isset($_SERVER['CONTENT_LENGTH']) && $_SERVER['CONTENT_LENGTH'] > 0) {
+        sendResponse('error', "Upload failed: File is too large (Server Limit: " . ini_get('post_max_size') . ").");
+    }
+
     // CSRF Token Validation (Check AFTER size check)
     // [FIX] CSRF check MUST happen FIRST, before any POST data processing
     if (empty($_POST['csrf_token']) || !hash_equals($_SESSION['csrf_token'] ?? '', $_POST['csrf_token'])) {
@@ -38,11 +43,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         error_log("CSRF Mismatch in process_upload.php. POST: $logPost, SESSION: $logSess");
 
         sendResponse('error', "Security token expired or invalid. Please refresh and try again.");
-    }
-
-    // [FIX] Now check if POST is empty (meaning file was too large)
-    if (empty($_POST)) {
-        sendResponse('error', "Upload failed: File is too large (Server Limit: " . ini_get('post_max_size') . ") or request was empty.");
     }
 
     // 1. GATHER INPUTS
@@ -239,10 +239,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $baseNameOnly = pathinfo($displayName, PATHINFO_FILENAME);
         $extOnly = pathinfo($displayName, PATHINFO_EXTENSION);
 
-        // [NEW] Inject Status into the filename if employee is not Active
+        // Inject Status into the filename if employee is not Active
         if ($empStatus !== 'Active') {
             $baseNameOnly .= $statusLabel;
         }
+
+        // [FIX] Sanitize base name before collision check to ensure we match what's actually in the DB
+        $baseNameOnly = preg_replace('/[^a-zA-Z0-9\s\-\.\(\)_]/', '', $baseNameOnly);
 
         // Fetch all existing names for this employee to check for collisions
         $checkStmt = $pdo->prepare("SELECT original_name FROM documents WHERE employee_id = ? AND deleted_at IS NULL");
@@ -250,21 +253,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $existingInDB = $checkStmt->fetchAll(PDO::FETCH_COLUMN);
 
         $counter = 1;
-        $finalCandidate = $baseNameOnly . '.' . $extOnly;
+        $displayName = $baseNameOnly . '.' . $extOnly;
         while (true) {
-            $sanitizedCandidate = preg_replace('/[^a-zA-Z0-9\s\-\.\(\)_]/', '', htmlspecialchars($finalCandidate, ENT_QUOTES | ENT_HTML5, 'UTF-8'));
-            if (!in_array($sanitizedCandidate, $existingInDB)) {
+            if (!in_array($displayName, $existingInDB)) {
                 break;
             }
-            $finalCandidate = $baseNameOnly . '-' . str_pad($counter, 3, '0', STR_PAD_LEFT) . '.' . $extOnly;
+            $displayName = $baseNameOnly . '-' . str_pad($counter, 3, '0', STR_PAD_LEFT) . '.' . $extOnly;
             $counter++;
         }
-        $displayName = $finalCandidate;
-
-        // [SECURITY] Sanitize $displayName before storing in DB to prevent XSS on display
-        $displayName = htmlspecialchars($displayName, ENT_QUOTES | ENT_HTML5, 'UTF-8');
-        // Further sanitize to remove potentially problematic characters for display/filesystem, even if not directly used for disk filename
-        $displayName = preg_replace('/[^a-zA-Z0-9\s\-\.\(\)_]/', '', $displayName);
 
         $storedName = $fileService->saveFile($file['tmp_name'], $displayName);
 

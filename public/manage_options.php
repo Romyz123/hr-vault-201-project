@@ -18,7 +18,7 @@ if (!isset($_SESSION['user_id']) || !in_array($userRole, ['ADMIN', 'MANAGER'])) 
 }
 
 // [NEW] Helper function for safe HTML output
-function h($v): string
+function h(?string $v): string
 {
     return htmlspecialchars((string)$v, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 }
@@ -523,9 +523,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $error = "Course already exists.";
             }
         } elseif (empty($error) && $action === 'edit_college_course' && !empty($name) && $id > 0) {
+            $keys = strtoupper(trim($_POST['keywords'] ?? ''));
             if (strlen($name) > 100) $error = "Course name is too long (Max 100 chars).";
             elseif (strlen($keys) > 255) $error = "Keywords are too long (Max 255 chars).";
-            $keys = strtoupper(trim($_POST['keywords'] ?? ''));
             try {
                 $stmt = $pdo->prepare("UPDATE college_courses SET course_name = ?, keywords = ? WHERE id = ?");
                 $stmt->execute([$name, $keys, $id]);

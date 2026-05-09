@@ -9,6 +9,11 @@ require '../src/Security.php';
 require '../src/Logger.php';
 require '../src/Validator.php';
 require '../src/SearchHelper.php';
+
+// [FIX] Defensive initialization for variables from options.php (moved before require)
+$agencies = [];
+$deptMap = [];
+$system_roles = [];
 require_once 'options.php'; // [NEW] Load dynamic options
 session_start();
 
@@ -29,7 +34,9 @@ try {
     // Settings table might not exist, use defaults
 }
 
-checkSessionTimeout($pdo, $serverTimeout); // [SECURITY] Enforce Timeout
+if (function_exists('checkSessionTimeout')) {
+    checkSessionTimeout($pdo, $serverTimeout); // [SECURITY] Enforce Timeout
+}
 
 // Redirect guests to login
 if (!isset($_SESSION['user_id'])) {
@@ -38,10 +45,19 @@ if (!isset($_SESSION['user_id'])) {
 }
 
 // Normalize role to uppercase (handles 'hr', 'HR', etc.)
-$userRole = isset($_SESSION['role']) ? strtoupper((string)$_SESSION['role']) : '';
+$userRole = strtoupper(trim($_SESSION['role'] ?? 'STAFF'));
 
 $security = new Security($pdo);
 $logger   = new Logger($pdo);
+
+// [SECURITY] Validate role integrity
+$validRoles = ['ADMIN', 'MANAGER', 'HR', 'STAFF'];
+if (!in_array($userRole, $validRoles)) {
+    $logger->log($_SESSION['user_id'] ?? 0, 'INVALID_SESSION', "Invalid role detected: $userRole");
+    session_destroy();
+    header('Location: login.php?error=' . urlencode('Session invalid. Please log in again.'));
+    exit;
+}
 
 // [NEW] Fetch Auto-Refresh Interval
 $refreshInterval = 60; // Default
@@ -102,7 +118,7 @@ if ($userRole === 'ADMIN') {
         set_time_limit(0); // [FIX] Remove time limit to prevent "Network Error" on large backups
         ignore_user_abort(true); // [FIX] Ensure backup finishes even if the page load is cancelled
 
-        $baseFilename = 'AutoBackup_' . date('Y-m-d_H-i-s');
+        $baseFilename = 'AutoBackup_' . $todayStr . '_' . date('His');
         $sqlFilename  = $baseFilename . '.sql';
 
         $tables = [];
@@ -175,9 +191,9 @@ if ($userRole === 'ADMIN') {
                 }
             }
 
-            $zip->close();
+            $zip->close(); // Correct placement: inside if ($zip->open(...))
 
-            if (file_exists($zipFile)) {
+            if (file_exists($zipFile)) { // Correct placement: inside if ($zip->open(...))
                 $logger->log($_SESSION['user_id'], 'AUTO_BACKUP', "Backup created: " . basename($zipFile));
                 $_SESSION['backup_msg'] = "✅ Automated Backup Completed (" . basename($zipFile) . ")";
 
@@ -185,38 +201,36 @@ if ($userRole === 'ADMIN') {
                 $admins = $pdo->query("SELECT id FROM users WHERE role IN ('ADMIN', 'MANAGER')")->fetchAll(PDO::FETCH_COLUMN);
                 if (!empty($admins)) {
                     $notifStmt = $pdo->prepare("INSERT INTO notifications (user_id, title, message, type) VALUES (?, 'System Backup', ?, 'success')");
+                    $notifMsg = "Automated backup created successfully: " . basename($zipFile);
                     foreach ($admins as $adminId) {
-                        $notifStmt->execute([$adminId, "Automated backup created successfully: " . basename($zipFile)]);
+                        $notifStmt->execute([$adminId, $notifMsg]);
                     }
                     // Clear notification cache for live updates
                     $pdo->exec("DELETE FROM rate_limits WHERE ip_address = 'SYSTEM_NOTIF_CACHE'");
                 }
-            } else {
-                // [NEW] Failure Alert
-                if ($alertEmail) {
-                    mail($alertEmail, "⚠️ HR System Backup Failed", "The automated backup process failed to create the ZIP file on server.\n\nTime: " . date('Y-m-d H:i:s'));
-                }
+            } else { // Else for if (file_exists($zipFile))
                 $logger->log($_SESSION['user_id'], 'AUTO_BACKUP_FAIL', "Backup failed: ZIP file not created.");
             }
-        } else {
+        } else { // Else for if ($zip->open(...))
             if ($alertEmail) {
-                mail($alertEmail, "⚠️ HR System Backup Failed", "Could not open/create ZIP archive.\n\nTime: " . date('Y-m-d H:i:s'));
+                mail($alertEmail, "Q⚠️ HR System Backup Failed", "Could not open/create ZIP archive.\n\nTime: " . date('Y-m-d H:i:s'));
             }
         }
     }
-    skip_backup:
 }
 
 // ---------- 3) HELPERS ----------
-function h($v)
-{
-    return htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
+if (!function_exists('h')) {
+    function h($v): string
+    {
+        return htmlspecialchars((string)($v ?? ''), ENT_QUOTES, 'UTF-8');
+    }
 }
 
 /**
  * Get and sanitize GET param with a max length (prevents oversized values)
  */
-function getQueryParamSafe(string $key, int $maxLen = 100, $default = ''): string
+function getQueryParamSafe(string $key, int $maxLen = 100, string $default = ''): string // [FIX] Added type hint for $default
 {
     $val = isset($_GET[$key]) ? trim((string)$_GET[$key]) : $default;
     if (mb_strlen($val) > $maxLen) {
@@ -228,7 +242,7 @@ function getQueryParamSafe(string $key, int $maxLen = 100, $default = ''): strin
 /**
  * Keep existing GET params while overriding given keys
  */
-function keepQuery(array $override = []): string
+function keepQuery(array $override = []): string // [FIX] Added type hint for $override
 {
     $q = $_GET;
     foreach ($override as $k => $v) {
@@ -611,7 +625,8 @@ $whereSql = 'WHERE ' . implode(' AND ', $where);
 $countSql  = "SELECT COUNT(*) FROM employees {$whereSql}";
 $countStmt = $pdo->prepare($countSql);
 $countStmt->execute($params);
-$totalRows  = (int)$countStmt->fetchColumn();
+$countResult = $countStmt->fetchColumn();
+$totalRows  = ($countResult !== false && $countResult !== null) ? (int)$countResult : 0;
 $totalPages = max(1, (int)ceil($totalRows / $perPage));
 
 if ($page > $totalPages) {
@@ -636,6 +651,50 @@ $empStmt->bindValue($paramIndex++, $offset,  PDO::PARAM_INT);
 $empStmt->execute();
 $employees = $empStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
+// ---------- 8.5) SPREADSHEET DATA AGGREGATION ----------
+// Detect which optional columns actually exist in this DB
+$optionalCols    = ['system_role', 'email', 'contact_number', 'sss_no', 'tin_no', 'philhealth_no', 'pagibig_no'];
+$existingOptCols = [];
+try {
+    $dbCols = $pdo->query("SHOW COLUMNS FROM `employees`")->fetchAll(PDO::FETCH_COLUMN);
+    foreach ($optionalCols as $c) {
+        if (in_array($c, $dbCols, true)) $existingOptCols[] = $c;
+    }
+} catch (Exception $e) { /* Fallback to core columns only */
+}
+
+// Build SELECT using only columns confirmed to exist
+$coreCols  = ['id', 'emp_id', 'first_name', 'last_name', 'job_title', 'dept', 'section', 'agency_name', 'employment_type', 'hire_date', 'status'];
+$allCols   = array_merge($coreCols, $existingOptCols);
+$selectSql = implode(', ', array_map(fn($c) => "`$c`", $allCols));
+
+// Use the SAME $whereSql and $params as the card view for consistency
+$allEmpStmt = $pdo->prepare("SELECT {$selectSql} FROM employees {$whereSql} ORDER BY {$orderBy}");
+$pi = 1;
+foreach ($params as $v) $allEmpStmt->bindValue($pi++, $v);
+$allEmpStmt->execute();
+$allEmployees = $allEmpStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+// JSON-encode safely for embedding into JS
+$spreadsheetJson     = json_encode($allEmployees, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT);
+$existingOptColsJson = json_encode($existingOptCols);
+
+// ---------- 8.7) FETCH RECENT ACTIVITY (Recent Uploads) ----------
+$recentActivity = [];
+try {
+    $recentActSql = "SELECT d.original_name, e.first_name, e.last_name 
+                     FROM documents d 
+                     JOIN employees e ON d.employee_id = e.emp_id ";
+    $actWhere = ["1=1"];
+    if ($hasDeletedAtColumn) $actWhere[] = "d.deleted_at IS NULL";
+    if ($hasEmpDeletedAt) $actWhere[] = "e.deleted_at IS NULL";
+
+    $recentActSql .= " WHERE " . implode(" AND ", $actWhere);
+    $recentActSql .= " ORDER BY d.uploaded_at DESC LIMIT 5";
+    $recentActivity = $pdo->query($recentActSql)->fetchAll(PDO::FETCH_ASSOC) ?: [];
+} catch (Exception $e) {
+    error_log("Recent Activity Fetch Error: " . $e->getMessage());
+}
 // [NEW] Fuzzy Search Logic (Did you mean?)
 $didYouMean = null;
 $didYouMeanLink = "#";
@@ -1203,8 +1262,13 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
     <!-- [FIX] Wrapper for Card View - Moved up to include alerts for total separation -->
     <?php // ---------- 12) EMPLOYEE DIRECTORY RESULTS ---------- 
     ?>
-    <div id="view-cards">
 
+    <!-- ---------- 12.5) GRID ASSETS (Script Loading Order Fix) ---------- -->
+    <link href="assets/css/tabulator_bootstrap5.min.css" rel="stylesheet">
+    <script src="assets/js/tabulator.min.js"></script>
+    <script src="assets/js/xlsx.full.min.js"></script>
+
+    <div id="view-cards">
         <?php if (empty($employees)): ?>
             <div class="alert alert-warning text-center shadow-sm">No employees found matching your search.</div>
             <?php if ($didYouMean): ?>
@@ -1510,14 +1574,12 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
             <?php endforeach; ?>
         </div>
 
-        <!-- [NEW] Spreadsheet View Container -->
-        <?php // ---------- 13) SPREADSHEET VIEW ---------- 
-        ?>
         <div id="view-spreadsheet" style="display: none;">
             <div class="card shadow-sm mb-4 border-primary">
                 <div class="card-header bg-white d-flex justify-content-between align-items-center py-3">
-                    <h5 class="mb-0 text-primary fw-bold"><i class="bi bi-table me-2"></i> Master Employee Directory</h5>
+                    <h5 class="mb-0 text-primary fw-bold"><i class="bi bi-table me-2"></i> Master Employee Directory (<span id="grid-count">0</span>)</h5>
                     <div class="d-flex gap-2">
+                        <button id="reset-filters" class="btn btn-sm btn-outline-secondary fw-bold shadow-sm" title="Clear Filters"><i class="bi bi-filter-left"></i> Reset</button>
                         <button id="download-csv" class="btn btn-sm btn-outline-secondary fw-bold shadow-sm" title="Download CSV"><i class="bi bi-file-earmark-text"></i> CSV</button>
                         <button id="download-xlsx" class="btn btn-sm btn-success fw-bold shadow-sm" title="Download Excel"><i class="bi bi-file-earmark-spreadsheet"></i> Excel</button>
                     </div>
@@ -1777,12 +1839,6 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
 
     <!-- SINGLE Bootstrap bundle include -->
     <script src="assets/bootstrap.bundle.min.js?v=3"></script>
-
-    <!-- [NEW] Grid Libraries -->
-    <?php // ---------- 15) JAVASCRIPT INITIALIZATION ---------- 
-    ?>
-    <link href="assets/css/tabulator_bootstrap5.min.css" rel="stylesheet">
-    <script src="assets/js/tabulator.min.js"></script>
 
     <script>
         // [FIX] Data for Bulk Modal Dropdowns
@@ -2361,8 +2417,216 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
             }
         });
 
-        // [NEW] View Mode Logic
-        let table = null;
+        // ---------- 16) SPREADSHEET LOGIC (Bugs 1, 2, 3, 4 Fixes) ----------
+        const spreadsheetData = <?= $spreadsheetJson ?>;
+        const existingOptCols = <?= $existingOptColsJson ?>;
+        var gridTable = null;
+        var gridInitialized = false;
+
+        function buildGridColumns() {
+            var columns = [{
+                    title: "EMP ID",
+                    field: "emp_id",
+                    frozen: true,
+                    headerFilter: "input",
+                    width: 110,
+                    cssClass: "fw-bold font-monospace text-primary"
+                },
+                {
+                    title: "Last Name",
+                    field: "last_name",
+                    frozen: true,
+                    headerFilter: "input",
+                    formatter: function(cell) {
+                        var a = document.createElement('a');
+                        a.href = 'edit_employee.php?id=' + encodeURIComponent(cell.getData().id || '');
+                        a.className = 'fw-bold text-decoration-none';
+                        a.textContent = cell.getValue() || '';
+                        return a;
+                    },
+                    accessorDownload: function(v) {
+                        return v || '';
+                    }
+                },
+                {
+                    title: "First Name",
+                    field: "first_name",
+                    frozen: true,
+                    headerFilter: "input"
+                },
+                {
+                    title: "Job Title",
+                    field: "job_title",
+                    headerFilter: "input",
+                    width: 180
+                },
+                {
+                    title: "Department",
+                    field: "dept",
+                    headerFilter: "list",
+                    headerFilterParams: {
+                        valuesLookup: true,
+                        clearable: true
+                    }
+                },
+                {
+                    title: "Section",
+                    field: "section",
+                    headerFilter: "input"
+                },
+                {
+                    title: "Employer",
+                    field: "agency_name",
+                    headerFilter: "list",
+                    headerFilterParams: {
+                        valuesLookup: true,
+                        clearable: true
+                    },
+                    formatter: function(cell) {
+                        var raw = cell.getValue() || '';
+                        var disp = raw || cell.getData().employment_type || 'TESP Direct';
+                        var span = document.createElement('span');
+                        span.className = 'badge ' + (!raw || raw.toUpperCase().includes('TESP') ? 'bg-primary' : 'bg-secondary');
+                        span.textContent = disp;
+                        return span;
+                    },
+                    accessorDownload: function(v, d) {
+                        return v || (d && d.employment_type) || 'TESP Direct';
+                    }
+                },
+                {
+                    title: "Hire Date",
+                    field: "hire_date",
+                    headerFilter: "input",
+                    width: 115
+                },
+                {
+                    title: "Status",
+                    field: "status",
+                    headerFilter: "list",
+                    headerFilterParams: {
+                        values: ["Active", "Resigned", "Terminated", "AWOL"],
+                        clearable: true
+                    },
+                    formatter: function(cell) {
+                        var span = document.createElement('span');
+                        span.className = 'badge rounded-pill ' + (cell.getValue() === 'Active' ? 'bg-success' : 'bg-warning text-dark');
+                        span.textContent = cell.getValue() || '';
+                        return span;
+                    },
+                    accessorDownload: function(v) {
+                        return v || '';
+                    }
+                },
+            ];
+
+            if (existingOptCols.includes('system_role')) {
+                columns.splice(4, 0, {
+                    title: "Role",
+                    field: "system_role",
+                    headerFilter: "list",
+                    headerFilterParams: {
+                        valuesLookup: true,
+                        clearable: true
+                    }
+                });
+            }
+
+            var sensitiveMap = [{
+                    title: "Email",
+                    field: "email"
+                },
+                {
+                    title: "Contact",
+                    field: "contact_number"
+                },
+                {
+                    title: "SSS No",
+                    field: "sss_no"
+                },
+                {
+                    title: "TIN",
+                    field: "tin_no"
+                },
+                {
+                    title: "PhilHealth",
+                    field: "philhealth_no"
+                },
+                {
+                    title: "Pag-IBIG",
+                    field: "pagibig_no"
+                },
+            ];
+            sensitiveMap.forEach(function(c) {
+                if (existingOptCols.includes(c.field)) {
+                    columns.push({
+                        title: c.title,
+                        field: c.field,
+                        headerFilter: "input",
+                        visible: false
+                    });
+                }
+            });
+            return columns;
+        }
+
+        function initGrid() {
+            if (gridInitialized) return;
+            gridInitialized = true;
+
+            gridTable = new Tabulator("#employee-master-grid", {
+                data: spreadsheetData,
+                layout: "fitColumns",
+                height: "600px",
+                pagination: "local",
+                paginationSize: 20,
+                paginationSizeSelector: [10, 20, 50, 100],
+                movableColumns: true,
+                resizableColumnFit: true,
+                headerFilterLiveFilterDelay: 200,
+                initialSort: [{
+                    column: "last_name",
+                    dir: "asc"
+                }],
+                placeholder: "No employees found.",
+                columns: buildGridColumns(),
+            });
+
+            // Wire export buttons after gridTable exists
+            document.getElementById("download-csv").onclick = function() {
+                gridTable.download("csv", "HR_Master_" + new Date().toISOString().slice(0, 10) + ".csv");
+            };
+            document.getElementById("download-xlsx").onclick = function() {
+                gridTable.download("xlsx", "HR_Master_" + new Date().toISOString().slice(0, 10) + ".xlsx", {
+                    sheetName: "Employees"
+                });
+            };
+
+            gridTable.on("tableBuilt", function() {
+                var badge = document.getElementById('grid-count');
+                if (badge) badge.textContent = spreadsheetData.length;
+                applyTabulatorTheme();
+            });
+
+            gridTable.on("dataLoaded", function(data) {
+                if (!data || !data.length) return;
+                var sensitive = ['email', 'contact_number', 'sss_no', 'tin_no', 'philhealth_no', 'pagibig_no'];
+                sensitive.forEach(function(col) {
+                    if (existingOptCols.includes(col) && data.some(function(r) {
+                            return r[col];
+                        })) {
+                        try {
+                            gridTable.showColumn(col);
+                        } catch (e) {}
+                    }
+                });
+            });
+
+            gridTable.on("dataFiltered", function(filters, rows) {
+                var badge = document.getElementById('grid-count');
+                if (badge) badge.textContent = rows.length;
+            });
+        }
 
         function switchView(mode) {
             const cards = document.getElementById('view-cards');
@@ -2378,172 +2642,16 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
                 btnCards.classList.remove('active');
                 localStorage.setItem('hr_preferred_view', 'grid');
 
-                // [FIX] Double requestAnimationFrame guarantees layout commitment 
-                // before we ask Tabulator to calculate its widths.
-                requestAnimationFrame(() => {
-                    requestAnimationFrame(() => {
-                        if (!table) initTabulator();
-                        else table.redraw(true);
-                    });
-                });
+                setTimeout(function() {
+                    initGrid();
+                    if (gridTable) gridTable.redraw(true);
+                }, 50);
             } else {
                 if (cards) cards.style.display = 'block';
                 if (grid) grid.style.display = 'none';
                 btnCards.classList.add('active');
                 btnGrid.classList.remove('active');
                 localStorage.setItem('hr_preferred_view', 'cards');
-            }
-        }
-
-        /**
-         * [FIXED] Robust Tabulator Initialization with Manual Data Fetch (Async)
-         */
-        async function initTabulator() {
-            const gridEl = document.getElementById("employee-master-grid");
-            if (!gridEl || typeof Tabulator === 'undefined') {
-                console.error("Tabulator library missing or container not found.");
-                return;
-            }
-
-            table = new Tabulator(gridEl, {
-                layout: "fitColumns",
-                placeholder: "<div class='p-5 text-center'><div class='spinner-border text-primary mb-3'></div><p class='text-muted'>Fetching live directory data...</p></div>",
-                pagination: "local",
-                paginationSize: 20,
-                height: "600px",
-                responsiveLayout: "collapse",
-                rowFormatter: function(row) {
-                    if (row.getData().status === 'Terminated') {
-                        row.getElement().style.backgroundColor = "#f8d7da";
-                        row.getElement().style.color = "#842029";
-                    }
-                },
-                rowClick: function(e, row) {
-                    const data = row.getData();
-                    const modalId = 'viewModal' + data.id;
-                    const modalEl = document.getElementById(modalId);
-                    if (modalEl) {
-                        const modal = new bootstrap.Modal(modalEl);
-                        modal.show();
-                    }
-                },
-                columns: [{
-                        title: "EMP ID",
-                        field: "emp_id",
-                        frozen: true,
-                        headerFilter: "input",
-                        width: 120
-                    },
-                    {
-                        title: "Last Name",
-                        field: "last_name",
-                        frozen: true,
-                        headerFilter: "input"
-                    },
-                    {
-                        title: "First Name",
-                        field: "first_name",
-                        frozen: true,
-                        headerFilter: "input"
-                    },
-                    {
-                        title: "Job Category",
-                        field: "system_role",
-                        headerFilter: "list",
-                        headerFilterParams: {
-                            valuesLookup: true,
-                            clearable: true
-                        }
-                    },
-                    {
-                        title: "Job Title",
-                        field: "job_title",
-                        headerFilter: "input"
-                    },
-                    {
-                        title: "Employer / Type",
-                        field: "agency_name",
-                        headerFilter: "list",
-                        headerFilterParams: {
-                            valuesLookup: true,
-                            clearable: true
-                        },
-                        formatter: (cell) => {
-                            const row = cell.getData();
-                            return cell.getValue() || row.employment_type || "TESP Direct";
-                        }
-                    },
-                    {
-                        title: "Department",
-                        field: "dept",
-                        headerFilter: "list",
-                        headerFilterParams: {
-                            valuesLookup: true,
-                            clearable: true
-                        }
-                    },
-                    {
-                        title: "Section",
-                        field: "section",
-                        headerFilter: "list",
-                        headerFilterParams: {
-                            valuesLookup: true,
-                            clearable: true
-                        }
-                    },
-                    {
-                        title: "Status",
-                        field: "status",
-                        headerFilter: "list",
-                        headerFilterParams: {
-                            values: ["Active", "Resigned", "Terminated"],
-                            clearable: true
-                        }
-                    },
-                ],
-            });
-
-            // Setup download buttons once
-            const csvBtn = document.getElementById("download-csv");
-            const xlsxBtn = document.getElementById("download-xlsx");
-            if (csvBtn) csvBtn.onclick = () => table.download("csv", "HR_Master_List.csv");
-            if (xlsxBtn) xlsxBtn.onclick = () => table.download("xlsx", "HR_Master_List.xlsx");
-
-            // Perform Manual Data Fetch with Cache Buster
-            try {
-                const response = await fetch("api/get_master_list.php?_=" + new Date().getTime());
-
-                if (!response.ok) {
-                    const errorText = await response.text();
-                    console.error("Server Response:", errorText);
-                    table.setPlaceholder("<div class='text-danger p-5'><i class='bi bi-exclamation-octagon fs-1'></i><br>Server Error: " + response.status + "</div>");
-                    return;
-                }
-
-                let data;
-                try {
-                    data = await response.json();
-                } catch (jsonErr) {
-                    console.error("JSON Parse Error. Server outputted non-JSON content.");
-                    table.setPlaceholder("<div class='text-danger p-5'><i class='bi bi-bug fs-1'></i><br>System Error: Malformed Data Received</div>");
-                    return;
-                }
-
-                if (data.error) {
-                    table.setPlaceholder("<div class='text-danger p-5'><i class='bi bi-exclamation-octagon fs-1'></i><br>System Error: " + data.error + "</div>");
-                } else {
-                    table.setData(data);
-                    // Force redraw after data injection to ensure proper alignment
-                    setTimeout(() => {
-                        if (table) table.redraw(true);
-                    }, 100);
-                    if (data.length === 0) {
-                        table.setPlaceholder("<div class='text-muted p-5'><i class='bi bi-inbox fs-1'></i><br>No employees found in the directory.</div>");
-                    }
-                }
-            } catch (err) {
-                console.error("Grid Sync Error:", err);
-                table.setPlaceholder("<div class='text-danger p-5'><i class='bi bi-wifi-off fs-1'></i><br>Unable to load data. Please check your connection.</div>");
             }
         }
 
@@ -2554,6 +2662,23 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
             div.textContent = str;
             return div.innerHTML;
         };
+
+        // ---------- 17) DARK MODE & UI SYNC ----------
+        function applyTabulatorTheme() {
+            var isDark = document.documentElement.getAttribute('data-bs-theme') === 'dark';
+            var el = document.getElementById("employee-master-grid");
+            if (!el) return;
+            isDark ? el.classList.add("tabulator-dark") : el.classList.remove("tabulator-dark");
+        }
+
+        new MutationObserver(applyTabulatorTheme).observe(
+            document.documentElement, {
+                attributes: true,
+                attributeFilter: ['data-bs-theme']
+            }
+        );
+        applyTabulatorTheme();
+
 
         // --- AUTO-REFRESH SYSTEM ---
         let isPaused = false;

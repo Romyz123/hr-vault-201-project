@@ -4,31 +4,56 @@ require '../config/db.php';
 require '../src/Security.php';
 // ---------- 1) SYSTEM INITIALIZATION ----------
 require '../src/Logger.php';
+
 session_start();
 checkSessionTimeout($pdo); // [SECURITY] Enforce Timeout
 
 // 1. SECURITY: Admin Only
-if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'ADMIN') {
+if (!isset($_SESSION['user_id']) || ($_SESSION['role'] ?? '') !== 'ADMIN') {
     header("Location: index.php");
     exit;
 }
 
 $security = new Security($pdo);
-$logger = new Logger($pdo);
+$logger   = new Logger($pdo);
+
+// Generate CSRF token (assumes Security::generateCSRF() stores it in session too)
 $csrf_token = $security->generateCSRF();
+
+// For safe JS embedding
+$csrf_token_js = htmlspecialchars($csrf_token, ENT_QUOTES, 'UTF-8');
+
 $error = "";
 
 // [NEW] Dynamically calculate total drive space to use as a realistic cap
 $vaultPathForDisk = realpath(__DIR__ . '/../vault') ?: __DIR__;
-$diskTotalBytes = @disk_total_space($vaultPathForDisk);
-$diskTotalGB = $diskTotalBytes ? floor($diskTotalBytes / 1024 / 1024 / 1024) : 1000;
+$diskTotalBytes   = @disk_total_space($vaultPathForDisk);
+$diskTotalGB      = $diskTotalBytes ? floor($diskTotalBytes / 1024 / 1024 / 1024) : 1000;
 if ($diskTotalGB < 1) $diskTotalGB = 1; // Fallback minimum
+
+// ---------- GLOBAL PATH BLACKLIST (FIX for P1116) ----------
+// Intelephense warning happens when this is defined only inside a conditional.
+// We define it once here so it always exists in all scopes.
+$forbidden = [
+    'C:\\Windows',
+    'C:\\Program Files',
+    'C:\\Users',
+    'C:\\inetpub',
+    '/etc',
+    '/var',
+    '/usr',
+    '/bin',
+    '/sbin',
+    '/root',
+    '/boot',
+    '/dev'
+];
 
 // 2. HANDLE FORM SUBMISSION
 // ---------- 2) SETTINGS PROCESSING ----------
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
-        $security->checkCSRF($_POST['csrf_token']);
+        $security->checkCSRF($_POST['csrf_token'] ?? '');
 
         // [FIX] Define checkboxes and handle unchecked states (which aren't sent in POST)
         $checkboxes = ['maintenance_mode', 'backup_include_vault', 'staff_direct_approval'];
@@ -43,7 +68,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // ignore; it may not exist yet
         }
 
-        $errors = [];
+        $errors  = [];
         $updates = [];
 
         // [FIX 1] Explicitly process checkboxes first. Browsers do not send unchecked boxes in POST.
@@ -51,27 +76,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $updates[$cb] = isset($_POST['settings'][$cb]) ? '1' : '0';
         }
 
-        // [NEW] Handle Company Logo Upload
+        // ---------- Company Logo Upload ----------
         if (isset($_FILES['company_logo']) && $_FILES['company_logo']['error'] === UPLOAD_ERR_OK) {
-            $logoFile = $_FILES['company_logo'];
+            $logoFile     = $_FILES['company_logo'];
             $allowedTypes = ['image/png', 'image/jpeg'];
-            $finfo = new finfo(FILEINFO_MIME_TYPE);
-            $mime = $finfo->file($logoFile['tmp_name']);
 
-            if (!in_array($mime, $allowedTypes)) {
+            $finfo = new finfo(FILEINFO_MIME_TYPE);
+            $mime  = $finfo->file($logoFile['tmp_name']);
+
+            if (!in_array($mime, $allowedTypes, true)) {
                 $errors[] = "Logo must be a PNG or JPG image.";
             } elseif ($logoFile['size'] > 2 * 1024 * 1024) {
                 $errors[] = "Logo file size must be less than 2MB.";
             } else {
+                // Save to project root uploads/ and mirror to public/uploads/
                 $destDir = dirname(__DIR__) . DIRECTORY_SEPARATOR . 'uploads';
                 if (!is_dir($destDir)) @mkdir($destDir, 0755, true);
 
                 $dest = $destDir . DIRECTORY_SEPARATOR . 'tesp-logo.png';
                 if (move_uploaded_file($logoFile['tmp_name'], $dest)) {
-                    // Also sync to public/uploads/ for pages that use that path directly
                     $publicDest = __DIR__ . DIRECTORY_SEPARATOR . 'uploads' . DIRECTORY_SEPARATOR . 'tesp-logo.png';
                     if (!is_dir(dirname($publicDest))) @mkdir(dirname($publicDest), 0755, true);
                     @copy($dest, $publicDest);
+
                     $logger->log($_SESSION['user_id'], 'LOGO_UPDATE', 'Company logo was updated.');
                 } else {
                     $errors[] = "Failed to save the uploaded logo.";
@@ -79,29 +106,62 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
 
+        // ---------- Company Favicon Upload (ADDED because form has it) ----------
+        if (isset($_FILES['company_favicon']) && $_FILES['company_favicon']['error'] === UPLOAD_ERR_OK) {
+            $favFile = $_FILES['company_favicon'];
+
+            // allow png/ico/jpg/jpeg based on your accept attribute
+            $allowedTypes = ['image/png', 'image/jpeg', 'image/x-icon', 'image/vnd.microsoft.icon'];
+
+            $finfo = new finfo(FILEINFO_MIME_TYPE);
+            $mime  = $finfo->file($favFile['tmp_name']);
+
+            if (!in_array($mime, $allowedTypes, true)) {
+                $errors[] = "Favicon must be PNG, JPG, or ICO.";
+            } elseif ($favFile['size'] > 512 * 1024) {
+                $errors[] = "Favicon file size must be less than 512KB.";
+            } else {
+                $destDir = dirname(__DIR__) . DIRECTORY_SEPARATOR . 'uploads';
+                if (!is_dir($destDir)) @mkdir($destDir, 0755, true);
+
+                // normalize to favicon.png (simple + consistent)
+                $dest = $destDir . DIRECTORY_SEPARATOR . 'favicon.png';
+                if (move_uploaded_file($favFile['tmp_name'], $dest)) {
+                    $publicDest = __DIR__ . DIRECTORY_SEPARATOR . 'uploads' . DIRECTORY_SEPARATOR . 'favicon.png';
+                    if (!is_dir(dirname($publicDest))) @mkdir(dirname($publicDest), 0755, true);
+                    @copy($dest, $publicDest);
+
+                    $logger->log($_SESSION['user_id'], 'FAVICON_UPDATE', 'Company favicon was updated.');
+                } else {
+                    $errors[] = "Failed to save the uploaded favicon.";
+                }
+            }
+        }
+
         // [FIX] Ensure approval_widgets is saved as an empty array if all boxes are unchecked
-        if (isset($_POST['settings']) && !isset($_POST['settings']['approval_widgets'])) {
+        if (isset($_POST['settings']) && is_array($_POST['settings']) && !isset($_POST['settings']['approval_widgets'])) {
             $_POST['settings']['approval_widgets'] = [];
         }
 
         // Validate posted settings first
         if (isset($_POST['settings']) && is_array($_POST['settings'])) {
             foreach ($_POST['settings'] as $key => $value) {
-                // Basic validation
-                $key = preg_replace('/[^a-zA-Z0-9_]/', '', $key); // Sanitize key
+                // Sanitize key
+                $key = preg_replace('/[^a-zA-Z0-9_]/', '', (string)$key);
 
                 // Skip checkboxes as they are already handled safely above
-                if (in_array($key, $checkboxes, true)) continue;
+                if (in_array($key, $checkboxes, true)) {
+                    continue;
+                }
 
-                // [FIX] Handle array inputs (like approval_widgets) correctly to prevent conversion warnings
+                // Handle array inputs (like approval_widgets)
                 if (is_array($value)) {
                     $value = json_encode(array_map(fn($v) => trim((string)$v), $value));
-                    // Skip the trim/string cast below for arrays
                     $updates[$key] = $value;
                     continue;
-                } else {
-                    $value = trim((string)$value);
                 }
+
+                $value = trim((string)$value);
 
                 // Handle backup password
                 if ($key === 'backup_password') {
@@ -119,61 +179,52 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
                 }
 
-                // [SECURITY] Validate Backup Schedule Format
+                // Validate Backup Schedule Format
                 if ($key === 'backup_time') {
                     if (!empty($value) && !preg_match('/^(?:[01]\d|2[0-3]):[0-5]\d$/', $value)) {
                         $errors[] = "Invalid Backup Time format. Expected HH:MM (24-hour).";
                     }
                 }
+
                 if ($key === 'backup_day') {
                     $allowedDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-                    if (!empty($value) && !in_array($value, $allowedDays)) {
+                    if (!empty($value) && !in_array($value, $allowedDays, true)) {
                         $errors[] = "Invalid Backup Day selected.";
                     }
                 }
 
-                // [SECURITY] Strict Path Validation for Backups (Prevent Directory Traversal)
+                // Strict Path Validation for Backups (Prevent Directory Traversal)
                 if ($key === 'backup_path' || $key === 'secondary_backup_path') {
                     $clean = str_replace("\0", '', $value);
+
                     if ($clean === '') {
                         $value = '';
                     } else {
-                        // 1. Block Traversal Sequences and protocol wrappers
-                        if (strpos($clean, '..') !== false || preg_match('/[<>"|?*]/', $clean) || strpos($clean, '://') !== false) {
+                        // 1) Block Traversal Sequences and protocol wrappers
+                        if (strpos($clean, '..') !== false || preg_match('/[<>:"|?*]/', $clean) || strpos($clean, '://') !== false) {
                             $errors[] = "Invalid path format: Directory traversal or protocol wrappers detected.";
                         } else {
-                            // 2. System Folder Blacklist (MHI Security Requirement)
-                            $forbidden = [
-                                'C:\\Windows',
-                                'C:\\Program Files',
-                                'C:\\Users',
-                                'C:\\inetpub',
-                                '/etc',
-                                '/var',
-                                '/usr',
-                                '/bin',
-                                '/sbin',
-                                '/root',
-                                '/boot',
-                                '/dev'
-                            ];
-
+                            // 2) System Folder Blacklist
                             $normPath = str_replace(['/', '\\'], DIRECTORY_SEPARATOR, $clean);
+
                             foreach ($forbidden as $f) {
-                                if (stripos($normPath, $f) === 0) {
+                                // Normalize forbidden entries too (helps on Windows)
+                                $fNorm = str_replace(['/', '\\'], DIRECTORY_SEPARATOR, $f);
+                                if (stripos($normPath, $fNorm) === 0) {
                                     $errors[] = "Access Denied: Cannot target sensitive system directory '$f'.";
                                     break;
                                 }
                             }
                         }
 
-                        // 3. Resolve and verify if path exists (only if no errors found yet)
+                        // 3) Resolve and verify if path exists (only if no errors found yet)
                         if (empty($errors) && file_exists($clean)) {
                             $resolved = realpath($clean);
+
                             if ($resolved) {
-                                // Deep check resolved path against forbidden list
                                 foreach ($forbidden as $f) {
-                                    if (stripos($resolved, $f) === 0) {
+                                    $fNorm = str_replace(['/', '\\'], DIRECTORY_SEPARATOR, $f);
+                                    if (stripos($resolved, $fNorm) === 0) {
                                         $errors[] = "Resolved backup path targets a forbidden system directory.";
                                         break;
                                     }
@@ -188,6 +239,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 }
                             }
                         }
+
                         $value = $clean;
                     }
                 }
@@ -201,7 +253,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
                 }
 
-                // Specific validation for timeouts
+                // Validation for timeouts/intervals
                 if (strpos($key, 'timeout') !== false || strpos($key, 'interval') !== false) {
                     if (!is_numeric($value) || (int)$value < 10) {
                         $errors[] = "Timeout/Interval values must be numeric and at least 10 seconds.";
@@ -212,17 +264,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
                 }
 
-                // Specific validation for margins
+                // Validation for margins
                 if (strpos($key, 'margin') !== false) {
                     $value = preg_replace('/[^0-9]/', '', (string)$value);
                     if ($value === '' || (int)$value > 500) {
                         $value = '500';
                     }
-                }
-
-                // [NEW] Handle approval widgets
-                if ($key === 'approval_widgets') {
-                    $value = json_encode($value ?? []);
                 }
 
                 // Validate font size
@@ -237,34 +284,41 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if ($key === 'vault_size_limit_gb') {
                     $value = (float)$value;
                     if ($value < 0) $value = 0;
-                    if ($value > $diskTotalGB) $value = $diskTotalGB;
+                    if ($value > $diskTotalGB) $value = (float)$diskTotalGB;
                 }
 
                 // Validate Max Backup Size
                 if ($key === 'backup_max_size_gb') {
                     $newBackupPath = rtrim(trim($_POST['settings']['backup_path'] ?? ''), '\\/');
-                    $valBackupPathForDisk = (!empty($newBackupPath) && file_exists($newBackupPath)) ? realpath($newBackupPath) : realpath(__DIR__ . '/../backups');
+                    $valBackupPathForDisk = (!empty($newBackupPath) && file_exists($newBackupPath))
+                        ? realpath($newBackupPath)
+                        : realpath(__DIR__ . '/../backups');
+
                     if (!$valBackupPathForDisk) $valBackupPathForDisk = __DIR__;
+
                     $valBackupDiskBytes = @disk_total_space($valBackupPathForDisk);
-                    $valBackupDiskGB = $valBackupDiskBytes ? floor($valBackupDiskBytes / 1024 / 1024 / 1024) : 1000;
+                    $valBackupDiskGB    = $valBackupDiskBytes ? floor($valBackupDiskBytes / 1024 / 1024 / 1024) : 1000;
                     if ($valBackupDiskGB < 1) $valBackupDiskGB = 1;
 
                     $value = (float)$value;
                     if ($value < 0.01) $value = 0.01;
-                    if ($value > $valBackupDiskGB) $value = $valBackupDiskGB;
+                    if ($value > $valBackupDiskGB) $value = (float)$valBackupDiskGB;
                 }
 
                 $updates[$key] = $value;
             }
         }
 
+        // Save settings if valid
         if (empty($errors)) {
-            $stmt = $pdo->prepare("INSERT INTO system_settings (setting_key, setting_value) VALUES (?, ?) ON DUPLICATE KEY UPDATE setting_value = ?");
-            foreach ($updates as $k => $v) {
-                // [FIX] Correctly handle array values (like approval_widgets) during database save.
-                // This prevents storing the literal string "Array" which causes 500 errors on the dashboard.
-                $valStr = is_array($v) ? json_encode($v) : (string)$v;
+            $stmt = $pdo->prepare(
+                "INSERT INTO system_settings (setting_key, setting_value)
+                 VALUES (?, ?)
+                 ON DUPLICATE KEY UPDATE setting_value = ?"
+            );
 
+            foreach ($updates as $k => $v) {
+                $valStr = (string)$v; // already JSON-encoded if needed
                 $stmt->execute([$k, $valStr, $valStr]);
             }
 
@@ -293,34 +347,39 @@ try {
 }
 
 // Set defaults
-$serverTimeout = $currentSettings['session_timeout_server'] ?? 1800;
-$clientTimeout = $currentSettings['session_timeout_client'] ?? 900;
-$refreshInterval = $currentSettings['auto_refresh_interval'] ?? 60;
+$serverTimeout    = $currentSettings['session_timeout_server'] ?? 1800;
+$clientTimeout    = $currentSettings['session_timeout_client'] ?? 900;
+$refreshInterval  = $currentSettings['auto_refresh_interval'] ?? 60;
 $companyPresident = $currentSettings['company_president'] ?? 'JUNJI FURUYA';
-$vaultLimitGB = $currentSettings['vault_size_limit_gb'] ?? '1';
-$maintMode = $currentSettings['maintenance_mode'] ?? '0';
+$vaultLimitGB     = $currentSettings['vault_size_limit_gb'] ?? '1';
+$maintMode        = $currentSettings['maintenance_mode'] ?? '0';
 
-$staffDirect = ($currentSettings['staff_direct_approval'] ?? '0') === '1';
-$defProject  = $currentSettings['default_project_name'] ?? '';
-$defPlace    = $currentSettings['default_notice_place'] ?? '';
-$marginL     = $currentSettings['bulk_margin_left'] ?? '30';
-$marginR     = $currentSettings['bulk_margin_right'] ?? '20';
+$staffDirect      = ($currentSettings['staff_direct_approval'] ?? '0') === '1';
+$defProject       = $currentSettings['default_project_name'] ?? '';
+$defPlace         = $currentSettings['default_notice_place'] ?? '';
+$marginL          = $currentSettings['bulk_margin_left'] ?? '30';
+$marginR          = $currentSettings['bulk_margin_right'] ?? '20';
+
 $approvalWidgetsJson = json_decode($currentSettings['approval_widgets'] ?? '["hires","edits","docs","doc-edits","tickets"]', true);
-$docFontSize = $currentSettings['document_font_size'] ?? '11';
+$docFontSize      = $currentSettings['document_font_size'] ?? '11';
 
-$backupDay = $currentSettings['backup_day'] ?? 'Fri';
-$backupTime = $currentSettings['backup_time'] ?? '00:00';
-$backupPath = $currentSettings['backup_path'] ?? '';
-$secondaryPath = $currentSettings['secondary_backup_path'] ?? '';
-$backupVault = $currentSettings['backup_include_vault'] ?? '0';
-$backupEmail = $currentSettings['backup_alert_email'] ?? '';
-$backupMaxSize = $currentSettings['backup_max_size_gb'] ?? '1.9';
+$backupDay        = $currentSettings['backup_day'] ?? 'Fri';
+$backupTime       = $currentSettings['backup_time'] ?? '00:00';
+$backupPath       = $currentSettings['backup_path'] ?? '';
+$secondaryPath    = $currentSettings['secondary_backup_path'] ?? '';
+$backupVault      = $currentSettings['backup_include_vault'] ?? '0';
+$backupEmail      = $currentSettings['backup_alert_email'] ?? '';
+$backupMaxSize    = $currentSettings['backup_max_size_gb'] ?? '1.9';
 
 // Calculate capacity specifically for the backup drive
-$actualBackupPathForDisk = (!empty($backupPath) && file_exists($backupPath)) ? realpath($backupPath) : realpath(__DIR__ . '/../backups');
+$actualBackupPathForDisk = (!empty($backupPath) && file_exists($backupPath))
+    ? realpath($backupPath)
+    : realpath(__DIR__ . '/../backups');
+
 if (!$actualBackupPathForDisk) $actualBackupPathForDisk = __DIR__;
+
 $backupDiskTotalBytes = @disk_total_space($actualBackupPathForDisk);
-$backupDiskTotalGB = $backupDiskTotalBytes ? floor($backupDiskTotalBytes / 1024 / 1024 / 1024) : 1000;
+$backupDiskTotalGB    = $backupDiskTotalBytes ? floor($backupDiskTotalBytes / 1024 / 1024 / 1024) : 1000;
 if ($backupDiskTotalGB < 1) $backupDiskTotalGB = 1;
 
 // Detect if Backup Path is on the same drive as the app (Windows only)
@@ -328,7 +387,10 @@ $isSameDrive = false;
 $targetDrive = '';
 if (PHP_OS_FAMILY === 'Windows') {
     $appDrive = strtoupper(substr(realpath(__DIR__), 0, 2));
-    $actualBackupPath = (!empty($backupPath) && file_exists($backupPath)) ? realpath($backupPath) : realpath(__DIR__ . '/../backups');
+    $actualBackupPath = (!empty($backupPath) && file_exists($backupPath))
+        ? realpath($backupPath)
+        : realpath(__DIR__ . '/../backups');
+
     if ($actualBackupPath) {
         $targetDrive = strtoupper(substr($actualBackupPath, 0, 2));
         $isSameDrive = ($appDrive === $targetDrive);
@@ -341,10 +403,11 @@ $msg = $_GET['msg'] ?? "";
 include 'header.php';
 ?>
 
-<?php // ---------- 4) SETTINGS UI ---------- 
-?>
 <div class="container">
-    <?php if ($msg): ?><div class="alert alert-success"><?= htmlspecialchars($msg) ?></div><?php endif; ?>
+    <?php if ($msg): ?>
+        <div class="alert alert-success"><?= htmlspecialchars($msg) ?></div>
+    <?php endif; ?>
+
     <?php if ($error): ?>
         <div class="alert alert-danger shadow-sm border-danger border-2">
             <strong><i class="bi bi-exclamation-triangle-fill"></i> Settings could not be saved:</strong><br>
@@ -366,6 +429,8 @@ include 'header.php';
 
         <div class="row">
             <div class="col-lg-12">
+
+                <!-- Session & Inactivity Timeouts -->
                 <div class="card shadow-sm mb-4">
                     <div class="card-header bg-primary text-white">
                         <h5 class="mb-0"><i class="bi bi-clock-history"></i> Session & Inactivity Timeouts</h5>
@@ -382,10 +447,11 @@ include 'header.php';
                                 </select>
                                 <div class="form-text">The maximum time a session is valid on the server. After this, the user is forced to log in again.</div>
                             </div>
+
                             <div class="col-md-6 mb-3">
                                 <label for="client_timeout" class="form-label fw-bold">Client Inactivity Timer</label>
                                 <select id="client_timeout" name="settings[session_timeout_client]" class="form-select">
-                                    <option value="600" <?php echo ($clientTimeout == 600) ? 'selected' : ''; ?>>10 Minutes</option>
+                                    <option value="600" <?= ($clientTimeout == 600) ? 'selected' : '' ?>>10 Minutes</option>
                                     <option value="900" <?= ($clientTimeout == 900) ? 'selected' : '' ?>>15 Minutes (Recommended)</option>
                                     <option value="1200" <?= ($clientTimeout == 1200) ? 'selected' : '' ?>>20 Minutes</option>
                                     <option value="1800" <?= ($clientTimeout == 1800) ? 'selected' : '' ?>>30 Minutes</option>
@@ -396,67 +462,89 @@ include 'header.php';
                                 </div>
                             </div>
                         </div>
+
+                        <!-- Favicon -->
                         <div class="mb-3">
                             <label class="form-label fw-bold">Company Favicon (Tab Icon)</label>
                             <div class="d-flex align-items-center gap-3">
                                 <?php
                                 $faviconUrl = 'uploads/favicon.png';
-                                if (!file_exists($faviconUrl)) $faviconUrl = '../uploads/favicon.png'; // Fallback to root
-                                if (!file_exists($faviconUrl)) $faviconUrl = 'uploads/tesp-logo.png'; // Fallback to logo
+                                if (!file_exists($faviconUrl)) $faviconUrl = '../uploads/favicon.png';
+                                if (!file_exists($faviconUrl)) $faviconUrl = 'uploads/tesp-logo.png';
                                 ?>
-                                <img src="<?= $faviconUrl ?>?v=<?= time() ?>" id="faviconPreview" class="border rounded p-1" style="height: 32px; width: 32px; background: #f8f9fa;" alt="Current Favicon">
+                                <img src="<?= $faviconUrl ?>?v=<?= time() ?>" id="faviconPreview"
+                                    class="border rounded p-1"
+                                    style="height: 32px; width: 32px; background: #f8f9fa;"
+                                    alt="Current Favicon">
                                 <div class="flex-grow-1">
-                                    <input type="file" name="company_favicon" class="form-control" accept=".png,.ico,.jpg,.jpeg" onchange="previewFavicon(this)">
+                                    <input type="file" name="company_favicon" class="form-control"
+                                        accept=".png,.ico,.jpg,.jpeg" onchange="previewFavicon(this)">
                                     <div class="form-text">Recommended: 32x32 or 64x64 PNG. Max 512KB.</div>
                                 </div>
                             </div>
                         </div>
+
                     </div>
                 </div>
 
+                <!-- Permissions & Access -->
                 <div class="card shadow-sm mb-4">
                     <div class="card-header bg-info text-white">
                         <h5 class="mb-0"><i class="bi bi-shield-check"></i> Permissions & Access</h5>
                     </div>
                     <div class="card-body">
                         <div class="form-check form-switch mb-3">
-                            <input class="form-check-input" type="checkbox" id="staffDirect" name="settings[staff_direct_approval]" value="1" <?= $staffDirect ? 'checked' : '' ?>>
+                            <input class="form-check-input" type="checkbox" id="staffDirect"
+                                name="settings[staff_direct_approval]" value="1" <?= $staffDirect ? 'checked' : '' ?>>
                             <label class="form-check-label fw-bold" for="staffDirect">Allow Staff Direct Edit/Add</label>
-                            <div class="form-text text-muted">If <strong>ON</strong>: Changes saved immediately. If <strong>OFF</strong>: Creates a Request for Admin.</div>
+                            <div class="form-text text-muted">
+                                If <strong>ON</strong>: Changes saved immediately.
+                                If <strong>OFF</strong>: Creates a Request for Admin.
+                            </div>
                         </div>
+
                         <div class="form-check form-switch mb-3">
-                            <input class="form-check-input" type="checkbox" role="switch" id="maintMode" name="settings[maintenance_mode]" value="1" <?= ($maintMode === '1') ? 'checked' : '' ?>>
+                            <input class="form-check-input" type="checkbox" role="switch" id="maintMode"
+                                name="settings[maintenance_mode]" value="1" <?= ($maintMode === '1') ? 'checked' : '' ?>>
                             <label class="form-check-label fw-bold text-danger" for="maintMode">Enable Maintenance Mode</label>
-                            <div class="form-text text-muted">If <strong>ON</strong>: Only ADMINS can log in. All other users blocked.</div>
+                            <div class="form-text text-muted">
+                                If <strong>ON</strong>: Only ADMINS can log in. All other users blocked.
+                            </div>
                         </div>
                     </div>
                 </div>
 
+                <!-- Approval Widgets -->
                 <div class="card shadow-sm mb-4">
                     <div class="card-header bg-info text-white">
                         <h5 class="mb-0"><i class="bi bi-clipboard-check"></i> Approval Center Widgets</h5>
                     </div>
                     <div class="card-body">
                         <p class="small text-muted">Select which request types to display on the Admin dashboard.</p>
+
                         <?php
                         $allWidgets = [
                             'hires' => 'New Hires',
                             'edits' => 'Profile Edits',
-                            'docs' => 'Document Uploads',
+                            'docs'  => 'Document Uploads',
                             'doc-edits' => 'Document Edits',
                             'tickets' => 'Ticket Resolutions'
                         ];
                         $enabledWidgets = is_array($approvalWidgetsJson) ? $approvalWidgetsJson : array_keys($allWidgets);
+
                         foreach ($allWidgets as $key => $label):
                         ?>
                             <div class="form-check form-switch">
-                                <input class="form-check-input" type="checkbox" name="settings[approval_widgets][]" value="<?= $key ?>" id="widget_<?= $key ?>" <?= in_array($key, $enabledWidgets) ? 'checked' : '' ?>>
-                                <label class="form-check-label" for="widget_<?php echo $key; ?>"><?php echo $label; ?></label>
+                                <input class="form-check-input" type="checkbox"
+                                    name="settings[approval_widgets][]" value="<?= $key ?>"
+                                    id="widget_<?= $key ?>" <?= in_array($key, $enabledWidgets, true) ? 'checked' : '' ?>>
+                                <label class="form-check-label" for="widget_<?= $key ?>"><?= $label ?></label>
                             </div>
                         <?php endforeach; ?>
                     </div>
                 </div>
 
+                <!-- Company Branding -->
                 <div class="card shadow-sm mb-4">
                     <div class="card-header bg-dark text-white">
                         <h5 class="mb-0"><i class="bi bi-palette"></i> Company Branding</h5>
@@ -467,11 +555,15 @@ include 'header.php';
                             <div class="d-flex align-items-center gap-3">
                                 <?php
                                 $logoUrl = 'uploads/tesp-logo.png';
-                                if (!file_exists($logoUrl)) $logoUrl = '../uploads/tesp-logo.png'; // Fallback to root
+                                if (!file_exists($logoUrl)) $logoUrl = '../uploads/tesp-logo.png';
                                 ?>
-                                <img src="<?= $logoUrl ?>?v=<?= time() ?>" id="logoPreview" class="border rounded p-1" style="height: 80px; width: auto; background: #f8f9fa;" alt="Current Logo">
+                                <img src="<?= $logoUrl ?>?v=<?= time() ?>" id="logoPreview"
+                                    class="border rounded p-1"
+                                    style="height: 80px; width: auto; background: #f8f9fa;"
+                                    alt="Current Logo">
                                 <div class="flex-grow-1">
-                                    <input type="file" name="company_logo" class="form-control" accept=".png,.jpg,.jpeg" onchange="previewLogo(this)">
+                                    <input type="file" name="company_logo" class="form-control"
+                                        accept=".png,.jpg,.jpeg" onchange="previewLogo(this)">
                                     <div class="form-text">Recommended: PNG with transparent background. Max 2MB.</div>
                                 </div>
                             </div>
@@ -479,6 +571,7 @@ include 'header.php';
                     </div>
                 </div>
 
+                <!-- Document Defaults -->
                 <div class="card shadow-sm mb-4">
                     <div class="card-header bg-secondary text-white">
                         <h5 class="mb-0"><i class="bi bi-file-earmark-ruled"></i> Document Defaults</h5>
@@ -486,33 +579,52 @@ include 'header.php';
                     <div class="card-body">
                         <div class="mb-3">
                             <label class="form-label fw-bold">Company President</label>
-                            <input type="text" name="settings[company_president]" class="form-control" value="<?= htmlspecialchars($companyPresident) ?>" placeholder="e.g. JUNJI FURUYA" maxlength="100">
+                            <input type="text" name="settings[company_president]" class="form-control"
+                                value="<?= htmlspecialchars($companyPresident) ?>"
+                                placeholder="e.g. JUNJI FURUYA" maxlength="100">
                         </div>
+
                         <div class="mb-3">
                             <label class="form-label fw-bold">Default Project Name</label>
-                            <input type="text" name="settings[default_project_name]" class="form-control" value="<?= htmlspecialchars($defProject) ?>" placeholder="e.g. MRT-3 Rehabilitation Project" maxlength="100" pattern="[a-zA-Z0-9\s\-\.\(\)]+" title="Allowed: Letters, Numbers, Spaces, - . ( )">
+                            <input type="text" name="settings[default_project_name]" class="form-control"
+                                value="<?= htmlspecialchars($defProject) ?>"
+                                placeholder="e.g. MRT-3 Rehabilitation Project"
+                                maxlength="100"
+                                pattern="[a-zA-Z0-9\s\-\.\(\)]+"
+                                title="Allowed: Letters, Numbers, Spaces, - . ( )">
                         </div>
+
                         <div class="mb-3">
                             <label class="form-label fw-bold">Default Notice Place</label>
-                            <input type="text" name="settings[default_notice_place]" class="form-control" value="<?= htmlspecialchars($defPlace) ?>" placeholder="e.g. Quezon City" maxlength="100">
+                            <input type="text" name="settings[default_notice_place]" class="form-control"
+                                value="<?= htmlspecialchars($defPlace) ?>"
+                                placeholder="e.g. Quezon City" maxlength="100">
                         </div>
+
                         <div class="row g-2">
                             <div class="col-4">
                                 <label class="form-label fw-bold">Margin (Left)</label>
-                                <input type="number" name="settings[bulk_margin_left]" class="form-control" value="<?= htmlspecialchars($marginL) ?>" min="0" max="500" oninput="validateMargin(this)">
+                                <input type="number" name="settings[bulk_margin_left]" class="form-control"
+                                    value="<?= htmlspecialchars($marginL) ?>"
+                                    min="0" max="500" oninput="validateMargin(this)">
                             </div>
                             <div class="col-4">
                                 <label class="form-label fw-bold">Margin (Right)</label>
-                                <input type="number" name="settings[bulk_margin_right]" class="form-control" value="<?= htmlspecialchars($marginR) ?>" min="0" max="500" oninput="validateMargin(this)">
+                                <input type="number" name="settings[bulk_margin_right]" class="form-control"
+                                    value="<?= htmlspecialchars($marginR) ?>"
+                                    min="0" max="500" oninput="validateMargin(this)">
                             </div>
                             <div class="col-4">
                                 <label class="form-label fw-bold">Font Size (pt)</label>
-                                <input type="number" step="0.5" name="settings[document_font_size]" class="form-control" value="<?= htmlspecialchars($docFontSize) ?>" min="8" max="24" oninput="validateFontSize(this)">
+                                <input type="number" step="0.5" name="settings[document_font_size]" class="form-control"
+                                    value="<?= htmlspecialchars($docFontSize) ?>"
+                                    min="8" max="24" oninput="validateFontSize(this)">
                             </div>
                         </div>
                     </div>
                 </div>
 
+                <!-- General Settings -->
                 <div class="card shadow-sm mb-4">
                     <div class="card-header bg-secondary text-white">
                         <h5 class="mb-0"><i class="bi bi-gear-wide-connected"></i> General Settings</h5>
@@ -521,100 +633,168 @@ include 'header.php';
                         <div class="row">
                             <div class="col-md-6 mb-3">
                                 <label for="refresh_interval" class="form-label fw-bold">Dashboard Refresh Interval (seconds)</label>
-                                <input type="number" id="refresh_interval" name="settings[auto_refresh_interval]" class="form-control" value="<?= htmlspecialchars($refreshInterval) ?>" min="10" max="3600" oninput="this.value = this.value.replace(/[^0-9]/g, ''); if(parseInt(this.value) > 3600) this.value = '3600';">
+                                <input type="number" id="refresh_interval" name="settings[auto_refresh_interval]"
+                                    class="form-control"
+                                    value="<?= htmlspecialchars($refreshInterval) ?>"
+                                    min="10" max="3600"
+                                    oninput="this.value=this.value.replace(/[^0-9]/g,''); if(parseInt(this.value)>3600) this.value='3600';">
                             </div>
+
                             <div class="col-md-6 mb-3">
                                 <label for="vault_size_limit_gb" class="form-label fw-bold">Vault Size Limit (GB)</label>
-                                <input type="number" step="0.1" id="vault_size_limit_gb" name="settings[vault_size_limit_gb]" class="form-control" value="<?= htmlspecialchars($vaultLimitGB) ?>" min="0" max="<?= $diskTotalGB ?>" oninput="this.value = this.value.replace(/[^0-9\.]/g, ''); if(parseFloat(this.value) > <?= $diskTotalGB ?>) this.value = '<?= $diskTotalGB ?>';">
+                                <input type="number" step="0.1" id="vault_size_limit_gb" name="settings[vault_size_limit_gb]"
+                                    class="form-control"
+                                    value="<?= htmlspecialchars($vaultLimitGB) ?>"
+                                    min="0" max="<?= $diskTotalGB ?>"
+                                    oninput="this.value=this.value.replace(/[^0-9\.]/g,''); if(parseFloat(this.value)><?= $diskTotalGB ?>) this.value='<?= $diskTotalGB ?>';">
                                 <div class="form-text">Maximum allowed storage (Capacity: <strong><?= $diskTotalGB ?> GB</strong>). Set 0 for unlimited.</div>
                             </div>
                         </div>
                     </div>
                 </div>
 
+                <!-- Automated Backup -->
                 <div class="card shadow-sm mb-4">
                     <div class="card-header bg-dark text-white">
                         <h5 class="mb-0"><i class="bi bi-server"></i> Automated Backup</h5>
                     </div>
                     <div class="card-body">
+
                         <div class="row">
                             <div class="col-md-3 mb-3">
                                 <label class="form-label fw-bold">Backup Day</label>
                                 <select name="settings[backup_day]" class="form-select">
                                     <?php $days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']; ?>
                                     <?php foreach ($days as $day): ?>
-                                        <option value="<?= $day ?>" <?= ($backupDay === $day) ? 'selected' : '' ?>><?= date('l', strtotime($day)) ?></option>
+                                        <option value="<?= $day ?>" <?= ($backupDay === $day) ? 'selected' : '' ?>>
+                                            <?= date('l', strtotime($day)) ?>
+                                        </option>
                                     <?php endforeach; ?>
                                 </select>
                             </div>
+
                             <div class="col-md-3 mb-3">
                                 <label class="form-label fw-bold">Backup Time</label>
-                                <input type="time" name="settings[backup_time]" class="form-control" value="<?= htmlspecialchars($backupTime) ?>">
+                                <input type="time" name="settings[backup_time]" class="form-control"
+                                    value="<?= htmlspecialchars($backupTime) ?>">
                             </div>
+
                             <div class="col-md-3 mb-3">
                                 <label class="form-label fw-bold">Max Split Size (GB)</label>
-                                <input type="number" step="0.1" name="settings[backup_max_size_gb]" class="form-control" value="<?= htmlspecialchars($backupMaxSize) ?>" min="0.1" max="<?= $backupDiskTotalGB ?>">
+                                <input type="number" step="0.1" name="settings[backup_max_size_gb]" class="form-control"
+                                    value="<?= htmlspecialchars($backupMaxSize) ?>"
+                                    min="0.1" max="<?= $backupDiskTotalGB ?>">
                             </div>
+
                             <div class="col-md-3 mb-3 d-flex align-items-center pt-3">
                                 <div class="form-check form-switch">
-                                    <input class="form-check-input" type="checkbox" name="settings[backup_include_vault]" value="1" id="incVault" <?= ($backupVault === '1') ? 'checked' : '' ?>>
+                                    <input class="form-check-input" type="checkbox" name="settings[backup_include_vault]"
+                                        value="1" id="incVault" <?= ($backupVault === '1') ? 'checked' : '' ?>>
                                     <label class="form-check-label fw-bold" for="incVault">Include Vault Files</label>
-                                    <div class="form-text text-danger mt-1" style="font-size: 0.75rem;"><i class="bi bi-exclamation-triangle"></i> Uncheck if vault > 2GB.</div>
+                                    <div class="form-text text-danger mt-1" style="font-size: 0.75rem;">
+                                        <i class="bi bi-exclamation-triangle"></i> Uncheck if vault &gt; 2GB.
+                                    </div>
                                 </div>
                             </div>
                         </div>
+
                         <div class="mb-3">
                             <label class="form-label fw-bold">Backup Path (Optional) <span id="primaryStatus"></span></label>
                             <div class="input-group">
-                                <input type="text" name="settings[backup_path]" id="backupPathInput" class="form-control" value="<?= htmlspecialchars($backupPath) ?>" placeholder="e.g. C:\backups\" maxlength="255">
-                                <button type="button" class="btn btn-outline-secondary" onclick="testBackupPath(this)" title="Verify Path Access"><i class="bi bi-folder-check"></i> Test Path</button>
+                                <input type="text" name="settings[backup_path]" id="backupPathInput"
+                                    class="form-control"
+                                    value="<?= htmlspecialchars($backupPath) ?>"
+                                    placeholder="e.g. C:\backups\" maxlength="255">
+                                <button type="button" class="btn btn-outline-secondary"
+                                    onclick="testBackupPath(this)" title="Verify Path Access">
+                                    <i class="bi bi-folder-check"></i> Test Path
+                                </button>
                             </div>
                             <div class="form-text">Leave blank to use default `backups/` folder.</div>
+
                             <?php if ($isSameDrive): ?>
                                 <div class="alert alert-danger small mt-2 mb-0 border-danger border-2">
-                                    <i class="bi bi-exclamation-triangle-fill"></i> <strong>Warning:</strong> Backups are saving to the same drive (<strong><?= htmlspecialchars($targetDrive) ?></strong>) as the app.
+                                    <i class="bi bi-exclamation-triangle-fill"></i>
+                                    <strong>Warning:</strong> Backups are saving to the same drive
+                                    (<strong><?= htmlspecialchars($targetDrive) ?></strong>) as the app.
                                 </div>
                             <?php endif; ?>
                         </div>
+
                         <div class="mb-3">
                             <label class="form-label fw-bold">Secondary Backup Path (Redundancy) <span id="secondaryStatus"></span></label>
                             <div class="input-group">
-                                <input type="text" name="settings[secondary_backup_path]" id="secondaryPathInput" class="form-control" value="<?= htmlspecialchars($secondaryPath) ?>" placeholder="e.g. D:\backups_mirror\">
-                                <button type="button" class="btn btn-outline-secondary" onclick="testSecondaryPath(this)" title="Verify Mirror Path"><i class="bi bi-folder-check"></i> Test Path</button>
+                                <input type="text" name="settings[secondary_backup_path]" id="secondaryPathInput"
+                                    class="form-control"
+                                    value="<?= htmlspecialchars($secondaryPath) ?>"
+                                    placeholder="e.g. D:\backups_mirror\">
+                                <button type="button" class="btn btn-outline-secondary"
+                                    onclick="testSecondaryPath(this)" title="Verify Mirror Path">
+                                    <i class="bi bi-folder-check"></i> Test Path
+                                </button>
                             </div>
                         </div>
+
                         <div class="mb-3">
                             <label class="form-label fw-bold">ZIP Password</label>
                             <div class="input-group">
-                                <input type="password" name="settings[backup_password]" id="backupPassInput" class="form-control" placeholder="Enter new to change" minlength="8" maxlength="50" autocomplete="new-password" oninput="updateStrength(this.value, 'backupStrengthBar')">
-                                <button class="btn btn-outline-secondary" type="button" onclick="togglePass('backupPassInput')"><i class="bi bi-eye"></i></button>
-                                <button type="button" class="btn btn-outline-secondary" onclick="testZipPassword(this)" title="Verify Password"><i class="bi bi-check-circle"></i> Test</button>
+                                <input type="password" name="settings[backup_password]" id="backupPassInput"
+                                    class="form-control"
+                                    placeholder="Enter new to change"
+                                    minlength="8" maxlength="50"
+                                    autocomplete="new-password"
+                                    oninput="updateStrength(this.value,'backupStrengthBar')">
+                                <button class="btn btn-outline-secondary" type="button"
+                                    onclick="togglePass('backupPassInput')">
+                                    <i class="bi bi-eye"></i>
+                                </button>
+                                <button type="button" class="btn btn-outline-secondary"
+                                    onclick="testZipPassword(this)" title="Verify Password">
+                                    <i class="bi bi-check-circle"></i> Test
+                                </button>
                                 <div class="input-group-text bg-white">
-                                    <input class="form-check-input mt-0" type="checkbox" name="clear_backup_password" value="1" aria-label="Clear password">
+                                    <input class="form-check-input mt-0" type="checkbox" name="clear_backup_password"
+                                        value="1" aria-label="Clear password">
                                     <span class="ms-2 small">Clear</span>
                                 </div>
                             </div>
+
                             <div class="progress mt-1" style="height: 5px;">
-                                <div id="backupStrengthBar" class="progress-bar bg-danger" role="progressbar" style="width: 0%"></div>
+                                <div id="backupStrengthBar" class="progress-bar bg-danger"
+                                    role="progressbar" style="width: 0%"></div>
                             </div>
                         </div>
+
                         <div class="mb-3">
                             <label class="form-label fw-bold">Failure Alert Email</label>
-                            <input type="email" name="settings[backup_alert_email]" class="form-control" value="<?= htmlspecialchars($backupEmail) ?>" placeholder="admin@example.com" maxlength="100">
+                            <input type="email" name="settings[backup_alert_email]" class="form-control"
+                                value="<?= htmlspecialchars($backupEmail) ?>"
+                                placeholder="admin@example.com" maxlength="100">
                         </div>
+
                     </div>
                 </div>
 
                 <div class="alert alert-info mt-3">
                     <h6 class="fw-bold"><i class="bi bi-robot"></i> Automatic System Backup</h6>
-                    <p class="small mb-2">The system will automatically run a backup when an <strong>Admin logs in</strong> on <strong><?= htmlspecialchars($backupDay) ?></strong> after <strong><?= htmlspecialchars($backupTime) ?></strong>.</p>
-                    <hr><button type="button" class="btn btn-sm btn-dark mt-1 fw-bold" id="manualBackupBtn" onclick="runManualBackup()"><i class="bi bi-play-fill"></i> Run Full Backup Now</button>
+                    <p class="small mb-2">
+                        The system will automatically run a backup when an <strong>Admin logs in</strong> on
+                        <strong><?= htmlspecialchars($backupDay) ?></strong> after
+                        <strong><?= htmlspecialchars($backupTime) ?></strong>.
+                    </p>
+                    <hr>
+                    <button type="button" class="btn btn-sm btn-dark mt-1 fw-bold" id="manualBackupBtn" onclick="runManualBackup()">
+                        <i class="bi bi-play-fill"></i> Run Full Backup Now
+                    </button>
                 </div>
+
             </div>
         </div>
 
         <div class="text-center my-4">
-            <button type="submit" class="btn btn-lg btn-success shadow-sm"><i class="bi bi-check-circle-fill"></i> Save All Settings</button>
+            <button type="submit" class="btn btn-lg btn-success shadow-sm">
+                <i class="bi bi-check-circle-fill"></i> Save All Settings
+            </button>
         </div>
     </form>
 </div>
@@ -622,15 +802,14 @@ include 'header.php';
 <script src="assets/bootstrap.bundle.min.js"></script>
 <script src="assets/sweetalert2.all.min.js"></script>
 <script src="main.js"></script>
-<script>
-    <?php // ---------- 5) JAVASCRIPT SETTINGS LOGIC ---------- 
-    ?>
 
+<script>
     function togglePass(id) {
         const input = document.getElementById(id);
         if (!input) return;
         const btn = input.nextElementSibling;
         const icon = btn ? btn.querySelector('i') : null;
+
         if (input.type === 'password') {
             input.type = 'text';
             if (icon) icon.classList.replace('bi-eye', 'bi-eye-slash');
@@ -643,23 +822,33 @@ include 'header.php';
     function updateAllPathStatus() {
         const p = document.getElementById('backupPathInput')?.value.trim() || '';
         const s = document.getElementById('secondaryPathInput')?.value.trim() || '';
-        if (document.getElementById('primaryStatus')) document.getElementById('primaryStatus').innerHTML = p !== "" ? '<i class="bi bi-check-circle-fill text-success" title="Custom path active"></i>' : '';
-        if (document.getElementById('secondaryStatus')) document.getElementById('secondaryStatus').innerHTML = s !== "" ? '<i class="bi bi-check-circle-fill text-success" title="Mirror path active"></i>' : '';
+        if (document.getElementById('primaryStatus')) {
+            document.getElementById('primaryStatus').innerHTML =
+                p !== "" ? '<i class="bi bi-check-circle-fill text-success" title="Custom path active"></i>' : '';
+        }
+        if (document.getElementById('secondaryStatus')) {
+            document.getElementById('secondaryStatus').innerHTML =
+                s !== "" ? '<i class="bi bi-check-circle-fill text-success" title="Mirror path active"></i>' : '';
+        }
     }
 
     function testZipPassword(btn) {
         const input = document.getElementById('backupPassInput');
         const pass = input.value;
+
         if (!pass) {
             Swal.fire('Input Required', 'Please enter a password in the field to test it.', 'warning');
             return;
         }
+
         const originalHtml = btn.innerHTML;
         btn.disabled = true;
         btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+
         const formData = new FormData();
         formData.append('password', pass);
-        formData.append('csrf_token', '<?php echo $_SESSION['csrf_token']; ?>');
+        formData.append('csrf_token', '<?= $csrf_token_js ?>');
+
         fetch('test_zip_password.php', {
                 method: 'POST',
                 body: formData
@@ -682,16 +871,20 @@ include 'header.php';
     function testBackupPath(btn) {
         const input = document.getElementById('backupPathInput');
         const path = input.value.trim();
+
         if (!path) {
             Swal.fire('Input Required', 'Please enter a custom backup path to test.', 'info');
             return;
         }
+
         const originalHtml = btn.innerHTML;
         btn.disabled = true;
         btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+
         const formData = new FormData();
         formData.append('path', path);
-        formData.append('csrf_token', '<?php echo $_SESSION['csrf_token']; ?>');
+        formData.append('csrf_token', '<?= $csrf_token_js ?>');
+
         fetch('test_backup_path.php', {
                 method: 'POST',
                 body: formData
@@ -716,16 +909,20 @@ include 'header.php';
     function testSecondaryPath(btn) {
         const input = document.getElementById('secondaryPathInput');
         const path = input.value.trim();
+
         if (!path) {
             Swal.fire('Input Required', 'Please enter a secondary backup path to test.', 'info');
             return;
         }
+
         const originalHtml = btn.innerHTML;
         btn.disabled = true;
         btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+
         const formData = new FormData();
         formData.append('path', path);
-        formData.append('csrf_token', '<?php echo $_SESSION['csrf_token']; ?>');
+        formData.append('csrf_token', '<?= $csrf_token_js ?>');
+
         fetch('test_backup_path.php', {
                 method: 'POST',
                 body: formData
@@ -750,6 +947,7 @@ include 'header.php';
     function updateStrength(val, barId) {
         const bar = document.getElementById(barId);
         if (!bar) return;
+
         let score = 0;
         if (val.length >= 8) score++;
         if (val.length >= 12) score++;
@@ -758,6 +956,7 @@ include 'header.php';
         if (/[a-z]/.test(val)) score++;
         if (/[0-9]/.test(val)) score++;
         if (/[^A-Za-z0-9]/.test(val)) score++;
+
         let pct = Math.min(100, (score / 7) * 100);
         bar.style.width = pct + '%';
         bar.className = 'progress-bar ' + (score > 5 ? 'bg-success' : (score > 3 ? 'bg-warning' : 'bg-danger'));
@@ -771,19 +970,20 @@ include 'header.php';
         Swal.fire({
             title: 'Running Full Backup...',
             html: `
-                <p class="text-muted small mb-3">The system is packing the database and files into secure volumes. Please wait...</p>
-                <div class="progress mb-3" style="height: 25px;">
-                    <div class="progress-bar progress-bar-striped progress-bar-animated bg-success" style="width: 100%"></div>
-                </div>
-                <span class="text-danger fw-bold small">This may take a few minutes. Do not close this window!</span>
-            `,
+            <p class="text-muted small mb-3">The system is packing the database and files into secure volumes. Please wait...</p>
+            <div class="progress mb-3" style="height: 25px;">
+                <div class="progress-bar progress-bar-striped progress-bar-animated bg-success" style="width: 100%"></div>
+            </div>
+            <span class="text-danger fw-bold small">This may take a few minutes. Do not close this window!</span>
+        `,
             allowOutsideClick: false,
             allowEscapeKey: false,
             showConfirmButton: false
         });
 
         const formData = new FormData();
-        formData.append('csrf_token', '<?php echo $_SESSION['csrf_token']; ?>');
+        formData.append('csrf_token', '<?= $csrf_token_js ?>');
+
         fetch('cron_backup.php?ajax=1', {
                 method: 'POST',
                 body: formData
@@ -800,14 +1000,13 @@ include 'header.php';
             .catch(err => {
                 Swal.close();
                 console.error(err);
-                // [FIX] Replace generic Network Error with helpful guidance
                 Swal.fire({
                     icon: 'warning',
                     title: 'Backup Task Continuing...',
                     html: `
-                        <p>The connection timed out, but the server is still packing your backup in the background.</p>
-                        <p class="small text-muted">Please check the <b>Disaster Recovery</b> table in Manage Users in 5-10 minutes to verify the new files.</p>
-                    `,
+                    <p>The connection timed out, but the server is still packing your backup in the background.</p>
+                    <p class="small text-muted">Please check the <b>Disaster Recovery</b> table in Manage Users in 5-10 minutes to verify the new files.</p>
+                `,
                     confirmButtonText: 'Understood'
                 });
             })
@@ -852,6 +1051,7 @@ include 'header.php';
 
     document.addEventListener('DOMContentLoaded', updateAllPathStatus);
 </script>
+
 </body>
 
 </html>

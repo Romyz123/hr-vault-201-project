@@ -898,6 +898,21 @@ $paginatedEmployees = array_slice($employees, $offset, $perPage);
                     <select name="type" class="form-select form-select-sm" onchange="this.form.submit()">
                         <option value="">All Agencies</option>
                         <?php
+                        // [FIX] Dynamically fetch distinct employment types and agency names from the database
+                        $agencies = [];
+                        try {
+                            $typeStmt = $pdo->query("SELECT DISTINCT employment_type AS val FROM employees WHERE employment_type IS NOT NULL AND employment_type != '' 
+                                                     UNION 
+                                                     SELECT DISTINCT agency_name AS val FROM employees WHERE agency_name IS NOT NULL AND agency_name != ''");
+                            while ($row = $typeStmt->fetch(PDO::FETCH_ASSOC)) {
+                                $agencies[] = $row['val'];
+                            }
+                            sort($agencies); // Sort alphabetically
+                        } catch (Exception $e) {
+                            // Fallback list just in case the query fails
+                            $agencies = ['Regular', 'Probationary', 'Contractual', 'Project-Based'];
+                        }
+
                         foreach ($agencies as $val) {
                             $sel = ($type === $val) ? 'selected' : '';
                             echo "<option value='" . htmlspecialchars($val) . "' $sel>" . htmlspecialchars($val) . "</option>";

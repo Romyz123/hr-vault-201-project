@@ -10,6 +10,10 @@ require '../src/Security.php';
 require '../src/Logger.php';
 require 'options.php'; // Fetch dynamic options for agencies
 
+// [FIX] Satisfy Intelephense by providing a safe fallback
+$agencies = $agencies ?? [];
+$college_courses_list = $college_courses_list ?? [];
+
 // [FIX] Ensure checkSessionTimeout is defined before calling it
 if (!function_exists('checkSessionTimeout')) {
     require_once __DIR__ . '/../config/db.php';
@@ -112,7 +116,8 @@ $deptMap = [
 ];
 
 // ---------- 4) HELPER FUNCTIONS ----------
-function findDept($section, $map)
+// [FIX] Added 'string' and 'array' type hints
+function findDept(string $section, array $map)
 {
     $section = strtoupper(trim($section));
 
@@ -132,9 +137,10 @@ function findDept($section, $map)
 }
 
 // [FIX] Upgraded Date Parser to properly handle MS Forms (M/d/yyyy)
-function parseDate($dateStr)
+// [FIX] Added '?string' type hint (allows null or string)
+function parseDate(?string $dateStr)
 {
-    $dateStr = trim($dateStr);
+    $dateStr = trim($dateStr ?? '');
     if (empty($dateStr)) return NULL;
 
     // Handle formats like M/D/YYYY or MM/DD/YYYY outputted by Forms
@@ -159,7 +165,8 @@ function parseDate($dateStr)
 }
 
 // [NEW] Normalizer for College Courses using Keywords
-function normalizeCourse($input, $masterList)
+// [FIX] Added 'string' and 'array' type hints
+function normalizeCourse(string $input, array $masterList)
 {
     $input = strtoupper(trim($input));
     if (empty($input)) return '';
@@ -389,14 +396,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['undo_batch'])) {
         if (empty($file) || !is_uploaded_file($file)) {
             $error = "Invalid uploaded file.";
         } else {
+            // [FIX] Initialize variables BEFORE opening the file so they always exist
+            $success_count = 0;
+            $updated_count = 0;
+
             $handle = @fopen($file, "r");
             if ($handle === false) {
                 error_log("Import failed: could not open uploaded file $file");
                 $error = "Unable to read uploaded file.";
             } else {
                 // detect delimiter based on first line sample
-                $success_count = 0;
-                $updated_count = 0; // [NEW] Track updates
+                $firstChunk = fread($handle, 4096);
                 $firstChunk = fread($handle, 4096);
                 rewind($handle);
 
@@ -409,7 +419,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['undo_batch'])) {
                 if ($delimTab > $delimComma && $delimTab > $delimSemi) $delimiter = "\t";
 
                 $batch_id = "BATCH_" . date('Ymd_His');
-                $success_count = 0;
 
                 // Capture header for Custom mapping
                 $headerRow = fgetcsv($handle, 0, $delimiter);
@@ -513,7 +522,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['undo_batch'])) {
                             return strtoupper(trim(preg_replace('/[\x00-\x1F\x7F]/', '', $val)));
                         }, $headerRow);
 
-                        $getVal = function ($keys) use ($h, $data) {
+                        $getVal = function (array $keys) use ($h, $data) {
                             $ignoreHeaders = ['ID', 'START TIME', 'COMPLETION TIME', 'EMAIL', 'NAME', 'LAST MODIFIED TIME'];
 
                             // Pass 1: Strict Exact Match
@@ -945,19 +954,22 @@ $history = $pdo->query("SELECT import_batch, MAX(agency_name) as agency_name, CO
 ?>
 
 <!DOCTYPE html>
-// ---------- 8) HTML DOCUMENT HEAD & NAVIGATION ----------
 <html lang="en">
 
 <head>
     <meta charset="UTF-8">
-    <title>Import Employees</title>
+    <title>Import Employees | HR System</title>
+    <?php
+    // [FIX] Ensure the tab logo displays correctly using a reliable path
+    $fav = 'uploads/favicon.png';
+    if (!file_exists($fav)) $fav = 'uploads/tesp-logo.png';
+    ?>
+    <link rel="icon" type="image/png" href="<?php echo htmlspecialchars($fav); ?>?v=<?php echo time(); ?>">
+    <link rel="apple-touch-icon" href="<?php echo htmlspecialchars($fav); ?>">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <link rel="icon" href="uploads/tesp-logo.png" type="image/png">
     <link href="assets/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="assets/icons/bootstrap-icons.css">
     <script src="assets/sweetalert2.all.min.js"></script>
-    <link rel="shortcut icon" type="image/png" href="uploads/tesp-logo.png">
-    <link rel="apple-touch-icon" href="uploads/tesp-logo.png">
     <style>
         .format-box {
             display: none;
@@ -989,6 +1001,12 @@ $history = $pdo->query("SELECT import_batch, MAX(agency_name) as agency_name, CO
     <nav class="navbar navbar-dark bg-dark mb-4">
         <div class="container">
             <a class="navbar-brand" href="index.php">Back to Dashboard</a>
+            <button onclick="history.back()" class="btn btn-sm btn-outline-light me-2 no-print" title="Go Back">
+                <i class="bi bi-arrow-left"></i> Back
+            </button>
+            <div class="d-flex align-items-center">
+
+            </div>
             <div class="d-flex align-items-center gap-2">
                 <button id="darkModeToggle" class="btn btn-sm btn-outline-light border-0" title="Toggle Dark Mode">
                     <i class="bi bi-moon-stars-fill"></i>
@@ -1000,7 +1018,8 @@ $history = $pdo->query("SELECT import_batch, MAX(agency_name) as agency_name, CO
 
     <div class="container">
 
-        <?php // ---------- 9) FORMAT INSTRUCTIONS ---------- ?>
+        <?php // ---------- 9) FORMAT INSTRUCTIONS ---------- 
+        ?>
         <div id="instr_tesp" class="alert alert-info shadow-sm mb-4 format-box">
             <div class="d-flex justify-content-between align-items-center mb-2">
                 <h6 class="fw-bold mb-0">Standard Format (TESP / GUNJIN)</h6>
@@ -1215,7 +1234,8 @@ $history = $pdo->query("SELECT import_batch, MAX(agency_name) as agency_name, CO
             </div>
         </div>
 
-        <?php // ---------- 10) BULK IMPORT FORM ---------- ?>
+        <?php // ---------- 10) BULK IMPORT FORM ---------- 
+        ?>
         <div class="card shadow mb-4">
             <div class="card-header bg-success text-white">
                 <h5 class="mb-0">Bulk Import</h5>
@@ -1269,7 +1289,8 @@ $history = $pdo->query("SELECT import_batch, MAX(agency_name) as agency_name, CO
             </div>
         </div>
 
-        <?php // ---------- 11) IMPORT HISTORY & UNDO UI ---------- ?>
+        <?php // ---------- 11) IMPORT HISTORY & UNDO UI ---------- 
+        ?>
         <?php if (count($history) > 0): ?>
             <div class="card shadow border-danger">
                 <div class="card-header bg-danger text-white">
@@ -1330,7 +1351,8 @@ $history = $pdo->query("SELECT import_batch, MAX(agency_name) as agency_name, CO
 
     </div>
 
-    <?php // ---------- 12) JAVASCRIPT LOGIC ---------- ?>
+    <?php // ---------- 12) JAVASCRIPT LOGIC ---------- 
+    ?>
     <script>
         function toggleFormat() {
             const format = document.getElementById('agency_select').value;

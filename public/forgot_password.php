@@ -224,6 +224,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <link rel="icon" type="image/png" href="../uploads/tesp-logo.png">
     <link rel="shortcut icon" type="image/png" href="../uploads/tesp-logo.png">
     <link rel="apple-touch-icon" href="../uploads/tesp-logo.png">
+    <?php
+    $fav = 'uploads/favicon.png';
+    if (!file_exists($fav)) $fav = 'uploads/tesp-logo.png';
+    ?>
+    <link rel="icon" type="image/png" href="<?= h($fav) ?>">
+    <link rel="shortcut icon" type="image/png" href="<?= h($fav) ?>">
+    <link rel="apple-touch-icon" href="<?= h($fav) ?>">
     <link href="assets/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="assets/icons/bootstrap-icons.css">
     <style>

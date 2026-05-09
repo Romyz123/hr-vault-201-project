@@ -9,6 +9,9 @@
 require '../config/db.php';
 require '../src/Security.php';
 require 'options.php';
+// [FIX] Defensive initialization for variables from options.php
+$agencies = $agencies ?? [];
+$deptMap = $deptMap ?? [];
 session_start();
 checkSessionTimeout($pdo); // [SECURITY] Enforce Timeout
 
@@ -258,18 +261,21 @@ $attrDataArr    = [];
 $netGrowthArr   = [];
 
 $start    = new DateTime($startDate);
-$end      = new DateTime($endDate);
+$endObj   = new DateTime($endDate);
 $interval = DateInterval::createFromDateString('1 month');
-$period   = new DatePeriod($start, $interval, $end->modify('+1 day')); // Inclusive
+$period   = new DatePeriod($start, $interval, $endObj->modify('+1 day')); // Inclusive
 
 foreach ($period as $dt) {
     $key = $dt->format('Y-m');
     $label = $dt->format('M Y'); // e.g. "Jan 2024"
 
     $trendLabelsArr[] = $label;
-    $trendDataArr[]   = isset($trendRaw[$key]) ? (int)$trendRaw[$key] : 0;
-    $attrDataArr[]    = isset($attrTrendRaw[$key]) ? (int)$attrTrendRaw[$key] : 0;
-    $netGrowthArr[]   = end($trendDataArr) - end($attrDataArr);
+    $hires = isset($trendRaw[$key]) ? (int)$trendRaw[$key] : 0;
+    $exits = isset($attrTrendRaw[$key]) ? (int)$attrTrendRaw[$key] : 0;
+
+    $trendDataArr[]   = $hires;
+    $attrDataArr[]    = $exits;
+    $netGrowthArr[]   = $hires - $exits;
 }
 
 $trendLabels     = json_encode($trendLabelsArr);
@@ -316,10 +322,10 @@ $turnoverRate = ($avgHeadcount > 0) ? round(($totalExits / $avgHeadcount) * 100,
 // 9) AVERAGE TENURE (Active)
 $asOfDateStr = $asOf->format('Y-m-d');
 $avgTenureStmt = $pdo->prepare("SELECT AVG(DATEDIFF(?, hire_date)) FROM employees $activeSQL AND hire_date IS NOT NULL AND hire_date != '0000-00-00'");
-$avgParams = array_merge([$asOfDateStr], $params);
-$avgTenureStmt->execute($avgParams);
-$avgTenureDays = $avgTenureStmt->fetchColumn();
-$avgTenureYears = $avgTenureDays ? round($avgTenureDays / 365.25, 1) : 0;
+$avgTenureStmt->execute(array_merge([$asOfDateStr], $params));
+$avgTenureResult = $avgTenureStmt->fetchColumn();
+$avgTenureDays = ($avgTenureResult !== false && $avgTenureResult !== null) ? (float)$avgTenureResult : 0;
+$avgTenureYears = $avgTenureDays > 0 ? round($avgTenureDays / 365.25, 1) : 0;
 
 // 10) PERFORMANCE RATINGS (Latest per employee)
 $perfLabels = '[]';
@@ -463,8 +469,13 @@ $trainingStmt = $pdo->prepare("SELECT
     (SELECT COUNT(*) FROM employees WHERE status = 'Active') as total");
 $trainingStmt->execute();
 $tStats = $trainingStmt->fetch();
-$trainedCount = (int)$tStats['trained'];
-$untrainedCount = max(0, (int)$tStats['total'] - $trainedCount);
+$trainedCount = 0;
+$totalEmployeesForTraining = 0;
+if ($tStats !== false) { // [FIX] Check if fetch returned a row
+    $trainedCount = (int)$tStats['trained'];
+    $totalEmployeesForTraining = (int)$tStats['total'];
+}
+$untrainedCount = max(0, $totalEmployeesForTraining - $trainedCount);
 
 // 15) TRAINING TREND (Monthly)
 $tTrendStmt = $pdo->prepare("SELECT DATE_FORMAT(completion_date, '%Y-%m') as ym, COUNT(*) as count FROM employee_training WHERE completion_date >= DATE_SUB(NOW(), INTERVAL 12 MONTH) GROUP BY ym ORDER BY ym ASC");
@@ -622,6 +633,7 @@ $genderCounts      = ['Male' => 0, 'Female' => 0];
 $tenureBandsCounts = array_fill_keys($bandOrder, 0);
 $tenureMatrix      = []; // dept => [b0..b4]
 $eduProgress       = []; // dept => ['total' => 0, 'graduates' => 0]
+$complianceChartData = []; // [FIX] Initialize array
 $columnTotals      = array_fill_keys($bandOrder, 0);
 
 // [OPTIMIZATION] Re-use $asOf date to ensure historical accuracy across Age Demographics
@@ -754,6 +766,16 @@ $bdayStmt->execute($bdayParams);
 $birthdayCelebrants = $bdayStmt->fetchAll(PDO::FETCH_ASSOC);
 $monthName = date('F', mktime(0, 0, 0, $bdayMonth, 10));
 
+// [NEW] WORK ANNIVERSARIES QUERY (Fixed missing data fetch)
+$annivQuery = "SELECT emp_id, first_name, last_name, dept, job_title, hire_date, 
+               TIMESTAMPDIFF(YEAR, hire_date, ?) AS years_of_service
+               FROM employees
+               $activeSQL AND hire_date IS NOT NULL AND hire_date != '0000-00-00' AND MONTH(hire_date) = ?
+               ORDER BY DAY(hire_date) ASC, last_name ASC";
+$annivStmt = $pdo->prepare($annivQuery);
+$annivStmt->execute(array_merge([$asOfDateStr], $params, [$bdayMonth]));
+$workAnniversaries = $annivStmt->fetchAll(PDO::FETCH_ASSOC);
+
 // [NEW] BIRTHDAY DISTRIBUTION (Annual Forecast by Month)
 $bdayDistData = array_fill(1, 12, 0);
 $bdayDistStmt = $pdo->prepare("SELECT MONTH(birth_date) as m, COUNT(*) as count FROM employees $activeSQL AND birth_date IS NOT NULL AND birth_date != '0000-00-00' GROUP BY MONTH(birth_date)");
@@ -763,35 +785,6 @@ while ($row = $bdayDistStmt->fetch(PDO::FETCH_ASSOC)) {
 }
 $bdayDistLabels = json_encode(['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']);
 $bdayDistCounts = json_encode(array_values($bdayDistData));
-
-// [NEW] Handle Birthday Export
-if (isset($_GET['export_birthdays'])) {
-    $m = (int)$_GET['export_birthdays'];
-    $monthNameExport = date('F', mktime(0, 0, 0, $m, 10));
-    header('Content-Type: text/csv; charset=utf-8');
-    header('Content-Disposition: attachment; filename="Birthdays_' . $monthNameExport . '_' . date('Y') . '.csv"');
-    $output = fopen('php://output', 'w');
-    fwrite($output, "\xEF\xBB\xBF");
-    fputcsv($output, ['Birth Date', 'Employee ID', 'Last Name', 'First Name', 'Department', 'Job Title']);
-
-    $bdayQueryExp = "SELECT emp_id, last_name, first_name, dept, job_title, birth_date FROM employees $activeSQL AND birth_date IS NOT NULL AND birth_date != '0000-00-00' AND MONTH(birth_date) = ? ORDER BY DAY(birth_date) ASC, last_name ASC";
-    $expParams = array_merge($params, [$m]);
-    $stmt = $pdo->prepare($bdayQueryExp);
-    $stmt->execute($expParams);
-
-    while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
-        fputcsv($output, [
-            date('M d', strtotime($row['birth_date'])),
-            $row['emp_id'],
-            $row['last_name'],
-            $row['first_name'],
-            $row['dept'],
-            $row['job_title']
-        ]);
-    }
-    fclose($output);
-    exit;
-}
 
 // Handle Anniversary Export
 if (isset($_GET['export_anniversaries'])) {

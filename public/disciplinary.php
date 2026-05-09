@@ -19,6 +19,9 @@ if (!function_exists('checkSessionTimeout')) {
 session_start();
 checkSessionTimeout($pdo); // [SECURITY] Enforce Timeout
 
+$violation_options = $violation_options ?? []; // [FIX] Defensive initialization
+$rule_options = $rule_options ?? [];         // [FIX] Defensive initialization
+
 // 1. SECURITY
 if (!isset($_SESSION['user_id']) || !in_array($_SESSION['role'], ['ADMIN', 'MANAGER', 'HR'])) {
     $_SESSION['error'] = "Access Denied.";
@@ -96,6 +99,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     $dbFilePath = null;
     $syncStatus = "Skipped (No File)";
     // Only proceed if validation passed
+    $originalName = ''; // [FIX] Initialize originalName
     $isValid    = ($alertType !== 'error');
     $uploadedFile = null; // Store path for copying
 
@@ -283,6 +287,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             // 2. Handle File Replacement (Optional)
             if (!empty($_FILES['attachment']['name'])) {
                 $targetDir = "uploads/";
+                $originalName = basename($_FILES['attachment']['name']); // [FIX] Ensure originalName is set here
                 $originalName = basename($_FILES['attachment']['name']);
                 $ext = strtolower(pathinfo($originalName, PATHINFO_EXTENSION));
 

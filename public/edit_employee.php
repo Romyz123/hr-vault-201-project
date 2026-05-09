@@ -4,7 +4,6 @@
 // [STATUS] FULL VERSION: Status + Exit Date + Exit Reason
 // ======================================================
 
-// ---------- 1) SYSTEM INITIALIZATION ----------
 require '../config/db.php';
 require '../src/Security.php';
 require '../src/Logger.php';
@@ -53,7 +52,6 @@ try {
     ];
 }
 
-// ---------- 2) DATA FETCHING ----------
 // 2. FETCH EMPLOYEE
 $id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
 if ($id <= 0) {
@@ -96,17 +94,6 @@ try {
     $histStmt = $pdo->prepare("SELECT * FROM employment_history WHERE employee_id = ? ORDER BY event_date DESC");
     $histStmt->execute([$id]);
     $history = $histStmt->fetchAll(PDO::FETCH_ASSOC);
-} catch (PDOException $e) {
-}
-
-// [NEW] Fetch Training Records
-$trainings = [];
-$allCourses = [];
-try {
-    $tStmt = $pdo->prepare("SELECT t.*, c.name as course_name, c.category as course_category FROM employee_training t JOIN courses_catalog c ON t.course_id = c.id WHERE t.employee_id = ? ORDER BY t.completion_date DESC");
-    $tStmt->execute([$emp['emp_id']]);
-    $trainings = $tStmt->fetchAll(PDO::FETCH_ASSOC);
-    $allCourses = $pdo->query("SELECT * FROM courses_catalog ORDER BY name ASC")->fetchAll(PDO::FETCH_ASSOC);
 } catch (PDOException $e) {
 }
 
@@ -158,7 +145,6 @@ if (empty($_SESSION['csrf_token'])) {
     $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 }
 
-// ---------- 3) FORM SUBMISSION HANDLERS ----------
 // 4. HANDLE SUBMIT
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
@@ -467,9 +453,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $emergency_address = post('emergency_address', $emp['emergency_address']);
 
     $education  = post('education', $emp['education'] ?? '');
-    $college_degree = post('college_degree', $emp['college_degree'] ?? '');
-    $college_course = post('college_course', $emp['college_course'] ?? '');
-    $college_year   = post('college_year', $emp['college_year'] ?? '');
     $experience = post('experience', $emp['experience'] ?? '');
     $skills     = post('skills', $emp['skills'] ?? '');
     $licenses   = post('licenses', $emp['licenses'] ?? '');
@@ -511,9 +494,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'emergency_contact' => 25,
         'emergency_address' => 150,
         'education'         => 1000,
-        'college_degree'    => 100,
-        'college_course'    => 100,
-        'college_year'      => 10,
         'experience'        => 1000,
         'skills'            => 1000,
         'licenses'          => 1000,
@@ -664,9 +644,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'emergency_contact' => $emergency_contact,
             'emergency_address' => $emergency_address,
             'education' => $education,
-            'college_degree' => $college_degree,
-            'college_course' => $college_course,
-            'college_year' => $college_year,
             'experience' => $experience,
             'skills' => $skills,
             'licenses' => $licenses,
@@ -827,22 +804,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </div>
 
             <!-- TABS NAVIGATION -->
-            <?php // ---------- 5) TAB NAVIGATION ---------- 
-            ?>
             <ul class="nav nav-tabs mb-4" id="profileTabs" role="tablist">
                 <li class="nav-item"><button class="nav-link active fw-bold" id="details-tab" data-bs-toggle="tab" data-bs-target="#details" type="button"><i class="bi bi-person-vcard"></i> Personal Details</button></li>
                 <li class="nav-item"><button class="nav-link fw-bold" id="docs-tab" data-bs-toggle="tab" data-bs-target="#docs" type="button"><i class="bi bi-folder2-open"></i> Digital 201 File <span class="badge bg-secondary rounded-pill ms-1"><?php echo count($myDocs); ?></span></button></li>
                 <li class="nav-item"><button class="nav-link fw-bold" id="eval-tab" data-bs-toggle="tab" data-bs-target="#eval" type="button"><i class="bi bi-graph-up-arrow"></i> Evaluation</button></li>
-                <li class="nav-item"><button class="nav-link fw-bold" id="training-tab" data-bs-toggle="tab" data-bs-target="#training" type="button"><i class="bi bi-mortarboard-fill"></i> Training <span class="badge bg-secondary rounded-pill ms-1"><?php echo count($trainings); ?></span></button></li>
                 <li class="nav-item"><button class="nav-link fw-bold" id="history-tab" data-bs-toggle="tab" data-bs-target="#history" type="button"><i class="bi bi-clock-history"></i> History</button></li>
             </ul>
 
             <div class="tab-content" id="profileTabsContent">
                 <!-- TAB 1: PERSONAL DETAILS -->
-                <?php // ---------- 6) PERSONAL DETAILS TAB ---------- 
-                ?>
                 <div class="tab-pane fade show active" id="details" role="tabpanel">
-                    <h4 class="mb-4">Personal Details</h4>
                     <form id="editEmployeeForm" method="POST" enctype="multipart/form-data">
                         <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
                         <input type="hidden" name="remove_avatar" id="removeAvatarFlag" value="0">
@@ -853,7 +824,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                             <div class="col-md-3">
                                 <label class="form-label">Employee ID</label>
-                                <input type="text" name="emp_id" id="emp_id_input" class="form-control" value="<?php echo val('emp_id'); ?>" required oninput="this.value=this.value.toUpperCase().replace(/[^A-Z0-9\-_]/g, '')" pattern="[A-Z0-9\-_]+" title="Allowed: Letters, Numbers, - and _" maxlength="20">
+                                <input type="text" name="emp_id" class="form-control" value="<?php echo val('emp_id'); ?>" required oninput="this.value=this.value.toUpperCase().replace(/[^A-Z0-9\-_]/g, '')" pattern="[A-Z0-9\-_]+" title="Allowed: Letters, Numbers, - and _" maxlength="20">
                                 <div class="form-text small">Allowed: Letters, Numbers, - and _</div>
                             </div>
                             <div class="col-md-2">
@@ -871,7 +842,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             <div class="col-md-3">
                                 <label class="form-label">Department(s)</label>
                                 <div class="input-group">
-                                    <input type="text" name="dept" id="dept" class="form-control" required readonly value="<?php echo val('dept'); ?>">
+                                    <input type="text" name="dept" id="dept" class="form-control bg-white" required readonly value="<?php echo val('dept'); ?>">
                                     <button class="btn btn-outline-secondary" type="button" onclick="document.getElementById('dept').value = ''; updateSections();" title="Clear"><i class="bi bi-x-lg"></i></button>
                                 </div>
                                 <select id="deptPicker" class="form-select mt-1 form-select-sm text-muted" onchange="addDept(this.value)">
@@ -884,7 +855,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             <div class="col-md-3">
                                 <label class="form-label">Section(s)</label>
                                 <div class="input-group">
-                                    <input type="text" name="section" id="section" class="form-control" required readonly value="<?php echo val('section'); ?>">
+                                    <input type="text" name="section" id="section" class="form-control bg-white" required readonly value="<?php echo val('section'); ?>">
                                     <button class="btn btn-outline-secondary" type="button" onclick="document.getElementById('section').value = ''" title="Clear"><i class="bi bi-x-lg"></i></button>
                                 </div>
                                 <select id="sectionPicker" class="form-select mt-1 form-select-sm text-muted" onchange="addSection(this.value)"></select>
@@ -914,7 +885,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             </div>
                         </div>
 
-                        <div class="row mb-3 mt-4 p-3 border rounded">
+                        <div class="row mb-3 mt-4 p-3 bg-light border rounded">
 
                             <div class="col-md-3">
                                 <label class="form-label fw-bold">Current Status</label>
@@ -1041,30 +1012,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                         <h6 class="text-secondary border-bottom pb-2 mb-3 mt-4">Qualifications & Educational Background</h6>
                         <div class="row g-3">
-                            <div class="col-md-5">
-                                <label class="form-label">College Degree</label>
-                                <input type="text" name="college_degree" class="form-control" value="<?php echo val('college_degree'); ?>" placeholder="e.g. Bachelor's Degree" list="degree_list" maxlength="100">
-                                <datalist id="degree_list">
-                                    <option value="Bachelor's Degree">
-                                    <option value="Master's Degree">
-                                    <option value="Doctorate Degree">
-                                    <option value="Associate Degree">
-                                    <option value="Vocational Course">
-                                </datalist>
-                            </div>
-                            <div class="col-md-5">
-                                <label class="form-label">Course / Major</label>
-                                <input type="text" name="college_course" class="form-control" value="<?php echo val('college_course'); ?>" placeholder="e.g. BS Computer Science" list="course_list" maxlength="100">
-                                <datalist id="course_list">
-                                    <?php foreach ($college_courses_list as $course): ?>
-                                        <option value="<?php echo h($course['course_name']); ?>">
-                                        <?php endforeach; ?>
-                                </datalist>
-                            </div>
-                            <div class="col-md-2">
-                                <label class="form-label">Year Finished</label>
-                                <input type="text" name="college_year" class="form-control" value="<?php echo val('college_year'); ?>" placeholder="e.g. 2020" maxlength="10">
-                            </div>
                             <div class="col-12">
                                 <label class="form-label">Education</label>
                                 <textarea name="education" class="form-control" rows="2" maxlength="1000" spellcheck="true" lang="en" style="text-align: center; white-space: pre-wrap; word-wrap: break-word;" oninput="this.value = this.value.replace(/[^a-zA-Z0-9\s\.,\-\(\)\/\':]/g, '')"><?php echo val('education'); ?></textarea>
@@ -1127,10 +1074,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 </div>
 
                 <!-- TAB 2: DIGITAL 201 FILE -->
-                <?php // ---------- 7) DIGITAL 201 FILE TAB ---------- 
-                ?>
                 <div class="tab-pane fade" id="docs" role="tabpanel">
-                    <h4 class="mb-4">Digital 201 File</h4>
                     <div class="d-flex justify-content-between align-items-center mb-3">
                         <h6 class="fw-bold text-primary mb-0">📂 Uploaded Documents</h6>
                         <div>
@@ -1152,7 +1096,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <div class="mb-3">
                         <div class="input-group input-group-sm shadow-sm rounded">
                             <span class="input-group-text bg-light border-end-0 text-muted"><i class="bi bi-search"></i></span>
-                            <input type="text" id="docSearch" class="form-control border-start-0" placeholder="Filter documents by name, category, or resolution notes..." onkeyup="filter201Docs()" maxlength="100" oninput="this.value = this.value.replace(/[^a-zA-Z0-9\s\-\.\(\)_]/g, '')">
+                            <input type="text" id="docSearch" class="form-control border-start-0" placeholder="Filter documents by name, category, or resolution notes..." onkeyup="filter201Docs()">
                         </div>
                     </div>
 
@@ -1237,10 +1181,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 </div>
 
                 <!-- TAB 3: EVALUATION -->
-                <?php // ---------- 8) EVALUATION TAB ---------- 
-                ?>
                 <div class="tab-pane fade" id="eval" role="tabpanel">
-                    <h4 class="mb-4">Evaluation</h4>
                     <div class="d-flex justify-content-between align-items-center mb-3">
                         <h6 class="fw-bold text-primary mb-0">📊 Evaluation History</h6>
                         <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#addEvalModal"><i class="bi bi-plus-circle"></i> Add Evaluation</button>
@@ -1291,74 +1232,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     </div>
                 </div>
 
-                <!-- TAB 5: TRAINING & CERTIFICATIONS -->
-                <?php // ---------- 9) TRAINING RECORDS TAB ---------- 
-                ?>
-                <div class="tab-pane fade" id="training" role="tabpanel">
-                    <h4 class="mb-4">Training</h4>
-                    <div class="d-flex justify-content-between align-items-center mb-3">
-                        <h6 class="fw-bold text-primary mb-0">🎓 Training History</h6>
-                        <button class="btn btn-sm btn-success" data-bs-toggle="modal" data-bs-target="#addTrainingModal"><i class="bi bi-plus-circle"></i> Add Training Record</button>
-                    </div>
-                    <div class="table-responsive">
-                        <table class="table table-hover align-middle">
-                            <thead class="table-light">
-                                <tr>
-                                    <th>Completion Date</th>
-                                    <th>Course Name</th>
-                                    <th>Category</th>
-                                    <th>Expiry</th>
-                                    <th>Certificate</th>
-                                    <th class="text-end">Action</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <?php foreach ($trainings as $t): ?>
-                                    <tr>
-                                        <td><?php echo h(date('M d, Y', strtotime($t['completion_date']))); ?></td>
-                                        <td class="fw-bold"><?php echo h($t['course_name']); ?></td>
-                                        <td><span class="badge bg-info text-dark"><?php echo h($t['course_category']); ?></span></td>
-                                        <td>
-                                            <?php if ($t['expiry_date']): ?>
-                                                <span class="text-<?php echo (strtotime($t['expiry_date']) < time()) ? 'danger fw-bold' : 'dark'; ?>">
-                                                    <?php echo h(date('M d, Y', strtotime($t['expiry_date']))); ?>
-                                                </span>
-                                            <?php else: ?>
-                                                <span class="text-muted italic">Permanent</span>
-                                            <?php endif; ?>
-                                        </td>
-                                        <td>
-                                            <?php if ($t['certificate_path']): ?>
-                                                <a href="view_doc.php?id=<?php echo urlencode($t['certificate_path']); ?>" target="_blank" class="btn btn-sm btn-outline-primary"><i class="bi bi-file-earmark-pdf"></i> View</a>
-                                            <?php else: ?>
-                                                <span class="text-muted small">No File</span>
-                                            <?php endif; ?>
-                                        </td>
-                                        <td class="text-end">
-                                            <form method="POST" onsubmit="return confirm('Delete this record?');" class="m-0">
-                                                <input type="hidden" name="action" value="delete_training">
-                                                <input type="hidden" name="csrf_token" value="<?php echo $_SESSION['csrf_token']; ?>">
-                                                <input type="hidden" name="training_id" value="<?php echo $t['id']; ?>">
-                                                <button type="submit" class="btn btn-sm btn-outline-danger border-0"><i class="bi bi-trash"></i></button>
-                                            </form>
-                                        </td>
-                                    </tr>
-                                <?php endforeach; ?>
-                                <?php if (empty($trainings)): ?>
-                                    <tr>
-                                        <td colspan="6" class="text-center text-muted p-4">No verified training records found.</td>
-                                    </tr>
-                                <?php endif; ?>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-
                 <!-- TAB 4: HISTORY TIMELINE -->
-                <?php // ---------- 10) CAREER TIMELINE TAB ---------- 
-                ?>
                 <div class="tab-pane fade" id="history" role="tabpanel">
-                    <h4 class="mb-4">History</h4>
                     <div class="d-flex justify-content-between align-items-center mb-4">
                         <h6 class="fw-bold text-primary mb-0">📅 Employment History</h6>
                         <div>
@@ -1396,7 +1271,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                         </div>
 
                                         <?php if (!empty($h['notes'])): ?>
-                                            <div class="bg-body-tertiary p-2 rounded border small text-secondary">
+                                            <div class="bg-light p-2 rounded border small text-secondary">
                                                 <?php echo nl2br(htmlspecialchars($h['notes'])); ?>
                                             </div>
                                         <?php endif; ?>
@@ -1430,8 +1305,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 </form>
 
 <!-- EDIT DOCUMENT MODAL -->
-<?php // ---------- 11) MODAL DIALOGS ---------- 
-?>
 <div class="modal fade" id="editDocModal" tabindex="-1">
     <div class="modal-dialog">
         <form method="POST" class="modal-content">
@@ -1476,7 +1349,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 <hr>
                 <h6 class="text-secondary fw-bold">Move Document (Optional)</h6>
-                <div class="mb-3 p-2 border rounded position-relative">
+                <div class="mb-3 position-relative">
                     <label class="form-label">Move to another employee</label>
                     <input type="hidden" name="move_to_emp_id" id="edit_move_to_emp_id">
                     <div class="input-group">
@@ -1542,56 +1415,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
                 <button type="submit" class="btn btn-primary">Save</button>
-            </div>
-        </form>
-    </div>
-</div>
-
-<!-- ADD TRAINING MODAL -->
-<div class="modal fade" id="addTrainingModal" tabindex="-1">
-    <div class="modal-dialog">
-        <form class="modal-content" method="POST" enctype="multipart/form-data">
-            <div class="modal-header bg-success text-white">
-                <h5 class="modal-title">Add Training Record</h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <input type="hidden" name="action" value="add_training">
-                <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
-
-                <div class="mb-3">
-                    <label class="form-label fw-bold">Select Course from Catalog</label>
-                    <select name="course_id" class="form-select" required>
-                        <option value="" disabled selected>-- Choose Verified Course --</option>
-                        <?php
-                        $lastCat = '';
-                        foreach ($allCourses as $c):
-                            if ($c['category'] !== $lastCat):
-                                if ($lastCat !== '') echo '</optgroup>';
-                                echo '<optgroup label="' . h($c['category']) . '">';
-                                $lastCat = $c['category'];
-                            endif;
-                        ?>
-                            <option value="<?php echo $c['id']; ?>"><?php echo h($c['name']); ?></option>
-                        <?php endforeach;
-                        if ($lastCat !== '') echo '</optgroup>'; ?>
-                    </select>
-                    <div class="form-text small">Course categories are managed in <strong>Manage Options</strong>.</div>
-                </div>
-
-                <div class="mb-3">
-                    <label class="form-label fw-bold">Completion Date</label>
-                    <input type="date" name="completion_date" class="form-control" value="<?php echo date('Y-m-d'); ?>" required>
-                </div>
-
-                <div class="mb-3">
-                    <label class="form-label fw-bold">Upload Certificate (PDF/Image)</label>
-                    <input type="file" name="certificate" class="form-control" accept=".pdf,.jpg,.jpeg,.png">
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button type="submit" class="btn btn-success">Save Record</button>
             </div>
         </form>
     </div>
@@ -1917,44 +1740,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 <script src="assets/bootstrap.bundle.min.js"></script>
 <script>
-    // [NEW] Real-time Duplicate ID Detector
-    async function checkDuplicateID(id) {
-        const originalId = "<?php echo $emp['emp_id']; ?>";
-        if (!id || id === originalId || id.length < 2) {
-            const input = document.getElementById('emp_id_input');
-            input.classList.remove('is-invalid', 'is-valid');
-            const oldFeedback = document.getElementById('id-check-feedback');
-            if (oldFeedback) oldFeedback.remove();
-            return;
-        }
-
-        try {
-            const response = await fetch(`api/check_id.php?id=${encodeURIComponent(id)}`);
-            const result = await response.json();
-            const input = document.getElementById('emp_id_input');
-
-            const oldFeedback = document.getElementById('id-check-feedback');
-            if (oldFeedback) oldFeedback.remove();
-
-            const feedback = document.createElement('div');
-            feedback.id = 'id-check-feedback';
-            input.parentNode.appendChild(feedback);
-
-            if (result.exists) {
-                input.classList.add('is-invalid');
-                feedback.className = 'invalid-feedback d-block fw-bold';
-                feedback.innerHTML = `<i class="bi bi-x-circle"></i> ID taken ${result.status === 'deleted' ? '(In Recycle Bin)' : '(Active)'}`;
-            } else {
-                input.classList.remove('is-invalid');
-                input.classList.add('is-valid');
-                feedback.className = 'valid-feedback d-block fw-bold';
-                feedback.innerHTML = '<i class="bi bi-check-circle"></i> ID Available';
-            }
-        } catch (e) {
-            console.error("ID Check failed", e);
-        }
-    }
-
     // Logic for Sections and Auto-Capitalize
     const sectionMap = <?php echo json_encode($sectionFriendlyMap); ?>;
     const rawDeptMap = <?php echo json_encode($deptMap); ?>;
@@ -2372,11 +2157,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     document.addEventListener("DOMContentLoaded", () => {
-        // Attach ID check
-        document.getElementById('emp_id_input').addEventListener('blur', function() {
-            checkDuplicateID(this.value);
-        });
-
         toggleExitFields();
         updateSections(); // [FIX] Initialize sections on load
 
@@ -2473,16 +2253,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     function autoResize(el) {
         el.style.height = 'auto';
         el.style.height = el.scrollHeight + 'px';
-    }
-
-    function openEditDocModal(id, name, category, expiryDate) {
-        document.getElementById('edit_doc_id').value = id;
-        document.getElementById('edit_file_name').value = name;
-        document.getElementById('edit_expiry_date').value = expiryDate || '';
-        const select = document.getElementById('edit_category');
-        if (select) select.value = category;
-        const modalEl = document.getElementById('editDocModal');
-        bootstrap.Modal.getOrCreateInstance(modalEl).show();
     }
 
     function toggleEditOther() {
@@ -2910,6 +2680,3 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         });
     }
 </script>
-</body>
-
-</html>
