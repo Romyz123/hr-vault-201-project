@@ -35,6 +35,10 @@ if (!isset($_SESSION['user_id']) || !in_array($_SESSION['role'], ['ADMIN', 'MANA
 $logger = new Logger($pdo);
 $msg = "";
 $error = "";
+// [FIX] Defensive initialization
+$agencies = [];
+$deptMap = [];
+$system_roles = [];
 $dryRunResults = null; // Store preview data
 
 // [NEW] Load Centralized Options

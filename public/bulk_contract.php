@@ -19,6 +19,11 @@ if (!isset($_SESSION['user_id']) || !in_array($userRole, ['ADMIN', 'MANAGER', 'H
 
 $logger = new Logger($pdo);
 
+// [FIX] Defensive initialization
+$agencies = [];
+$deptMap = [];
+$system_roles = [];
+
 // [NEW] Fetch System Settings for Defaults
 $settings = [];
 try {

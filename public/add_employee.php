@@ -88,6 +88,10 @@ $security = new Security($pdo);
 $logger   = new Logger($pdo);
 $empService = new EmployeeService($pdo, $logger); // [NEW]
 
+// [FIX] Defensive initialization to prevent "Undefined variable" errors
+$agencies = [];
+$deptMap = [];
+$system_roles = [];
 // [NEW] Load Centralized Options
 require __DIR__ . '/options.php';
 

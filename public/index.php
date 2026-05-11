@@ -1262,8 +1262,7 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
     <!-- [FIX] Wrapper for Card View - Moved up to include alerts for total separation -->
     <?php // ---------- 12) EMPLOYEE DIRECTORY RESULTS ---------- 
     ?>
-
-    <!-- ---------- 12.5) GRID ASSETS (Script Loading Order Fix) ---------- -->
+    <!-- Tabulator assets MUST be outside and before both view containers -->
     <link href="assets/css/tabulator_bootstrap5.min.css" rel="stylesheet">
     <script src="assets/js/tabulator.min.js"></script>
     <script src="assets/js/xlsx.full.min.js"></script>

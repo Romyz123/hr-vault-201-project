@@ -116,6 +116,10 @@ try {
 
 // 3. CONFIGURATION
 
+// [FIX] Defensive initialization to prevent "Undefined variable" errors
+$agencies = [];
+$deptMap = [];
+$system_roles = [];
 // [NEW] Load Centralized Options
 require __DIR__ . '/options.php';
 $emp_options = $agencies;

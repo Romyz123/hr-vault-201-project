@@ -12,6 +12,8 @@ require 'options.php'; // Fetch dynamic options for agencies
 
 // [FIX] Satisfy Intelephense by providing a safe fallback
 $agencies = $agencies ?? [];
+$deptMap = $deptMap ?? [];
+$system_roles = $system_roles ?? [];
 $college_courses_list = $college_courses_list ?? [];
 
 // [FIX] Ensure checkSessionTimeout is defined before calling it
