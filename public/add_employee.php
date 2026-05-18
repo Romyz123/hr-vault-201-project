@@ -59,6 +59,10 @@ if (!function_exists('post')) {
         return trim((string)$_POST[$key]);
     }
 }
+// [FIX] Include global helper functions
+if (!function_exists('h')) {
+    require_once __DIR__ . '/../src/helpers.php';
+}
 // Prefer POST, fallback to GET (for recruitment prefill)
 $old = [];
 if (!empty($_POST) && is_array($_POST)) {

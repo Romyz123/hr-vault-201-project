@@ -3,6 +3,10 @@ require '../config/db.php';
 require '../src/Security.php';
 require '../src/Logger.php';
 require '../src/FileService.php';
+// [FIX] Include global helper functions
+if (!function_exists('h')) {
+    require_once __DIR__ . '/../src/helpers.php';
+}
 require 'options.php';
 
 // [FIX] Ensure checkSessionTimeout is defined before calling it

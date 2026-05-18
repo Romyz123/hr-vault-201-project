@@ -14,6 +14,10 @@ require '../src/SearchHelper.php';
 if (!function_exists('checkSessionTimeout')) {
     require_once __DIR__ . '/../config/db.php';
 }
+// [FIX] Include global helper functions
+if (!function_exists('h')) {
+    require_once __DIR__ . '/../src/helpers.php';
+}
 session_start();
 checkSessionTimeout($pdo); // [SECURITY] Enforce Timeout
 
@@ -122,6 +126,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_POST['update_roles']) || i
                     $oldSection = htmlspecialchars($t['section'], ENT_QUOTES, 'UTF-8');
                     $oldGender = htmlspecialchars($t['gender'], ENT_QUOTES, 'UTF-8');
                     $oldAgency = htmlspecialchars($t['agency_name'] ?? '', ENT_QUOTES, 'UTF-8');
+                    $oldEmpType = htmlspecialchars($t['employment_type'] ?? '', ENT_QUOTES, 'UTF-8');
 
                     if ($new_role && $t['system_role'] !== $new_role) {
                         $changes[] = "Role: <s>$oldRole</s> &rarr; <strong>" . htmlspecialchars($new_role, ENT_QUOTES, 'UTF-8') . "</strong>";
@@ -147,7 +152,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_POST['update_roles']) || i
                             $changes[] = "Agency: <s>$oldAgency</s> &rarr; <strong>" . htmlspecialchars($new_agency, ENT_QUOTES, 'UTF-8') . "</strong>";
                         }
                         // Also update employment_type if it's inconsistent
-                        if (($t['employment_type'] ?? '') !== $newEmpType) $changes[] = "Type &rarr; <strong>$newEmpType</strong>";
+                        if ($oldEmpType !== $newEmpType) {
+                            $changes[] = "Type: <s>$oldEmpType</s> &rarr; <strong>$newEmpType</strong>";
+                        }
                     }
 
                     if (!empty($changes)) {

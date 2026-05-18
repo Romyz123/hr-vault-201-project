@@ -12,7 +12,11 @@ class Logger
     {
         try {
             // Capture IP Address for security context
-            $ip = $_SERVER['REMOTE_ADDR'] ?? '127.0.0.1';
+            $ip = $_SERVER['REMOTE_ADDR'];
+            if (!empty($_SERVER['HTTP_X_FORWARDED_FOR'])) {
+                $parts = explode(',', $_SERVER['HTTP_X_FORWARDED_FOR']);
+                $ip = trim($parts[0]);
+            }
 
             $stmt = $this->pdo->prepare("INSERT INTO activity_logs (user_id, action, details, ip_address) VALUES (?, ?, ?, ?)");
             $stmt->execute([$userId, $action, $details, $ip]);

@@ -493,7 +493,7 @@ if (isset($_GET['msg'])) {
 ?>
 
 <!DOCTYPE html>
-// ---------- 5) MODAL UI & FORMS ----------
+
 <html lang="en">
 
 <head>

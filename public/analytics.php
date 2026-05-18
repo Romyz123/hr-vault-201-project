@@ -9,6 +9,10 @@
 require '../config/db.php';
 require '../src/Security.php';
 require 'options.php';
+// [FIX] Include global helper functions
+if (!function_exists('h')) {
+    require_once __DIR__ . '/../src/helpers.php';
+}
 // [FIX] Defensive initialization for variables from options.php
 $agencies = $agencies ?? [];
 $deptMap = $deptMap ?? [];
@@ -382,7 +386,7 @@ $bandLabels = [
     'b4' => '10+ Yrs',
 ];
 
-$rawStmt = $pdo->prepare("SELECT emp_id, dept, birth_date, hire_date, gender, college_degree FROM employees $activeSQL");
+$rawStmt = $pdo->prepare("SELECT emp_id, dept, birth_date, hire_date, gender, college_degree, college_course FROM employees $activeSQL");
 $rawStmt->execute($params);
 $rows = $rawStmt->fetchAll(PDO::FETCH_ASSOC);
 
@@ -635,6 +639,10 @@ $tenureMatrix      = []; // dept => [b0..b4]
 $eduProgress       = []; // dept => ['total' => 0, 'graduates' => 0]
 $complianceChartData = []; // [FIX] Initialize array
 $columnTotals      = array_fill_keys($bandOrder, 0);
+$courseAgg         = []; // [NEW] Aggregate course counts
+
+// [NEW] Track total graduates for percentage calculation
+$totalGraduates = 0;
 
 // [OPTIMIZATION] Re-use $asOf date to ensure historical accuracy across Age Demographics
 $evalDateObj = $asOf;
@@ -708,6 +716,12 @@ foreach ($rows as $r) {
     if (!empty($r['college_degree'])) {
         $eduProgress[$dept]['graduates']++;
     }
+
+    // [NEW] Aggregate College Courses
+    $cName = strtoupper(trim((string)$r['college_course']));
+    if ($cName !== '') {
+        $courseAgg[$cName] = ($courseAgg[$cName] ?? 0) + 1;
+    }
     $columnTotals[$slug]++;
 }
 
@@ -723,6 +737,15 @@ foreach ($eduProgress as $d => $counts) {
 }
 $eduProgLabels   = json_encode($eduProgLabelsArr);
 $eduProgPercents = json_encode($eduProgPercentsArr);
+
+// [NEW] Sort and Encode Course Stats
+arsort($courseAgg);
+$courseLabelsArr = array_keys($courseAgg);
+$courseCountsArr = array_values($courseAgg);
+$totalGradsWithCourse = array_sum($courseCountsArr);
+
+$courseLabels = json_encode($courseLabelsArr);
+$courseCounts = json_encode($courseCountsArr);
 
 $deptLabels   = json_encode(array_keys($deptData));
 $deptCounts   = json_encode(array_values($deptData));
@@ -1349,6 +1372,18 @@ if ($debug) {
         </div>
 
         <div class="row mb-4">
+            <div class="col-12">
+                <div class="card shadow-sm h-100">
+                    <div class="card-header border-bottom-0 d-flex justify-content-between align-items-center">
+                        <span><i class="bi bi-mortarboard-fill"></i> College Course Distribution</span>
+                        <button class="btn btn-sm btn-link text-secondary p-0" onclick="openFullScreen('courseDistChart', 'College Course Distribution')"><i class="bi bi-arrows-fullscreen"></i></button>
+                    </div>
+                    <div class="card-body position-relative" style="min-height: 400px;"><canvas id="courseDistChart"></canvas></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row mb-4">
             <div class="col-md-6 mb-3">
                 <div class="card shadow-sm h-100">
                     <div class="card-header border-bottom-0 d-flex justify-content-between align-items-center">
@@ -1760,6 +1795,8 @@ if ($debug) {
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'middle';
 
+                let totalSum = dataset.data.reduce((a, b) => Number(a) + Number(b), 0);
+
                 chart.data.datasets.forEach((dataset, i) => {
                     const meta = chart.getDatasetMeta(i);
                     if (meta.hidden) return;
@@ -1769,7 +1806,8 @@ if ($debug) {
                         if (dataVal === undefined || dataVal === null || Number(dataVal) === 0) return; // Hide zeros
 
                         let text = dataVal.toString();
-                        if (dataset.label === 'Compliance %' || chart.canvas.id === 'complianceChart') text += '%';
+                        if (dataset.label === 'Compliance %' || chart.canvas.id === 'complianceChart' || chart.canvas.id === 'eduProgChart') text += '%';
+                        else if (chart.canvas.id === 'courseDistChart' && totalSum > 0) text += ` (${Math.round((dataVal/totalSum)*100)}%)`;
 
                         if (chart.config.type === 'pie' || chart.config.type === 'doughnut') {
                             let total = dataset.data.reduce((a, b) => Number(a) + Number(b), 0);
@@ -1927,6 +1965,12 @@ if ($debug) {
             'eduProgChart': {
                 labels: <?php echo $eduProgLabels; ?>,
                 data: <?php echo $eduProgPercents; ?>,
+                type: 'bar',
+                bg: '#0d6efd'
+            },
+            'courseDistChart': {
+                labels: <?php echo $courseLabels; ?>,
+                data: <?php echo $courseCounts; ?>,
                 type: 'bar',
                 bg: '#0d6efd'
             }
@@ -2458,6 +2502,38 @@ if ($debug) {
                 plugins: {
                     legend: {
                         display: false
+                    }
+                }
+            }
+        });
+
+        // [NEW] College Course Distribution
+        charts.courseDistChart = new Chart(document.getElementById('courseDistChart'), {
+            type: 'bar',
+            data: {
+                labels: <?php echo $courseLabels; ?>,
+                datasets: [{
+                    label: 'Employees',
+                    data: <?php echo $courseCounts; ?>,
+                    backgroundColor: '#6610f2',
+                    borderRadius: 4
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                indexAxis: 'y', // Horizontal is better for long course names
+                plugins: {
+                    legend: {
+                        display: false
+                    }
+                },
+                scales: {
+                    x: {
+                        beginAtZero: true,
+                        ticks: {
+                            precision: 0
+                        }
                     }
                 }
             }

@@ -2,6 +2,10 @@
 require '../config/db.php';
 require '../src/Security.php';
 require_once '../src/Logger.php';
+// [FIX] Include global helper functions
+if (!function_exists('h')) {
+    require_once __DIR__ . '/../src/helpers.php';
+}
 session_start();
 
 $security = new Security($pdo);

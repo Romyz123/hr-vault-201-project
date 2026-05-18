@@ -8,6 +8,10 @@ require '../config/db.php';
 require '../src/Security.php';
 require '../src/Logger.php';
 session_start();
+// [FIX] Include global helper functions
+if (!function_exists('h')) {
+    require_once __DIR__ . '/../src/helpers.php';
+}
 
 // 1. REQUIRE LOGIN
 if (!isset($_SESSION['user_id'])) {
@@ -125,10 +129,6 @@ require __DIR__ . '/options.php';
 $emp_options = $agencies;
 
 // Helpers
-function h($v)
-{
-    return htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
-}
 function post($k, $d = '')
 {
     return isset($_POST[$k]) ? trim((string)$_POST[$k]) : $d;
@@ -1113,22 +1113,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <div class="list-group">
                             <?php foreach ($myDocs as $d): ?>
                                 <?php
-                                // [NEW] Check if this specific file is uncategorized
-                                $isThisDocUncategorized = true;
-                                $fCat = trim($d['category'] ?? '');
-                                $fName = $d['original_name'];
-                                foreach ($REQUIRED_DOCS as $reqName => $keywords) {
-                                    if (strcasecmp($fCat, $reqName) === 0) {
-                                        $isThisDocUncategorized = false;
-                                        break;
-                                    }
-                                    foreach ($keywords as $k) {
-                                        if ($k !== '' && (stripos($fName, $k) !== false || stripos($fCat, $k) !== false)) {
-                                            $isThisDocUncategorized = false;
-                                            break 2;
-                                        }
-                                    }
-                                }
+                                $isThisDocUncategorized = isDocUncategorized($d, $REQUIRED_DOCS);
 
                                 // UI UPGRADE: Highlight Version Numbers (-001, -002)
                                 $displayName = h($d['original_name']);
@@ -1894,6 +1879,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         document.getElementById('edit_evaluator').value = evaluator;
         document.getElementById('edit_remarks').value = remarks;
         new bootstrap.Modal(document.getElementById('editEvalModal')).show();
+    }
+
+    // [FIX] Define togglePass function for the ZIP password field
+    function togglePass(id) {
+        const input = document.getElementById(id);
+        const icon = input.nextElementSibling.querySelector('i');
+        if (input.type === 'password') {
+            input.type = 'text';
+            icon.classList.replace('bi-eye', 'bi-eye-slash');
+        } else {
+            input.type = 'password';
+            icon.classList.replace('bi-eye-slash', 'bi-eye');
+        }
     }
 
     // [NEW] Tab Persistence Logic

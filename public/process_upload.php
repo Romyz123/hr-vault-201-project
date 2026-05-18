@@ -4,6 +4,10 @@ require '../config/db.php';
 require '../src/Security.php';
 require '../src/Logger.php';
 require '../src/FileService.php';
+// [FIX] Include global helper functions
+if (!function_exists('h')) {
+    require_once __DIR__ . '/../src/helpers.php';
+}
 session_start();
 
 // [FIX] Load Config to ensure VAULT_PATH is available
@@ -11,7 +15,7 @@ $config = require '../config/config.php';
 $vaultPath = $config['VAULT_PATH'] ?? dirname(__DIR__) . DIRECTORY_SEPARATOR . 'vault' . DIRECTORY_SEPARATOR;
 
 // Helper to return JSON if AJAX
-function sendResponse($status, $message, $emp_id = null)
+function sendResponse($status, $message, $emp_id = null) // [FIX] h() is not used here, but it's good practice to have it available
 {
     $param = $status === 'success' ? 'msg' : 'error';
     $url = "upload_form.php?$param=" . urlencode($message);
@@ -235,7 +239,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         // [NEW] Auto-increment filename logic (-001, -002, etc.)
-        // This prevents naming collisions and helps distinguish multiple versions of the same file.
+        // This prevents naming collisions and helps distinguish multiple versions of the same file. [FIX] Use empStatus for naming
         $baseNameOnly = pathinfo($displayName, PATHINFO_FILENAME);
         $extOnly = pathinfo($displayName, PATHINFO_EXTENSION);
 

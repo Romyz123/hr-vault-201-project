@@ -2,6 +2,10 @@
 require '../config/db.php';
 session_start();
 $msg = '';
+// [FIX] Include global helper functions
+if (!function_exists('h')) {
+    require_once __DIR__ . '/../src/helpers.php';
+}
 $error = '';
 $step = 'verify'; // Default step: Ask for code
 

@@ -10,6 +10,26 @@ require '../src/Logger.php';
 require '../src/Validator.php';
 require '../src/SearchHelper.php';
 
+// [FIX] Locate the company logo and convert to Base64 for reliable display and printing
+$logo_paths = [
+    __DIR__ . '/uploads/tesp-logo.png',
+    __DIR__ . '/uploads/tesp logo 1.png',
+    __DIR__ . '/assets/images/tesp-logo-1.png',
+    __DIR__ . '/../uploads/tesp-logo.png',
+    __DIR__ . '/../uploads/tesp logo 1.png'
+];
+$logo_src = '';
+foreach ($logo_paths as $p) {
+    if (file_exists($p)) {
+        $mime = pathinfo($p, PATHINFO_EXTENSION) === 'png' ? 'image/png' : 'image/jpeg';
+        $logo_src = 'data:' . $mime . ';base64,' . base64_encode(file_get_contents($p));
+        break;
+    }
+}
+if (empty($logo_src)) {
+    $logo_src = 'data:image/svg+xml;base64,' . base64_encode('<svg xmlns="http://www.w3.org/2000/svg" width="100" height="40"><text y="30" font-size="14" fill="#333">TESP</text></svg>');
+}
+
 // [FIX] Defensive initialization for variables from options.php (moved before require)
 $agencies = [];
 $deptMap = [];
@@ -845,7 +865,7 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
         }
         if (!empty($foundRisks)):
     ?>
-            <div class="alert alert-danger shadow-sm fw-bold mb-4 border-danger border-3">
+            <div class="alert alert-danger shadow-sm fw-bold mb-4 border-danger border-3 no-print">
                 <div class="d-flex align-items-center justify-content-between mb-2">
                     <div class="d-flex align-items-center">
                         <i class="bi bi-shield-exclamation fs-3 me-3"></i>
@@ -870,7 +890,7 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
 
     <!-- [SECURITY] Automated Backup Failure Alert -->
     <?php if ($userRole === 'ADMIN' && $backupLastStatus === 'FAILED'): ?>
-        <div class="alert alert-danger shadow-sm fw-bold mb-4 border-danger border-3">
+        <div class="alert alert-danger shadow-sm fw-bold mb-4 border-danger border-3 no-print">
             <div class="d-flex align-items-center">
                 <i class="bi bi-exclamation-octagon-fill fs-2 me-3"></i>
                 <div>
@@ -894,7 +914,7 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
 
         if ($daysRemaining <= 5 && $daysRemaining >= 0):
     ?>
-            <div class="alert alert-warning shadow-sm fw-bold d-flex align-items-center mb-4">
+            <div class="alert alert-warning shadow-sm fw-bold d-flex align-items-center mb-4 no-print">
                 <i class="bi bi-hourglass-split fs-4 me-3"></i>
                 <div>
                     <strong>Action Required:</strong> Your password will expire in <?php echo $daysRemaining; ?> day(s).
@@ -906,7 +926,7 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
 
     <!-- [SECURITY] Missing Security Question Alert -->
     <?php if ($u && empty($u['security_question'])): ?>
-        <div class="alert alert-danger shadow-sm fw-bold d-flex align-items-center mb-4 border-danger border-3">
+        <div class="alert alert-danger shadow-sm fw-bold d-flex align-items-center mb-4 border-danger border-3 no-print">
             <i class="bi bi-patch-question-fill fs-3 me-3 text-danger"></i>
             <div>
                 <h5 class="mb-0 text-danger">Security Vulnerability: Missing Recovery Data</h5>
@@ -922,7 +942,7 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
     $lastAdminReset = $adminResetStmt->fetchColumn();
     if ($lastAdminReset && (time() - strtotime($lastAdminReset) < 259200)): // Show for 3 days (72 hours)
     ?>
-        <div class="alert alert-info shadow-sm fw-bold d-flex align-items-center mb-4 border-info border-3">
+        <div class="alert alert-info shadow-sm fw-bold d-flex align-items-center mb-4 border-info border-3 no-print">
             <i class="bi bi-info-circle-fill fs-3 me-3 text-info"></i>
             <div>
                 <h5 class="mb-0 text-info">Security Notice: Password Reset</h5>
@@ -933,7 +953,7 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
 
     <!-- [ADMIN] System Health & Server Config (Professional View) -->
     <?php if ($userRole === 'ADMIN'): ?>
-        <div class="card shadow-sm mb-4 border-info">
+        <div class="card shadow-sm mb-4 border-info no-print">
             <div class="card-header bg-info text-white fw-bold d-flex justify-content-between align-items-center">
                 <span><i class="bi bi-cpu-fill me-2"></i> System Health & Configuration</span>
                 <div>
@@ -965,7 +985,7 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
     <?php endif; ?>
 
     <?php if ($diskPercent > 90): ?>
-        <div class="alert alert-danger shadow-sm fw-bold d-flex align-items-center mb-4">
+        <div class="alert alert-danger shadow-sm fw-bold d-flex align-items-center mb-4 no-print">
             <i class="bi bi-hdd-fill fs-4 me-3"></i>
             <div>
                 <strong>Server Load High!</strong> Disk usage is at <?php echo $diskPercent; ?>%.
@@ -975,7 +995,7 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
     <?php endif; ?>
 
     <?php if ($vaultLimitGB > 0 && $vaultQuotaPercent >= 90): ?>
-        <div class="alert alert-warning shadow-sm fw-bold d-flex align-items-center mb-4 border-warning border-3">
+        <div class="alert alert-warning shadow-sm fw-bold d-flex align-items-center mb-4 border-warning border-3 no-print">
             <i class="bi bi-hdd-network fs-3 me-3 text-warning"></i>
             <div>
                 <strong>Vault Storage Warning:</strong> Your document vault is at <strong><?php echo $vaultQuotaPercent; ?>%</strong> capacity (<?php echo number_format($currentVaultGB, 2); ?> GB / <?php echo number_format($vaultLimitGB, 2); ?> GB).
@@ -986,7 +1006,7 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
 
     <?php // ---------- 10) DASHBOARD WIDGETS ---------- 
     ?>
-    <div class="row mb-4">
+    <div class="row mb-4" id="dashboard-widgets">
         <div class="col-lg-8 mb-3 mb-lg-0">
             <div class="card h-100 shadow-soft">
                 <div class="card-header d-flex align-items-center">
@@ -1114,9 +1134,12 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
                 <div class="d-flex align-items-center gap-3">
                     <h5 class="text-muted mb-0"><i class="bi bi-funnel-fill"></i> Directory Search</h5>
                     <div class="btn-group btn-group-sm shadow-sm">
-                        <button type="button" class="btn btn-outline-primary active" id="btn-view-cards" onclick="switchView('cards')"><i class="bi bi-grid-fill"></i> Cards</button>
-                        <button type="button" class="btn btn-outline-primary" id="btn-view-grid" onclick="switchView('grid')"><i class="bi bi-table"></i> Spreadsheet</button>
+                        <button type="button" class="btn btn-outline-primary" id="btn-view-cards" onclick="switchView('cards')"><i class="bi bi-grid-fill"></i> Cards</button>
+                        <button type="button" class="btn btn-outline-primary" id="btn-view-list" onclick="switchView('list')"><i class="bi bi-list-ul"></i> List</button>
                     </div>
+                    <button type="button" id="btn-print-list" class="btn btn-sm btn-dark shadow-sm d-none" onclick="window.print()">
+                        <i class="bi bi-printer-fill"></i> Print List
+                    </button>
                 </div>
                 <a href="index.php" class="btn btn-sm btn-outline-secondary">Reset Filters</a>
             </div>
@@ -1198,6 +1221,9 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
                     <button type="button" id="selectAllBtn" class="btn btn-sm btn-outline-secondary fw-bold shadow-sm" onclick="toggleSelectAllEmployees()">
                         <i class="bi bi-check-all"></i> Select All
                     </button>
+                    <button type="button" id="clearSelectionBtn" class="btn btn-sm btn-outline-danger fw-bold shadow-sm ms-2 d-none" onclick="clearEmployeeSelection()">
+                        <i class="bi bi-x-circle"></i> Clear
+                    </button>
                 </div>
 
                 <!-- [NEW] Filter for employees with uncategorized files -->
@@ -1262,11 +1288,8 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
     <!-- [FIX] Wrapper for Card View - Moved up to include alerts for total separation -->
     <?php // ---------- 12) EMPLOYEE DIRECTORY RESULTS ---------- 
     ?>
-    <!-- Tabulator assets MUST be outside and before both view containers -->
-    <link href="assets/css/tabulator_bootstrap5.min.css" rel="stylesheet">
-    <script src="assets/js/tabulator.min.js"></script>
-    <script src="assets/js/xlsx.full.min.js"></script>
 
+    <!-- ============================================================ CARD VIEW (shown by default) ============================================================ -->
     <div id="view-cards">
         <?php if (empty($employees)): ?>
             <div class="alert alert-warning text-center shadow-sm">No employees found matching your search.</div>
@@ -1284,6 +1307,16 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
                 Filtering by Document Category: <strong><?php echo h($filter_doc_cat); ?></strong>
                 <a href="index.php" class="btn-close" aria-label="Close"></a>
             </div>
+        <?php endif; ?>
+
+        <?php if (empty($employees)): ?>
+            <div class="alert alert-warning text-center shadow-sm">No employees found matching your search.</div>
+            <?php if ($didYouMean): ?>
+                <div class="alert alert-info text-center shadow-sm mt-2">
+                    <i class="bi bi-lightbulb-fill me-2"></i> Did you mean:
+                    <a href="<?php echo $didYouMeanLink; ?>" class="fw-bold text-dark text-decoration-underline"><?php echo h($didYouMean); ?></a>?
+                </div>
+            <?php endif; ?>
         <?php endif; ?>
 
         <div class="row" id="directory-results">
@@ -1416,179 +1449,181 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
                             </div>
                         </div>
                     </div>
-
-                    <!-- EMPLOYEE MODAL -->
-                    <div class="modal fade" id="<?php echo h($modalId); ?>" tabindex="-1" aria-hidden="true" data-emp-id-str="<?php echo h($emp['emp_id']); ?>">
-                        <div class="modal-dialog modal-xl modal-dialog-scrollable">
-                            <div class="modal-content">
-                                <div class="modal-header modal-header-custom p-4">
-                                    <div class="d-flex align-items-center w-100">
-                                        <img src="uploads/avatars/<?php echo h($emp['avatar_path'] ?: 'default.png'); ?>" class="rounded-circle border border-3 border-white shadow-sm" width="100" height="100" onerror="this.onerror=null; this.src='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI1MCIgZmlsbD0iI2UzZTNlMyIvPjxwYXRoIGQ9Ik01MCA1MCBhMjAgMjAgMCAxIDAgMC00MCAyMCAyMCAwIDEgMCAwIDQwIHptMCAxMCBjLTE1IDAtMzUgMTAtMzUgMzAgdjEwIGg3MCB2LTEwIGMtMC0yMC0yMC0zMC0zNS0zMCIgZmlsbD0iI2FhYSIvPjwvc3ZnPg==';" alt="Avatar">
-                                        <div class="ms-3 flex-grow-1">
-                                            <h3 class="mb-0 fw-bold"><?php echo h($emp['first_name'] . ' ' . $emp['last_name']); ?></h3>
-                                            <div class="badge bg-light text-dark mt-1"><?php echo h($emp['emp_id']); ?></div>
-                                            <div class="badge bg-white text-dark mt-1"><?php echo h($emp['job_title']); ?></div>
-
-                                            <?php if ($isRecentlyUpdated): ?>
-                                                <span class="badge bg-info text-dark mt-1"><i class="bi bi-stars"></i> Recently Updated</span>
-                                            <?php endif; ?>
-                                            <?php if (!$isComplete): ?>
-                                                <span class="badge bg-warning text-dark mt-1" title="Missing: <?php echo htmlspecialchars(count($missingFields)); ?> fields"><i class="bi bi-exclamation-triangle"></i> Incomplete Profile</span>
-                                            <?php else: ?>
-                                                <span class="badge bg-success mt-1"><i class="bi bi-check-circle"></i> Profile Complete</span>
-                                            <?php endif; ?>
-                                        </div>
-                                        <button type="button" class="btn-close btn-close-white align-self-start" data-bs-dismiss="modal" aria-label="Close"></button>
-                                    </div>
-                                </div>
-                                <div class="modal-body p-0">
-                                    <div class="d-flex h-100">
-                                        <div class="nav flex-column nav-pills p-3 border-end" style="width: 260px;">
-                                            <button class="nav-link active text-start mb-2" data-bs-toggle="pill" data-bs-target="#info-<?php echo (int)$emp['id']; ?>">Profile</button>
-                                            <button class="nav-link text-start" data-bs-toggle="pill" data-bs-target="#files-<?php echo (int)$emp['id']; ?>">Documents (<?php echo (int)count($files); ?>)</button>
-                                        </div>
-                                        <div class="tab-content flex-grow-1 p-4">
-                                            <div class="tab-pane fade show active" id="info-<?php echo (int)$emp['id']; ?>">
-                                                <h6 class="text-primary fw-bold mb-3 border-bottom pb-2"><i class="bi bi-briefcase"></i> Work Information</h6>
-                                                <div class="row g-3 mb-4">
-                                                    <div class="col-6"><span class="info-label">Department:</span><br><span class="fw-medium"><?php echo h($emp['dept']); ?></span></div>
-                                                    <div class="col-6"><span class="info-label">Section:</span><br><span class="fw-medium"><?php echo h($emp['section']); ?></span></div>
-                                                    <div class="col-6"><span class="info-label">Employment Type:</span><br><span class="fw-medium"><?php echo h($emp['employment_type']); ?></span></div>
-                                                    <div class="col-6"><span class="info-label">Date Hired:</span><br><span class="fw-medium"><?php echo h($emp['hire_date'] ? date('M d, Y', strtotime($emp['hire_date'])) : 'Not specified'); ?></span></div>
-                                                </div>
-
-                                                <h6 class="text-primary fw-bold mb-3 border-bottom pb-2"><i class="bi bi-person-lines-fill"></i> Personal Details</h6>
-                                                <div class="row g-3 mb-4">
-                                                    <div class="col-6"><span class="info-label">Contact:</span><br><span class="fw-medium"><?php echo h($emp['contact_number']); ?></span></div>
-                                                    <div class="col-6"><span class="info-label">Email:</span><br><span class="fw-medium"><?php echo h($emp['email'] ?: 'N/A'); ?></span></div>
-                                                    <div class="col-12"><span class="info-label">Present Address:</span><br><span class="fw-medium"><?php echo h($emp['present_address']); ?></span></div>
-                                                </div>
-
-                                                <h6 class="text-primary fw-bold mb-3 border-bottom pb-2"><i class="bi bi-card-checklist"></i> Government IDs</h6>
-                                                <div class="row g-3 mb-4">
-                                                    <div class="col-6"><span class="info-label">SSS No:</span><br><span class="fw-medium font-monospace"><?php echo h($emp['sss_no'] ?: 'N/A'); ?></span></div>
-                                                    <div class="col-6"><span class="info-label">TIN:</span><br><span class="fw-medium font-monospace"><?php echo h($emp['tin_no'] ?: 'N/A'); ?></span></div>
-                                                    <div class="col-6"><span class="info-label">PhilHealth:</span><br><span class="fw-medium font-monospace"><?php echo h($emp['philhealth_no'] ?: 'N/A'); ?></span></div>
-                                                    <div class="col-6"><span class="info-label">Pag-IBIG:</span><br><span class="fw-medium font-monospace"><?php echo h($emp['pagibig_no'] ?: 'N/A'); ?></span></div>
-                                                </div>
-
-                                                <h6 class="text-primary fw-bold mb-3 border-bottom pb-2"><i class="bi bi-mortarboard"></i> Qualifications</h6>
-                                                <div class="row g-3 mb-4">
-                                                    <div class="col-12"><span class="info-label">Education:</span><br><span class="fw-medium"><?php echo !empty($emp['education']) ? nl2br(h($emp['education'])) : '<span class="text-muted fst-italic">Not specified</span>'; ?></span></div>
-                                                    <div class="col-12"><span class="info-label">Experience:</span><br><span class="fw-medium"><?php echo !empty($emp['experience']) ? nl2br(h($emp['experience'])) : '<span class="text-muted fst-italic">Not specified</span>'; ?></span></div>
-                                                    <div class="col-12"><span class="info-label">Licenses / Certifications:</span><br><span class="fw-medium"><?php echo !empty($emp['licenses']) ? nl2br(h($emp['licenses'])) : '<span class="text-muted fst-italic">Not specified</span>'; ?></span></div>
-                                                </div>
-
-                                                <h6 class="text-danger fw-bold mb-3 border-bottom pb-2"><i class="bi bi-heart-pulse"></i> Emergency Contact</h6>
-                                                <div class="row g-3">
-                                                    <div class="col-6"><span class="info-label">Name:</span><br><span class="fw-medium"><?php echo h($emp['emergency_name'] ?: 'N/A'); ?></span></div>
-                                                    <div class="col-6"><span class="info-label">Contact No:</span><br><span class="fw-medium"><?php echo h($emp['emergency_contact'] ?: 'N/A'); ?></span></div>
-                                                </div>
-                                            </div>
-                                            <div class="tab-pane fade" id="files-<?php echo (int)$emp['id']; ?>">
-                                                <div class="row h-100">
-                                                    <div class="col-4 border-end">
-                                                        <div class="d-grid gap-2 mb-3">
-                                                            <a href="upload_form.php?emp_id=<?php echo h($emp['emp_id']); ?>" class="btn btn-primary btn-sm">
-                                                                <i class="bi bi-cloud-arrow-up-fill"></i> Upload New File
-                                                            </a>
-                                                        </div>
-                                                        <div class="list-group">
-                                                            <?php foreach ($files as $file):
-                                                                $previewUrl     = "view_doc.php?id=" . $file['file_uuid'] . "&embed=1";
-                                                                $type           = (stripos($file['original_name'], '.pdf') !== false) ? 'pdf' : 'img';
-                                                                $previewTarget  = 'preview-' . (int)$emp['id'];
-                                                                $isTarget       = ($targetDocId !== '' && (string)$targetDocId === (string)$file['id']);
-                                                                $rowClass       = $isTarget ? 'highlight-target' : '';
-
-                                                                // [NEW] Check if this specific file is uncategorized
-                                                                $isThisDocUncategorized = true;
-                                                                $fCat = trim($file['category'] ?? '');
-                                                                $fName = $file['original_name'];
-                                                                foreach ($REQUIRED_DOCS as $reqName => $keywords) {
-                                                                    if (strcasecmp($fCat, $reqName) === 0) {
-                                                                        $isThisDocUncategorized = false;
-                                                                        break;
-                                                                    }
-                                                                    foreach ($keywords as $k) {
-                                                                        if ($k !== '' && (stripos($fName, $k) !== false || stripos($fCat, $k) !== false)) {
-                                                                            $isThisDocUncategorized = false;
-                                                                            break 2;
-                                                                        }
-                                                                    }
-                                                                }
-                                                            ?>
-                                                                <div class="list-group-item list-group-item-action d-flex justify-content-between align-items-center p-2 <?php echo $rowClass; ?>">
-                                                                    <a href="javascript:void(0);" class="text-decoration-none text-body text-truncate w-75"
-                                                                        onclick="showPreview('<?php echo h($previewUrl); ?>', '<?php echo h($type); ?>', '<?php echo h($previewTarget); ?>'); return false;">
-                                                                        <?php if ($isTarget): ?>
-                                                                            <span class="badge bg-danger me-1"><i class="bi bi-exclamation-triangle-fill"></i> ACTION REQUIRED</span>
-                                                                        <?php endif; ?>
-                                                                        <strong><?php echo h($file['original_name']); ?></strong>
-                                                                        <?php if ($isThisDocUncategorized): ?>
-                                                                            <span class="badge bg-danger-subtle text-danger border border-danger-subtle ms-1" style="font-size: 0.65rem;"><i class="bi bi-tag-fill"></i> Needs Categorization</span>
-                                                                        <?php endif; ?>
-                                                                        <br>
-                                                                        <small class="text-secondary"><?php echo h($file['category']); ?></small>
-                                                                        <?php if (!empty($file['is_resolved']) && !empty($file['resolution_note'])): ?>
-                                                                            <br><span class="badge bg-success mt-1" style="font-size: 0.70rem; white-space: normal; cursor: pointer;" title="Edit Resolution Note" onclick="event.stopPropagation(); openResolveModal(<?php echo (int)$file['id']; ?>, <?php echo htmlspecialchars(json_encode($file['original_name']), ENT_QUOTES, 'UTF-8'); ?>, <?php echo htmlspecialchars(json_encode($file['resolution_note']), ENT_QUOTES, 'UTF-8'); ?>)"><i class="bi bi-check-circle-fill"></i> Resolved: <?php echo h($file['resolution_note']); ?> <i class="bi bi-pencil ms-1"></i></span>
-                                                                        <?php endif; ?>
-                                                                    </a>
-
-                                                                    <?php if ((int)$file['is_resolved'] === 0 && !empty($file['expiry_date']) && $file['expiry_date'] <= date('Y-m-d', strtotime('+30 days'))): ?>
-                                                                        <button class="btn btn-warning btn-sm ms-2 shadow-sm"
-                                                                            title="Fix Issue"
-                                                                            onclick="event.stopPropagation(); openResolveModal(<?php echo (int)$file['id']; ?>, <?php echo htmlspecialchars(json_encode($file['original_name']), ENT_QUOTES, 'UTF-8'); ?>)">
-                                                                            <i class="bi bi-wrench-adjustable-circle-fill"></i> Fix
-                                                                        </button>
-                                                                    <?php endif; ?>
-
-                                                                    <a href="view_doc.php?id=<?php echo $file['file_uuid']; ?>&download=1" class="btn btn-sm btn-outline-primary border-0 ms-1" title="Download">
-                                                                        <i class="bi bi-download"></i>
-                                                                    </a>
-
-                                                                    <?php if (in_array($userRole, ['ADMIN', 'MANAGER', 'HR'], true)): ?>
-                                                                        <button type="button" class="btn btn-sm btn-outline-danger border-0"
-                                                                            onclick="confirmDelete(<?php echo htmlspecialchars(json_encode($file['file_uuid']), ENT_QUOTES, 'UTF-8'); ?>, <?php echo htmlspecialchars(json_encode($emp['emp_id']), ENT_QUOTES, 'UTF-8'); ?>)"
-                                                                            title="Delete File">
-                                                                            <i class="bi bi-trash"></i>
-                                                                        </button>
-                                                                    <?php endif; ?>
-                                                                </div>
-                                                            <?php endforeach; ?>
-                                                        </div>
-                                                    </div>
-                                                    <div class="col-8">
-                                                        <div id="<?php echo h($previewBoxId); ?>" class="preview-box">Select a file to preview</div>
-                                                    </div>
-                                                </div>
-                                            </div> <!-- /tab -->
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div> <!-- /modal -->
                 </div>
             <?php endforeach; ?>
         </div>
+    </div><!-- /#view-cards -->
 
-        <div id="view-spreadsheet" style="display: none;">
-            <div class="card shadow-sm mb-4 border-primary">
-                <div class="card-header bg-white d-flex justify-content-between align-items-center py-3">
-                    <h5 class="mb-0 text-primary fw-bold"><i class="bi bi-table me-2"></i> Master Employee Directory (<span id="grid-count">0</span>)</h5>
-                    <div class="d-flex gap-2">
-                        <button id="reset-filters" class="btn btn-sm btn-outline-secondary fw-bold shadow-sm" title="Clear Filters"><i class="bi bi-filter-left"></i> Reset</button>
-                        <button id="download-csv" class="btn btn-sm btn-outline-secondary fw-bold shadow-sm" title="Download CSV"><i class="bi bi-file-earmark-text"></i> CSV</button>
-                        <button id="download-xlsx" class="btn btn-sm btn-success fw-bold shadow-sm" title="Download Excel"><i class="bi bi-file-earmark-spreadsheet"></i> Excel</button>
-                    </div>
+    <!-- ============================================================ COMPACT LIST VIEW (New Reliable Alternative) ============================================================ -->
+    <style>
+        @media print {
+            @page {
+                size: landscape;
+                margin: 10mm;
+            }
+
+            /* [NEW] Confidential Watermark Style */
+            body::before {
+                content: "CONFIDENTIAL";
+                position: fixed;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%) rotate(-45deg);
+                font-size: 100pt;
+                color: rgba(0, 0, 0, 0.05) !important;
+                z-index: -1;
+                pointer-events: none;
+            }
+
+            .navbar,
+            .btn,
+            .btn-group,
+            form,
+            #pagination-container,
+            .no-print,
+            #refreshToggle,
+            #darkModeToggle,
+            #dashboard-widgets,
+            #directory-search-bar,
+            #view-cards,
+            #view-spreadsheet {
+                display: none !important;
+            }
+
+            body {
+                background: white !important;
+                font-size: 10pt;
+            }
+
+            .container {
+                max-width: 100% !important;
+                width: 100% !important;
+                padding: 0 !important;
+                margin: 0 !important;
+            }
+
+            .card {
+                border: none !important;
+                box-shadow: none !important;
+            }
+
+            .table {
+                width: 100% !important;
+                border-collapse: collapse !important;
+            }
+
+            .table th,
+            .table td {
+                border: 1px solid #dee2e6 !important;
+                padding: 4px !important;
+                font-size: 9pt !important;
+                vertical-align: middle !important;
+            }
+
+            .badge {
+                border: 1px solid #000 !important;
+                color: black !important;
+                background: transparent !important;
+            }
+
+            #view-list {
+                display: block !important;
+            }
+
+            #view-list .list-avatar {
+                width: 30px !important;
+                height: 30px !important;
+                display: block !important;
+            }
+
+            .employee-row {
+                cursor: default !important;
+            }
+        }
+    </style>
+    <div id="view-list" style="display: none;">
+        <!-- PRINT HEADER (Only visible on paper) -->
+        <div class="d-none d-print-block text-center mb-4">
+            <img src="<?= $logo_src ?>" alt="TESP Logo" style="max-height: 55px; margin-bottom: 5px;">
+            <h4 class="fw-bold mb-1">Employee Master Directory</h4>
+            <div class="text-uppercase small fw-bold">TES Philippines, Inc.</div>
+            <p class="text-muted small mt-1">Generated: <?= date('M d, Y') ?> | <span class="text-dark">Print for the Employee</span></p>
+        </div>
+
+        <div class="card shadow-sm">
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th style="width: 40px;" class="no-print"></th>
+                                <th style="width: 65px;"></th>
+                                <th>Employee Name</th>
+                                <th>ID</th>
+                                <th>Dept / Section</th>
+                                <th>Job Title</th>
+                                <th>Employer</th>
+                                <th>Status</th>
+                                <th>SSS No</th>
+                                <th>TIN No</th>
+                                <th>PhilHealth</th>
+                                <th>Pag-IBIG</th>
+                                <th>Address</th>
+                                <th>College Course</th>
+                                <th class="text-end no-print">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($employees as $emp): ?>
+                                <tr class="employee-row" style="cursor:pointer;" data-bs-toggle="modal" data-bs-target="#viewModal<?= (int)$emp['id'] ?>">
+                                    <td class="no-print">
+                                        <input type="checkbox" class="form-check-input emp-select-check" value="<?php echo (int)$emp['id']; ?>" onclick="event.stopPropagation(); setEmployeeSelected(this.value, this.checked);">
+                                    </td>
+                                    <td>
+                                        <img src="uploads/avatars/<?= h($emp['avatar_path'] ?: 'default.png') ?>"
+                                            class="rounded-circle border shadow-sm list-avatar"
+                                            width="45" height="45"
+                                            style="object-fit:cover; cursor: zoom-in;"
+                                            title="Click to view full size"
+                                            onclick="event.stopPropagation(); Swal.fire({title: '<?= h($emp['first_name'] . ' ' . $emp['last_name']) ?>', imageUrl: this.src, imageAlt: 'Profile', showConfirmButton: false, showCloseButton: true});"
+                                            onerror="this.onerror=null; this.src='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI1MCIgZmlsbD0iI2UzZTNlMyIvPjxwYXRoIGQ9Ik01MCA1MCBhMjAgMjAgMCAxIDAgMC00MCAyMCAyMCAwIDEgMCAwIDQwIHptMCAxMCBjLTE1IDAtMzUgMTAtMzUgMzAgdjEwIGg3MCB2LTEwIGMtMC0yMC0yMC0zMC0zNS0zMCIgZmlsbD0iI2FhYSIvPjwvc3ZnPg==';">
+                                    </td>
+                                    <td class="fw-bold" style="font-size: 1.05rem;"><?= h($emp['last_name'] . ', ' . $emp['first_name']) ?></td>
+                                    <td class="font-monospace small"><?= h($emp['emp_id']) ?></td>
+                                    <td><span class="small text-muted"><?= h($emp['dept']) ?></span></td>
+                                    <td class="small"><?= h($emp['job_title']) ?></td>
+                                    <td><span class="badge bg-light text-dark border"><?= h($emp['agency_name'] ?: $emp['employment_type']) ?></span></td>
+                                    <td><span class="badge rounded-pill <?= $emp['status'] === 'Active' ? 'bg-success' : 'bg-warning' ?>"><?= h($emp['status']) ?></span></td>
+                                    <td class="font-monospace small"><?= h($emp['sss_no'] ?: 'N/A') ?></td>
+                                    <td class="font-monospace small"><?= h($emp['tin_no'] ?: 'N/A') ?></td>
+                                    <td class="font-monospace small"><?= h($emp['philhealth_no'] ?: 'N/A') ?></td>
+                                    <td class="font-monospace small"><?= h($emp['pagibig_no'] ?: 'N/A') ?></td>
+                                    <td class="small"><?= h($emp['present_address'] ?: 'N/A') ?></td>
+                                    <td class="small"><?= h($emp['college_course'] ?: 'N/A') ?></td>
+                                    <td class="text-end no-print">
+                                        <div class="btn-group btn-group-sm shadow-sm">
+                                            <button type="button" class="btn btn-outline-primary" title="View Profile" data-bs-toggle="modal" data-bs-target="#viewModal<?= (int)$emp['id'] ?>" onclick="event.stopPropagation();"><i class="bi bi-eye"></i></button>
+                                            <a href="print_employee.php?id=<?= (int)$emp['id'] ?>" target="_blank" class="btn btn-outline-dark" title="Print" onclick="event.stopPropagation();"><i class="bi bi-printer"></i></a>
+                                            <a href="edit_employee.php?id=<?= (int)$emp['id'] ?>" class="btn btn-outline-secondary" title="Edit" onclick="event.stopPropagation();"><i class="bi bi-pencil"></i></a>
+                                        </div>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
                 </div>
-                <div class="card-body p-0">
-                    <div id="employee-master-grid" style="height: 600px;"></div>
+            </div>
+            <!-- PRINT FOOTER SUMMARY -->
+            <div class="d-none d-print-block mt-3 border-top pt-2">
+                <div class="d-flex justify-content-between align-items-center fw-bold" style="font-size: 10pt;">
+                    <span>*** END OF REPORT ***</span>
+                    <span>TOTAL HEADCOUNT: <?php echo number_format($totalRows); ?> employee(s)</span>
                 </div>
             </div>
         </div>
+    </div><!-- /#view-list -->
 
+    <div id="pagination-container">
         <?php if ($totalPages > 1): ?>
             <nav class="mt-3" aria-label="Employee pagination">
                 <ul class="pagination justify-content-center">
@@ -1623,8 +1658,103 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
                 </p>
             </nav>
         <?php endif; ?>
+    </div><!-- /#pagination-container -->
 
-    </div>
+    <!-- ============================================================ SHARED MODALS LOOP (Sibling to containers) ============================================================ -->
+    <div id="shared-modals-container">
+        <?php foreach ($employees as $emp):
+            $modalId    = 'viewModal' . (int)$emp['id'];
+            $files      = $filesByEmp[$emp['emp_id']] ?? [];
+            $previewBoxId = 'preview-' . (int)$emp['id'];
+
+            // Recalculate basic modal flags
+            $missingFields = [];
+            $requiredFields = ['sss_no', 'tin_no', 'philhealth_no', 'pagibig_no', 'contact_number', 'present_address', 'emergency_name', 'emergency_contact'];
+            foreach ($requiredFields as $field) if (empty($emp[$field])) $missingFields[] = $field;
+            $isComplete = empty($missingFields);
+            $isRecentlyUpdated = (!empty($emp['updated_at']) && strtotime($emp['updated_at']) > strtotime('-7 days'));
+        ?>
+            <div class="modal fade" id="<?php echo h($modalId); ?>" tabindex="-1" aria-hidden="true" data-emp-id-str="<?php echo h($emp['emp_id']); ?>">
+                <div class="modal-dialog modal-xl modal-dialog-scrollable">
+                    <div class="modal-content">
+                        <div class="modal-header modal-header-custom p-4">
+                            <div class="d-flex align-items-center w-100">
+                                <img src="uploads/avatars/<?php echo h($emp['avatar_path'] ?: 'default.png'); ?>"
+                                    class="rounded-circle border border-3 border-white shadow-sm"
+                                    width="100" height="100"
+                                    style="object-fit:cover; cursor: zoom-in;"
+                                    title="Click to view full size"
+                                    onclick="Swal.fire({title: '<?php echo h($emp['first_name'] . ' ' . $emp['last_name']); ?>', imageUrl: this.src, imageAlt: 'Profile', showConfirmButton: false, showCloseButton: true});"
+                                    onerror="this.onerror=null; this.src='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI1MCIgZmlsbD0iI2UzZTNlMyIvPjxwYXRoIGQ9Ik01MCA1MCBhMjAgMjAgMCAxIDAgMC00MCAyMCAyMCAwIDEgMCAwIDQwIHptMCAxMCBjLTE1IDAtMzUgMTAtMzUgMzAgdjEwIGg3MCB2LTEwIGMtMC0yMC0yMC0zMC0zNS0zMCIgZmlsbD0iI2FhYSIvPjwvc3ZnPg==';" alt="Avatar">
+                                <div class="ms-3 flex-grow-1">
+                                    <h3 class="mb-0 fw-bold"><?php echo h($emp['first_name'] . ' ' . $emp['last_name']); ?></h3>
+                                    <div class="badge bg-light text-dark mt-1"><?php echo h($emp['emp_id']); ?></div>
+                                    <div class="badge bg-white text-dark mt-1"><?php echo h($emp['job_title']); ?></div>
+                                    <?php if ($isRecentlyUpdated): ?><span class="badge bg-info text-dark mt-1"><i class="bi bi-stars"></i> Recently Updated</span><?php endif; ?>
+                                    <?php if (!$isComplete): ?><span class="badge bg-warning text-dark mt-1"><i class="bi bi-exclamation-triangle"></i> Incomplete</span><?php else: ?><span class="badge bg-success mt-1"><i class="bi bi-check-circle"></i> Complete</span><?php endif; ?>
+                                </div>
+                                <button type="button" class="btn-close btn-close-white align-self-start" data-bs-dismiss="modal" aria-label="Close"></button>
+                            </div>
+                        </div>
+                        <div class="modal-body p-0">
+                            <div class="d-flex h-100">
+                                <div class="nav flex-column nav-pills p-3 border-end" style="width: 260px;">
+                                    <button class="nav-link active text-start mb-2" data-bs-toggle="pill" data-bs-target="#info-<?php echo (int)$emp['id']; ?>">Profile</button>
+                                    <button class="nav-link text-start" data-bs-toggle="pill" data-bs-target="#files-<?php echo (int)$emp['id']; ?>">Documents (<?php echo (int)count($files); ?>)</button>
+                                </div>
+                                <div class="tab-content flex-grow-1 p-4">
+                                    <div class="tab-pane fade show active" id="info-<?php echo (int)$emp['id']; ?>">
+                                        <h6 class="text-primary fw-bold mb-3 border-bottom pb-2"><i class="bi bi-briefcase"></i> Work Information</h6>
+                                        <div class="row g-3 mb-4">
+                                            <div class="col-6"><span class="info-label">Dept:</span><br><span class="fw-medium"><?php echo h($emp['dept']); ?></span></div>
+                                            <div class="col-6"><span class="info-label">Section:</span><br><span class="fw-medium"><?php echo h($emp['section']); ?></span></div>
+                                            <div class="col-6"><span class="info-label">Hired:</span><br><span class="fw-medium"><?php echo h($emp['hire_date'] ? date('M d, Y', strtotime($emp['hire_date'])) : 'N/A'); ?></span></div>
+                                        </div>
+                                        <h6 class="text-primary fw-bold mb-3 border-bottom pb-2"><i class="bi bi-person-lines-fill"></i> Contact Details</h6>
+                                        <div class="row g-3">
+                                            <div class="col-6"><span class="info-label">Phone:</span><br><span class="fw-medium"><?php echo h($emp['contact_number']); ?></span></div>
+                                            <div class="col-6"><span class="info-label">Email:</span><br><span class="fw-medium"><?php echo h($emp['email'] ?: 'N/A'); ?></span></div>
+                                        </div>
+                                    </div>
+                                    <div class="tab-pane fade" id="files-<?php echo (int)$emp['id']; ?>">
+                                        <div class="row h-100">
+                                            <div class="col-4 border-end">
+                                                <div class="list-group">
+                                                    <?php foreach ($files as $file):
+                                                        $previewUrl = "view_doc.php?id=" . $file['file_uuid'] . "&embed=1";
+                                                        $type = (stripos($file['original_name'], '.pdf') !== false) ? 'pdf' : 'img';
+                                                        $previewTarget = 'preview-' . (int)$emp['id'];
+                                                    ?>
+                                                        <div class="list-group-item list-group-item-action d-flex justify-content-between align-items-center p-2">
+                                                            <a href="javascript:void(0);" class="text-decoration-none text-body text-truncate w-75"
+                                                                onclick="showPreview('<?php echo h($previewUrl); ?>', '<?php echo h($type); ?>', '<?php echo h($previewTarget); ?>'); return false;">
+                                                                <strong><?php echo h($file['original_name']); ?></strong><br>
+                                                                <small class="text-secondary"><?php echo h($file['category']); ?></small>
+                                                            </a>
+                                                            <a href="view_doc.php?id=<?php echo $file['file_uuid']; ?>&download=1" class="btn btn-sm btn-outline-primary border-0 ms-1"><i class="bi bi-download"></i></a>
+                                                            <?php if (in_array($userRole, ['ADMIN', 'MANAGER', 'HR'], true)): ?>
+                                                                <button type="button" class="btn btn-sm btn-outline-danger border-0" onclick="confirmDelete(<?php echo htmlspecialchars(json_encode($file['file_uuid']), ENT_QUOTES, 'UTF-8'); ?>, <?php echo htmlspecialchars(json_encode($emp['emp_id']), ENT_QUOTES, 'UTF-8'); ?>)"><i class="bi bi-trash"></i></button>
+                                                            <?php endif; ?>
+                                                        </div>
+                                                    <?php endforeach; ?>
+                                                    <?php if (empty($files)): ?>
+                                                        <div class="text-center p-4 text-muted small fst-italic">No documents uploaded.</div>
+                                                    <?php endif; ?>
+                                                </div>
+                                            </div>
+                                            <div class="col-8">
+                                                <div id="<?php echo h($previewBoxId); ?>" class="preview-box">Select a file to preview</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        <?php endforeach; ?>
+    </div><!-- /#shared-modals-container -->
 
     <!-- Delete confirmation modal -->
     <div class="modal fade" id="deleteModal" tabindex="-1" aria-hidden="true">
@@ -2285,9 +2415,11 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
         function updateSelectionCount() {
             const selectedCount = document.getElementById('selectedCount');
             const bulkBtn = document.getElementById('bulkActionBtn');
+            const clearBtn = document.getElementById('clearSelectionBtn');
             const count = selectedEmployeeIds.size;
             if (selectedCount) selectedCount.innerText = count;
             if (bulkBtn) bulkBtn.classList.toggle('d-none', count === 0);
+            if (clearBtn) clearBtn.classList.toggle('d-none', count === 0);
             buildBulkIdsInputs();
         }
 
@@ -2298,6 +2430,13 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
             } else {
                 selectedEmployeeIds.delete(String(id));
             }
+            saveSelectedEmployees();
+            updateSelectionCount();
+        }
+
+        function clearEmployeeSelection() {
+            selectedEmployeeIds.clear();
+            document.querySelectorAll('.emp-select-check').forEach(cb => cb.checked = false);
             saveSelectedEmployees();
             updateSelectionCount();
         }
@@ -2416,240 +2555,28 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
             }
         });
 
-        // ---------- 16) SPREADSHEET LOGIC (Bugs 1, 2, 3, 4 Fixes) ----------
-        const spreadsheetData = <?= $spreadsheetJson ?>;
-        const existingOptCols = <?= $existingOptColsJson ?>;
-        var gridTable = null;
-        var gridInitialized = false;
-
-        function buildGridColumns() {
-            var columns = [{
-                    title: "EMP ID",
-                    field: "emp_id",
-                    frozen: true,
-                    headerFilter: "input",
-                    width: 110,
-                    cssClass: "fw-bold font-monospace text-primary"
-                },
-                {
-                    title: "Last Name",
-                    field: "last_name",
-                    frozen: true,
-                    headerFilter: "input",
-                    formatter: function(cell) {
-                        var a = document.createElement('a');
-                        a.href = 'edit_employee.php?id=' + encodeURIComponent(cell.getData().id || '');
-                        a.className = 'fw-bold text-decoration-none';
-                        a.textContent = cell.getValue() || '';
-                        return a;
-                    },
-                    accessorDownload: function(v) {
-                        return v || '';
-                    }
-                },
-                {
-                    title: "First Name",
-                    field: "first_name",
-                    frozen: true,
-                    headerFilter: "input"
-                },
-                {
-                    title: "Job Title",
-                    field: "job_title",
-                    headerFilter: "input",
-                    width: 180
-                },
-                {
-                    title: "Department",
-                    field: "dept",
-                    headerFilter: "list",
-                    headerFilterParams: {
-                        valuesLookup: true,
-                        clearable: true
-                    }
-                },
-                {
-                    title: "Section",
-                    field: "section",
-                    headerFilter: "input"
-                },
-                {
-                    title: "Employer",
-                    field: "agency_name",
-                    headerFilter: "list",
-                    headerFilterParams: {
-                        valuesLookup: true,
-                        clearable: true
-                    },
-                    formatter: function(cell) {
-                        var raw = cell.getValue() || '';
-                        var disp = raw || cell.getData().employment_type || 'TESP Direct';
-                        var span = document.createElement('span');
-                        span.className = 'badge ' + (!raw || raw.toUpperCase().includes('TESP') ? 'bg-primary' : 'bg-secondary');
-                        span.textContent = disp;
-                        return span;
-                    },
-                    accessorDownload: function(v, d) {
-                        return v || (d && d.employment_type) || 'TESP Direct';
-                    }
-                },
-                {
-                    title: "Hire Date",
-                    field: "hire_date",
-                    headerFilter: "input",
-                    width: 115
-                },
-                {
-                    title: "Status",
-                    field: "status",
-                    headerFilter: "list",
-                    headerFilterParams: {
-                        values: ["Active", "Resigned", "Terminated", "AWOL"],
-                        clearable: true
-                    },
-                    formatter: function(cell) {
-                        var span = document.createElement('span');
-                        span.className = 'badge rounded-pill ' + (cell.getValue() === 'Active' ? 'bg-success' : 'bg-warning text-dark');
-                        span.textContent = cell.getValue() || '';
-                        return span;
-                    },
-                    accessorDownload: function(v) {
-                        return v || '';
-                    }
-                },
-            ];
-
-            if (existingOptCols.includes('system_role')) {
-                columns.splice(4, 0, {
-                    title: "Role",
-                    field: "system_role",
-                    headerFilter: "list",
-                    headerFilterParams: {
-                        valuesLookup: true,
-                        clearable: true
-                    }
-                });
-            }
-
-            var sensitiveMap = [{
-                    title: "Email",
-                    field: "email"
-                },
-                {
-                    title: "Contact",
-                    field: "contact_number"
-                },
-                {
-                    title: "SSS No",
-                    field: "sss_no"
-                },
-                {
-                    title: "TIN",
-                    field: "tin_no"
-                },
-                {
-                    title: "PhilHealth",
-                    field: "philhealth_no"
-                },
-                {
-                    title: "Pag-IBIG",
-                    field: "pagibig_no"
-                },
-            ];
-            sensitiveMap.forEach(function(c) {
-                if (existingOptCols.includes(c.field)) {
-                    columns.push({
-                        title: c.title,
-                        field: c.field,
-                        headerFilter: "input",
-                        visible: false
-                    });
-                }
-            });
-            return columns;
-        }
-
-        function initGrid() {
-            if (gridInitialized) return;
-            gridInitialized = true;
-
-            gridTable = new Tabulator("#employee-master-grid", {
-                data: spreadsheetData,
-                layout: "fitColumns",
-                height: "600px",
-                pagination: "local",
-                paginationSize: 20,
-                paginationSizeSelector: [10, 20, 50, 100],
-                movableColumns: true,
-                resizableColumnFit: true,
-                headerFilterLiveFilterDelay: 200,
-                initialSort: [{
-                    column: "last_name",
-                    dir: "asc"
-                }],
-                placeholder: "No employees found.",
-                columns: buildGridColumns(),
-            });
-
-            // Wire export buttons after gridTable exists
-            document.getElementById("download-csv").onclick = function() {
-                gridTable.download("csv", "HR_Master_" + new Date().toISOString().slice(0, 10) + ".csv");
-            };
-            document.getElementById("download-xlsx").onclick = function() {
-                gridTable.download("xlsx", "HR_Master_" + new Date().toISOString().slice(0, 10) + ".xlsx", {
-                    sheetName: "Employees"
-                });
-            };
-
-            gridTable.on("tableBuilt", function() {
-                var badge = document.getElementById('grid-count');
-                if (badge) badge.textContent = spreadsheetData.length;
-                applyTabulatorTheme();
-            });
-
-            gridTable.on("dataLoaded", function(data) {
-                if (!data || !data.length) return;
-                var sensitive = ['email', 'contact_number', 'sss_no', 'tin_no', 'philhealth_no', 'pagibig_no'];
-                sensitive.forEach(function(col) {
-                    if (existingOptCols.includes(col) && data.some(function(r) {
-                            return r[col];
-                        })) {
-                        try {
-                            gridTable.showColumn(col);
-                        } catch (e) {}
-                    }
-                });
-            });
-
-            gridTable.on("dataFiltered", function(filters, rows) {
-                var badge = document.getElementById('grid-count');
-                if (badge) badge.textContent = rows.length;
-            });
-        }
+        // Residual Spreadsheet Logic removed for stability.
 
         function switchView(mode) {
-            const cards = document.getElementById('view-cards');
-            const grid = document.getElementById('view-spreadsheet');
-            const btnCards = document.getElementById('btn-view-cards');
-            const btnGrid = document.getElementById('btn-view-grid');
+            const cardsView = document.getElementById('view-cards');
+            const listView = document.getElementById('view-list');
+            const btnCardsView = document.getElementById('btn-view-cards');
+            const btnListView = document.getElementById('btn-view-list');
+            const btnPrintList = document.getElementById('btn-print-list');
 
-            if (mode === 'grid') {
-                if (cards) cards.style.display = 'none';
-                if (grid) grid.style.display = 'block';
-
-                btnGrid.classList.add('active');
-                btnCards.classList.remove('active');
-                localStorage.setItem('hr_preferred_view', 'grid');
-
-                setTimeout(function() {
-                    initGrid();
-                    if (gridTable) gridTable.redraw(true);
-                }, 50);
+            if (mode === 'list') {
+                if (cardsView) cardsView.style.display = 'none';
+                if (listView) listView.style.display = 'block';
+                if (btnPrintList) btnPrintList.classList.remove('d-none');
+                if (btnListView) btnListView.classList.add('active');
+                if (btnCardsView) btnCardsView.classList.remove('active');
+                localStorage.setItem('hr_preferred_view', 'list');
             } else {
-                if (cards) cards.style.display = 'block';
-                if (grid) grid.style.display = 'none';
-                btnCards.classList.add('active');
-                btnGrid.classList.remove('active');
+                if (cardsView) cardsView.style.display = 'block';
+                if (listView) listView.style.display = 'none';
+                if (btnPrintList) btnPrintList.classList.add('d-none');
+                if (btnCardsView) btnCardsView.classList.add('active');
+                if (btnListView) btnListView.classList.remove('active');
                 localStorage.setItem('hr_preferred_view', 'cards');
             }
         }
@@ -2661,23 +2588,6 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
             div.textContent = str;
             return div.innerHTML;
         };
-
-        // ---------- 17) DARK MODE & UI SYNC ----------
-        function applyTabulatorTheme() {
-            var isDark = document.documentElement.getAttribute('data-bs-theme') === 'dark';
-            var el = document.getElementById("employee-master-grid");
-            if (!el) return;
-            isDark ? el.classList.add("tabulator-dark") : el.classList.remove("tabulator-dark");
-        }
-
-        new MutationObserver(applyTabulatorTheme).observe(
-            document.documentElement, {
-                attributes: true,
-                attributeFilter: ['data-bs-theme']
-            }
-        );
-        applyTabulatorTheme();
-
 
         // --- AUTO-REFRESH SYSTEM ---
         let isPaused = false;
@@ -2792,6 +2702,43 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
         if (urlParamsForScroll.has('msg') || urlParamsForScroll.has('error') || urlParamsForScroll.has('page') || urlParamsForScroll.has('search') || urlParamsForScroll.has('doc_cat')) {
             const savedPos = sessionStorage.getItem(scrollKey);
             if (savedPos) window.scrollTo(0, parseInt(savedPos));
+        }
+
+        // Auto-adjust layout before printing
+        window.addEventListener('beforeprint', function() {
+            const tableResponsive = document.querySelector('.table-responsive');
+            if (tableResponsive) {
+                tableResponsive.style.overflowX = 'visible';
+                tableResponsive.style.overflow = 'visible';
+            }
+
+            const table = document.querySelector('.table');
+            if (table) {
+                table.style.tableLayout = 'auto';
+                table.style.width = '100%';
+            }
+
+            // Reduce container padding
+            const container = document.querySelector('.container');
+            if (container) {
+                container.style.padding = '0 10mm';
+            }
+        });
+
+        // Restore after printing
+        window.addEventListener('afterprint', function() {
+            const tableResponsive = document.querySelector('.table-responsive');
+            if (tableResponsive) {
+                tableResponsive.style.overflowX = 'auto';
+            }
+        });
+
+        function optimizeForPrintThenPrint() {
+            const tableResponsive = document.querySelector('.table-responsive');
+            if (tableResponsive) {
+                tableResponsive.style.overflowX = 'visible';
+            }
+            window.print();
         }
     </script>
 

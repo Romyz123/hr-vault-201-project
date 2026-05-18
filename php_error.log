@@ -1166,3 +1166,23 @@ Stack trace:
 [09-May-2026 08:51:32 Asia/Manila] PHP Fatal error:  Cannot declare class SearchHelper, because the name is already in use in C:\xampp\htdocs\hr 201\src\SearchHelper.php on line 2
 [09-May-2026 08:51:32 Asia/Manila] PHP Fatal error:  Cannot declare class SearchHelper, because the name is already in use in C:\xampp\htdocs\hr 201\src\SearchHelper.php on line 2
 [09-May-2026 08:51:33 Asia/Manila] PHP Fatal error:  Cannot declare class SearchHelper, because the name is already in use in C:\xampp\htdocs\hr 201\src\SearchHelper.php on line 2
+[12-May-2026 16:42:00 Asia/Manila] PHP Warning:  Undefined variable $spreadsheetJson in C:\xampp\htdocs\hr 201\public\index.php on line 2559
+[12-May-2026 16:42:00 Asia/Manila] PHP Warning:  Undefined variable $existingOptColsJson in C:\xampp\htdocs\hr 201\public\index.php on line 2560
+[12-May-2026 16:42:06 Asia/Manila] PHP Warning:  Undefined variable $spreadsheetJson in C:\xampp\htdocs\hr 201\public\index.php on line 2559
+[12-May-2026 16:42:06 Asia/Manila] PHP Warning:  Undefined variable $existingOptColsJson in C:\xampp\htdocs\hr 201\public\index.php on line 2560
+[13-May-2026 08:23:39 Asia/Manila] PHP Fatal error:  Uncaught Error: Call to undefined function isEmployeeUncategorized() in C:\xampp\htdocs\hr 201\public\index.php:1366
+Stack trace:
+#0 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\index.php on line 1366
+[13-May-2026 08:23:42 Asia/Manila] PHP Fatal error:  Uncaught Error: Call to undefined function isEmployeeUncategorized() in C:\xampp\htdocs\hr 201\public\index.php:1366
+Stack trace:
+#0 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\index.php on line 1366
+[13-May-2026 08:24:18 Asia/Manila] PHP Fatal error:  Uncaught Error: Call to undefined function isEmployeeUncategorized() in C:\xampp\htdocs\hr 201\public\index.php:1366
+Stack trace:
+#0 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\index.php on line 1366
+[13-May-2026 08:24:21 Asia/Manila] PHP Fatal error:  Uncaught Error: Call to undefined function isEmployeeUncategorized() in C:\xampp\htdocs\hr 201\public\index.php:1366
+Stack trace:
+#0 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\index.php on line 1366

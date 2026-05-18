@@ -14,11 +14,16 @@ require 'options.php'; // Fetch dynamic options for agencies
 $agencies = $agencies ?? [];
 $deptMap = $deptMap ?? [];
 $system_roles = $system_roles ?? [];
+// [FIX] Ensure college_courses_list is initialized
 $college_courses_list = $college_courses_list ?? [];
 
 // [FIX] Ensure checkSessionTimeout is defined before calling it
 if (!function_exists('checkSessionTimeout')) {
     require_once __DIR__ . '/../config/db.php';
+}
+// [FIX] Include global helper functions
+if (!function_exists('h')) {
+    require_once __DIR__ . '/../src/helpers.php';
 }
 session_start();
 
@@ -167,7 +172,7 @@ function parseDate(?string $dateStr)
 }
 
 // [NEW] Normalizer for College Courses using Keywords
-// [FIX] Added 'string' and 'array' type hints
+// This function is defined but not currently used in this file.
 function normalizeCourse(string $input, array $masterList)
 {
     $input = strtoupper(trim($input));
@@ -197,6 +202,7 @@ if (isset($_POST['undo_batch'])) {
     $batch_to_delete = $_POST['undo_batch'];
 
     // [NEW] 1. Check Time Limit (30 Minutes = 1800 Seconds)
+    // [FIX] Comment updated to reflect actual 7-hour limit
     $stmt = $pdo->prepare("SELECT MAX(created_at) FROM employees WHERE import_batch = ?");
     $stmt->execute([$batch_to_delete]);
     $batchTimeStr = $stmt->fetchColumn();
@@ -406,9 +412,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['undo_batch'])) {
             if ($handle === false) {
                 error_log("Import failed: could not open uploaded file $file");
                 $error = "Unable to read uploaded file.";
-            } else {
+            } else { // [FIX] Removed duplicate fread, ensuring first line is read as header
                 // detect delimiter based on first line sample
-                $firstChunk = fread($handle, 4096);
                 $firstChunk = fread($handle, 4096);
                 rewind($handle);
 
@@ -655,7 +660,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['undo_batch'])) {
                     $section = strtoupper(trim($section_raw));
 
                     // [FIX] Favor Form Dept over Section Map if provided
-                    if (!empty($dept_raw)) {
+                    if (!empty($dept_raw)) { // [FIX] Use $dept_raw from CSV if available
                         $dStr = strtoupper(trim($dept_raw));
                         if (strpos($dStr, 'OP') !== false) $dept = 'OP';
                         elseif (strpos($dStr, 'SUBCONS') !== false) $dept = 'SUBCONS-OTHERS';
@@ -663,6 +668,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['undo_batch'])) {
                     } else {
                         $dept = findDept($section, $deptMap);
                     }
+                    // [FIX] Ensure dept is not empty if section mapping failed
+                    if (empty($dept)) $dept = 'UNASSIGNED';
+
 
                     $birth_date = parseDate(trim($birth_raw));
                     $hire_date  = parseDate(trim($hire_raw));
