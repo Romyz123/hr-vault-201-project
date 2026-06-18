@@ -10,6 +10,8 @@ require '../src/Logger.php';
 require '../src/EmployeeService.php'; // [NEW]
 require '../src/Validator.php';
 session_start();
+// [FIX] Include global helper functions
+require_once __DIR__ . '/../src/helpers.php';
 checkSessionTimeout($pdo); // [SECURITY] Enforce Timeout
 
 if (!isset($_SESSION['user_id'])) {
@@ -27,42 +29,6 @@ if (($_SESSION['role'] ?? '') !== 'ADMIN') {
 }
 
 // ---------------- Helpers ----------------
-
-/**
- * Escape output safely for HTML.
- * * @param mixed $v The value to escape
- * @return string
- */
-if (!function_exists('h')) {
-    // We declare $v as 'mixed' so the editor knows it can accept multiple types
-    function h(mixed $v): string
-    {
-        return htmlspecialchars((string)$v, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-    }
-}
-
-/**
- * Fetch a POST value safely as string.
- */
-if (!function_exists('post')) {
-    function post(string $key, string $default = ''): string
-    {
-        if (!isset($_POST[$key])) {
-            return $default;
-        }
-
-        // Prevent unexpected array injection
-        if (is_array($_POST[$key])) {
-            return $default;
-        }
-
-        return trim((string)$_POST[$key]);
-    }
-}
-// [FIX] Include global helper functions
-if (!function_exists('h')) {
-    require_once __DIR__ . '/../src/helpers.php';
-}
 // Prefer POST, fallback to GET (for recruitment prefill)
 $old = [];
 if (!empty($_POST) && is_array($_POST)) {
@@ -76,18 +42,6 @@ if (isset($_SESSION['prefill_employee']) && is_array($_SESSION['prefill_employee
     $old = array_merge($_SESSION['prefill_employee'], $old);
     unset($_SESSION['prefill_employee']);
 }
-
-/**
- * Retrieve old input value safely escaped.
- */
-if (!function_exists('old')) {
-    function old(string $key, string $default = ''): string
-    {
-        global $old;
-        return h($old[$key] ?? $default);
-    }
-}
-
 $security = new Security($pdo);
 $logger   = new Logger($pdo);
 $empService = new EmployeeService($pdo, $logger); // [NEW]

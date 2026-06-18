@@ -8,11 +8,8 @@
 
 require '../config/db.php';
 require '../src/Security.php';
+require_once __DIR__ . '/../src/helpers.php'; // Centralized helper functions
 require 'options.php';
-// [FIX] Include global helper functions
-if (!function_exists('h')) {
-    require_once __DIR__ . '/../src/helpers.php';
-}
 // [FIX] Defensive initialization for variables from options.php
 $agencies = $agencies ?? [];
 $deptMap = $deptMap ?? [];

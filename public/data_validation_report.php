@@ -6,6 +6,7 @@
 
 require '../config/db.php';
 require '../src/Security.php';
+require_once __DIR__ . '/../src/helpers.php'; // Centralized helper functions
 require_once __DIR__ . '/options.php';
 
 // [FIX] Defensive initialization to satisfy IDE/Intelephense diagnostics

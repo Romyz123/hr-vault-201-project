@@ -1363,6 +1363,9 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
                 if (!empty($emp['section']) && $emp['section'] !== 'Main Unit') {
                     $deptDisplay .= ' &gt; ' . h($emp['section']);
                 }
+                if (!empty($emp['group'])) {
+                    $deptDisplay .= ' (' . h($emp['group']) . ')';
+                }
                 $files      = $filesByEmp[$emp['emp_id']] ?? [];
                 $modalId    = 'viewModal' . (int)$emp['id'];
                 $previewBoxId = 'preview-' . (int)$emp['id'];
@@ -1708,6 +1711,7 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
                                         <div class="row g-3 mb-4">
                                             <div class="col-6"><span class="info-label">Dept:</span><br><span class="fw-medium"><?php echo h($emp['dept']); ?></span></div>
                                             <div class="col-6"><span class="info-label">Section:</span><br><span class="fw-medium"><?php echo h($emp['section']); ?></span></div>
+                                            <div class="col-6"><span class="info-label">Group:</span><br><span class="fw-medium"><?php echo h($emp['group'] ?: 'N/A'); ?></span></div>
                                             <div class="col-6"><span class="info-label">Hired:</span><br><span class="fw-medium"><?php echo h($emp['hire_date'] ? date('M d, Y', strtotime($emp['hire_date'])) : 'N/A'); ?></span></div>
                                         </div>
                                         <h6 class="text-primary fw-bold mb-3 border-bottom pb-2"><i class="bi bi-person-lines-fill"></i> Contact Details</h6>

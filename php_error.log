@@ -1243,3 +1243,37 @@ Stack trace:
 #0 C:\xampp\htdocs\hr 201\public\manage_options.php(423): PDO->prepare('SELECT COUNT(*)...')
 #1 {main}
   thrown in C:\xampp\htdocs\hr 201\public\manage_options.php on line 423
+[16-Jun-2026 16:10:03 Asia/Manila] PHP Fatal error:  Uncaught TypeError: post(): Argument #2 ($default) must be of type string, null given, called in C:\xampp\htdocs\hr 201\public\edit_employee.php on line 451 and defined in C:\xampp\htdocs\hr 201\src\helpers.php:25
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\edit_employee.php(451): post('exit_date', NULL)
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\src\helpers.php on line 25
+[16-Jun-2026 16:12:55 Asia/Manila] PHP Fatal error:  Uncaught TypeError: post(): Argument #2 ($default) must be of type string, null given, called in C:\xampp\htdocs\hr 201\public\edit_employee.php on line 451 and defined in C:\xampp\htdocs\hr 201\src\helpers.php:25
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\edit_employee.php(451): post('exit_date', NULL)
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\src\helpers.php on line 25
+[16-Jun-2026 16:17:53 Asia/Manila] PHP Fatal error:  Uncaught TypeError: post(): Argument #2 ($default) must be of type string, null given, called in C:\xampp\htdocs\hr 201\public\edit_employee.php on line 509 and defined in C:\xampp\htdocs\hr 201\src\helpers.php:25
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\edit_employee.php(509): post('exit_date', NULL)
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\src\helpers.php on line 25
+[16-Jun-2026 16:17:56 Asia/Manila] PHP Fatal error:  Uncaught TypeError: post(): Argument #2 ($default) must be of type string, null given, called in C:\xampp\htdocs\hr 201\public\edit_employee.php on line 509 and defined in C:\xampp\htdocs\hr 201\src\helpers.php:25
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\edit_employee.php(509): post('exit_date', NULL)
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\src\helpers.php on line 25
+[16-Jun-2026 16:18:23 Asia/Manila] PHP Fatal error:  Uncaught TypeError: post(): Argument #2 ($default) must be of type string, null given, called in C:\xampp\htdocs\hr 201\public\edit_employee.php on line 509 and defined in C:\xampp\htdocs\hr 201\src\helpers.php:25
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\edit_employee.php(509): post('exit_date', NULL)
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\src\helpers.php on line 25
+[18-Jun-2026 14:36:00 Asia/Manila] PHP Warning:  require(footer.php): Failed to open stream: No such file or directory in C:\xampp\htdocs\hr 201\public\data_validation_report.php on line 225
+[18-Jun-2026 14:36:00 Asia/Manila] PHP Fatal error:  Uncaught Error: Failed opening required 'footer.php' (include_path='C:\xampp\php\PEAR') in C:\xampp\htdocs\hr 201\public\data_validation_report.php:225
+Stack trace:
+#0 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\data_validation_report.php on line 225
+[18-Jun-2026 14:36:35 Asia/Manila] PHP Fatal error:  Uncaught TypeError: Cannot access offset of type string on string in C:\xampp\htdocs\hr 201\public\manage_hierarchy.php:231
+Stack trace:
+#0 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\manage_hierarchy.php on line 231

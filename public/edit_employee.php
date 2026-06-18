@@ -9,10 +9,7 @@ require '../src/Security.php';
 require '../src/Logger.php';
 session_start();
 // [FIX] Include global helper functions
-if (!function_exists('h')) {
-    require_once __DIR__ . '/../src/helpers.php';
-}
-
+require_once __DIR__ . '/../src/helpers.php';
 // 1. REQUIRE LOGIN
 if (!isset($_SESSION['user_id'])) {
     header("Location: login.php");
@@ -73,6 +70,23 @@ $dynamicCats = [];
 
 if (!$emp) die("Employee not found.");
 
+// [FIX] Define val() and raw() directly in the file so the IDE recognizes them
+if (!function_exists('val')) {
+    function val($key)
+    {
+        global $emp;
+        $value = $_POST[$key] ?? $emp[$key] ?? '';
+        return htmlspecialchars((string)$value, ENT_QUOTES, 'UTF-8');
+    }
+}
+if (!function_exists('raw')) {
+    function raw($key)
+    {
+        global $emp;
+        return (string)($_POST[$key] ?? $emp[$key] ?? '');
+    }
+}
+
 // [NEW] Fetch Documents for Digital 201 File Tab
 $docStmt = $pdo->prepare("
     SELECT d.*, u.username as updater_name 
@@ -128,23 +142,6 @@ $system_roles = [];
 // [NEW] Load Centralized Options
 require __DIR__ . '/options.php';
 $emp_options = $agencies;
-
-// Helpers
-function post($k, $d = '')
-{
-    return isset($_POST[$k]) ? trim((string)$_POST[$k]) : $d;
-}
-function val($key)
-{
-    global $emp;
-    return h($_POST[$key] ?? $emp[$key] ?? '');
-}
-function raw($key)
-{
-    global $emp;
-    return (string)($_POST[$key] ?? $emp[$key] ?? '');
-}
-
 // [SECURITY] Generate CSRF Token
 if (empty($_SESSION['csrf_token'])) {
     $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
@@ -160,10 +157,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // [NEW] Handle Add Evaluation
     if (isset($_POST['action']) && $_POST['action'] === 'add_eval') {
-        $eval_date = $_POST['eval_date'];
-        $score = (int)$_POST['score'];
-        $remarks = trim($_POST['remarks']);
-        $evaluator = trim($_POST['evaluator']);
+        try {
+            $eval_date = $_POST['eval_date'];
+            $score = (int)$_POST['score'];
+            $remarks = trim($_POST['remarks']);
+            $evaluator = trim($_POST['evaluator']);
+        } catch (Exception $e) {
+            header("Location: edit_employee.php?id=$id&tab=eval&error=" . urlencode("❌ Invalid input for evaluation."));
+            exit;
+        }
 
         // [SECURITY] Validation
         if ($score < 1 || $score > 100) {
@@ -191,18 +193,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         elseif ($score >= 60) $rating = 'Needs Improvement';
 
         $stmt = $pdo->prepare("INSERT INTO performance_evaluations (employee_id, eval_date, score, rating, remarks, evaluator) VALUES (?, ?, ?, ?, ?, ?)");
-        $stmt->execute([$id, $eval_date, $score, $rating, $remarks, $evaluator]);
-        header("Location: edit_employee.php?id=$id&tab=eval&msg=" . urlencode("✅ Evaluation Added"));
-        exit;
+        try {
+            $stmt->execute([$id, $eval_date, $score, $rating, $remarks, $evaluator]);
+            header("Location: edit_employee.php?id=$id&tab=eval&msg=" . urlencode("✅ Evaluation Added"));
+            exit;
+        } catch (PDOException $e) {
+            error_log("PDOException in add_eval: " . $e->getMessage());
+            header("Location: edit_employee.php?id=$id&tab=eval&error=" . urlencode("❌ Database error adding evaluation."));
+            exit;
+        }
     }
 
     // [NEW] Handle Edit Evaluation
     if (isset($_POST['action']) && $_POST['action'] === 'edit_eval') {
-        $eval_id = (int)$_POST['eval_id'];
-        $eval_date = $_POST['eval_date'];
-        $score = (int)$_POST['score'];
-        $remarks = trim($_POST['remarks']);
-        $evaluator = trim($_POST['evaluator']);
+        try {
+            $eval_id = (int)$_POST['eval_id'];
+            $eval_date = $_POST['eval_date'];
+            $score = (int)$_POST['score'];
+            $remarks = trim($_POST['remarks']);
+            $evaluator = trim($_POST['evaluator']);
+        } catch (Exception $e) {
+            header("Location: edit_employee.php?id=$id&tab=eval&error=" . urlencode("❌ Invalid input for evaluation."));
+            exit;
+        }
 
         // [SECURITY] Validation
         if ($score < 1 || $score > 100) {
@@ -222,28 +235,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         elseif ($score >= 60) $rating = 'Needs Improvement';
 
         $stmt = $pdo->prepare("UPDATE performance_evaluations SET eval_date = ?, score = ?, rating = ?, remarks = ?, evaluator = ? WHERE id = ?");
-        $stmt->execute([$eval_date, $score, $rating, $remarks, $evaluator, $eval_id]);
-        header("Location: edit_employee.php?id=$id&tab=eval&msg=" . urlencode("✅ Evaluation Updated"));
-        exit;
+        try {
+            $stmt->execute([$eval_date, $score, $rating, $remarks, $evaluator, $eval_id]);
+            header("Location: edit_employee.php?id=$id&tab=eval&msg=" . urlencode("✅ Evaluation Updated"));
+            exit;
+        } catch (PDOException $e) {
+            error_log("PDOException in edit_eval: " . $e->getMessage());
+            header("Location: edit_employee.php?id=$id&tab=eval&error=" . urlencode("❌ Database error updating evaluation."));
+            exit;
+        }
     }
 
     // [NEW] Handle Delete Evaluation
     if (isset($_POST['action']) && $_POST['action'] === 'delete_eval') {
         if (in_array($_SESSION['role'], ['ADMIN', 'MANAGER', 'HR'])) {
-            $delEvalId = (int)$_POST['eval_id'];
-            $pdo->prepare("DELETE FROM performance_evaluations WHERE id = ?")->execute([$delEvalId]);
-            header("Location: edit_employee.php?id=$id&tab=eval&msg=" . urlencode("✅ Evaluation Deleted"));
-            exit;
+            try {
+                $delEvalId = (int)$_POST['eval_id'];
+                $pdo->prepare("DELETE FROM performance_evaluations WHERE id = ?")->execute([$delEvalId]);
+                header("Location: edit_employee.php?id=$id&tab=eval&msg=" . urlencode("✅ Evaluation Deleted"));
+                exit;
+            } catch (PDOException $e) {
+                error_log("PDOException in delete_eval: " . $e->getMessage());
+                header("Location: edit_employee.php?id=$id&tab=eval&error=" . urlencode("❌ Database error deleting evaluation."));
+                exit;
+            }
         }
     }
 
     // [NEW] Handle Add History Event
     if (isset($_POST['action']) && $_POST['action'] === 'add_history') {
         if (in_array($_SESSION['role'], ['ADMIN', 'MANAGER', 'HR'])) {
-            $title = trim($_POST['event_title']);
-            $date  = $_POST['event_date'];
-            $dept  = trim($_POST['department']);
-            $notes = trim($_POST['notes']);
+            $title = trim($_POST['event_title'] ?? '');
+            $date  = $_POST['event_date'] ?? '';
+            $dept  = trim($_POST['department'] ?? '');
+            $notes = trim($_POST['notes'] ?? '');
 
             if (empty($title) || empty($date)) {
                 header("Location: edit_employee.php?id=$id&tab=history&error=" . urlencode("❌ Title and Date are required."));
@@ -264,152 +289,176 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 exit;
             }
 
-            $stmt = $pdo->prepare("INSERT INTO employment_history (employee_id, event_title, event_date, department, notes) VALUES (?, ?, ?, ?, ?)");
-            $stmt->execute([$id, $title, $date, $dept, $notes]);
+            try {
+                $stmt = $pdo->prepare("INSERT INTO employment_history (employee_id, event_title, event_date, department, notes) VALUES (?, ?, ?, ?, ?)");
+                $stmt->execute([$id, $title, $date, $dept, $notes]);
 
-            $logger->log($_SESSION['user_id'], 'ADD_HISTORY', "Added history event for {$emp['emp_id']}: $title");
-            header("Location: edit_employee.php?id=$id&tab=history&msg=" . urlencode("✅ History event added."));
-            exit;
+                $logger->log($_SESSION['user_id'], 'ADD_HISTORY', "Added history event for {$emp['emp_id']}: $title");
+                header("Location: edit_employee.php?id=$id&tab=history&msg=" . urlencode("✅ History event added."));
+                exit;
+            } catch (PDOException $e) {
+                error_log("PDOException in add_history: " . $e->getMessage());
+                header("Location: edit_employee.php?id=$id&tab=history&error=" . urlencode("❌ Database error adding history event."));
+                exit;
+            }
         }
     }
     // [NEW] Handle Delete History Event
     if (isset($_POST['action']) && $_POST['action'] === 'delete_history') {
         if (in_array($_SESSION['role'], ['ADMIN', 'MANAGER'])) {
-            $histId = (int)$_POST['history_id'];
-            $pdo->prepare("DELETE FROM employment_history WHERE id = ?")->execute([$histId]);
-            header("Location: edit_employee.php?id=$id&tab=history&msg=" . urlencode("✅ Event deleted."));
-            exit;
+            try {
+                $histId = (int)$_POST['history_id'];
+                $pdo->prepare("DELETE FROM employment_history WHERE id = ?")->execute([$histId]);
+                header("Location: edit_employee.php?id=$id&tab=history&msg=" . urlencode("✅ Event deleted."));
+                exit;
+            } catch (PDOException $e) {
+                error_log("PDOException in delete_history: " . $e->getMessage());
+                header("Location: edit_employee.php?id=$id&tab=history&error=" . urlencode("❌ Database error deleting history event."));
+                exit;
+            }
         }
     }
 
     // [NEW] Handle Delete All Documents
     if (isset($_POST['action']) && $_POST['action'] === 'delete_all_docs') {
         if (in_array($_SESSION['role'], ['ADMIN', 'MANAGER'])) {
-            $stmt = $pdo->prepare("UPDATE documents SET deleted_at = NOW() WHERE employee_id = ? AND deleted_at IS NULL");
-            $stmt->execute([$emp['emp_id']]);
-            $logger->log($_SESSION['user_id'], 'DELETE_ALL_DOCS', "Deleted all documents for {$emp['emp_id']}");
-            header("Location: edit_employee.php?id=$id&tab=docs&msg=" . urlencode("✅ All documents moved to Recycle Bin"));
-            exit;
+            try {
+                $stmt = $pdo->prepare("UPDATE documents SET deleted_at = NOW() WHERE employee_id = ? AND deleted_at IS NULL");
+                $stmt->execute([$emp['emp_id']]);
+                $logger->log($_SESSION['user_id'], 'DELETE_ALL_DOCS', "Deleted all documents for {$emp['emp_id']}");
+                header("Location: edit_employee.php?id=$id&tab=docs&msg=" . urlencode("✅ All documents moved to Recycle Bin"));
+                exit;
+            } catch (PDOException $e) {
+                error_log("PDOException in delete_all_docs: " . $e->getMessage());
+                header("Location: edit_employee.php?id=$id&tab=docs&error=" . urlencode("❌ Database error deleting all documents."));
+                exit;
+            }
         }
     }
 
     // [REVISED] Handle Edit Document Details -> Creates a request for approval
     if (isset($_POST['action']) && $_POST['action'] === 'edit_doc') {
         if (in_array($_SESSION['role'], ['ADMIN', 'MANAGER', 'HR', 'STAFF'])) {
-            $docId = (int)$_POST['doc_id'];
-            $newName = trim($_POST['file_name']);
-            $newCat = trim($_POST['category']);
-            $moveToEmpId = trim($_POST['move_to_emp_id'] ?? '');
-            $newExpiry = NULL;
-            if (!empty($_POST['expiry_date'])) {
-                $parsedExpiry = DateTime::createFromFormat('Y-m-d', $_POST['expiry_date']);
-                if ($parsedExpiry && $parsedExpiry->format('Y-m-d') === $_POST['expiry_date']) {
-                    $newExpiry = $_POST['expiry_date'];
-                } else {
-                    header("Location: edit_employee.php?id=$id&tab=docs&error=" . urlencode("❌ Invalid expiry date format."));
+            try {
+                $docId = (int)$_POST['doc_id'];
+                $newName = trim($_POST['file_name']);
+                $newCat = trim($_POST['category']);
+                $moveToEmpId = trim($_POST['move_to_emp_id'] ?? '');
+                $newExpiry = NULL;
+                if (!empty($_POST['expiry_date'])) {
+                    $parsedExpiry = DateTime::createFromFormat('Y-m-d', $_POST['expiry_date']);
+                    if ($parsedExpiry && $parsedExpiry->format('Y-m-d') === $_POST['expiry_date']) {
+                        $newExpiry = $_POST['expiry_date'];
+                    } else {
+                        header("Location: edit_employee.php?id=$id&tab=docs&error=" . urlencode("❌ Invalid expiry date format."));
+                        exit;
+                    }
+                }
+                $isValid = true;
+                $errorMsg = '';
+
+                if (strlen($newName) > 100) {
+                    header("Location: edit_employee.php?id=$id&tab=docs&error=" . urlencode("❌ File name too long (Max 100 chars)."));
                     exit;
                 }
-            }
-            $isValid = true;
-            $errorMsg = '';
 
-            if (strlen($newName) > 100) {
-                header("Location: edit_employee.php?id=$id&tab=docs&error=" . urlencode("❌ File name too long (Max 100 chars)."));
-                exit;
-            }
+                // [SECURITY] Validate Filename Characters
+                if (!preg_match('/^[a-zA-Z0-9\s\-\.\(\)_]+$/', $newName)) {
+                    header("Location: edit_employee.php?id=$id&tab=docs&error=" . urlencode("❌ Invalid filename. Allowed: Alphanumeric, Spaces, Dots, Dashes, Underscores, Parentheses."));
+                    exit;
+                }
 
-            // [SECURITY] Validate Filename Characters
-            if (!preg_match('/^[a-zA-Z0-9\s\-\.\(\)_]+$/', $newName)) {
-                header("Location: edit_employee.php?id=$id&tab=docs&error=" . urlencode("❌ Invalid filename. Allowed: Alphanumeric, Spaces, Dots, Dashes, Underscores, Parentheses."));
-                exit;
-            }
-
-            // Handle "Others" Category
-            if ($newCat === 'Others') {
-                $otherCat = trim($_POST['other_category'] ?? '');
-                if (empty($otherCat)) {
-                    $isValid = false;
-                    $errorMsg = "❌ Please specify the document type when 'Others' is selected.";
-                } else {
-                    if (strlen($otherCat) > 50) {
+                // Handle "Others" Category
+                if ($newCat === 'Others') {
+                    $otherCat = trim($_POST['other_category'] ?? '');
+                    if (empty($otherCat)) {
                         $isValid = false;
-                        $errorMsg = "❌ Document type too long (Max 50 chars).";
+                        $errorMsg = "❌ Please specify the document type when 'Others' is selected.";
+                    } else {
+                        if (strlen($otherCat) > 50) {
+                            $isValid = false;
+                            $errorMsg = "❌ Document type too long (Max 50 chars).";
+                        }
+                        $newCat = ucwords(strtolower($otherCat));
                     }
-                    $newCat = ucwords(strtolower($otherCat));
-                }
-            }
-
-            if ($isValid) {
-                // 1. Get original document details for logging/comparison
-                $origDocStmt = $pdo->prepare("SELECT original_name, category, employee_id FROM documents WHERE id = ?");
-                $origDocStmt->execute([$docId]);
-                $origDoc = $origDocStmt->fetch();
-
-                // Verify document ownership - must belong to current employee
-                if (!$origDoc || $origDoc['employee_id'] != $emp['emp_id']) {
-                    header("Location: edit_employee.php?id=$id&tab=docs&error=" . urlencode("❌ You cannot edit documents for other employees."));
-                    exit;
                 }
 
-                // [FIX] Preserve file extension to ensure format isn't lost
-                $info = pathinfo($origDoc['original_name']);
-                $ext = isset($info['extension']) ? '.' . $info['extension'] : '';
-                if ($ext !== '' && (strlen($newName) < strlen($ext) || substr_compare($newName, $ext, -strlen($ext), strlen($ext), true) !== 0)) {
-                    $newName .= $ext;
-                }
+                if ($isValid) {
+                    // 1. Get original document details for logging/comparison
+                    $origDocStmt = $pdo->prepare("SELECT original_name, category, employee_id FROM documents WHERE id = ?");
+                    $origDocStmt->execute([$docId]);
+                    $origDoc = $origDocStmt->fetch();
 
-                // 2a. STAFF: Submit Request
-                if ($_SESSION['role'] === 'STAFF') {
-                    // Check for existing pending request to prevent spam
-                    $chkReq = $pdo->prepare("SELECT id FROM requests WHERE request_type = 'EDIT_DOC' AND target_id = ? AND status = 'PENDING'");
-                    $chkReq->execute([$docId]);
-
-                    if ($chkReq->fetch()) {
-                        header("Location: edit_employee.php?id=$id&tab=docs&error=" . urlencode("⚠️ Pending edit request already exists for this document."));
+                    // Verify document ownership - must belong to current employee
+                    if (!$origDoc || $origDoc['employee_id'] != $emp['emp_id']) {
+                        header("Location: edit_employee.php?id=$id&tab=docs&error=" . urlencode("❌ You cannot edit documents for other employees."));
                         exit;
                     }
 
-                    $payload = [
-                        'new_name' => $newName,
-                        'new_category' => $newCat,
-                        'new_expiry_date' => $newExpiry,
-                        'move_to_emp_id' => $moveToEmpId,
-                        'original_details' => $origDoc
-                    ];
-                    $pdo->prepare("INSERT INTO requests (user_id, request_type, target_id, json_payload) VALUES (?, 'EDIT_DOC', ?, ?)")
-                        ->execute([$_SESSION['user_id'], $docId, json_encode($payload)]);
+                    // [FIX] Preserve file extension to ensure format isn't lost
+                    $info = pathinfo($origDoc['original_name']);
+                    $ext = isset($info['extension']) ? '.' . $info['extension'] : '';
+                    if ($ext !== '' && (strlen($newName) < strlen($ext) || substr_compare($newName, $ext, -strlen($ext), strlen($ext), true) !== 0)) {
+                        $newName .= $ext;
+                    }
 
-                    header("Location: edit_employee.php?id=$id&tab=docs&msg=" . urlencode("📝 Document Edit Request Submitted"));
-                    exit;
-                }
+                    // 2a. STAFF: Submit Request
+                    if ($_SESSION['role'] === 'STAFF') {
+                        // Check for existing pending request to prevent spam
+                        $chkReq = $pdo->prepare("SELECT id FROM requests WHERE request_type = 'EDIT_DOC' AND target_id = ? AND status = 'PENDING'");
+                        $chkReq->execute([$docId]);
 
-                // 2. DIRECT UPDATE (Admins/Managers/HR are trusted)
-                $updateSql = "UPDATE documents SET original_name = ?, category = ?, expiry_date = ?, updated_at = NOW(), updated_by = ?";
-                $updateParams = [$newName, $newCat, $newExpiry, $_SESSION['user_id']];
+                        if ($chkReq->fetch()) {
+                            header("Location: edit_employee.php?id=$id&tab=docs&error=" . urlencode("⚠️ Pending edit request already exists for this document."));
+                            exit;
+                        }
 
-                if (!empty($moveToEmpId)) {
-                    // [FIX] Validate target employee exists
-                    $chkTarget = $pdo->prepare("SELECT id FROM employees WHERE emp_id = ? AND deleted_at IS NULL");
-                    $chkTarget->execute([$moveToEmpId]);
-                    if (!$chkTarget->fetch()) {
-                        header("Location: edit_employee.php?id=$id&tab=docs&error=" . urlencode("❌ Target Employee ID not found."));
+                        $payload = [
+                            'new_name' => $newName,
+                            'new_category' => $newCat,
+                            'new_expiry_date' => $newExpiry,
+                            'move_to_emp_id' => $moveToEmpId,
+                            'original_details' => $origDoc
+                        ];
+                        $pdo->prepare("INSERT INTO requests (user_id, request_type, target_id, json_payload) VALUES (?, 'EDIT_DOC', ?, ?)")
+                            ->execute([$_SESSION['user_id'], $docId, json_encode($payload)]);
+
+                        header("Location: edit_employee.php?id=$id&tab=docs&msg=" . urlencode("📝 Document Edit Request Submitted"));
                         exit;
                     }
-                    $updateSql .= ", employee_id = ?";
-                    $updateParams[] = $moveToEmpId;
+
+                    // 2. DIRECT UPDATE (Admins/Managers/HR are trusted)
+                    $updateSql = "UPDATE documents SET original_name = ?, category = ?, expiry_date = ?, updated_at = NOW(), updated_by = ?";
+                    $updateParams = [$newName, $newCat, $newExpiry, $_SESSION['user_id']];
+
+                    if (!empty($moveToEmpId)) {
+                        // [FIX] Validate target employee exists
+                        $chkTarget = $pdo->prepare("SELECT id FROM employees WHERE emp_id = ? AND deleted_at IS NULL");
+                        $chkTarget->execute([$moveToEmpId]);
+                        if (!$chkTarget->fetch()) {
+                            header("Location: edit_employee.php?id=$id&tab=docs&error=" . urlencode("❌ Target Employee ID not found."));
+                            exit;
+                        }
+                        $updateSql .= ", employee_id = ?";
+                        $updateParams[] = $moveToEmpId;
+                    }
+
+                    $updateSql .= " WHERE id = ?";
+                    $updateParams[] = $docId;
+
+                    $stmt = $pdo->prepare($updateSql);
+                    $stmt->execute($updateParams);
+
+                    $logger->log($_SESSION['user_id'], 'EDIT_DOC', "Updated Doc ID $docId ($newName)");
+                    header("Location: edit_employee.php?id=$id&tab=docs&msg=" . urlencode("✅ Document details updated successfully."));
+                    exit;
+                } else {
+                    header("Location: edit_employee.php?id=$id&tab=docs&error=" . urlencode($errorMsg));
+                    exit;
                 }
-
-                $updateSql .= " WHERE id = ?";
-                $updateParams[] = $docId;
-
-                $stmt = $pdo->prepare($updateSql);
-                $stmt->execute($updateParams);
-
-                $logger->log($_SESSION['user_id'], 'EDIT_DOC', "Updated Doc ID $docId ($newName)");
-                header("Location: edit_employee.php?id=$id&tab=docs&msg=" . urlencode("✅ Document details updated successfully."));
-                exit;
-            } else {
-                header("Location: edit_employee.php?id=$id&tab=docs&error=" . urlencode($errorMsg));
+            } catch (PDOException $e) {
+                error_log("PDOException in edit_doc: " . $e->getMessage());
+                header("Location: edit_employee.php?id=$id&tab=docs&error=" . urlencode("❌ Database error editing document."));
                 exit;
             }
         }
@@ -418,50 +467,60 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // [NEW] Handle Delete Employee (Full Cleanup)
     if (isset($_POST['action']) && $_POST['action'] === 'delete_employee') {
         if (in_array($_SESSION['role'], ['ADMIN', 'MANAGER'])) {
-            // [FIX] Soft Delete instead of Hard Delete
-            $pdo->prepare("UPDATE employees SET deleted_at = NOW() WHERE id = ?")->execute([$id]);
+            try {
+                // [FIX] Soft Delete instead of Hard Delete
+                $pdo->prepare("UPDATE employees SET deleted_at = NOW() WHERE id = ?")->execute([$id]);
 
-            $logger->log($_SESSION['user_id'], 'SOFT_DELETE_EMPLOYEE', "Moved employee {$emp['emp_id']} to Recycle Bin");
+                $logger->log($_SESSION['user_id'], 'SOFT_DELETE_EMPLOYEE', "Moved employee {$emp['emp_id']} to Recycle Bin");
 
-            header("Location: index.php?msg=" . urlencode("🗑️ Employee moved to Recovery Console."));
-            exit;
+                header("Location: index.php?msg=" . urlencode("🗑️ Employee moved to Recovery Console."));
+                exit;
+            } catch (PDOException $e) {
+                error_log("PDOException in delete_employee: " . $e->getMessage());
+                header("Location: edit_employee.php?id=$id&error=" . urlencode("❌ Database error deleting employee."));
+                exit;
+            }
         }
     }
 
-    $new_emp_id = post('emp_id', $emp['emp_id']);
-    $first_name = ucwords(strtolower(post('first_name', $emp['first_name'])));
-    $middle_name = ucwords(strtolower(post('middle_name', $emp['middle_name'])));
-    $last_name = ucwords(strtolower(post('last_name', $emp['last_name'])));
-    $job_title = ucwords(strtolower(post('job_title', $emp['job_title'])));
-    $system_role = post('system_role', $emp['system_role'] ?? 'Staff'); // [NEW]
-    $dept = post('dept', $emp['dept']);
-    $section = post('section', $emp['section']);
+    $new_emp_id = post('emp_id', $emp['emp_id'] ?? '');
+    $first_name = ucwords(strtolower(post('first_name', $emp['first_name'] ?? '')));
+    $middle_name = ucwords(strtolower(post('middle_name', $emp['middle_name'] ?? '')));
+    $last_name = ucwords(strtolower(post('last_name', $emp['last_name'] ?? '')));
+    $job_title = ucwords(strtolower(post('job_title', $emp['job_title'] ?? '')));
+    $system_role = post('system_role', $emp['system_role'] ?? 'Staff');
+    $dept = post('dept', $emp['dept'] ?? '');
+    $section = post('section', $emp['section'] ?? '');
     $group = post('group', $emp['group'] ?? '');
-    $company_name = post('company_name', $emp['company_name']);
-    $previous_company = post('previous_company', $emp['previous_company']);
-    $hire_date = post('hire_date', $emp['hire_date']);
-    $gender = post('gender', $emp['gender']);
-    $birth_date = post('birth_date', $emp['birth_date']);
-    $contact_number = post('contact_number', $emp['contact_number']);
-    $email = post('email', $emp['email']);
-    $present_address = post('present_address', $emp['present_address']);
-    $permanent_address = post('permanent_address', $emp['permanent_address']);
-    $sss_no = post('sss_no', $emp['sss_no']);
-    $tin_no = post('tin_no', $emp['tin_no']);
-    $philhealth_no = post('philhealth_no', $emp['philhealth_no']);
-    $pagibig_no = post('pagibig_no', $emp['pagibig_no']);
-    $status = post('status', $emp['status']);
-    $exit_date = post('exit_date', $emp['exit_date']);
-    $exit_reason = post('exit_reason', $emp['exit_reason']);
-    $emergency_name = ucwords(strtolower(post('emergency_name', $emp['emergency_name'])));
-
-    $emergency_contact = post('emergency_contact', $emp['emergency_contact']);
-    $emergency_address = post('emergency_address', $emp['emergency_address']);
+    $company_name = post('company_name', $emp['company_name'] ?? '');
+    $previous_company = post('previous_company', $emp['previous_company'] ?? '');
+    $hire_date = post('hire_date', $emp['hire_date'] ?? '');
+    $gender = post('gender', $emp['gender'] ?? 'Male');
+    $birth_date = post('birth_date', $emp['birth_date'] ?? '');
+    $contact_number = post('contact_number', $emp['contact_number'] ?? '');
+    $email = post('email', $emp['email'] ?? '');
+    $present_address = post('present_address', $emp['present_address'] ?? '');
+    $permanent_address = post('permanent_address', $emp['permanent_address'] ?? '');
+    $sss_no = post('sss_no', $emp['sss_no'] ?? '');
+    $tin_no = post('tin_no', $emp['tin_no'] ?? '');
+    $philhealth_no = post('philhealth_no', $emp['philhealth_no'] ?? '');
+    $pagibig_no = post('pagibig_no', $emp['pagibig_no'] ?? '');
+    $status = post('status', $emp['status'] ?? 'Active');
+    $exit_date = post('exit_date', $emp['exit_date'] ?? '');
+    $exit_reason = post('exit_reason', $emp['exit_reason'] ?? '');
+    $emergency_name = ucwords(strtolower(post('emergency_name', $emp['emergency_name'] ?? '')));
+    $emergency_contact = post('emergency_contact', $emp['emergency_contact'] ?? '');
+    $emergency_address = post('emergency_address', $emp['emergency_address'] ?? '');
 
     $education  = post('education', $emp['education'] ?? '');
     $experience = post('experience', $emp['experience'] ?? '');
     $skills     = post('skills', $emp['skills'] ?? '');
     $licenses   = post('licenses', $emp['licenses'] ?? '');
+
+    // [NEW] Capture college fields from POST or current record
+    $college_degree = post('college_degree', $emp['college_degree'] ?? '');
+    $college_course = post('college_course', $emp['college_course'] ?? '');
+    $college_year   = post('college_year', $emp['college_year'] ?? '');
 
     // [NEW] Capture Request Note for Validation
     $request_note = post('request_note', '');
@@ -501,6 +560,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'emergency_address' => 150,
         'education'         => 1000,
         'experience'        => 1000,
+        'college_degree'    => 100,
+        'college_course'    => 100,
+        'college_year'      => 10,
         'skills'            => 1000,
         'licenses'          => 1000,
         'exit_reason'       => 100,
@@ -672,6 +734,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'education' => $education,
             'experience' => $experience,
             'skills' => $skills,
+            'college_degree' => $college_degree,
+            'college_course' => $college_course,
+            'college_year' => $college_year,
             'licenses' => $licenses,
             'status' => $status,
             'exit_date' => $exit_date,
@@ -826,7 +891,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <div>
                     <div class="fw-bold"><?php echo h($emp['emp_id']); ?></div>
                     <div class="text-muted small"><?php echo h($emp['job_title']); ?></div>
-                    <div class="text-muted small"><?php echo h($emp['dept'] . ' / ' . $emp['section']); ?></div>
+                    <div class="text-muted small"><?php echo h($emp['dept'] . ' / ' . $emp['section'] . ($emp['group'] ? ' / ' . $emp['group'] : '')); ?></div>
                 </div>
             </div>
 
@@ -1149,16 +1214,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <div class="list-group">
                             <?php foreach ($myDocs as $d): ?>
                                 <?php
-                                $isThisDocUncategorized = isDocUncategorized($d, $REQUIRED_DOCS);
-
-                                // UI UPGRADE: Highlight Version Numbers (-001, -002)
-                                $displayName = h($d['original_name']);
+                                // [FIX] Define $displayName and add visual version tracking
+                                $displayName = htmlspecialchars($d['original_name'], ENT_QUOTES, 'UTF-8');
                                 if (preg_match('/(-(\d{3}))(\.[^.]+)$/', $displayName, $vMatches)) {
                                     $versionPart = '<span class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary ms-1" style="font-size: 0.7rem;">Ver ' . $vMatches[2] . '</span>';
                                     $displayName = str_replace($vMatches[1], '', $displayName) . $versionPart;
-                                } else {
-                                    $versionPart = '';
                                 }
+                                $isThisDocUncategorized = isDocUncategorized($d, $REQUIRED_DOCS);
                                 ?>
                                 <div class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
                                     <div>
@@ -1760,6 +1822,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 </div>
             </div>
         </div>
+    </div>
+</div>
+
+<!-- GENERIC EDIT MODAL (Used for naming consistency) -->
+<div class="modal fade" id="genericEditModal" tabindex="-1">
+    <div class="modal-dialog">
+        <form method="POST" class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title">Rename <span id="genericTypeLabel">Item</span></h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" name="csrf_token" value="<?php echo h($_SESSION['csrf_token']); ?>">
+                <input type="hidden" name="action" id="genericAction">
+                <input type="hidden" name="id" id="genericId">
+                <label class="form-label fw-bold">New Name <span class="text-danger">*</span></label>
+                <input type="text" name="name" id="genericNameInput" class="form-control" required maxlength="100" pattern="[a-zA-Z0-9\s\-\.\,\(\)\/\&']+" title="Alphanumeric and basic punctuation allowed">
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="submit" class="btn btn-primary">Save Changes</button>
+            </div>
+        </form>
     </div>
 </div>
 

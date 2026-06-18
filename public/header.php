@@ -12,12 +12,8 @@ if (!isset($pdo)) {
     require_once __DIR__ . '/../config/db.php';
 }
 
-if (!function_exists('h')) {
-    function h(string $v): string
-    {
-        return htmlspecialchars((string)$v, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-    }
-}
+// [FIX] Include global helper functions
+require_once __DIR__ . '/../src/helpers.php';
 
 // [FIX] Ensure checkSessionTimeout is defined before calling it
 if (!function_exists('checkSessionTimeout')) {

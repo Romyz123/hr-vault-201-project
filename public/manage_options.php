@@ -9,20 +9,12 @@ require '../src/Security.php';
 require '../src/Logger.php';
 session_start();
 
+// [FIX] Include global helper functions
+require_once __DIR__ . '/../src/helpers.php';
+
 $userRole = strtoupper(trim($_SESSION['role'] ?? ''));
 
 // 1. SECURITY: Admin and Manager Only
-if (!isset($_SESSION['user_id']) || !in_array($userRole, ['ADMIN', 'MANAGER'])) {
-    header("Location: index.php");
-    exit;
-}
-
-// [NEW] Helper function for safe HTML output
-function h(?string $v): string
-{
-    return htmlspecialchars((string)$v, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-}
-
 $security = new Security($pdo);
 $logger   = new Logger($pdo);
 
