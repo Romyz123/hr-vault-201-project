@@ -134,6 +134,23 @@ try {
         }
     }
 
+    // CC. Groups
+    $pdo->exec("CREATE TABLE IF NOT EXISTS groups (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        name VARCHAR(100) NOT NULL UNIQUE
+    )");
+    $checkGroups = $pdo->query("SELECT COUNT(*) FROM groups");
+    if ($checkGroups && (int)$checkGroups->fetchColumn() == 0) {
+        $stmt = $pdo->prepare("INSERT INTO groups (name) VALUES (?)");
+        foreach (['GROUP A', 'GROUP B', 'GROUP C'] as $g) {
+            try {
+                $stmt->execute([$g]);
+            } catch (PDOException $e) {
+                // Ignore duplicate inserts and continue seeding
+            }
+        }
+    }
+
     // E. Disciplinary Violations
     $pdo->exec("CREATE TABLE IF NOT EXISTS disciplinary_violations (
         id INT AUTO_INCREMENT PRIMARY KEY,
@@ -202,6 +219,41 @@ try {
     if ($chkKeys->rowCount() == 0) {
         $pdo->exec("ALTER TABLE college_courses ADD COLUMN keywords TEXT DEFAULT NULL AFTER course_name");
     }
+
+    // [AUTO-UPGRADE] Database Integrity Check
+    // This ensures all tables have the columns required for the new TESP structure
+
+    // A. Employees Table structural updates
+    $chkEmpSect = $pdo->query("SHOW COLUMNS FROM employees LIKE 'section'");
+    if ($chkEmpSect->rowCount() == 0) $pdo->exec("ALTER TABLE employees ADD COLUMN section VARCHAR(100) DEFAULT NULL AFTER dept");
+
+    $chkEmpGrp = $pdo->query("SHOW COLUMNS FROM employees LIKE 'group'");
+    if ($chkEmpGrp->rowCount() == 0) $pdo->exec("ALTER TABLE employees ADD COLUMN `group` VARCHAR(100) DEFAULT NULL AFTER section");
+
+    $chkEmpExit = $pdo->query("SHOW COLUMNS FROM employees LIKE 'exit_reason'");
+    if ($chkEmpExit->rowCount() == 0) $pdo->exec("ALTER TABLE employees ADD COLUMN exit_reason VARCHAR(100) DEFAULT NULL AFTER exit_date");
+
+    $chkEmpUpd = $pdo->query("SHOW COLUMNS FROM employees LIKE 'updated_at'");
+    if ($chkEmpUpd->rowCount() == 0) $pdo->exec("ALTER TABLE employees ADD COLUMN updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP");
+
+    $chkEmpDel = $pdo->query("SHOW COLUMNS FROM employees LIKE 'deleted_at'");
+    if ($chkEmpDel->rowCount() == 0) $pdo->exec("ALTER TABLE employees ADD COLUMN deleted_at DATETIME DEFAULT NULL");
+
+    // B. Documents Table structural updates
+    $chkDocDel = $pdo->query("SHOW COLUMNS FROM documents LIKE 'deleted_at'");
+    if ($chkDocDel && $chkDocDel->rowCount() == 0) {
+        $pdo->exec("ALTER TABLE documents ADD COLUMN deleted_at DATETIME DEFAULT NULL");
+    }
+
+    $chkDocRes = $pdo->query("SHOW COLUMNS FROM documents LIKE 'is_resolved'");
+    if ($chkDocRes && $chkDocRes->rowCount() == 0) {
+        $pdo->exec("ALTER TABLE documents ADD COLUMN is_resolved TINYINT(1) DEFAULT 0, ADD COLUMN resolution_note TEXT DEFAULT NULL");
+    }
+
+    $chkDocUpd = $pdo->query("SHOW COLUMNS FROM documents LIKE 'updated_by'");
+    if ($chkDocUpd && $chkDocUpd->rowCount() == 0) {
+        $pdo->exec("ALTER TABLE documents ADD COLUMN updated_by INT DEFAULT NULL, ADD COLUMN updated_at DATETIME DEFAULT NULL");
+    }
 } catch (PDOException $e) {
     die("Database Initialization Error: " . $e->getMessage());
 }
@@ -217,7 +269,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $error = "Invalid CSRF Token";
     } else {
         $action = $_POST['action'] ?? '';
-        $name   = strtoupper(trim($_POST['name'] ?? ''));
+        $name   = trim($_POST['name'] ?? '');
         $id     = (int)($_POST['id'] ?? 0);
 
         // Keep the active tab open
@@ -229,6 +281,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $activeTab = 'college';
         } elseif (strpos($action, 'course') !== false) {
             $activeTab = 'course';
+        } elseif (strpos($action, 'group') !== false) {
+            $activeTab = 'group';
         } elseif (strpos($action, 'dept') !== false || strpos($action, 'section') !== false) {
             $activeTab = 'dept';
         } elseif (strpos($action, 'violation') !== false) {
@@ -237,34 +291,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $activeTab = 'rule';
         }
 
-        // [FIX] Generic name length check moved to specific actions for better context
-
         // --- AGENCIES ---
         if (empty($error) && $action === 'add_agency' && !empty($name)) {
+            $name = strtoupper($name);
             try {
-                $stmt = $pdo->prepare("INSERT INTO agencies (name) VALUES (?)");
-                $stmt->execute([$name]);
-                if (strlen($name) > 100) $error = "Agency name is too long (Max 100 chars).";
-                elseif (!preg_match('/^[A-Za-z0-9\s\-\.]+$/', $name)) $error = "Agency name contains invalid characters.";
-
-                $logger->log($_SESSION['user_id'], 'ADD_AGENCY', "Added agency: $name");
-                $redirectMsg = "✅ Agency '$name' added successfully.";
+                if (strlen($name) > 100) $error = "❌ Agency name is too long (Max 100 chars).";
+                elseif (!preg_match('/^[A-Z0-9\s\-\.]+$/', $name)) $error = "❌ Agency name contains invalid characters.";
+                else {
+                    $stmt = $pdo->prepare("INSERT INTO agencies (name) VALUES (?)");
+                    $stmt->execute([$name]);
+                    $logger->log($_SESSION['user_id'], 'ADD_AGENCY', "Added agency: $name");
+                    $redirectMsg = "✅ Agency '$name' added successfully.";
+                }
             } catch (PDOException $e) {
-                $error = "Error: Agency name already exists.";
+                $error = "❌ Error: Agency name already exists.";
             }
         } elseif (empty($error) && $action === 'edit_agency' && !empty($name) && $id > 0) {
+            $name = strtoupper($name);
             try {
-                if (strlen($name) > 100) $error = "Agency name is too long (Max 100 chars).";
-                elseif (!preg_match('/^[A-Za-z0-9\s\-\.]+$/', $name)) $error = "Agency name contains invalid characters.";
-
-                $stmt = $pdo->prepare("UPDATE agencies SET name = ? WHERE id = ?");
-                $stmt->execute([$name, $id]);
-                $logger->log($_SESSION['user_id'], 'EDIT_AGENCY', "Updated agency ID $id to $name");
-                $redirectMsg = "✅ Agency updated successfully.";
+                if (strlen($name) > 100) $error = "❌ Agency name is too long (Max 100 chars).";
+                elseif (!preg_match('/^[A-Z0-9\s\-\.]+$/', $name)) $error = "❌ Agency name contains invalid characters.";
+                else {
+                    $stmt = $pdo->prepare("UPDATE agencies SET name = ? WHERE id = ?");
+                    $stmt->execute([$name, $id]);
+                    $logger->log($_SESSION['user_id'], 'EDIT_AGENCY', "Updated agency ID $id to $name");
+                    $redirectMsg = "✅ Agency updated successfully.";
+                }
             } catch (PDOException $e) {
-                $error = "Error: Name already taken.";
+                $error = "❌ Error: Name already taken.";
             }
         } elseif ($action === 'delete_agency' && $id > 0) {
+
             $chk = $pdo->prepare("SELECT COUNT(*) FROM employees WHERE agency_name = (SELECT name FROM agencies WHERE id = ?)");
             $chk->execute([$id]);
             if ($chk->fetchColumn() > 0) {
@@ -278,12 +335,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         // --- ROLES ---
         elseif (empty($error) && $action === 'add_role' && !empty($name)) {
+            // Allow Mixed Case for roles but sanitize
             try {
-                if (strlen($name) > 100) $error = "Role name is too long (Max 100 chars).";
-                elseif (!preg_match('/^[A-Za-z0-9\s\-\.]+$/', $name)) $error = "Role name contains invalid characters.";
-                $pdo->prepare("INSERT INTO system_roles (name) VALUES (?)")->execute([$name]);
-                $logger->log($_SESSION['user_id'], 'ADD_ROLE', "Added system role: $name");
-                $redirectMsg = "✅ Role added.";
+                if (strlen($name) > 100) $error = "❌ Role name is too long (Max 100 chars).";
+                elseif (!preg_match('/^[A-Za-z0-9\s\-\.\&]+$/', $name)) $error = "❌ Role name contains invalid characters.";
+                else {
+                    $pdo->prepare("INSERT INTO system_roles (name) VALUES (?)")->execute([$name]);
+                    $logger->log($_SESSION['user_id'], 'ADD_ROLE', "Added system role: $name");
+                    $redirectMsg = "✅ Role added.";
+                }
             } catch (Exception $e) {
                 $error = "Role exists.";
             }
@@ -318,21 +378,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         // --- COURSES ---
         elseif (empty($error) && $action === 'add_course' && !empty($name)) {
-            $cat = strtoupper(trim($_POST['category'] ?? 'TECHNICAL'));
-            // [FIX] Ensure provider is trimmed before length check
-            // [FIX] Ensure name is trimmed before length check
+            $name = strtoupper($name);
+            $cat  = strtoupper(trim($_POST['category'] ?? 'TECHNICAL'));
             $prov = trim($_POST['provider'] ?? '');
-            $val = (int)($_POST['validity'] ?? 0);
+            $val  = (int)($_POST['validity'] ?? 0);
 
             // [SECURITY] Input Validation & Character Limits
-            if (strlen($name) > 100 || !preg_match('/^[a-zA-Z0-9\s\-\.\(\)\.]+$/', $name)) {
+            if (strlen($name) > 100 || !preg_match('/^[A-Z0-9\s\-\.\(\)\/]+$/', $name)) {
                 $error = "❌ Invalid Course Name (Max 100 chars, Alphanumeric, dots, parens only).";
             } elseif (strlen($prov) > 100 || (!empty($prov) && !preg_match('/^[a-zA-Z0-9\s\-\.\,]+$/', $prov))) {
                 $error = "❌ Invalid Provider (Max 100 chars, Alphanumeric and standard punctuation only).";
             } elseif (!in_array($cat, ['TECHNICAL', 'SAFETY', 'SOFT SKILLS', 'COMPLIANCE'])) {
                 $error = "❌ Invalid Category selected.";
-            } elseif ($val < 0 || $val > 999) {
-                $error = "❌ Validity months must be between 0 and 999.";
+            } elseif ($val < 0 || $val > 120) {
+                $error = "❌ Validity months must be between 0 and 120 (10 Years).";
             }
 
             if (empty($error)) {
@@ -342,7 +401,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $logger->log($_SESSION['user_id'], 'ADD_COURSE', "Added course: $name");
                     $redirectMsg = "✅ Course added to catalog.";
                 } catch (Exception $e) {
-                    $error = "Course already exists.";
+                    $error = "❌ Course already exists in catalog.";
                 }
             }
         } elseif ($action === 'delete_course' && $id > 0) {
@@ -356,19 +415,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $redirectMsg = "✅ Course deleted.";
             }
         } elseif ($action === 'edit_course' && $id > 0) {
-            $cat = strtoupper(trim($_POST['category'] ?? 'TECHNICAL'));
+            $name = strtoupper($name);
+            $cat  = strtoupper(trim($_POST['category'] ?? 'TECHNICAL'));
             $prov = trim($_POST['provider'] ?? '');
-            $val = (int)($_POST['validity'] ?? 0);
+            $val  = (int)($_POST['validity'] ?? 0);
 
             // [SECURITY] Input Validation & Character Limits (Sync with add_course)
-            if (strlen($name) > 100 || !preg_match('/^[a-zA-Z0-9\s\-\.\(\)\.]+$/', $name)) {
+            if (strlen($name) > 100 || !preg_match('/^[A-Z0-9\s\-\.\(\)\/]+$/', $name)) {
                 $error = "❌ Invalid Course Name (Max 100 chars, Alphanumeric, dots, parens only).";
             } elseif (strlen($prov) > 100 || (!empty($prov) && !preg_match('/^[a-zA-Z0-9\s\-\.\,]+$/', $prov))) {
                 $error = "❌ Invalid Provider (Max 100 chars, Alphanumeric and standard punctuation only).";
             } elseif (!in_array($cat, ['TECHNICAL', 'SAFETY', 'SOFT SKILLS', 'COMPLIANCE'])) {
                 $error = "❌ Invalid Category selected.";
-            } elseif ($val < 0 || $val > 999) {
-                $error = "❌ Validity months must be between 0 and 999.";
+            } elseif ($val < 0 || $val > 120) {
+                $error = "❌ Validity months must be between 0 and 120.";
             }
 
             if (empty($error)) {
@@ -383,37 +443,148 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
 
+        // --- GROUPS ---
+        elseif (empty($error) && $action === 'add_group' && !empty($name)) {
+            $name = strtoupper($name);
+            try {
+                if (strlen($name) > 100) $error = "❌ Group name is too long.";
+                elseif (!preg_match('/^[A-Z0-9\s\-\.\_]+$/', $name)) $error = "❌ Group name contains invalid characters.";
+                else {
+                    $pdo->prepare("INSERT INTO groups (name) VALUES (?)")->execute([$name]);
+                    $logger->log($_SESSION['user_id'], 'ADD_GROUP', "Added group: $name");
+                    $redirectMsg = "✅ Group added.";
+                }
+            } catch (Exception $e) {
+                $error = "Group already exists.";
+            }
+        } elseif ($action === 'delete_group' && $id > 0) {
+            try {
+                $stmtName = $pdo->prepare("SELECT name FROM groups WHERE id = ?");
+                $stmtName->execute([$id]);
+                $gName = $stmtName->fetchColumn();
+
+                if (!$gName) {
+                    $error = "❌ Group not found.";
+                } else {
+                    // Check if name exists as a standalone word or in a comma list
+                    $chk = $pdo->prepare("SELECT COUNT(*) FROM employees WHERE `group` = ? OR `group` LIKE ? OR `group` LIKE ? OR `group` LIKE ?");
+                    $chk->execute([$gName, "$gName, %", "%, $gName", "%, $gName, %"]);
+
+                    if ($chk->fetchColumn() > 0) {
+                        $error = "❌ Cannot delete: There are employees assigned to group '$gName'.";
+                    } else {
+                        $pdo->prepare("DELETE FROM groups WHERE id = ?")->execute([$id]);
+                        $logger->log($_SESSION['user_id'], 'DELETE_GROUP', "Deleted group: $gName");
+                        $redirectMsg = "✅ Group deleted.";
+                    }
+                }
+            } catch (PDOException $e) {
+                // If it crashes here, your `employees` table probably doesn't have a column exactly named `group`
+                $error = "❌ DB Error during delete. Ensure the column is named exactly `group`. Details: " . $e->getMessage();
+            }
+        } elseif (empty($error) && $action === 'edit_group' && !empty($name) && $id > 0) {
+            $name = strtoupper($name);
+            try {
+                if (strlen($name) > 100) $error = "❌ Group name is too long.";
+                elseif (!preg_match('/^[A-Z0-9\s\-\.\_]+$/', $name)) $error = "❌ Group name contains invalid characters.";
+                else {
+                    $pdo->beginTransaction();
+                    $old = $pdo->prepare("SELECT name FROM groups WHERE id = ?");
+                    $old->execute([$id]);
+                    $oldName = $old->fetchColumn();
+
+                    $pdo->prepare("UPDATE groups SET name = ? WHERE id = ?")->execute([$name, $id]);
+
+                    if ($oldName && $oldName !== $name) {
+                        // Update existing employees who are part of this group (handles comma-separated lists)
+                        $pdo->prepare(
+                            "UPDATE employees SET `group` = TRIM(BOTH ', ' FROM REPLACE(CONCAT(', ', `group`, ', '), CONCAT(', ', ?, ', '), CONCAT(', ', ?, ', '))) WHERE CONCAT(', ', `group`, ', ') LIKE ?"
+                        )->execute([$oldName, $name, "%, $oldName, %"]);
+                    }
+                    $pdo->commit();
+                    $logger->log($_SESSION['user_id'], 'EDIT_GROUP', "Renamed group ID $id to $name");
+                    $redirectMsg = "✅ Group renamed and employee records updated.";
+                }
+            } catch (PDOException $e) {
+                if ($pdo->inTransaction()) $pdo->rollBack();
+                if ($e->getCode() == 23000) {
+                    $error = "❌ Group name already exists.";
+                } else {
+                    $error = "❌ DB Error during update: " . $e->getMessage();
+                }
+            }
+        }
+
         // --- DEPARTMENTS ---
         elseif (empty($error) && $action === 'add_dept' && !empty($name)) {
+            $name = strtoupper($name);
             try {
-                if (strlen($name) > 100) $error = "Department name is too long (Max 100 chars).";
-                elseif (!preg_match('/^[A-Za-z0-9\s\-\.]+$/', $name)) $error = "Department name contains invalid characters.";
-                $pdo->prepare("INSERT INTO departments (name) VALUES (?)")->execute([$name]);
-                $logger->log($_SESSION['user_id'], 'ADD_DEPT', "Added department: $name");
-                $redirectMsg = "✅ Department added.";
+                if (strlen($name) > 50) $error = "❌ Department name is too long (Max 50 chars).";
+                elseif (!preg_match('/^[A-Z0-9\s\-\.]+$/', $name)) $error = "❌ Department name contains invalid characters.";
+                else {
+                    $pdo->prepare("INSERT INTO departments (name) VALUES (?)")->execute([$name]);
+                    $logger->log($_SESSION['user_id'], 'ADD_DEPT', "Added department: $name");
+                    $redirectMsg = "✅ Department added.";
+                }
             } catch (Exception $e) {
                 $error = "Department exists.";
             }
         } elseif ($action === 'delete_dept' && $id > 0) {
-            $chk = $pdo->prepare("SELECT COUNT(*) FROM employees WHERE dept = (SELECT name FROM departments WHERE id = ?)");
-            $chk->execute([$id]);
-            if ($chk->fetchColumn() > 0) {
-                $error = "❌ Cannot delete: Employees are assigned to this department.";
+            $stmtName = $pdo->prepare("SELECT name FROM departments WHERE id = ?");
+            $stmtName->execute([$id]);
+            $dName = $stmtName->fetchColumn();
+
+            // [FIX] Handle comma-separated dependency check
+            $chk = $pdo->prepare("SELECT COUNT(*) FROM employees WHERE dept = ? OR dept LIKE ? OR dept LIKE ? OR dept LIKE ?");
+            $chk->execute([$dName, "$dName, %", "%, $dName", "%, $dName, %"]);
+
+            if ($chk && $chk->fetchColumn() > 0) {
+                $error = "❌ Cannot delete: Employees are assigned to department '$dName'.";
             } else {
-                $pdo->prepare("DELETE FROM departments WHERE id = ?")->execute([$id]);
-                $logger->log($_SESSION['user_id'], 'DELETE_DEPT', "Deleted department ID: $id");
-                $redirectMsg = "✅ Department deleted.";
+                try {
+                    $pdo->prepare("DELETE FROM departments WHERE id = ?")->execute([$id]);
+                    $logger->log($_SESSION['user_id'], 'DELETE_DEPT', "Deleted department ID: $id");
+                    $redirectMsg = "✅ Department deleted.";
+                } catch (Exception $e) {
+                    $error = "❌ Delete failed: Ensure all sections are removed first.";
+                }
+            }
+        } elseif (empty($error) && $action === 'edit_dept' && !empty($name) && $id > 0) {
+            $name = strtoupper($name);
+            try {
+                if (strlen($name) > 50) $error = "❌ Department name is too long.";
+                elseif (!preg_match('/^[A-Z0-9\s\-\.]+$/', $name)) $error = "❌ Invalid characters.";
+                else {
+                    $pdo->beginTransaction();
+                    $old = $pdo->prepare("SELECT name FROM departments WHERE id = ?");
+                    $old->execute([$id]);
+                    $oldName = $old->fetchColumn();
+                    $pdo->prepare("UPDATE departments SET name = ? WHERE id = ?")->execute([$name, $id]);
+                    if ($oldName && $oldName !== $name) {
+                        // [FIX] Handle multi-select string rename
+                        $pdo->prepare("UPDATE employees SET dept = TRIM(BOTH ', ' FROM REPLACE(CONCAT(', ', dept, ', '), CONCAT(', ', ?, ', '), CONCAT(', ', ?, ', '))) WHERE dept LIKE ?")
+                            ->execute([$oldName, $name, "%$oldName%"]);
+                    }
+                    $pdo->commit();
+                    $redirectMsg = "✅ Department renamed.";
+                }
+            } catch (Exception $e) {
+                if ($pdo->inTransaction()) $pdo->rollBack();
+                $error = "Name already taken.";
             }
         }
 
         // --- SECTIONS ---
         elseif (empty($error) && $action === 'add_section' && !empty($name)) {
+            $name = strtoupper($name);
             $deptId = (int)$_POST['dept_id'];
             if ($deptId > 0) {
-                if (strlen($name) > 100) $error = "Section name is too long (Max 100 chars).";
-                elseif (!preg_match('/^[A-Za-z0-9\s\-\.]+$/', $name)) $error = "Section name contains invalid characters.";
                 try {
-                    $pdo->prepare("INSERT INTO sections (department_id, name) VALUES (?, ?)")->execute([$deptId, $name]);
+                    if (strlen($name) > 100) $error = "❌ Section name is too long (Max 100 chars).";
+                    elseif (!preg_match('/^[A-Z0-9\s\-\.]+$/', $name)) $error = "❌ Section name contains invalid characters.";
+                    else {
+                        $pdo->prepare("INSERT INTO sections (department_id, name) VALUES (?, ?)")->execute([$deptId, $name]);
+                    }
                     $logger->log($_SESSION['user_id'], 'ADD_SECTION', "Added section '$name' to Dept ID: $deptId");
                     $redirectMsg = "✅ Section added.";
                 } catch (Exception $e) {
@@ -421,25 +592,62 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             }
         } elseif ($action === 'delete_section' && $id > 0) {
-            $chk = $pdo->prepare("SELECT COUNT(*) FROM employees WHERE section = (SELECT name FROM sections WHERE id = ?)");
-            $chk->execute([$id]);
-            if ($chk->fetchColumn() > 0) {
-                $error = "❌ Cannot delete: Employees are assigned to this section.";
+            $stmtName = $pdo->prepare("SELECT name FROM sections WHERE id = ?");
+            $stmtName->execute([$id]);
+            $sName = $stmtName->fetchColumn();
+
+            $chk = $pdo->prepare("SELECT COUNT(*) FROM employees WHERE section = ? OR section LIKE ? OR section LIKE ? OR section LIKE ?");
+            $chk->execute([$sName, "$sName, %", "%, $sName", "%, $sName, %"]);
+
+            if ($chk && $chk->fetchColumn() > 0) {
+                $error = "❌ Cannot delete: Employees are assigned to section '$sName'.";
             } else {
                 $pdo->prepare("DELETE FROM sections WHERE id = ?")->execute([$id]);
                 $logger->log($_SESSION['user_id'], 'DELETE_SECTION', "Deleted section ID: $id");
                 $redirectMsg = "✅ Section deleted.";
             }
+        } elseif (empty($error) && $action === 'edit_section' && !empty($name) && $id > 0) {
+            $name = strtoupper($name);
+            try {
+                if (strlen($name) > 100) $error = "❌ Section name too long.";
+                elseif (!preg_match('/^[A-Z0-9\s\-\.]+$/', $name)) $error = "❌ Invalid characters.";
+                else {
+                    $pdo->beginTransaction();
+                    $old = $pdo->prepare("SELECT name FROM sections WHERE id = ?");
+                    $old->execute([$id]);
+                    $oldName = $old->fetchColumn();
+                    $pdo->prepare("UPDATE sections SET name = ? WHERE id = ?")->execute([$name, $id]);
+                    if ($oldName && $oldName !== $name) {
+                        $sectionUpdateStmt = $pdo->prepare("SELECT id, section FROM employees WHERE section = ? OR FIND_IN_SET(?, section) OR section LIKE ?");
+                        $sectionUpdateStmt->execute([$oldName, $oldName, "%, $oldName%"]);
+                        while ($row = $sectionUpdateStmt->fetch(PDO::FETCH_ASSOC)) {
+                            $pieces = array_filter(array_map('trim', explode(',', $row['section'])), fn($v) => $v !== '');
+                            $updated = [];
+                            foreach ($pieces as $piece) {
+                                $updated[] = ($piece === $oldName ? $name : $piece);
+                            }
+                            $updated = array_unique(array_filter($updated, fn($v) => $v !== ''));
+                            $pdo->prepare("UPDATE employees SET section = ? WHERE id = ?")->execute([implode(', ', $updated), $row['id']]);
+                        }
+                    }
+                    $pdo->commit();
+                    $redirectMsg = "✅ Section renamed.";
+                }
+            } catch (Exception $e) {
+                if ($pdo->inTransaction()) $pdo->rollBack();
+                $error = "Name already exists in this dept.";
+            }
         }
 
         // --- VIOLATIONS ---
         elseif ($action === 'add_violation' && !empty($name)) {
-            $cat = strtoupper(trim($_POST['category'] ?? 'GENERAL'));
+            $name = trim($name); // Violations can be mixed case
+            $cat  = strtoupper(trim($_POST['category'] ?? 'GENERAL'));
             $desc = trim($_POST['description'] ?? '');
 
-            if (strlen($cat) > 50 || !preg_match('/^[A-Za-z0-9\s\-\.]+$/', $cat)) $error = "❌ Category name is too long or contains invalid characters (Max 50 chars).";
+            if (strlen($cat) > 50 || !preg_match('/^[A-Z0-9\s\-\.]+$/', $cat)) $error = "❌ Category name is too long or contains invalid characters (Max 50 chars).";
             elseif (strlen($name) > 100 || !preg_match('/^[a-zA-Z0-9\s\-\.\,\(\)]+$/', $name)) $error = "❌ Violation name is too long or contains invalid characters (Max 100 chars).";
-            elseif (strlen($desc) > 1000 || (!empty($desc) && !preg_match('/^[a-zA-Z0-9\s\.,\-\(\)\/\':]*$/', $desc))) $error = "❌ Description is too long or contains invalid characters (Max 1000 chars).";
+            elseif (strlen($desc) > 1000) $error = "❌ Description is too long (Max 1000 chars).";
 
             $chk = $pdo->prepare("SELECT id FROM disciplinary_violations WHERE name = ? AND category = ?");
             $chk->execute([$name, $cat]);
@@ -455,12 +663,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $pdo->prepare("DELETE FROM disciplinary_violations WHERE id = ?")->execute([$id]);
             $redirectMsg = "✅ Violation removed.";
         } elseif ($action === 'edit_violation' && $id > 0) {
-            $cat = strtoupper(trim($_POST['category'] ?? ''));
-            $desc = trim($_POST['description'] ?? ''); // [FIX] Trim description here
+            $name = trim($name);
+            $cat  = strtoupper(trim($_POST['category'] ?? ''));
+            $desc = trim($_POST['description'] ?? '');
 
             if (strlen($cat) > 50) $error = "❌ Category name is too long.";
             elseif (strlen($name) > 100) $error = "❌ Violation name is too long.";
-            elseif (strlen($desc) > 1000) $error = "❌ Description is too long.";
+            elseif (strlen($desc) > 1000) $error = "❌ Description is too long (Max 1000 chars).";
 
             $chk = $pdo->prepare("SELECT id FROM disciplinary_violations WHERE name = ? AND category = ? AND id != ?");
             $chk->execute([$name, $cat, $id]);
@@ -476,9 +685,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         // --- RULES ---
         elseif ($action === 'add_rule' && !empty($name)) {
+            $name = trim($name);
             $desc = trim($_POST['description'] ?? '');
             if (strlen($name) > 100 || !preg_match('/^[a-zA-Z0-9\s\-\.\,\(\)]+$/', $name)) $error = "❌ Rule name is too long or contains invalid characters (Max 100 chars).";
-            elseif (strlen($desc) > 2000 || (!empty($desc) && !preg_match('/^[a-zA-Z0-9\s\.,\-\(\)\/\':]*$/', $desc))) $error = "❌ Rule description is too long or contains invalid characters (Max 2000 chars).";
+            elseif (strlen($desc) > 2000) $error = "❌ Rule description is too long (Max 2000 chars).";
 
             $chk = $pdo->prepare("SELECT id FROM company_rules WHERE name = ?");
             $chk->execute([$name]);
@@ -494,9 +704,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $pdo->prepare("DELETE FROM company_rules WHERE id = ?")->execute([$id]);
             $redirectMsg = "✅ Rule removed.";
         } elseif ($action === 'edit_rule' && $id > 0) {
-            $desc = trim($_POST['description'] ?? ''); // [FIX] Trim description here
+            $name = trim($name);
+            $desc = trim($_POST['description'] ?? '');
             if (strlen($name) > 100 || !preg_match('/^[a-zA-Z0-9\s\-\.\,\(\)]+$/', $name)) $error = "❌ Rule name is too long or contains invalid characters (Max 100 chars).";
-            elseif (strlen($desc) > 2000) $error = "❌ Rule description is too long.";
+            elseif (strlen($desc) > 2000) $error = "❌ Rule description is too long (Max 2000 chars).";
 
             $chk = $pdo->prepare("SELECT id FROM company_rules WHERE name = ? AND id != ?");
             $chk->execute([$name, $id]);
@@ -512,27 +723,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         // --- COLLEGE COURSES ---
         elseif (empty($error) && $action === 'add_college_course' && !empty($name)) {
+            $name = strtoupper($name);
             $keys = strtoupper(trim($_POST['keywords'] ?? ''));
-            if (strlen($name) > 100) $error = "Course name is too long (Max 100 chars).";
-            elseif (strlen($keys) > 255) $error = "Keywords are too long (Max 255 chars).";
-            try {
-                $pdo->prepare("INSERT INTO college_courses (course_name, keywords) VALUES (?, ?)")->execute([$name, $keys]);
-                $logger->log($_SESSION['user_id'], 'ADD_COLLEGE_COURSE', "Added college course: $name");
-                $redirectMsg = "✅ College course added.";
-            } catch (Exception $e) {
-                $error = "Course already exists.";
+
+            if (strlen($name) > 100) $error = "❌ Course name is too long (Max 100 chars).";
+            elseif (strlen($keys) > 500) $error = "❌ Keywords are too long (Max 500 chars).";
+            else {
+                try {
+                    $pdo->prepare("INSERT INTO college_courses (course_name, keywords) VALUES (?, ?)")->execute([$name, $keys]);
+                    $logger->log($_SESSION['user_id'], 'ADD_COLLEGE_COURSE', "Added college course: $name");
+                    $redirectMsg = "✅ College course added.";
+                } catch (Exception $e) {
+                    $error = "❌ Course already exists.";
+                }
             }
         } elseif (empty($error) && $action === 'edit_college_course' && !empty($name) && $id > 0) {
+            $name = strtoupper($name);
             $keys = strtoupper(trim($_POST['keywords'] ?? ''));
-            if (strlen($name) > 100) $error = "Course name is too long (Max 100 chars).";
-            elseif (strlen($keys) > 255) $error = "Keywords are too long (Max 255 chars).";
-            try {
-                $stmt = $pdo->prepare("UPDATE college_courses SET course_name = ?, keywords = ? WHERE id = ?");
-                $stmt->execute([$name, $keys, $id]);
-                $logger->log($_SESSION['user_id'], 'EDIT_COLLEGE_COURSE', "Updated college course ID $id to $name");
-                $redirectMsg = "✅ College course updated successfully.";
-            } catch (PDOException $e) {
-                $error = "Error: Course name already exists.";
+
+            if (strlen($name) > 100) $error = "❌ Course name is too long (Max 100 chars).";
+            elseif (strlen($keys) > 500) $error = "❌ Keywords are too long (Max 500 chars).";
+            else {
+                try {
+                    $stmt = $pdo->prepare("UPDATE college_courses SET course_name = ?, keywords = ? WHERE id = ?");
+                    $stmt->execute([$name, $keys, $id]);
+                    $logger->log($_SESSION['user_id'], 'EDIT_COLLEGE_COURSE', "Updated college course ID $id to $name");
+                    $redirectMsg = "✅ College course updated successfully.";
+                } catch (PDOException $e) {
+                    $error = "❌ Error: Course name already exists.";
+                }
             }
         } elseif ($action === 'delete_college_course' && $id > 0) {
             $pdo->prepare("DELETE FROM college_courses WHERE id = ?")->execute([$id]);
@@ -558,6 +777,9 @@ $roles = $stmtRo ? $stmtRo->fetchAll() : [];
 
 $stmtDp = $pdo->query("SELECT * FROM departments ORDER BY name ASC");
 $depts = $stmtDp ? $stmtDp->fetchAll() : [];
+
+$stmtGr = $pdo->query("SELECT * FROM groups ORDER BY name ASC");
+$groups = $stmtGr ? $stmtGr->fetchAll() : [];
 
 $stmtVl = $pdo->query("SELECT * FROM disciplinary_violations ORDER BY category, name");
 $vList = $stmtVl ? $stmtVl->fetchAll() : [];
@@ -669,6 +891,7 @@ if (isset($_GET['tab'])) $activeTab = $_GET['tab'];
             <li class="nav-item"><button class="nav-link <?php echo $activeTab === 'role' ? 'active' : ''; ?> fw-bold" id="role-tab" data-bs-toggle="tab" data-bs-target="#role" type="button">💼 System Roles & Duties</button></li>
             <li class="nav-item"><button class="nav-link <?php echo $activeTab === 'college' ? 'active' : ''; ?> fw-bold" id="college-tab" data-bs-toggle="tab" data-bs-target="#college" type="button">🎓 College Courses</button></li>
             <li class="nav-item"><button class="nav-link <?php echo $activeTab === 'course' ? 'active' : ''; ?> fw-bold text-success" id="course-tab" data-bs-toggle="tab" data-bs-target="#course" type="button">🎓 Training Catalog</button></li>
+            <li class="nav-item"><button class="nav-link <?php echo $activeTab === 'group' ? 'active' : ''; ?> fw-bold text-primary" id="group-tab" data-bs-toggle="tab" data-bs-target="#group" type="button">👥 Groups</button></li>
             <li class="nav-item"><button class="nav-link <?php echo $activeTab === 'dept' ? 'active' : ''; ?> fw-bold" id="dept-tab" data-bs-toggle="tab" data-bs-target="#dept" type="button">📂 Departments & Sections</button></li>
             <li class="nav-item"><button class="nav-link <?php echo $activeTab === 'violation' ? 'active' : ''; ?> fw-bold text-danger" id="violation-tab" data-bs-toggle="tab" data-bs-target="#violation" type="button">⚠️ Violations</button></li>
             <li class="nav-item"><button class="nav-link <?php echo $activeTab === 'rule' ? 'active' : ''; ?> fw-bold text-danger" id="rule-tab" data-bs-toggle="tab" data-bs-target="#rule" type="button">📜 Company Rules</button></li>
@@ -915,6 +1138,53 @@ if (isset($_GET['tab'])) $activeTab = $_GET['tab'];
                 </div>
             </div>
 
+            <div class="tab-pane fade <?php echo $activeTab === 'group' ? 'show active' : ''; ?>" id="group" role="tabpanel">
+                <h4 class="mb-4">Groups</h4>
+                <div class="card shadow-sm border-primary">
+                    <div class="card-body">
+                        <form method="POST" class="row g-2 mb-4 align-items-end p-3 bg-light border rounded">
+                            <input type="hidden" name="csrf_token" value="<?php echo $_SESSION['csrf_token']; ?>">
+                            <input type="hidden" name="action" value="add_group">
+                            <div class="col-md-9">
+                                <label class="form-label fw-bold">Group Name <span class="text-danger">*</span></label>
+                                <input type="text" name="name" class="form-control" placeholder="e.g. GROUP D" required maxlength="100" pattern="[A-Za-z0-9 \-\.]+" title="Alphanumeric, spaces, dashes, dots">
+                            </div>
+                            <div class="col-md-3">
+                                <button type="submit" class="btn btn-primary w-100 fw-bold">Add Group</button>
+                            </div>
+                        </form>
+                        <div class="table-responsive">
+                            <table class="table table-hover align-middle">
+                                <thead class="table-dark">
+                                    <tr>
+                                        <th>Group Name</th>
+                                        <th class="text-end">Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php foreach ($groups as $g): ?>
+                                        <tr>
+                                            <td class="fw-bold"><?php echo h($g['name']); ?></td>
+                                            <td class="text-end">
+                                                <button type="button" class="btn btn-sm btn-outline-primary border-0 me-1"
+                                                    onclick='editGeneric("group", <?php echo $g["id"]; ?>, <?php echo h(json_encode($g["name"])); ?>)'>
+                                                    <i class="bi bi-pencil-square"></i>
+                                                </button>
+                                                <form method="POST" onsubmit="return confirm('Delete this group?');">
+                                                    <input type="hidden" name="csrf_token" value="<?php echo $_SESSION['csrf_token']; ?>">
+                                                    <input type="hidden" name="action" value="delete_group"><input type="hidden" name="id" value="<?php echo $g['id']; ?>">
+                                                    <button type="submit" class="btn btn-sm btn-outline-danger border-0"><i class="bi bi-trash"></i></button>
+                                                </form>
+                                            </td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <div class="tab-pane fade <?php echo $activeTab === 'dept' ? 'show active' : ''; ?>" id="dept" role="tabpanel">
                 <h4 class="mb-4">Departments & Sections</h4>
                 <div class="row">
@@ -931,15 +1201,21 @@ if (isset($_GET['tab'])) $activeTab = $_GET['tab'];
                                 <div class="list-group" id="deptList">
                                     <?php foreach ($depts as $d): ?>
                                         <div class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
-                                            <a href="#" class="text-decoration-none text-dark flex-grow-1" onclick="showSections(<?php echo $d['id']; ?>, '<?php echo htmlspecialchars($d['name']); ?>'); return false;">
+                                            <a href="#" class="text-decoration-none text-dark flex-grow-1 py-1" onclick="showSections(<?php echo $d['id']; ?>, '<?php echo htmlspecialchars($d['name']); ?>'); return false;">
                                                 <strong><?php echo htmlspecialchars($d['name']); ?></strong>
                                             </a>
-                                            <form method="POST" onsubmit="return confirm('Delete Department? This will delete all its sections.');">
-                                                <input type="hidden" name="csrf_token" value="<?php echo $_SESSION['csrf_token']; ?>">
-                                                <input type="hidden" name="action" value="delete_dept">
-                                                <input type="hidden" name="id" value="<?php echo $d['id']; ?>">
-                                                <button type="submit" class="btn btn-sm btn-outline-danger border-0"><i class="bi bi-trash"></i></button>
-                                            </form>
+                                            <div class="d-flex gap-1">
+                                                <button type="button" class="btn btn-sm btn-outline-primary border-0"
+                                                    onclick='editGeneric("dept", <?php echo $d["id"]; ?>, <?php echo h(json_encode($d["name"])); ?>)'>
+                                                    <i class="bi bi-pencil-square"></i>
+                                                </button>
+                                                <form method="POST" onsubmit="return confirm('Delete Department? This will delete all its sections.');" class="m-0">
+                                                    <input type="hidden" name="csrf_token" value="<?php echo $_SESSION['csrf_token']; ?>">
+                                                    <input type="hidden" name="action" value="delete_dept">
+                                                    <input type="hidden" name="id" value="<?php echo $d['id']; ?>">
+                                                    <button type="submit" class="btn btn-sm btn-outline-danger border-0"><i class="bi bi-trash"></i></button>
+                                                </form>
+                                            </div>
                                         </div>
                                     <?php endforeach; ?>
                                 </div>
@@ -1109,6 +1385,29 @@ if (isset($_GET['tab'])) $activeTab = $_GET['tab'];
                     </div>
                 </form>
             </div>
+        </div>
+    </div>
+
+    <!-- GENERIC EDIT MODAL (Used for Dept, Section, Group) -->
+    <div class="modal fade" id="genericEditModal" tabindex="-1">
+        <div class="modal-dialog">
+            <form method="POST" class="modal-content">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title">Rename <span id="genericTypeLabel">Item</span></h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" name="csrf_token" value="<?php echo $_SESSION['csrf_token']; ?>">
+                    <input type="hidden" name="action" id="genericAction">
+                    <input type="hidden" name="id" id="genericId">
+                    <label class="form-label fw-bold">New Name <span class="text-danger">*</span></label>
+                    <input type="text" name="name" id="genericNameInput" class="form-control" required maxlength="100" pattern="[A-Za-z0-9\s\-\.\_]+" title="Alphanumeric, spaces, dots, dashes, underscores">
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save Changes</button>
+                </div>
+            </form>
         </div>
     </div>
 
@@ -1293,6 +1592,14 @@ if (isset($_GET['tab'])) $activeTab = $_GET['tab'];
             new bootstrap.Modal(document.getElementById('editCollegeCourseModal')).show();
         }
 
+        function editGeneric(type, id, currentName) {
+            document.getElementById('genericAction').value = 'edit_' + type;
+            document.getElementById('genericId').value = id;
+            document.getElementById('genericNameInput').value = currentName;
+            document.getElementById('genericTypeLabel').innerText = type.charAt(0).toUpperCase() + type.slice(1);
+            new bootstrap.Modal(document.getElementById('genericEditModal')).show();
+        }
+
         // --- TAG SYSTEM LOGIC (Mirrored from tracker.php) ---
         function initTags(containerId, hiddenInputId) {
             const container = document.getElementById(containerId);
@@ -1409,15 +1716,21 @@ if (isset($_GET['tab'])) $activeTab = $_GET['tab'];
                 deptSections.forEach(s => {
                     const li = document.createElement('li');
                     li.className = 'list-group-item d-flex justify-content-between align-items-center';
+                    // [FIX] Safe attribute escaping for dynamic JS strings
+                    const safeName = s.name.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+                    const safeHtml = s.name.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
                     li.innerHTML = `
-                        <span>${s.name}</span>
-                        <form method="POST" onsubmit="return confirm('Delete this section?');" class="m-0">
-                            <input type="hidden" name="csrf_token" value="<?php echo $_SESSION['csrf_token']; ?>">
-                            <input type="hidden" name="action" value="delete_section">
-                            <input type="hidden" name="id" value="${s.id}">
-                            <button type="submit" class="btn btn-sm btn-outline-danger border-0"><i class="bi bi-trash"></i></button>
-                        </form>
-                    `;
+                        <span class="fw-bold">${safeHtml}</span>
+                        <div class="d-flex gap-1">
+                            <button type="button" class="btn btn-sm btn-outline-primary border-0" onclick="editGeneric('section', ${s.id}, '${safeName}')">                                <i class="bi bi-pencil-square"></i>
+                            </button>
+                            <form method="POST" onsubmit="return confirm('Delete this section?');" class="m-0">
+                                <input type="hidden" name="csrf_token" value="<?php echo $_SESSION['csrf_token']; ?>">
+                                <input type="hidden" name="action" value="delete_section">
+                                <input type="hidden" name="id" value="${s.id}">
+                                <button type="submit" class="btn btn-sm btn-outline-danger border-0"><i class="bi bi-trash"></i></button>
+                            </form>
+                        </div>`;
                     list.appendChild(li);
                 });
             }

@@ -30,6 +30,8 @@ $jobSearch     = isset($_GET['job_search']) ? trim($_GET['job_search']) : '';
 if (strlen($jobSearch) > 50) $jobSearch = substr($jobSearch, 0, 50);
 $jobSearch = preg_replace('/[^a-zA-Z0-9\-_ \.\&\/\(\),]/', '', $jobSearch);
 $deptFilter    = isset($_GET['dept_filter']) ? trim($_GET['dept_filter']) : '';
+$sectionFilter = isset($_GET['section_filter']) ? trim($_GET['section_filter']) : '';
+$groupFilter   = isset($_GET['group_filter']) ? trim($_GET['group_filter']) : '';
 $genderFilter  = isset($_GET['gender']) ? trim($_GET['gender']) : '';
 $agencyFilter  = isset($_GET['agency_filter']) ? trim($_GET['agency_filter']) : '';
 $yearFilter    = isset($_GET['year']) ? (int)$_GET['year'] : (int)date('Y');
@@ -50,9 +52,21 @@ if (!empty($dateFrom) && !empty($dateTo)) {
 $debug         = isset($_GET['debug']) ? (bool)$_GET['debug'] : false;
 $includeDeleted = isset($_GET['include_deleted']) ? (bool)$_GET['include_deleted'] : false;
 
+// [FIX] Check for deleted_at column existence to maintain consistency with index.php
+$hasEmpDeletedAt = false;
+try {
+    $checkCols = $pdo->query("SHOW COLUMNS FROM `employees` LIKE 'deleted_at'");
+    if ($checkCols && $checkCols->rowCount() > 0) {
+        $hasEmpDeletedAt = true;
+    }
+} catch (PDOException $e) {
+}
+
 // --- 2. BUILD SQL (base WHERE reused by several queries) ---
 $activeSQL = " WHERE status = 'Active' ";
 $params = [];
+
+if ($hasEmpDeletedAt && !$includeDeleted) $activeSQL .= " AND deleted_at IS NULL ";
 
 $inactiveSQL = " WHERE status IN ('Resigned', 'Terminated', 'AWOL', 'Retired')
                  AND (
@@ -74,6 +88,18 @@ if ($deptFilter !== '') {
     $params[] = $deptFilter;
     $inactiveSQL .= " AND dept = ? ";
     $inactiveParams[] = $deptFilter;
+}
+if ($sectionFilter !== '') {
+    $activeSQL   .= " AND section = ? ";
+    $params[] = $sectionFilter;
+    $inactiveSQL .= " AND section = ? ";
+    $inactiveParams[] = $sectionFilter;
+}
+if ($groupFilter !== '') {
+    $activeSQL   .= " AND `group` = ? ";
+    $params[] = $groupFilter;
+    $inactiveSQL .= " AND `group` = ? ";
+    $inactiveParams[] = $groupFilter;
 }
 if ($genderFilter !== '') {
     $activeSQL .= " AND gender = ? ";
@@ -116,6 +142,14 @@ if (isset($_GET['export_overdue'])) {
     if ($deptFilter !== '') {
         $overdueSQL .= " AND e.dept = ? ";
         $exportParams[] = $deptFilter;
+    }
+    if ($sectionFilter !== '') {
+        $overdueSQL .= " AND e.section = ? ";
+        $exportParams[] = $sectionFilter;
+    }
+    if ($groupFilter !== '') {
+        $overdueSQL .= " AND e.`group` = ? ";
+        $exportParams[] = $groupFilter;
     }
     if ($agencyFilter !== '') {
         if ($agencyFilter === 'TESP_DIRECT') {
@@ -516,6 +550,14 @@ try {
         $expSQL .= " AND e.dept = ? ";
         $expParams[] = $deptFilter;
     }
+    if ($sectionFilter !== '') {
+        $expSQL .= " AND e.section = ? ";
+        $expParams[] = $sectionFilter;
+    }
+    if ($groupFilter !== '') {
+        $expSQL .= " AND e.`group` = ? ";
+        $expParams[] = $groupFilter;
+    }
     if ($agencyFilter !== '') {
         if ($agencyFilter === 'TESP_DIRECT') {
             $expSQL .= " AND (e.agency_name IS NULL OR e.agency_name = '' OR e.agency_name LIKE 'TESP%') ";
@@ -558,6 +600,14 @@ try {
     if ($deptFilter !== '') {
         $overdueCheckSQL .= " AND e.dept = ? ";
         $checkParams[] = $deptFilter;
+    }
+    if ($sectionFilter !== '') {
+        $overdueCheckSQL .= " AND e.section = ? ";
+        $checkParams[] = $sectionFilter;
+    }
+    if ($groupFilter !== '') {
+        $overdueCheckSQL .= " AND e.`group` = ? ";
+        $checkParams[] = $groupFilter;
     }
     if ($agencyFilter !== '') {
         if ($agencyFilter === 'TESP_DIRECT') $overdueCheckSQL .= " AND (e.agency_name IS NULL OR e.agency_name = '' OR e.agency_name LIKE 'TESP%') ";
@@ -674,14 +724,13 @@ function get_tenure_band_slug(string $hireDate, DateTime $asOf): ?string
 }
 
 foreach ($rows as $r) {
-    // Gender
-    $empId = $r['emp_id']; // For compliance calculation reuse
-    $g = ucfirst(strtolower(trim((string)$r['gender'])));
-    if (isset($genderCounts[$g])) {
-        $genderCounts[$g]++;
-    }
+    $empId = $r['emp_id'];
+    $dept = strtoupper(trim((string)$r['dept'])) ?: 'UNASSIGNED';
 
-    // Age (kept as-of today; switch to $asOf if you want snapshot ages)
+    // 1. Demographics (Gender/Age) - Always process for all filtered employees
+    $g = ucfirst(strtolower(trim((string)$r['gender'])));
+    if (isset($genderCounts[$g])) $genderCounts[$g]++;
+
     if (!empty($r['birth_date']) && $r['birth_date'] !== '0000-00-00') {
         $bDateObj = date_create($r['birth_date']);
         if ($bDateObj) {
@@ -690,39 +739,26 @@ foreach ($rows as $r) {
             elseif ($age <= 35) $ageBands['26-35']++;
             elseif ($age <= 45) $ageBands['36-45']++;
             elseif ($age <= 55) $ageBands['46-55']++;
-            else                  $ageBands['56+']++;
+            else $ageBands['56+']++;
         }
     }
 
-    // Tenure by slug (as-of selected year)
-    $slug = get_tenure_band_slug((string)$r['hire_date'], $asOf);
-    if ($slug === null) continue;
-
-    $tenureBandsCounts[$slug]++;
-
-    // Department key
-    $dept = strtoupper(trim((string)$r['dept']));
-    if ($dept === '') $dept = 'UNASSIGNED';
-
-    if (!isset($tenureMatrix[$dept])) {
-        $tenureMatrix[$dept] = array_fill_keys($bandOrder, 0);
-    }
-    $tenureMatrix[$dept][$slug]++;
-
-    if (!isset($eduProgress[$dept])) {
-        $eduProgress[$dept] = ['total' => 0, 'graduates' => 0];
-    }
+    // 2. Education & Course Distribution - Always process for all filtered employees
+    if (!isset($eduProgress[$dept])) $eduProgress[$dept] = ['total' => 0, 'graduates' => 0];
     $eduProgress[$dept]['total']++;
-    if (!empty($r['college_degree'])) {
-        $eduProgress[$dept]['graduates']++;
-    }
+    if (!empty($r['college_degree'])) $eduProgress[$dept]['graduates']++;
 
-    // [NEW] Aggregate College Courses
     $cName = strtoupper(trim((string)$r['college_course']));
-    if ($cName !== '') {
-        $courseAgg[$cName] = ($courseAgg[$cName] ?? 0) + 1;
+    if ($cName !== '') $courseAgg[$cName] = ($courseAgg[$cName] ?? 0) + 1;
+
+    // 3. Tenure Matrix - Conditional on Hire Date validity for current snapshot
+    $slug = get_tenure_band_slug((string)$r['hire_date'], $asOf);
+    if ($slug !== null) {
+        $tenureBandsCounts[$slug]++;
+        if (!isset($tenureMatrix[$dept])) $tenureMatrix[$dept] = array_fill_keys($bandOrder, 0);
+        $tenureMatrix[$dept][$slug]++;
+        $columnTotals[$slug]++;
     }
-    $columnTotals[$slug]++;
 }
 
 ksort($tenureMatrix, SORT_STRING);
@@ -1207,6 +1243,30 @@ if ($debug) {
                                 $safe = htmlspecialchars($d);
                                 $sel  = ($d === $deptFilter) ? 'selected' : '';
                                 echo "<option value=\"$safe\" $sel>$safe</option>";
+                            }
+                            ?>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <select name="section_filter" class="form-select form-select-sm" onchange="this.form.submit()">
+                            <option value="">All Sections</option>
+                            <?php
+                            $allSections = $pdo->query("SELECT DISTINCT section FROM employees WHERE section IS NOT NULL AND section != '' ORDER BY section ASC")->fetchAll(PDO::FETCH_COLUMN);
+                            foreach ($allSections as $s) {
+                                $sel = ($s === $sectionFilter) ? 'selected' : '';
+                                echo "<option value=\"" . htmlspecialchars($s) . "\" $sel>" . htmlspecialchars($s) . "</option>";
+                            }
+                            ?>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <select name="group_filter" class="form-select form-select-sm" onchange="this.form.submit()">
+                            <option value="">All Groups</option>
+                            <?php
+                            $allGroups = $pdo->query("SELECT DISTINCT `group` FROM employees WHERE `group` IS NOT NULL AND `group` != '' ORDER BY `group` ASC")->fetchAll(PDO::FETCH_COLUMN);
+                            foreach ($allGroups as $g) {
+                                $sel = ($g === $groupFilter) ? 'selected' : '';
+                                echo "<option value=\"" . htmlspecialchars($g) . "\" $sel>" . htmlspecialchars($g) . "</option>";
                             }
                             ?>
                         </select>
@@ -1795,14 +1855,13 @@ if ($debug) {
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'middle';
 
-                let totalSum = dataset.data.reduce((a, b) => Number(a) + Number(b), 0);
-
                 chart.data.datasets.forEach((dataset, i) => {
                     const meta = chart.getDatasetMeta(i);
                     if (meta.hidden) return;
 
                     meta.data.forEach((element, index) => {
                         let dataVal = dataset.data[index];
+                        let totalSum = dataset.data.reduce((a, b) => Number(a) + Number(b), 0);
                         if (dataVal === undefined || dataVal === null || Number(dataVal) === 0) return; // Hide zeros
 
                         let text = dataVal.toString();
@@ -1822,9 +1881,13 @@ if ($debug) {
                         let x = pos.x;
                         let y = pos.y;
 
-                        // Check if it's a bar chart to center the text
+                        // [FIX] Detect Horizontal Bars for accurate internal labeling
                         if ((chart.config.type === 'bar' || meta.type === 'bar') && element.base !== undefined) {
-                            y = (element.base + pos.y) / 2; // Center vertically inside bars
+                            if (chart.options.indexAxis === 'y') {
+                                x = (element.base + pos.x) / 2; // Center horizontally inside bars
+                            } else {
+                                y = (element.base + pos.y) / 2; // Center vertically inside bars
+                            }
                         }
 
                         // Text Stroke (Outline)

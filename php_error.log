@@ -1186,3 +1186,60 @@ Stack trace:
 Stack trace:
 #0 {main}
   thrown in C:\xampp\htdocs\hr 201\public\index.php on line 1366
+[23-May-2026 11:42:02 Asia/Manila] SQLSTATE[HY000] [2002] No connection could be made because the target machine actively refused it
+[23-May-2026 11:42:11 Asia/Manila] SQLSTATE[HY000] [2002] No connection could be made because the target machine actively refused it
+[06-Jun-2026 12:01:20 Asia/Manila] PHP Fatal error:  Uncaught PDOException: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'group' in 'where clause' in C:\xampp\htdocs\hr 201\public\manage_options.php:415
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\manage_options.php(415): PDO->prepare('SELECT COUNT(*)...')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\manage_options.php on line 415
+[06-Jun-2026 12:07:58 Asia/Manila] PHP Fatal error:  Uncaught PDOException: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'group' in 'where clause' in C:\xampp\htdocs\hr 201\public\manage_options.php:415
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\manage_options.php(415): PDO->prepare('SELECT COUNT(*)...')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\manage_options.php on line 415
+[06-Jun-2026 12:09:34 Asia/Manila] PHP Fatal error:  Uncaught PDOException: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'group' in 'where clause' in C:\xampp\htdocs\hr 201\public\manage_options.php:423
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\manage_options.php(423): PDO->prepare('SELECT COUNT(*)...')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\manage_options.php on line 423
+[06-Jun-2026 12:13:32 Asia/Manila] PHP Fatal error:  Uncaught PDOException: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'group' in 'where clause' in C:\xampp\htdocs\hr 201\public\manage_options.php:427
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\manage_options.php(427): PDO->prepare('SELECT COUNT(*)...')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\manage_options.php on line 427
+[06-Jun-2026 12:14:20 Asia/Manila] PHP Fatal error:  Uncaught PDOException: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'group' in 'where clause' in C:\xampp\htdocs\hr 201\public\manage_options.php:427
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\manage_options.php(427): PDO->prepare('SELECT COUNT(*)...')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\manage_options.php on line 427
+[06-Jun-2026 12:19:43 Asia/Manila] PHP Fatal error:  Uncaught PDOException: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'group' in 'where clause' in C:\xampp\htdocs\hr 201\public\manage_options.php:425
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\manage_options.php(425): PDO->prepare('SELECT COUNT(*)...')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\manage_options.php on line 425
+[06-Jun-2026 12:59:57 Asia/Manila] PHP Fatal error:  Uncaught PDOException: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'group' in 'where clause' in C:\xampp\htdocs\hr 201\public\manage_options.php:431
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\manage_options.php(431): PDO->prepare('SELECT COUNT(*)...')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\manage_options.php on line 431
+[06-Jun-2026 13:03:22 Asia/Manila] PHP Fatal error:  Uncaught PDOException: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'group' in 'where clause' in C:\xampp\htdocs\hr 201\public\manage_options.php:431
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\manage_options.php(431): PDO->prepare('SELECT COUNT(*)...')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\manage_options.php on line 431
+[06-Jun-2026 13:26:15 Asia/Manila] PHP Fatal error:  Uncaught PDOException: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'group' in 'where clause' in C:\xampp\htdocs\hr 201\public\manage_options.php:459
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\manage_options.php(459): PDO->prepare('SELECT COUNT(*)...')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\manage_options.php on line 459
+[06-Jun-2026 13:34:13 Asia/Manila] PHP Fatal error:  Uncaught PDOException: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'group' in 'where clause' in C:\xampp\htdocs\hr 201\public\manage_options.php:459
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\manage_options.php(459): PDO->prepare('SELECT COUNT(*)...')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\manage_options.php on line 459
+[06-Jun-2026 13:46:03 Asia/Manila] PHP Fatal error:  Uncaught PDOException: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'group' in 'where clause' in C:\xampp\htdocs\hr 201\public\manage_options.php:423
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\manage_options.php(423): PDO->prepare('SELECT COUNT(*)...')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\manage_options.php on line 423

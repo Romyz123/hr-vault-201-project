@@ -71,12 +71,15 @@ if (empty($system_roles)) {
 
 // Departments & Sections Map
 $deptMap = [];
+$groups = [];
 try {
+    // [SYNC] Fetch from dedicated departments and sections tables
     $dStmt = $pdo->query("SELECT id, name FROM departments ORDER BY name ASC");
-    while ($dRow = $dStmt->fetch(PDO::FETCH_ASSOC)) {
-        $deptName = $dRow['name'];
+    $depts_raw = $dStmt->fetchAll(PDO::FETCH_ASSOC);
+    foreach ($depts_raw as $d) {
+        $deptName = $d['name'];
         $sStmt = $pdo->prepare("SELECT name FROM sections WHERE department_id = ? ORDER BY name ASC");
-        $sStmt->execute([$dRow['id']]);
+        $sStmt->execute([$d['id']]);
         $deptMap[$deptName] = $sStmt->fetchAll(PDO::FETCH_COLUMN);
     }
 } catch (Exception $e) {
@@ -102,6 +105,16 @@ if (empty($deptMap)) {
         "GUNJIN"  => ["EMT", "SECURITY"],
         "SUBCONS-OTHERS" => ["OTHERS"]
     ];
+}
+
+// [SYNC] Fetch Groups from dedicated groups table
+try {
+    $groups = $pdo->query("SELECT name FROM groups ORDER BY name ASC")->fetchAll(PDO::FETCH_COLUMN);
+} catch (Exception $e) {
+}
+
+if (empty($groups)) {
+    $groups = ['GROUP A', 'GROUP B', 'GROUP C'];
 }
 
 // [FIX] Section Friendly Map (Code => Friendly Name)

@@ -123,6 +123,7 @@ try {
 // [FIX] Defensive initialization to prevent "Undefined variable" errors
 $agencies = [];
 $deptMap = [];
+$groups = [];
 $system_roles = [];
 // [NEW] Load Centralized Options
 require __DIR__ . '/options.php';
@@ -435,6 +436,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $system_role = post('system_role', $emp['system_role'] ?? 'Staff'); // [NEW]
     $dept = post('dept', $emp['dept']);
     $section = post('section', $emp['section']);
+    $group = post('group', $emp['group'] ?? '');
     $company_name = post('company_name', $emp['company_name']);
     $previous_company = post('previous_company', $emp['previous_company']);
     $hire_date = post('hire_date', $emp['hire_date']);
@@ -504,6 +506,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'exit_reason'       => 100,
         'dept'              => 50,
         'section'           => 100,
+        'group'             => 300,
         'request_note'      => 500,
     ];
 
@@ -539,6 +542,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($present_address !== '' && !preg_match($addrRegex, $present_address)) $errors[] = "Present Address contains invalid characters.";
     if ($permanent_address !== '' && !preg_match($addrRegex, $permanent_address)) $errors[] = "Permanent Address contains invalid characters.";
     if ($emergency_address !== '' && !preg_match($addrRegex, $emergency_address)) $errors[] = "Emergency Address contains invalid characters.";
+
+    if ($group !== '') {
+        $groupItems = array_filter(array_map('trim', explode(',', $group)), fn($item) => $item !== '');
+        if (empty($groupItems)) {
+            $errors[] = "Group contains invalid selections.";
+        } else {
+            foreach ($groupItems as $item) {
+                if (!preg_match('/^[A-Za-z0-9\s\-]+$/', $item)) {
+                    $errors[] = "Group contains invalid characters. Allowed: letters, numbers, spaces, and hyphens.";
+                    break;
+                }
+            }
+            if (count($groupItems) !== count(array_unique($groupItems))) {
+                $errors[] = "Group contains duplicate values.";
+            }
+            $group = implode(', ', $groupItems);
+        }
+    }
 
     // [SECURITY] Contact & Email Validation
     if ($email !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
@@ -629,6 +650,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'system_role' => $system_role,
             'dept' => $dept,
             'section' => $section,
+            'group' => $group,
             'employment_type' => $employment_type,
             'agency_name' => $agency_name,
             'company_name' => $company_name,
@@ -683,7 +705,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $setParts = [];
             $values = [];
             foreach ($updateData as $k => $v) {
-                $setParts[] = "$k = ?";
+                // Use backticks for keys because 'group' is a reserved SQL word
+                $setParts[] = "`$k` = ?";
                 $values[] = $v;
             }
             // [NEW] Track when the profile was last updated
@@ -863,6 +886,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                     <button class="btn btn-outline-secondary" type="button" onclick="document.getElementById('section').value = ''" title="Clear"><i class="bi bi-x-lg"></i></button>
                                 </div>
                                 <select id="sectionPicker" class="form-select mt-1 form-select-sm text-muted" onchange="addSection(this.value)"></select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Group(s)</label>
+                                <div class="input-group">
+                                    <input type="text" name="group" id="group" class="form-control bg-white" readonly placeholder="Select below..." value="<?php echo val('group'); ?>">
+                                    <button class="btn btn-outline-secondary" type="button" onclick="document.getElementById('group').value = ''" title="Clear"><i class="bi bi-x-lg"></i></button>
+                                </div>
+                                <select id="groupPicker" class="form-select mt-1 form-select-sm text-muted" onchange="addGroup(this.value)">
+                                    <option value="">+ Add Group...</option>
+                                    <?php foreach ($groups as $g): ?>
+                                        <option value="<?php echo h($g); ?>"><?php echo h($g); ?></option>
+                                    <?php endforeach; ?>
+                                </select>
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label">Employment Type</label>
@@ -1784,6 +1820,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (words[i].length > 0) words[i] = words[i].charAt(0).toUpperCase() + words[i].slice(1).toLowerCase();
         }
         input.value = words.join(' ');
+    }
+
+    function addGroup(val) {
+        const picker = document.getElementById('groupPicker');
+        const input = document.getElementById('group');
+        const value = val ? val.trim() : '';
+        if (!value) return;
+
+        const current = input.value;
+        const items = current ? current.split(',').map(item => item.trim()).filter(item => item !== '') : [];
+        if (!items.includes(value)) {
+            items.push(value);
+            input.value = items.join(', ');
+        }
+        picker.value = "";
     }
 
     // [NEW] Multi-Section Logic

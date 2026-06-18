@@ -515,6 +515,8 @@ $displayTitle = $pageTitles[$currentPage] ?? 'TESP HR 201 System';
                             <?php endif; ?>
                             <?php if ($userRole === 'ADMIN'): ?>
                                 <li><a class="dropdown-item" href="settings.php"><i class="bi bi-sliders me-2"></i> System Settings</a></li>
+                                <li><a class="dropdown-item" href="manage_hierarchy.php"><i class="bi bi-diagram-3-fill me-2"></i> Manage Org Structure</a></li>
+                                <li><a class="dropdown-item" href="data_validation_report.php"><i class="bi bi-clipboard-check-fill me-2 text-warning"></i> Data Validation</a></li>
                             <?php endif; ?>
                             <li><a class="dropdown-item" href="profile_settings.php"><i class="bi bi-gear me-2"></i> Change Password</a></li>
                             <?php if ($userRole === 'ADMIN'): ?>

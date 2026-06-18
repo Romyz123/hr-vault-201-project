@@ -95,6 +95,7 @@ $empService = new EmployeeService($pdo, $logger); // [NEW]
 // [FIX] Defensive initialization to prevent "Undefined variable" errors
 $agencies = [];
 $deptMap = [];
+$groups = [];
 $system_roles = [];
 // [NEW] Load Centralized Options
 require __DIR__ . '/options.php';
@@ -130,6 +131,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     $dept             = post('dept');
     $section          = post('section');
+    $group            = post('group');
     $input_selection  = post('employment_type');
     $company_name     = post('company_name', 'TES Philippines');
     $previous_company = post('previous_company');
@@ -219,6 +221,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         ['val' => $college_year, 'name' => 'Year Finished', 'max' => 10, 'pattern' => "/^[0-9]*$/"],
         ['val' => $dept, 'name' => 'Department', 'max' => 50],
         ['val' => $section, 'name' => 'Section', 'max' => 100],
+        ['val' => $group, 'name' => 'Group', 'max' => 300, 'pattern' => '/^[A-Za-z0-9\s\-]+$/'],
         ['val' => post('request_note'), 'name' => 'Request Note', 'max' => 500],
     ];
 
@@ -236,6 +239,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
+    if ($group !== '') {
+        $groupItems = array_filter(array_map('trim', explode(',', $group)), fn($item) => $item !== '');
+        foreach ($groupItems as $item) {
+            if (!preg_match('/^[A-Za-z0-9\s\-]+$/', $item)) {
+                $errors[] = "Group contains invalid characters. Allowed: letters, numbers, spaces, and hyphens.";
+                break;
+            }
+        }
+        if (count($groupItems) !== count(array_unique($groupItems))) {
+            $errors[] = "Group contains duplicate values.";
+        }
+        $group = implode(', ', $groupItems);
+    }
+
     // Date Logic
     if ($birth_date && $birth_date > date('Y-m-d')) $errors[] = "Birth Date cannot be in the future.";
     if ($hire_date && $birth_date && $hire_date < $birth_date) $errors[] = "Hire Date cannot be earlier than Birth Date.";
@@ -250,6 +267,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'system_role' => $system_role,
         'dept' => $dept,
         'section' => $section,
+        'group' => $group,
         'employment_type' => $employment_type,
         'agency_name' => $agency_name,
         'company_name' => $company_name,
@@ -570,6 +588,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 <option value="">+ Add Section...</option>
                             </select>
                         </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Group(s)</label>
+                            <div class="input-group">
+                                <input type="text" name="group" id="group" class="form-control bg-white" readonly placeholder="Select below..." value="<?php echo old('group'); ?>">
+                                <button class="btn btn-outline-secondary" type="button" onclick="document.getElementById('group').value = ''" title="Clear"><i class="bi bi-x-lg"></i></button>
+                            </div>
+                            <select id="groupPicker" class="form-select mt-1 form-select-sm text-muted" onchange="addGroup(this.value)">
+                                <option value="">+ Add Group...</option>
+                                <?php foreach ($groups as $g): ?>
+                                    <option value="<?php echo h($g); ?>"><?php echo h($g); ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
 
 
 
@@ -887,6 +918,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             updateSections();
         }
 
+        // [NEW] Multi-Group Logic
+        function addGroup(val) {
+            const picker = document.getElementById('groupPicker');
+            const input = document.getElementById('group');
+            if (!val) return;
+            let current = input.value;
+            // Split by comma, trim, and check exact matches
+            const existing = current.split(',').map(s => s.trim()).filter(s => s !== '');
+            if (existing.includes(val)) return; // Already selected
+            if (current) {
+                input.value = current + ', ' + val;
+            } else {
+                input.value = val;
+            }
+            picker.value = "";
+        }
         // 3. DYNAMIC DROPDOWN LOGIC
         function updateSections() {
             const depts = deptInput.value.split(',').map(s => s.trim()).filter(s => s !== '');
