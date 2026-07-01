@@ -8,8 +8,7 @@ require '../config/db.php';
 require '../src/Security.php';
 require '../src/Logger.php';
 session_start();
-// [FIX] Include global helper functions
-require_once __DIR__ . '/../src/helpers.php';
+
 // 1. REQUIRE LOGIN
 if (!isset($_SESSION['user_id'])) {
     header("Location: login.php");
@@ -70,23 +69,6 @@ $dynamicCats = [];
 
 if (!$emp) die("Employee not found.");
 
-// [FIX] Define val() and raw() directly in the file so the IDE recognizes them
-if (!function_exists('val')) {
-    function val($key)
-    {
-        global $emp;
-        $value = $_POST[$key] ?? $emp[$key] ?? '';
-        return htmlspecialchars((string)$value, ENT_QUOTES, 'UTF-8');
-    }
-}
-if (!function_exists('raw')) {
-    function raw($key)
-    {
-        global $emp;
-        return (string)($_POST[$key] ?? $emp[$key] ?? '');
-    }
-}
-
 // [NEW] Fetch Documents for Digital 201 File Tab
 $docStmt = $pdo->prepare("
     SELECT d.*, u.username as updater_name 
@@ -134,14 +116,10 @@ try {
 
 // 3. CONFIGURATION
 
-// [FIX] Defensive initialization to prevent "Undefined variable" errors
-$agencies = [];
-$deptMap = [];
-$groups = [];
-$system_roles = [];
 // [NEW] Load Centralized Options
 require __DIR__ . '/options.php';
 $emp_options = $agencies;
+
 // [SECURITY] Generate CSRF Token
 if (empty($_SESSION['csrf_token'])) {
     $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
@@ -157,15 +135,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // [NEW] Handle Add Evaluation
     if (isset($_POST['action']) && $_POST['action'] === 'add_eval') {
-        try {
-            $eval_date = $_POST['eval_date'];
-            $score = (int)$_POST['score'];
-            $remarks = trim($_POST['remarks']);
-            $evaluator = trim($_POST['evaluator']);
-        } catch (Exception $e) {
-            header("Location: edit_employee.php?id=$id&tab=eval&error=" . urlencode("❌ Invalid input for evaluation."));
-            exit;
-        }
+        $eval_date = $_POST['eval_date'];
+        $score = (int)$_POST['score'];
+        $remarks = trim($_POST['remarks']);
+        $evaluator = trim($_POST['evaluator']);
 
         // [SECURITY] Validation
         if ($score < 1 || $score > 100) {
@@ -193,29 +166,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         elseif ($score >= 60) $rating = 'Needs Improvement';
 
         $stmt = $pdo->prepare("INSERT INTO performance_evaluations (employee_id, eval_date, score, rating, remarks, evaluator) VALUES (?, ?, ?, ?, ?, ?)");
-        try {
-            $stmt->execute([$id, $eval_date, $score, $rating, $remarks, $evaluator]);
-            header("Location: edit_employee.php?id=$id&tab=eval&msg=" . urlencode("✅ Evaluation Added"));
-            exit;
-        } catch (PDOException $e) {
-            error_log("PDOException in add_eval: " . $e->getMessage());
-            header("Location: edit_employee.php?id=$id&tab=eval&error=" . urlencode("❌ Database error adding evaluation."));
-            exit;
-        }
+        $stmt->execute([$id, $eval_date, $score, $rating, $remarks, $evaluator]);
+        header("Location: edit_employee.php?id=$id&tab=eval&msg=" . urlencode("✅ Evaluation Added"));
+        exit;
     }
 
     // [NEW] Handle Edit Evaluation
     if (isset($_POST['action']) && $_POST['action'] === 'edit_eval') {
-        try {
-            $eval_id = (int)$_POST['eval_id'];
-            $eval_date = $_POST['eval_date'];
-            $score = (int)$_POST['score'];
-            $remarks = trim($_POST['remarks']);
-            $evaluator = trim($_POST['evaluator']);
-        } catch (Exception $e) {
-            header("Location: edit_employee.php?id=$id&tab=eval&error=" . urlencode("❌ Invalid input for evaluation."));
-            exit;
-        }
+        $eval_id = (int)$_POST['eval_id'];
+        $eval_date = $_POST['eval_date'];
+        $score = (int)$_POST['score'];
+        $remarks = trim($_POST['remarks']);
+        $evaluator = trim($_POST['evaluator']);
 
         // [SECURITY] Validation
         if ($score < 1 || $score > 100) {
@@ -235,40 +197,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         elseif ($score >= 60) $rating = 'Needs Improvement';
 
         $stmt = $pdo->prepare("UPDATE performance_evaluations SET eval_date = ?, score = ?, rating = ?, remarks = ?, evaluator = ? WHERE id = ?");
-        try {
-            $stmt->execute([$eval_date, $score, $rating, $remarks, $evaluator, $eval_id]);
-            header("Location: edit_employee.php?id=$id&tab=eval&msg=" . urlencode("✅ Evaluation Updated"));
-            exit;
-        } catch (PDOException $e) {
-            error_log("PDOException in edit_eval: " . $e->getMessage());
-            header("Location: edit_employee.php?id=$id&tab=eval&error=" . urlencode("❌ Database error updating evaluation."));
-            exit;
-        }
+        $stmt->execute([$eval_date, $score, $rating, $remarks, $evaluator, $eval_id]);
+        header("Location: edit_employee.php?id=$id&tab=eval&msg=" . urlencode("✅ Evaluation Updated"));
+        exit;
     }
 
     // [NEW] Handle Delete Evaluation
     if (isset($_POST['action']) && $_POST['action'] === 'delete_eval') {
         if (in_array($_SESSION['role'], ['ADMIN', 'MANAGER', 'HR'])) {
-            try {
-                $delEvalId = (int)$_POST['eval_id'];
-                $pdo->prepare("DELETE FROM performance_evaluations WHERE id = ?")->execute([$delEvalId]);
-                header("Location: edit_employee.php?id=$id&tab=eval&msg=" . urlencode("✅ Evaluation Deleted"));
-                exit;
-            } catch (PDOException $e) {
-                error_log("PDOException in delete_eval: " . $e->getMessage());
-                header("Location: edit_employee.php?id=$id&tab=eval&error=" . urlencode("❌ Database error deleting evaluation."));
-                exit;
-            }
+            $delEvalId = (int)$_POST['eval_id'];
+            $pdo->prepare("DELETE FROM performance_evaluations WHERE id = ?")->execute([$delEvalId]);
+            header("Location: edit_employee.php?id=$id&tab=eval&msg=" . urlencode("✅ Evaluation Deleted"));
+            exit;
         }
     }
 
     // [NEW] Handle Add History Event
     if (isset($_POST['action']) && $_POST['action'] === 'add_history') {
         if (in_array($_SESSION['role'], ['ADMIN', 'MANAGER', 'HR'])) {
-            $title = trim($_POST['event_title'] ?? '');
-            $date  = $_POST['event_date'] ?? '';
-            $dept  = trim($_POST['department'] ?? '');
-            $notes = trim($_POST['notes'] ?? '');
+            $title = trim($_POST['event_title']);
+            $date  = $_POST['event_date'];
+            $dept  = trim($_POST['department']);
+            $notes = trim($_POST['notes']);
 
             if (empty($title) || empty($date)) {
                 header("Location: edit_employee.php?id=$id&tab=history&error=" . urlencode("❌ Title and Date are required."));
@@ -289,176 +239,152 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 exit;
             }
 
-            try {
-                $stmt = $pdo->prepare("INSERT INTO employment_history (employee_id, event_title, event_date, department, notes) VALUES (?, ?, ?, ?, ?)");
-                $stmt->execute([$id, $title, $date, $dept, $notes]);
+            $stmt = $pdo->prepare("INSERT INTO employment_history (employee_id, event_title, event_date, department, notes) VALUES (?, ?, ?, ?, ?)");
+            $stmt->execute([$id, $title, $date, $dept, $notes]);
 
-                $logger->log($_SESSION['user_id'], 'ADD_HISTORY', "Added history event for {$emp['emp_id']}: $title");
-                header("Location: edit_employee.php?id=$id&tab=history&msg=" . urlencode("✅ History event added."));
-                exit;
-            } catch (PDOException $e) {
-                error_log("PDOException in add_history: " . $e->getMessage());
-                header("Location: edit_employee.php?id=$id&tab=history&error=" . urlencode("❌ Database error adding history event."));
-                exit;
-            }
+            $logger->log($_SESSION['user_id'], 'ADD_HISTORY', "Added history event for {$emp['emp_id']}: $title");
+            header("Location: edit_employee.php?id=$id&tab=history&msg=" . urlencode("✅ History event added."));
+            exit;
         }
     }
     // [NEW] Handle Delete History Event
     if (isset($_POST['action']) && $_POST['action'] === 'delete_history') {
         if (in_array($_SESSION['role'], ['ADMIN', 'MANAGER'])) {
-            try {
-                $histId = (int)$_POST['history_id'];
-                $pdo->prepare("DELETE FROM employment_history WHERE id = ?")->execute([$histId]);
-                header("Location: edit_employee.php?id=$id&tab=history&msg=" . urlencode("✅ Event deleted."));
-                exit;
-            } catch (PDOException $e) {
-                error_log("PDOException in delete_history: " . $e->getMessage());
-                header("Location: edit_employee.php?id=$id&tab=history&error=" . urlencode("❌ Database error deleting history event."));
-                exit;
-            }
+            $histId = (int)$_POST['history_id'];
+            $pdo->prepare("DELETE FROM employment_history WHERE id = ?")->execute([$histId]);
+            header("Location: edit_employee.php?id=$id&tab=history&msg=" . urlencode("✅ Event deleted."));
+            exit;
         }
     }
 
     // [NEW] Handle Delete All Documents
     if (isset($_POST['action']) && $_POST['action'] === 'delete_all_docs') {
         if (in_array($_SESSION['role'], ['ADMIN', 'MANAGER'])) {
-            try {
-                $stmt = $pdo->prepare("UPDATE documents SET deleted_at = NOW() WHERE employee_id = ? AND deleted_at IS NULL");
-                $stmt->execute([$emp['emp_id']]);
-                $logger->log($_SESSION['user_id'], 'DELETE_ALL_DOCS', "Deleted all documents for {$emp['emp_id']}");
-                header("Location: edit_employee.php?id=$id&tab=docs&msg=" . urlencode("✅ All documents moved to Recycle Bin"));
-                exit;
-            } catch (PDOException $e) {
-                error_log("PDOException in delete_all_docs: " . $e->getMessage());
-                header("Location: edit_employee.php?id=$id&tab=docs&error=" . urlencode("❌ Database error deleting all documents."));
-                exit;
-            }
+            $stmt = $pdo->prepare("UPDATE documents SET deleted_at = NOW() WHERE employee_id = ? AND deleted_at IS NULL");
+            $stmt->execute([$emp['emp_id']]);
+            $logger->log($_SESSION['user_id'], 'DELETE_ALL_DOCS', "Deleted all documents for {$emp['emp_id']}");
+            header("Location: edit_employee.php?id=$id&tab=docs&msg=" . urlencode("✅ All documents moved to Recycle Bin"));
+            exit;
         }
     }
 
     // [REVISED] Handle Edit Document Details -> Creates a request for approval
     if (isset($_POST['action']) && $_POST['action'] === 'edit_doc') {
         if (in_array($_SESSION['role'], ['ADMIN', 'MANAGER', 'HR', 'STAFF'])) {
-            try {
-                $docId = (int)$_POST['doc_id'];
-                $newName = trim($_POST['file_name']);
-                $newCat = trim($_POST['category']);
-                $moveToEmpId = trim($_POST['move_to_emp_id'] ?? '');
-                $newExpiry = NULL;
-                if (!empty($_POST['expiry_date'])) {
-                    $parsedExpiry = DateTime::createFromFormat('Y-m-d', $_POST['expiry_date']);
-                    if ($parsedExpiry && $parsedExpiry->format('Y-m-d') === $_POST['expiry_date']) {
-                        $newExpiry = $_POST['expiry_date'];
-                    } else {
-                        header("Location: edit_employee.php?id=$id&tab=docs&error=" . urlencode("❌ Invalid expiry date format."));
-                        exit;
-                    }
-                }
-                $isValid = true;
-                $errorMsg = '';
-
-                if (strlen($newName) > 100) {
-                    header("Location: edit_employee.php?id=$id&tab=docs&error=" . urlencode("❌ File name too long (Max 100 chars)."));
-                    exit;
-                }
-
-                // [SECURITY] Validate Filename Characters
-                if (!preg_match('/^[a-zA-Z0-9\s\-\.\(\)_]+$/', $newName)) {
-                    header("Location: edit_employee.php?id=$id&tab=docs&error=" . urlencode("❌ Invalid filename. Allowed: Alphanumeric, Spaces, Dots, Dashes, Underscores, Parentheses."));
-                    exit;
-                }
-
-                // Handle "Others" Category
-                if ($newCat === 'Others') {
-                    $otherCat = trim($_POST['other_category'] ?? '');
-                    if (empty($otherCat)) {
-                        $isValid = false;
-                        $errorMsg = "❌ Please specify the document type when 'Others' is selected.";
-                    } else {
-                        if (strlen($otherCat) > 50) {
-                            $isValid = false;
-                            $errorMsg = "❌ Document type too long (Max 50 chars).";
-                        }
-                        $newCat = ucwords(strtolower($otherCat));
-                    }
-                }
-
-                if ($isValid) {
-                    // 1. Get original document details for logging/comparison
-                    $origDocStmt = $pdo->prepare("SELECT original_name, category, employee_id FROM documents WHERE id = ?");
-                    $origDocStmt->execute([$docId]);
-                    $origDoc = $origDocStmt->fetch();
-
-                    // Verify document ownership - must belong to current employee
-                    if (!$origDoc || $origDoc['employee_id'] != $emp['emp_id']) {
-                        header("Location: edit_employee.php?id=$id&tab=docs&error=" . urlencode("❌ You cannot edit documents for other employees."));
-                        exit;
-                    }
-
-                    // [FIX] Preserve file extension to ensure format isn't lost
-                    $info = pathinfo($origDoc['original_name']);
-                    $ext = isset($info['extension']) ? '.' . $info['extension'] : '';
-                    if ($ext !== '' && (strlen($newName) < strlen($ext) || substr_compare($newName, $ext, -strlen($ext), strlen($ext), true) !== 0)) {
-                        $newName .= $ext;
-                    }
-
-                    // 2a. STAFF: Submit Request
-                    if ($_SESSION['role'] === 'STAFF') {
-                        // Check for existing pending request to prevent spam
-                        $chkReq = $pdo->prepare("SELECT id FROM requests WHERE request_type = 'EDIT_DOC' AND target_id = ? AND status = 'PENDING'");
-                        $chkReq->execute([$docId]);
-
-                        if ($chkReq->fetch()) {
-                            header("Location: edit_employee.php?id=$id&tab=docs&error=" . urlencode("⚠️ Pending edit request already exists for this document."));
-                            exit;
-                        }
-
-                        $payload = [
-                            'new_name' => $newName,
-                            'new_category' => $newCat,
-                            'new_expiry_date' => $newExpiry,
-                            'move_to_emp_id' => $moveToEmpId,
-                            'original_details' => $origDoc
-                        ];
-                        $pdo->prepare("INSERT INTO requests (user_id, request_type, target_id, json_payload) VALUES (?, 'EDIT_DOC', ?, ?)")
-                            ->execute([$_SESSION['user_id'], $docId, json_encode($payload)]);
-
-                        header("Location: edit_employee.php?id=$id&tab=docs&msg=" . urlencode("📝 Document Edit Request Submitted"));
-                        exit;
-                    }
-
-                    // 2. DIRECT UPDATE (Admins/Managers/HR are trusted)
-                    $updateSql = "UPDATE documents SET original_name = ?, category = ?, expiry_date = ?, updated_at = NOW(), updated_by = ?";
-                    $updateParams = [$newName, $newCat, $newExpiry, $_SESSION['user_id']];
-
-                    if (!empty($moveToEmpId)) {
-                        // [FIX] Validate target employee exists
-                        $chkTarget = $pdo->prepare("SELECT id FROM employees WHERE emp_id = ? AND deleted_at IS NULL");
-                        $chkTarget->execute([$moveToEmpId]);
-                        if (!$chkTarget->fetch()) {
-                            header("Location: edit_employee.php?id=$id&tab=docs&error=" . urlencode("❌ Target Employee ID not found."));
-                            exit;
-                        }
-                        $updateSql .= ", employee_id = ?";
-                        $updateParams[] = $moveToEmpId;
-                    }
-
-                    $updateSql .= " WHERE id = ?";
-                    $updateParams[] = $docId;
-
-                    $stmt = $pdo->prepare($updateSql);
-                    $stmt->execute($updateParams);
-
-                    $logger->log($_SESSION['user_id'], 'EDIT_DOC', "Updated Doc ID $docId ($newName)");
-                    header("Location: edit_employee.php?id=$id&tab=docs&msg=" . urlencode("✅ Document details updated successfully."));
-                    exit;
+            $docId = (int)$_POST['doc_id'];
+            $newName = trim($_POST['file_name']);
+            $newCat = trim($_POST['category']);
+            $moveToEmpId = trim($_POST['move_to_emp_id'] ?? '');
+            $newExpiry = NULL;
+            if (!empty($_POST['expiry_date'])) {
+                $parsedExpiry = DateTime::createFromFormat('Y-m-d', $_POST['expiry_date']);
+                if ($parsedExpiry && $parsedExpiry->format('Y-m-d') === $_POST['expiry_date']) {
+                    $newExpiry = $_POST['expiry_date'];
                 } else {
-                    header("Location: edit_employee.php?id=$id&tab=docs&error=" . urlencode($errorMsg));
+                    header("Location: edit_employee.php?id=$id&tab=docs&error=" . urlencode("❌ Invalid expiry date format."));
                     exit;
                 }
-            } catch (PDOException $e) {
-                error_log("PDOException in edit_doc: " . $e->getMessage());
-                header("Location: edit_employee.php?id=$id&tab=docs&error=" . urlencode("❌ Database error editing document."));
+            }
+            $isValid = true;
+            $errorMsg = '';
+
+            if (strlen($newName) > 100) {
+                header("Location: edit_employee.php?id=$id&tab=docs&error=" . urlencode("❌ File name too long (Max 100 chars)."));
+                exit;
+            }
+
+            // [SECURITY] Validate Filename Characters
+            if (!preg_match('/^[a-zA-Z0-9\s\-\.\(\)_]+$/', $newName)) {
+                header("Location: edit_employee.php?id=$id&tab=docs&error=" . urlencode("❌ Invalid filename. Allowed: Alphanumeric, Spaces, Dots, Dashes, Underscores, Parentheses."));
+                exit;
+            }
+
+            // Handle "Others" Category
+            if ($newCat === 'Others') {
+                $otherCat = trim($_POST['other_category'] ?? '');
+                if (empty($otherCat)) {
+                    $isValid = false;
+                    $errorMsg = "❌ Please specify the document type when 'Others' is selected.";
+                } else {
+                    if (strlen($otherCat) > 50) {
+                        $isValid = false;
+                        $errorMsg = "❌ Document type too long (Max 50 chars).";
+                    }
+                    $newCat = ucwords(strtolower($otherCat));
+                }
+            }
+
+            if ($isValid) {
+                // 1. Get original document details for logging/comparison
+                $origDocStmt = $pdo->prepare("SELECT original_name, category, employee_id FROM documents WHERE id = ?");
+                $origDocStmt->execute([$docId]);
+                $origDoc = $origDocStmt->fetch();
+
+                // Verify document ownership - must belong to current employee
+                if (!$origDoc || $origDoc['employee_id'] != $emp['emp_id']) {
+                    header("Location: edit_employee.php?id=$id&tab=docs&error=" . urlencode("❌ You cannot edit documents for other employees."));
+                    exit;
+                }
+
+                // [FIX] Preserve file extension to ensure format isn't lost
+                $info = pathinfo($origDoc['original_name']);
+                $ext = isset($info['extension']) ? '.' . $info['extension'] : '';
+                if ($ext !== '' && (strlen($newName) < strlen($ext) || substr_compare($newName, $ext, -strlen($ext), strlen($ext), true) !== 0)) {
+                    $newName .= $ext;
+                }
+
+                // 2a. STAFF: Submit Request
+                if ($_SESSION['role'] === 'STAFF') {
+                    // Check for existing pending request to prevent spam
+                    $chkReq = $pdo->prepare("SELECT id FROM requests WHERE request_type = 'EDIT_DOC' AND target_id = ? AND status = 'PENDING'");
+                    $chkReq->execute([$docId]);
+
+                    if ($chkReq->fetch()) {
+                        header("Location: edit_employee.php?id=$id&tab=docs&error=" . urlencode("⚠️ Pending edit request already exists for this document."));
+                        exit;
+                    }
+
+                    $payload = [
+                        'new_name' => $newName,
+                        'new_category' => $newCat,
+                        'new_expiry_date' => $newExpiry,
+                        'move_to_emp_id' => $moveToEmpId,
+                        'original_details' => $origDoc
+                    ];
+                    $pdo->prepare("INSERT INTO requests (user_id, request_type, target_id, json_payload) VALUES (?, 'EDIT_DOC', ?, ?)")
+                        ->execute([$_SESSION['user_id'], $docId, json_encode($payload)]);
+
+                    header("Location: edit_employee.php?id=$id&tab=docs&msg=" . urlencode("📝 Document Edit Request Submitted"));
+                    exit;
+                }
+
+                // 2. DIRECT UPDATE (Admins/Managers/HR are trusted)
+                $updateSql = "UPDATE documents SET original_name = ?, category = ?, expiry_date = ?, updated_at = NOW(), updated_by = ?";
+                $updateParams = [$newName, $newCat, $newExpiry, $_SESSION['user_id']];
+
+                if (!empty($moveToEmpId)) {
+                    // [FIX] Validate target employee exists
+                    $chkTarget = $pdo->prepare("SELECT id FROM employees WHERE emp_id = ? AND deleted_at IS NULL");
+                    $chkTarget->execute([$moveToEmpId]);
+                    if (!$chkTarget->fetch()) {
+                        header("Location: edit_employee.php?id=$id&tab=docs&error=" . urlencode("❌ Target Employee ID not found."));
+                        exit;
+                    }
+                    $updateSql .= ", employee_id = ?";
+                    $updateParams[] = $moveToEmpId;
+                }
+
+                $updateSql .= " WHERE id = ?";
+                $updateParams[] = $docId;
+
+                $stmt = $pdo->prepare($updateSql);
+                $stmt->execute($updateParams);
+
+                $logger->log($_SESSION['user_id'], 'EDIT_DOC', "Updated Doc ID $docId ($newName)");
+                header("Location: edit_employee.php?id=$id&tab=docs&msg=" . urlencode("✅ Document details updated successfully."));
+                exit;
+            } else {
+                header("Location: edit_employee.php?id=$id&tab=docs&error=" . urlencode($errorMsg));
                 exit;
             }
         }
@@ -467,60 +393,49 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // [NEW] Handle Delete Employee (Full Cleanup)
     if (isset($_POST['action']) && $_POST['action'] === 'delete_employee') {
         if (in_array($_SESSION['role'], ['ADMIN', 'MANAGER'])) {
-            try {
-                // [FIX] Soft Delete instead of Hard Delete
-                $pdo->prepare("UPDATE employees SET deleted_at = NOW() WHERE id = ?")->execute([$id]);
+            // [FIX] Soft Delete instead of Hard Delete
+            $pdo->prepare("UPDATE employees SET deleted_at = NOW() WHERE id = ?")->execute([$id]);
 
-                $logger->log($_SESSION['user_id'], 'SOFT_DELETE_EMPLOYEE', "Moved employee {$emp['emp_id']} to Recycle Bin");
+            $logger->log($_SESSION['user_id'], 'SOFT_DELETE_EMPLOYEE', "Moved employee {$emp['emp_id']} to Recycle Bin");
 
-                header("Location: index.php?msg=" . urlencode("🗑️ Employee moved to Recovery Console."));
-                exit;
-            } catch (PDOException $e) {
-                error_log("PDOException in delete_employee: " . $e->getMessage());
-                header("Location: edit_employee.php?id=$id&error=" . urlencode("❌ Database error deleting employee."));
-                exit;
-            }
+            header("Location: index.php?msg=" . urlencode("🗑️ Employee moved to Recovery Console."));
+            exit;
         }
     }
 
-    $new_emp_id = post('emp_id', $emp['emp_id'] ?? '');
-    $first_name = ucwords(strtolower(post('first_name', $emp['first_name'] ?? '')));
-    $middle_name = ucwords(strtolower(post('middle_name', $emp['middle_name'] ?? '')));
-    $last_name = ucwords(strtolower(post('last_name', $emp['last_name'] ?? '')));
-    $job_title = ucwords(strtolower(post('job_title', $emp['job_title'] ?? '')));
-    $system_role = post('system_role', $emp['system_role'] ?? 'Staff');
-    $dept = post('dept', $emp['dept'] ?? '');
-    $section = post('section', $emp['section'] ?? '');
-    $group = post('group', $emp['group'] ?? '');
-    $company_name = post('company_name', $emp['company_name'] ?? '');
-    $previous_company = post('previous_company', $emp['previous_company'] ?? '');
-    $hire_date = post('hire_date', $emp['hire_date'] ?? '');
-    $gender = post('gender', $emp['gender'] ?? 'Male');
-    $birth_date = post('birth_date', $emp['birth_date'] ?? '');
-    $contact_number = post('contact_number', $emp['contact_number'] ?? '');
-    $email = post('email', $emp['email'] ?? '');
-    $present_address = post('present_address', $emp['present_address'] ?? '');
-    $permanent_address = post('permanent_address', $emp['permanent_address'] ?? '');
-    $sss_no = post('sss_no', $emp['sss_no'] ?? '');
-    $tin_no = post('tin_no', $emp['tin_no'] ?? '');
-    $philhealth_no = post('philhealth_no', $emp['philhealth_no'] ?? '');
-    $pagibig_no = post('pagibig_no', $emp['pagibig_no'] ?? '');
-    $status = post('status', $emp['status'] ?? 'Active');
-    $exit_date = post('exit_date', $emp['exit_date'] ?? '');
-    $exit_reason = post('exit_reason', $emp['exit_reason'] ?? '');
-    $emergency_name = ucwords(strtolower(post('emergency_name', $emp['emergency_name'] ?? '')));
-    $emergency_contact = post('emergency_contact', $emp['emergency_contact'] ?? '');
-    $emergency_address = post('emergency_address', $emp['emergency_address'] ?? '');
+    $new_emp_id = post('emp_id', $emp['emp_id']);
+    $first_name = ucwords(strtolower(post('first_name', $emp['first_name'])));
+    $middle_name = ucwords(strtolower(post('middle_name', $emp['middle_name'])));
+    $last_name = ucwords(strtolower(post('last_name', $emp['last_name'])));
+    $job_title = ucwords(strtolower(post('job_title', $emp['job_title'])));
+    $system_role = post('system_role', $emp['system_role'] ?? 'Staff'); // [NEW]
+    $dept = post('dept', $emp['dept']);
+    $section = post('section', $emp['section']);
+    $company_name = post('company_name', $emp['company_name']);
+    $previous_company = post('previous_company', $emp['previous_company']);
+    $hire_date = post('hire_date', $emp['hire_date']);
+    $gender = post('gender', $emp['gender']);
+    $birth_date = post('birth_date', $emp['birth_date']);
+    $contact_number = post('contact_number', $emp['contact_number']);
+    $email = post('email', $emp['email']);
+    $present_address = post('present_address', $emp['present_address']);
+    $permanent_address = post('permanent_address', $emp['permanent_address']);
+    $sss_no = post('sss_no', $emp['sss_no']);
+    $tin_no = post('tin_no', $emp['tin_no']);
+    $philhealth_no = post('philhealth_no', $emp['philhealth_no']);
+    $pagibig_no = post('pagibig_no', $emp['pagibig_no']);
+    $status = post('status', $emp['status']);
+    $exit_date = post('exit_date', $emp['exit_date']);
+    $exit_reason = post('exit_reason', $emp['exit_reason']);
+    $emergency_name = ucwords(strtolower(post('emergency_name', $emp['emergency_name'])));
+
+    $emergency_contact = post('emergency_contact', $emp['emergency_contact']);
+    $emergency_address = post('emergency_address', $emp['emergency_address']);
 
     $education  = post('education', $emp['education'] ?? '');
     $experience = post('experience', $emp['experience'] ?? '');
     $skills     = post('skills', $emp['skills'] ?? '');
     $licenses   = post('licenses', $emp['licenses'] ?? '');
-
-    // [NEW] Capture college fields from POST or current record
-    $college_degree = post('college_degree', $emp['college_degree'] ?? '');
-    $college_course = post('college_course', $emp['college_course'] ?? '');
-    $college_year   = post('college_year', $emp['college_year'] ?? '');
 
     // [NEW] Capture Request Note for Validation
     $request_note = post('request_note', '');
@@ -560,15 +475,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'emergency_address' => 150,
         'education'         => 1000,
         'experience'        => 1000,
-        'college_degree'    => 100,
-        'college_course'    => 100,
-        'college_year'      => 10,
         'skills'            => 1000,
         'licenses'          => 1000,
         'exit_reason'       => 100,
         'dept'              => 50,
         'section'           => 100,
-        'group'             => 300,
         'request_note'      => 500,
     ];
 
@@ -594,34 +505,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!preg_match("/^[a-zA-Z\s\-\.\']+$/", $last_name)) $errors[] = "Last Name contains invalid characters.";
 
     // [SECURITY] Job & Company Validation
-    $textRegex = "/^[a-zA-Z0-9\s\-\.\,\(\)\/\&']+$/";
-    if (!preg_match($textRegex, $job_title)) $errors[] = "Job Title contains invalid characters.";
-    if ($company_name !== '' && !preg_match($textRegex, $company_name)) $errors[] = "Company Name contains invalid characters.";
-    if ($previous_company !== '' && !preg_match($textRegex, $previous_company)) $errors[] = "Previous Company contains invalid characters.";
+    $jobTitleRegex = "/^[a-zA-Z0-9\s\-\.\,\(\)\/\&']+$/";
+    if (!preg_match($jobTitleRegex, $job_title)) $errors[] = "Job Title contains invalid characters.";
+
+    $companyRegex = "/^[a-zA-Z0-9\s\-\.\,\(\)\/\&'\p{L}]+$/u"; // Allow unicode letters
+    if ($company_name !== '' && !preg_match($companyRegex, $company_name)) $errors[] = "Company Name contains invalid characters.";
+    if ($previous_company !== '' && !preg_match($companyRegex, $previous_company)) $errors[] = "Previous Company contains invalid characters.";
 
     // [SECURITY] Address Validation
     $addrRegex = "/^[a-zA-Z0-9\s\.,\-\/#\(\)\']+$/";
     if ($present_address !== '' && !preg_match($addrRegex, $present_address)) $errors[] = "Present Address contains invalid characters.";
     if ($permanent_address !== '' && !preg_match($addrRegex, $permanent_address)) $errors[] = "Permanent Address contains invalid characters.";
     if ($emergency_address !== '' && !preg_match($addrRegex, $emergency_address)) $errors[] = "Emergency Address contains invalid characters.";
-
-    if ($group !== '') {
-        $groupItems = array_filter(array_map('trim', explode(',', $group)), fn($item) => $item !== '');
-        if (empty($groupItems)) {
-            $errors[] = "Group contains invalid selections.";
-        } else {
-            foreach ($groupItems as $item) {
-                if (!preg_match('/^[A-Za-z0-9\s\-]+$/', $item)) {
-                    $errors[] = "Group contains invalid characters. Allowed: letters, numbers, spaces, and hyphens.";
-                    break;
-                }
-            }
-            if (count($groupItems) !== count(array_unique($groupItems))) {
-                $errors[] = "Group contains duplicate values.";
-            }
-            $group = implode(', ', $groupItems);
-        }
-    }
 
     // [SECURITY] Contact & Email Validation
     if ($email !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
@@ -712,7 +607,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'system_role' => $system_role,
             'dept' => $dept,
             'section' => $section,
-            'group' => $group,
             'employment_type' => $employment_type,
             'agency_name' => $agency_name,
             'company_name' => $company_name,
@@ -734,9 +628,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'education' => $education,
             'experience' => $experience,
             'skills' => $skills,
-            'college_degree' => $college_degree,
-            'college_course' => $college_course,
-            'college_year' => $college_year,
             'licenses' => $licenses,
             'status' => $status,
             'exit_date' => $exit_date,
@@ -770,8 +661,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $setParts = [];
             $values = [];
             foreach ($updateData as $k => $v) {
-                // Use backticks for keys because 'group' is a reserved SQL word
-                $setParts[] = "`$k` = ?";
+                $setParts[] = "$k = ?";
                 $values[] = $v;
             }
             // [NEW] Track when the profile was last updated
@@ -891,7 +781,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <div>
                     <div class="fw-bold"><?php echo h($emp['emp_id']); ?></div>
                     <div class="text-muted small"><?php echo h($emp['job_title']); ?></div>
-                    <div class="text-muted small"><?php echo h($emp['dept'] . ' / ' . $emp['section'] . ($emp['group'] ? ' / ' . $emp['group'] : '')); ?></div>
+                    <div class="text-muted small"><?php echo h($emp['dept'] . ' / ' . $emp['section']); ?></div>
                 </div>
             </div>
 
@@ -910,21 +800,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
                         <input type="hidden" name="remove_avatar" id="removeAvatarFlag" value="0">
 
-                        <h6 class="text-secondary border-bottom pb-2 mb-3">Work Information</h6>
+                        <h6 class="text-secondary border-bottom pb-2 mb-3"><?= lang('work_information') ?></h6>
                         <div class="row g-3">
 
 
                             <div class="col-md-3">
-                                <label class="form-label">Employee ID</label>
+                                <label class="form-label"><?= lang('employee_id') ?></label>
                                 <input type="text" name="emp_id" class="form-control" value="<?php echo val('emp_id'); ?>" required oninput="this.value=this.value.toUpperCase().replace(/[^A-Z0-9\-_]/g, '')" pattern="[A-Z0-9\-_]+" title="Allowed: Letters, Numbers, - and _" maxlength="20">
                                 <div class="form-text small">Allowed: Letters, Numbers, - and _</div>
                             </div>
                             <div class="col-md-2">
-                                <label class="form-label">Job Title</label>
+                                <label class="form-label"><?= lang('job_title') ?></label>
                                 <input type="text" name="job_title" class="form-control" value="<?php echo val('job_title'); ?>" required oninput="this.value = this.value.replace(/[^a-zA-Z0-9\s\-\.\,\(\)\/\&']/g, ''); capitalize(this)" pattern="[a-zA-Z0-9\s\-\.\,\(\)\/\&']+" title="Allowed: Alphanumeric and basic punctuation" maxlength="50">
                             </div>
                             <div class="col-md-2">
-                                <label class="form-label">Contract Role</label>
+                                <label class="form-label"><?= lang('contract_role') ?></label>
                                 <select name="system_role" class="form-select">
                                     <?php foreach ($system_roles as $role): ?>
                                         <option value="<?php echo h($role); ?>" <?php echo ($emp['system_role'] == $role) ? 'selected' : ''; ?>><?php echo h($role); ?></option>
@@ -932,20 +822,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 </select>
                             </div>
                             <div class="col-md-3">
-                                <label class="form-label">Department(s)</label>
+                                <label class="form-label"><?= lang('department_s') ?></label>
                                 <div class="input-group">
                                     <input type="text" name="dept" id="dept" class="form-control bg-white" required readonly value="<?php echo val('dept'); ?>">
                                     <button class="btn btn-outline-secondary" type="button" onclick="document.getElementById('dept').value = ''; updateSections();" title="Clear"><i class="bi bi-x-lg"></i></button>
                                 </div>
                                 <select id="deptPicker" class="form-select mt-1 form-select-sm text-muted" onchange="addDept(this.value)">
-                                    <option value="">+ Add Department...</option>
+                                    <option value=""><?= lang('add_department') ?></option>
                                     <?php foreach ($deptMap as $d => $s): ?>
                                         <option value="<?php echo h($d); ?>"><?php echo h($d); ?></option>
                                     <?php endforeach; ?>
                                 </select>
                             </div>
                             <div class="col-md-3">
-                                <label class="form-label">Section(s)</label>
+                                <label class="form-label"><?= lang('section_s') ?></label>
                                 <div class="input-group">
                                     <input type="text" name="section" id="section" class="form-control bg-white" required readonly value="<?php echo val('section'); ?>">
                                     <button class="btn btn-outline-secondary" type="button" onclick="document.getElementById('section').value = ''" title="Clear"><i class="bi bi-x-lg"></i></button>
@@ -953,20 +843,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 <select id="sectionPicker" class="form-select mt-1 form-select-sm text-muted" onchange="addSection(this.value)"></select>
                             </div>
                             <div class="col-md-6">
-                                <label class="form-label">Group(s)</label>
-                                <div class="input-group">
-                                    <input type="text" name="group" id="group" class="form-control bg-white" readonly placeholder="Select below..." value="<?php echo val('group'); ?>">
-                                    <button class="btn btn-outline-secondary" type="button" onclick="document.getElementById('group').value = ''" title="Clear"><i class="bi bi-x-lg"></i></button>
-                                </div>
-                                <select id="groupPicker" class="form-select mt-1 form-select-sm text-muted" onchange="addGroup(this.value)">
-                                    <option value="">+ Add Group...</option>
-                                    <?php foreach ($groups as $g): ?>
-                                        <option value="<?php echo h($g); ?>"><?php echo h($g); ?></option>
-                                    <?php endforeach; ?>
-                                </select>
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label">Employment Type</label>
+                                <label class="form-label"><?= lang('employment_type') ?></label>
                                 <select name="employment_type" class="form-select">
                                     <?php foreach ($emp_options as $opt): ?>
                                         <option value="<?php echo h($opt); ?>"
@@ -977,15 +854,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 </select>
                             </div>
                             <div class="col-md-6">
-                                <label class="form-label">Hire Date</label>
+                                <label class="form-label"><?= lang('hire_date') ?></label>
                                 <input type="date" name="hire_date" class="form-control" value="<?php echo val('hire_date'); ?>">
                             </div>
                             <div class="col-md-6">
-                                <label class="form-label">Company Name</label>
+                                <label class="form-label"><?= lang('company_name') ?></label>
                                 <input type="text" name="company_name" class="form-control" value="<?php echo val('company_name'); ?>" pattern="[a-zA-Z0-9\s\-\.\,\(\)\/\&']+" title="Allowed: Alphanumeric and basic punctuation" oninput="this.value = this.value.replace(/[^a-zA-Z0-9\s\-\.\,\(\)\/\&']/g, '')" maxlength="50">
                             </div>
                             <div class="col-md-6">
-                                <label class="form-label">Previous Company</label>
+                                <label class="form-label"><?= lang('previous_company') ?></label>
                                 <input type="text" name="previous_company" class="form-control" value="<?php echo val('previous_company'); ?>" pattern="[a-zA-Z0-9\s\-\.\,\(\)\/\&']+" title="Allowed: Alphanumeric and basic punctuation" oninput="this.value = this.value.replace(/[^a-zA-Z0-9\s\-\.\,\(\)\/\&']/g, '')" maxlength="100">
                             </div>
                         </div>
@@ -993,24 +870,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <div class="row mb-3 mt-4 p-3 bg-light border rounded">
 
                             <div class="col-md-3">
-                                <label class="form-label fw-bold">Current Status</label>
+                                <label class="form-label fw-bold"><?= lang('current_status') ?></label>
                                 <select name="status" id="statusSelect" class="form-select border-primary fw-bold" onchange="toggleExitFields()">
-                                    <option value="Active" <?php if ($emp['status'] == 'Active') echo 'selected'; ?>>Active</option>
-                                    <option value="Resigned" <?php if ($emp['status'] == 'Resigned') echo 'selected'; ?>>Resigned</option>
-                                    <option value="Terminated" <?php if ($emp['status'] == 'Terminated') echo 'selected'; ?>>Terminated</option>
-                                    <option value="AWOL" <?php if ($emp['status'] == 'AWOL') echo 'selected'; ?>>AWOL</option>
-                                    <option value="Retired" <?php if ($emp['status'] == 'Retired') echo 'selected'; ?>>Retired</option>
+                                    <option value="Active" <?php if ($emp['status'] == 'Active') echo 'selected'; ?>><?= lang('active') ?></option>
+                                    <option value="Resigned" <?php if ($emp['status'] == 'Resigned') echo 'selected'; ?>><?= lang('resigned') ?></option>
+                                    <option value="Terminated" <?php if ($emp['status'] == 'Terminated') echo 'selected'; ?>><?= lang('terminated') ?></option>
+                                    <option value="AWOL" <?php if ($emp['status'] == 'AWOL') echo 'selected'; ?>><?= lang('awol') ?></option>
+                                    <option value="Retired" <?php if ($emp['status'] == 'Retired') echo 'selected'; ?>><?= lang('retired') ?></option>
                                 </select>
                             </div>
 
                             <div class="col-md-3 exit-field">
-                                <label class="form-label fw-bold text-danger">Date of Exit</label>
+                                <label class="form-label fw-bold text-danger"><?= lang('date_of_exit') ?></label>
                                 <input type="date" name="exit_date" class="form-control border-danger text-danger fw-bold"
                                     value="<?php echo $emp['exit_date'] ?? ''; ?>">
                             </div>
 
                             <div class="col-md-6 exit-field">
-                                <label class="form-label fw-bold text-danger">Reason for Leaving</label>
+                                <label class="form-label fw-bold text-danger"><?= lang('reason_for_leaving') ?></label>
                                 <input type="text" name="exit_reason" class="form-control border-danger"
                                     placeholder="e.g. Found better opportunity, Family reasons..."
                                     value="<?php echo htmlspecialchars($emp['exit_reason'] ?? ''); ?>"
@@ -1023,76 +900,76 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 </div>
                             </div>
                         </div>
-                        <h6 class="text-secondary border-bottom pb-2 mb-3 mt-4">Personal Details</h6>
+                        <h6 class="text-secondary border-bottom pb-2 mb-3 mt-4"><?= lang('personal_details') ?></h6>
                         <div class="row g-3">
                             <div class="col-md-4">
-                                <label class="form-label">First Name</label>
+                                <label class="form-label"><?= lang('first_name') ?></label>
                                 <input type="text" name="first_name" class="form-control" value="<?php echo val('first_name'); ?>" required oninput="this.value = this.value.replace(/[^a-zA-Z\s\-\.\']/g, ''); capitalize(this)" pattern="[a-zA-Z\s\-\.\']+" title="Allowed: Letters, spaces, dots, dashes, apostrophes" maxlength="50">
                             </div>
                             <div class="col-md-4">
-                                <label class="form-label">Middle Name</label>
+                                <label class="form-label"><?= lang('middle_name') ?></label>
                                 <input type="text" name="middle_name" class="form-control" value="<?php echo val('middle_name'); ?>" oninput="this.value = this.value.replace(/[^a-zA-Z\s\-\.\']/g, ''); capitalize(this)" pattern="[a-zA-Z\s\-\.\']+" title="Allowed: Letters, spaces, dots, dashes, apostrophes" maxlength="50">
                             </div>
                             <div class="col-md-4">
-                                <label class="form-label">Last Name</label>
+                                <label class="form-label"><?= lang('last_name') ?></label>
                                 <input type="text" name="last_name" class="form-control" value="<?php echo val('last_name'); ?>" required oninput="this.value = this.value.replace(/[^a-zA-Z\s\-\.\']/g, ''); capitalize(this)" pattern="[a-zA-Z\s\-\.\']+" title="Allowed: Letters, spaces, dots, dashes, apostrophes" maxlength="50">
                             </div>
                             <div class="col-md-3">
-                                <label class="form-label">Gender</label>
+                                <label class="form-label"><?= lang('gender') ?></label>
                                 <select name="gender" class="form-select">
-                                    <option value="Male" <?php echo (raw('gender') == 'Male') ? 'selected' : ''; ?>>Male</option>
-                                    <option value="Female" <?php echo (raw('gender') == 'Female') ? 'selected' : ''; ?>>Female</option>
+                                    <option value="Male" <?php echo (raw('gender') == 'Male') ? 'selected' : ''; ?>><?= lang('male') ?></option>
+                                    <option value="Female" <?php echo (raw('gender') == 'Female') ? 'selected' : ''; ?>><?= lang('female') ?></option>
                                 </select>
                             </div>
                             <div class="col-md-3">
-                                <label class="form-label">Birth Date</label>
+                                <label class="form-label"><?= lang('birth_date') ?></label>
                                 <input type="date" name="birth_date" class="form-control" value="<?php echo val('birth_date'); ?>">
                             </div>
                             <div class="col-md-6">
-                                <label class="form-label">Contact Number</label>
+                                <label class="form-label"><?= lang('contact_number') ?></label>
                                 <input type="text" name="contact_number" class="form-control" maxlength="25" value="<?php echo val('contact_number'); ?>" oninput="this.value = this.value.replace(/[^0-9+\-\s()\/]/g, '')" pattern="[0-9+\-\s()\/]+" title="Allowed: Numbers, +, -, /, ( )">
                                 <div class="form-text small">Max 25 chars. Allowed: Numbers, +, -, /, ( )</div>
                             </div>
                             <div class="col-md-6">
-                                <label class="form-label">Email</label>
+                                <label class="form-label"><?= lang('email') ?></label>
                                 <input type="email" name="email" class="form-control" value="<?php echo val('email'); ?>" maxlength="100">
                             </div>
                             <div class="col-12">
-                                <label class="form-label">Present Address</label>
+                                <label class="form-label"><?= lang('present_address') ?></label>
                                 <input type="text" name="present_address" class="form-control" value="<?php echo val('present_address'); ?>" maxlength="150" pattern="[a-zA-Z0-9\s\.,\-\/#\(\)\']+" title="Allowed: A-Z, 0-9, . , - / # ( ) '" oninput="this.value = this.value.replace(/[^a-zA-Z0-9\s\.,\-\/#\(\)\']/g, '')">
                                 <div class="form-text small">Max 150 chars. Allowed: A-Z, 0-9, . , - / #</div>
                             </div>
                             <div class="col-12">
-                                <label class="form-label">Permanent Address</label>
+                                <label class="form-label"><?= lang('permanent_address') ?></label>
                                 <input type="text" name="permanent_address" class="form-control" value="<?php echo val('permanent_address'); ?>" maxlength="150" pattern="[a-zA-Z0-9\s\.,\-\/#\(\)\']+" title="Allowed: A-Z, 0-9, . , - / # ( ) '" oninput="this.value = this.value.replace(/[^a-zA-Z0-9\s\.,\-\/#\(\)\']/g, '')">
                                 <div class="form-text small">Max 150 chars.</div>
                             </div>
                             <div class="col-12">
-                                <label class="form-label">Change Photo</label>
+                                <label class="form-label"><?= lang('change_photo') ?></label>
                                 <div class="input-group">
                                     <input type="file" name="avatar" id="avatarInput" class="form-control" accept="image/*" onchange="previewAvatar(this)">
-                                    <button type="button" class="btn btn-outline-danger" onclick="clearAvatar()" title="Remove Photo"><i class="bi bi-trash"></i></button>
-                                    <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#cameraModal" onclick="startCamera()"><i class="bi bi-camera"></i> Take Photo</button>
+                                    <button type="button" class="btn btn-outline-danger" onclick="clearAvatar()" title="<?= lang('remove_photo') ?>"><i class="bi bi-trash"></i></button>
+                                    <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#cameraModal" onclick="startCamera()"><i class="bi bi-camera"></i> <?= lang('take_photo') ?></button>
                                 </div>
                             </div>
                         </div>
 
-                        <h6 class="text-secondary border-bottom pb-2 mb-3 mt-4">Government IDs</h6>
+                        <h6 class="text-secondary border-bottom pb-2 mb-3 mt-4"><?= lang('government_ids') ?></h6>
                         <div class="row g-3">
                             <div class="col-md-3">
-                                <label class="form-label">SSS No</label>
+                                <label class="form-label"><?= lang('sss_no') ?></label>
                                 <input type="text" name="sss_no" class="form-control" value="<?php echo val('sss_no'); ?>" pattern="[0-9\-]+" title="Allowed: Numbers and dashes" oninput="this.value = this.value.replace(/[^0-9\-]/g, '')" maxlength="20">
                             </div>
                             <div class="col-md-3">
-                                <label class="form-label">TIN No</label>
+                                <label class="form-label"><?= lang('tin_no') ?></label>
                                 <input type="text" name="tin_no" class="form-control" value="<?php echo val('tin_no'); ?>" pattern="[0-9\-]+" title="Allowed: Numbers and dashes" oninput="this.value = this.value.replace(/[^0-9\-]/g, '')" maxlength="20">
                             </div>
                             <div class="col-md-3">
-                                <label class="form-label">PhilHealth</label>
+                                <label class="form-label"><?= lang('philhealth') ?></label>
                                 <input type="text" name="philhealth_no" class="form-control" value="<?php echo val('philhealth_no'); ?>" pattern="[0-9\-]+" title="Allowed: Numbers and dashes" oninput="this.value = this.value.replace(/[^0-9\-]/g, '')" maxlength="20">
                             </div>
                             <div class="col-md-3">
-                                <label class="form-label">Pag-IBIG</label>
+                                <label class="form-label"><?= lang('pagibig') ?></label>
                                 <input type="text" name="pagibig_no" class="form-control" value="<?php echo val('pagibig_no'); ?>" pattern="[0-9\-]+" title="Allowed: Numbers and dashes" oninput="this.value = this.value.replace(/[^0-9\-]/g, '')" maxlength="20">
                             </div>
                         </div>
@@ -1100,40 +977,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <h6 class="text-secondary border-bottom pb-2 mb-3 mt-4">Emergency Contact</h6>
                         <div class="row g-3">
                             <div class="col-md-6">
-                                <label class="form-label">Name</label>
+                                <label class="form-label"><?= lang('name') ?></label>
                                 <input type="text" name="emergency_name" class="form-control" value="<?php echo val('emergency_name'); ?>" oninput="this.value = this.value.replace(/[^a-zA-Z\s\-\.\']/g, ''); capitalize(this)" pattern="[a-zA-Z\s\-\.\']+" title="Allowed: Letters, spaces, dots, dashes, apostrophes" maxlength="100">
                             </div>
                             <div class="col-md-6">
-                                <label class="form-label">Contact No</label>
+                                <label class="form-label"><?= lang('contact_no') ?></label>
                                 <input type="text" name="emergency_contact" class="form-control" maxlength="25" value="<?php echo val('emergency_contact'); ?>" oninput="this.value = this.value.replace(/[^0-9+\-\s()\/]/g, '')" pattern="[0-9+\-\s()\/]" title="Allowed: Numbers, +, -, /, ( )">
                                 <div class="form-text small">Max 25 chars. Allowed: Numbers, +, -, /, ( )</div>
                             </div>
                             <div class="col-12">
-                                <label class="form-label">Address</label>
+                                <label class="form-label"><?= lang('address') ?></label>
                                 <input type="text" name="emergency_address" class="form-control" value="<?php echo val('emergency_address'); ?>" maxlength="150" pattern="[a-zA-Z0-9\s\.,\-\/#\(\)\']+" title="Allowed: A-Z, 0-9, . , - / # ( ) '" oninput="this.value = this.value.replace(/[^a-zA-Z0-9\s\.,\-\/#\(\)\']/g, '')">
                                 <div class="form-text small">Max 150 chars.</div>
                             </div>
                         </div>
 
-                        <h6 class="text-secondary border-bottom pb-2 mb-3 mt-4">Qualifications & Educational Background</h6>
+                        <h6 class="text-secondary border-bottom pb-2 mb-3 mt-4"><?= lang('qualifications_education') ?></h6>
                         <div class="row g-3">
                             <div class="col-12">
-                                <label class="form-label">Education</label>
+                                <label class="form-label"><?= lang('education') ?></label>
                                 <textarea name="education" class="form-control" rows="2" maxlength="1000" spellcheck="true" lang="en" style="text-align: center; white-space: pre-wrap; word-wrap: break-word;" oninput="this.value = this.value.replace(/[^a-zA-Z0-9\s\.,\-\(\)\/\':]/g, '')"><?php echo val('education'); ?></textarea>
                                 <div class="form-text small text-center">Max 1000 chars. Text auto-wraps. Press Enter for new lines.</div>
                             </div>
                             <div class="col-12">
-                                <label class="form-label">Experience</label>
+                                <label class="form-label"><?= lang('experience') ?></label>
                                 <textarea name="experience" class="form-control" rows="2" maxlength="1000" spellcheck="true" lang="en" style="text-align: center; white-space: pre-wrap; word-wrap: break-word;" oninput="this.value = this.value.replace(/[^a-zA-Z0-9\s\.,\-\(\)\/\':]/g, '')"><?php echo val('experience'); ?></textarea>
                                 <div class="form-text small text-center">Max 1000 chars. Text auto-wraps. Press Enter for new lines.</div>
                             </div>
                             <div class="col-md-6">
-                                <label class="form-label">Skills</label>
+                                <label class="form-label"><?= lang('skills') ?></label>
                                 <textarea name="skills" class="form-control" rows="2" maxlength="1000" spellcheck="true" lang="en" style="text-align: center; white-space: pre-wrap; word-wrap: break-word;" oninput="this.value = this.value.replace(/[^a-zA-Z0-9\s\.,\-\(\)\/\':]/g, '')"><?php echo val('skills'); ?></textarea>
                                 <div class="form-text small text-center">Max 1000 chars. Text auto-wraps. Press Enter for new lines.</div>
                             </div>
                             <div class="col-md-6">
-                                <label class="form-label">Licenses / Certifications</label>
+                                <label class="form-label"><?= lang('licenses_certifications') ?></label>
                                 <textarea name="licenses" class="form-control" rows="2" maxlength="1000" spellcheck="true" lang="en" style="text-align: center; white-space: pre-wrap; word-wrap: break-word;" oninput="this.value = this.value.replace(/[^a-zA-Z0-9\s\.,\-\(\)\/\':]/g, '')"><?php echo val('licenses'); ?></textarea>
                                 <div class="form-text small">Max 1000 chars. Type N/A if not applicable. Press Enter for new lines.</div>
                             </div>
@@ -1141,27 +1018,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                         <?php if (($_SESSION['role'] ?? '') === 'STAFF'): ?>
                             <div class="alert alert-warning mt-3">
-                                <label class="form-label fw-bold">Note for Admin</label>
-                                <textarea name="request_note" class="form-control" rows="2" placeholder="Reason for changes..." style="text-align: center; white-space: pre-wrap; word-wrap: break-word;" maxlength="500"></textarea>
+                                <label class="form-label fw-bold"><?= lang('note_for_admin') ?></label>
+                                <textarea name="request_note" class="form-control" rows="2" placeholder="<?= lang('reason_for_changes') ?>" style="text-align: center; white-space: pre-wrap; word-wrap: break-word;" maxlength="500"></textarea>
                             </div>
                         <?php endif; ?>
 
                         <div class="mt-4 d-flex gap-2">
-                            <button type="submit" name="save_action" value="stay" class="btn btn-success btn-lg flex-grow-1">Save Changes</button>
-                            <a href="index.php" class="btn btn-secondary btn-lg">Cancel</a>
+                            <button type="submit" name="save_action" value="stay" class="btn btn-success btn-lg flex-grow-1"><?= lang('save_changes') ?></button>
+                            <a href="index.php" class="btn btn-secondary btn-lg"><?= lang('cancel') ?></a>
                         </div>
                     </form>
 
-                    <?php if (in_array($_SESSION['role'], ['ADMIN', 'MANAGER', 'HR', 'STAFF']) && ($emp['employment_type'] === 'TESP Direct' || $emp['agency_name'] === 'TESP')): ?>
+                    <?php if (in_array($_SESSION['role'], ['ADMIN', 'MANAGER', 'HR', 'STAFF'])): ?>
                         <hr class="my-4">
                         <div class="card border-primary shadow-sm">
                             <div class="card-body d-flex justify-content-between align-items-center">
                                 <div>
-                                    <h6 class="fw-bold text-primary mb-1">📄 Document Generator</h6>
-                                    <small class="text-muted">Create legal PDFs for this employee instantly.</small>
+                                    <h6 class="fw-bold text-primary mb-1">📄 <?= lang('document_generator') ?></h6>
+                                    <small class="text-muted"><?= lang('generate_legal_pdfs') ?></small>
                                 </div>
                                 <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#docModal">
-                                    <i class="bi bi-file-earmark-pdf-fill"></i> Generate Document
+                                    <i class="bi bi-file-earmark-pdf-fill"></i> <?= lang('generate_document') ?>
                                 </button>
                             </div>
                         </div>
@@ -1171,8 +1048,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <hr class="my-5">
                         <div class="card border-danger shadow-sm">
                             <div class="card-body d-flex justify-content-between align-items-center">
-                                <div class="text-danger fw-bold">⚠️ Danger Zone</div>
-                                <button type="button" class="btn btn-outline-danger btn-sm" onclick="confirmDelete(<?php echo $id; ?>)">Delete Employee</button>
+                                <div class="text-danger fw-bold">⚠️ <?= lang('danger_zone') ?></div>
+                                <button type="button" class="btn btn-outline-danger btn-sm" onclick="confirmDelete(<?php echo $id; ?>)"><?= lang('delete_employee') ?></button>
                             </div>
                         </div>
                     <?php endif; ?>
@@ -1214,13 +1091,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <div class="list-group">
                             <?php foreach ($myDocs as $d): ?>
                                 <?php
-                                // [FIX] Define $displayName and add visual version tracking
-                                $displayName = htmlspecialchars($d['original_name'], ENT_QUOTES, 'UTF-8');
+                                // [NEW] Check if this specific file is uncategorized
+                                $isThisDocUncategorized = true;
+                                $fCat = trim($d['category'] ?? '');
+                                $fName = $d['original_name'];
+                                foreach ($REQUIRED_DOCS as $reqName => $keywords) {
+                                    if (strcasecmp($fCat, $reqName) === 0) {
+                                        $isThisDocUncategorized = false;
+                                        break;
+                                    }
+                                    foreach ($keywords as $k) {
+                                        if ($k !== '' && (stripos($fName, $k) !== false || stripos($fCat, $k) !== false)) {
+                                            $isThisDocUncategorized = false;
+                                            break 2;
+                                        }
+                                    }
+                                }
+
+                                // UI UPGRADE: Highlight Version Numbers (-001, -002)
+                                $displayName = h($d['original_name']);
                                 if (preg_match('/(-(\d{3}))(\.[^.]+)$/', $displayName, $vMatches)) {
                                     $versionPart = '<span class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary ms-1" style="font-size: 0.7rem;">Ver ' . $vMatches[2] . '</span>';
                                     $displayName = str_replace($vMatches[1], '', $displayName) . $versionPart;
+                                } else {
+                                    $versionPart = '';
                                 }
-                                $isThisDocUncategorized = isDocUncategorized($d, $REQUIRED_DOCS);
                                 ?>
                                 <div class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
                                     <div>
@@ -1825,29 +1720,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </div>
 </div>
 
-<!-- GENERIC EDIT MODAL (Used for naming consistency) -->
-<div class="modal fade" id="genericEditModal" tabindex="-1">
-    <div class="modal-dialog">
-        <form method="POST" class="modal-content">
-            <div class="modal-header bg-primary text-white">
-                <h5 class="modal-title">Rename <span id="genericTypeLabel">Item</span></h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <input type="hidden" name="csrf_token" value="<?php echo h($_SESSION['csrf_token']); ?>">
-                <input type="hidden" name="action" id="genericAction">
-                <input type="hidden" name="id" id="genericId">
-                <label class="form-label fw-bold">New Name <span class="text-danger">*</span></label>
-                <input type="text" name="name" id="genericNameInput" class="form-control" required maxlength="100" pattern="[a-zA-Z0-9\s\-\.\,\(\)\/\&']+" title="Alphanumeric and basic punctuation allowed">
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button type="submit" class="btn btn-primary">Save Changes</button>
-            </div>
-        </form>
-    </div>
-</div>
-
 <script src="assets/bootstrap.bundle.min.js"></script>
 <script>
     // Logic for Sections and Auto-Capitalize
@@ -1905,21 +1777,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (words[i].length > 0) words[i] = words[i].charAt(0).toUpperCase() + words[i].slice(1).toLowerCase();
         }
         input.value = words.join(' ');
-    }
-
-    function addGroup(val) {
-        const picker = document.getElementById('groupPicker');
-        const input = document.getElementById('group');
-        const value = val ? val.trim() : '';
-        if (!value) return;
-
-        const current = input.value;
-        const items = current ? current.split(',').map(item => item.trim()).filter(item => item !== '') : [];
-        if (!items.includes(value)) {
-            items.push(value);
-            input.value = items.join(', ');
-        }
-        picker.value = "";
     }
 
     // [NEW] Multi-Section Logic
@@ -2015,19 +1872,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         document.getElementById('edit_evaluator').value = evaluator;
         document.getElementById('edit_remarks').value = remarks;
         new bootstrap.Modal(document.getElementById('editEvalModal')).show();
-    }
-
-    // [FIX] Define togglePass function for the ZIP password field
-    function togglePass(id) {
-        const input = document.getElementById(id);
-        const icon = input.nextElementSibling.querySelector('i');
-        if (input.type === 'password') {
-            input.type = 'text';
-            icon.classList.replace('bi-eye', 'bi-eye-slash');
-        } else {
-            input.type = 'password';
-            icon.classList.replace('bi-eye-slash', 'bi-eye');
-        }
     }
 
     // [NEW] Tab Persistence Logic

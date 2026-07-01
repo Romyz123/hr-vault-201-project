@@ -616,15 +616,15 @@ if ($filter_doc_cat !== '') {
         $subConditions = ["category = ?", "category LIKE ?"];
         $subParams = [$filter_doc_cat, "%$filter_doc_cat%"];
         $keywords = $REQUIRED_DOCS[$filter_doc_cat] ?? [];
-        foreach ($keywords as $k) {
-            if ($k === '') continue;
+        foreach ($keywords as $k) { // [FIX] Trim keyword to avoid issues with whitespace
+            if (empty(trim($k))) continue;
             $subConditions[] = "original_name LIKE ?";
             $subConditions[] = "category LIKE ?";
             $subParams[] = "%$k%";
             $subParams[] = "%$k%";
         }
         $docTableFilter = $hasDeletedAtColumn ? "deleted_at IS NULL AND " : "";
-        $where[] = "emp_id IN (SELECT employee_id FROM documents WHERE $docTableFilter (" . implode(' OR ', $subConditions) . "))";
+        $where[] = "EXISTS (SELECT 1 FROM documents WHERE documents.employee_id = employees.emp_id AND $docTableFilter (" . implode(' OR ', $subConditions) . "))";
         $params = array_merge($params, $subParams);
     }
 }
@@ -671,33 +671,10 @@ $empStmt->bindValue($paramIndex++, $offset,  PDO::PARAM_INT);
 $empStmt->execute();
 $employees = $empStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
-// ---------- 8.5) SPREADSHEET DATA AGGREGATION ----------
-// Detect which optional columns actually exist in this DB
-$optionalCols    = ['system_role', 'email', 'contact_number', 'sss_no', 'tin_no', 'philhealth_no', 'pagibig_no'];
-$existingOptCols = [];
-try {
-    $dbCols = $pdo->query("SHOW COLUMNS FROM `employees`")->fetchAll(PDO::FETCH_COLUMN);
-    foreach ($optionalCols as $c) {
-        if (in_array($c, $dbCols, true)) $existingOptCols[] = $c;
-    }
-} catch (Exception $e) { /* Fallback to core columns only */
-}
-
-// Build SELECT using only columns confirmed to exist
-$coreCols  = ['id', 'emp_id', 'first_name', 'last_name', 'job_title', 'dept', 'section', 'agency_name', 'employment_type', 'hire_date', 'status'];
-$allCols   = array_merge($coreCols, $existingOptCols);
-$selectSql = implode(', ', array_map(fn($c) => "`$c`", $allCols));
-
-// Use the SAME $whereSql and $params as the card view for consistency
-$allEmpStmt = $pdo->prepare("SELECT {$selectSql} FROM employees {$whereSql} ORDER BY {$orderBy}");
-$pi = 1;
-foreach ($params as $v) $allEmpStmt->bindValue($pi++, $v);
-$allEmpStmt->execute();
-$allEmployees = $allEmpStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
-
-// JSON-encode safely for embedding into JS
-$spreadsheetJson     = json_encode($allEmployees, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT);
-$existingOptColsJson = json_encode($existingOptCols);
+// [OPTIMIZATION] Spreadsheet data has been removed from initial page load.
+// This data should be loaded asynchronously via a dedicated API to prevent memory issues.
+$spreadsheetJson     = '[]';
+$existingOptColsJson = '[]';
 
 // ---------- 8.7) FETCH RECENT ACTIVITY (Recent Uploads) ----------
 $recentActivity = [];
@@ -758,39 +735,39 @@ try {
 
 // ---------- 10) CHART DATA (simple counts by category) ----------
 // Fetch all active documents for active employees
-$docsForStatsSql = "SELECT d.category, d.original_name FROM documents d 
-                    INNER JOIN employees e ON d.employee_id = e.emp_id 
-                    WHERE 1=1";
-if ($hasEmpDeletedAt) $docsForStatsSql .= " AND e.deleted_at IS NULL";
-if ($hasDeletedAtColumn) $docsForStatsSql .= " AND d.deleted_at IS NULL";
-$docsForStats = $pdo->query($docsForStatsSql)->fetchAll(PDO::FETCH_ASSOC);
-// Process categorization in PHP to support keyword matching (Sync with Tracker)
-$stats = array_fill_keys(array_keys($REQUIRED_DOCS), 0);
-$stats['Uncategorized'] = 0;
+$stats = array_fill_keys(array_keys($REQUIRED_DOCS), 0); // Initialize all categories with 0
+$stats['Uncategorized'] = 0; // Ensure Uncategorized is always present
 
-foreach ($docsForStats as $doc) {
-    $matched = false;
-    $cat = trim($doc['category'] ?? '');
-    $name = $doc['original_name'];
-
-    foreach ($REQUIRED_DOCS as $reqName => $keywords) {
-        if (strcasecmp($cat, $reqName) === 0) {
-            $matched = true;
-        } else {
-            foreach ($keywords as $k) {
-                if ($k !== '' && (stripos($name, $k) !== false || stripos($cat, $k) !== false)) {
-                    $matched = true;
-                    break;
-                }
-            }
-        }
-        if ($matched) {
-            $stats[$reqName]++;
-            break;
-        }
+// [OPTIMIZATION] Build a single SQL query to categorize and count in the database
+$caseSql = "SELECT CASE \n";
+foreach ($REQUIRED_DOCS as $reqName => $keywords) {
+    $conditions = [];
+    $conditions[] = "d.category = " . $pdo->quote($reqName);
+    foreach ($keywords as $k) {
+        if (empty(trim($k))) continue;
+        $conditions[] = "d.original_name LIKE " . $pdo->quote('%' . trim($k) . '%');
+        $conditions[] = "d.category LIKE " . $pdo->quote('%' . trim($k) . '%');
     }
-    if (!$matched) $stats['Uncategorized']++;
+    $caseSql .= "    WHEN " . implode(" OR ", $conditions) . " THEN " . $pdo->quote($reqName) . "\n";
 }
+$caseSql .= "    ELSE 'Uncategorized' \nEND";
+
+$docTableFilter = $hasDeletedAtColumn ? " AND d.deleted_at IS NULL" : "";
+$empTableFilter = $hasEmpDeletedAt ? " AND e.deleted_at IS NULL" : "";
+
+$statsSql = "
+    SELECT ($caseSql) as doc_group, COUNT(*) as doc_count
+    FROM documents d
+    INNER JOIN employees e ON d.employee_id = e.emp_id
+    WHERE 1=1 $empTableFilter $docTableFilter
+    GROUP BY doc_group
+";
+
+$dbStats = $pdo->query($statsSql)->fetchAll(PDO::FETCH_KEY_PAIR);
+
+// Merge DB results into our initialized array to ensure all categories are present
+$stats = array_merge($stats, $dbStats);
+
 $labels = json_encode(array_values(array_keys($stats)), JSON_UNESCAPED_UNICODE);
 $data   = json_encode(array_values($stats),            JSON_UNESCAPED_UNICODE);
 

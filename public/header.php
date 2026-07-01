@@ -15,6 +15,9 @@ if (!isset($pdo)) {
 // [FIX] Include global helper functions
 require_once __DIR__ . '/../src/helpers.php';
 
+// [NEW] Load language file for localization
+load_language('en'); // Default to English
+
 // [FIX] Ensure checkSessionTimeout is defined before calling it
 if (!function_exists('checkSessionTimeout')) {
     require_once __DIR__ . '/../config/db.php';

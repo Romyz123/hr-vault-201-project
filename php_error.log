@@ -1277,3 +1277,58 @@ Stack trace:
 Stack trace:
 #0 {main}
   thrown in C:\xampp\htdocs\hr 201\public\manage_hierarchy.php on line 231
+[24-Jun-2026 18:56:13 Asia/Manila] PHP Fatal error:  Uncaught Error: Call to undefined function val() in C:\xampp\htdocs\hr 201\public\edit_employee.php:902
+Stack trace:
+#0 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\edit_employee.php on line 902
+[24-Jun-2026 18:56:44 Asia/Manila] PHP Fatal error:  Uncaught Error: Call to undefined function val() in C:\xampp\htdocs\hr 201\public\edit_employee.php:902
+Stack trace:
+#0 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\edit_employee.php on line 902
+[24-Jun-2026 19:03:46 Asia/Manila] PHP Fatal error:  Uncaught Error: Call to undefined function val() in C:\xampp\htdocs\hr 201\public\edit_employee.php:902
+Stack trace:
+#0 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\edit_employee.php on line 902
+[24-Jun-2026 19:03:52 Asia/Manila] PHP Fatal error:  Uncaught Error: Call to undefined function val() in C:\xampp\htdocs\hr 201\public\edit_employee.php:902
+Stack trace:
+#0 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\edit_employee.php on line 902
+[24-Jun-2026 19:10:18 Asia/Manila] PHP Fatal error:  Uncaught Error: Call to undefined function val() in C:\xampp\htdocs\hr 201\public\edit_employee.php:902
+Stack trace:
+#0 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\edit_employee.php on line 902
+[24-Jun-2026 19:18:16 Asia/Manila] PHP Fatal error:  Uncaught Error: Call to undefined function val() in C:\xampp\htdocs\hr 201\public\edit_employee.php:902
+Stack trace:
+#0 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\edit_employee.php on line 902
+[26-Jun-2026 14:48:52 Asia/Manila] PHP Fatal error:  Uncaught TypeError: Cannot access offset of type string on string in C:\xampp\htdocs\hr 201\public\manage_hierarchy.php:231
+Stack trace:
+#0 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\manage_hierarchy.php on line 231
+[26-Jun-2026 14:50:22 Asia/Manila] PHP Warning:  require(footer.php): Failed to open stream: No such file or directory in C:\xampp\htdocs\hr 201\public\data_validation_report.php on line 225
+[26-Jun-2026 14:50:22 Asia/Manila] PHP Fatal error:  Uncaught Error: Failed opening required 'footer.php' (include_path='C:\xampp\php\PEAR') in C:\xampp\htdocs\hr 201\public\data_validation_report.php:225
+Stack trace:
+#0 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\data_validation_report.php on line 225
+[26-Jun-2026 16:40:00 Asia/Manila] PHP Fatal error:  Uncaught TypeError: Cannot access offset of type string on string in C:\xampp\htdocs\hr 201\public\manage_hierarchy.php:231
+Stack trace:
+#0 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\manage_hierarchy.php on line 231
+[26-Jun-2026 16:42:12 Asia/Manila] PHP Fatal error:  Uncaught TypeError: Cannot access offset of type string on string in C:\xampp\htdocs\hr 201\public\manage_hierarchy.php:231
+Stack trace:
+#0 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\manage_hierarchy.php on line 231
+[26-Jun-2026 16:42:28 Asia/Manila] PHP Fatal error:  Uncaught TypeError: Cannot access offset of type string on string in C:\xampp\htdocs\hr 201\public\manage_hierarchy.php:231
+Stack trace:
+#0 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\manage_hierarchy.php on line 231
+[26-Jun-2026 16:58:29 Asia/Manila] PHP Warning:  require(footer.php): Failed to open stream: No such file or directory in C:\xampp\htdocs\hr 201\public\data_validation_report.php on line 225
+[26-Jun-2026 16:58:29 Asia/Manila] PHP Fatal error:  Uncaught Error: Failed opening required 'footer.php' (include_path='C:\xampp\php\PEAR') in C:\xampp\htdocs\hr 201\public\data_validation_report.php:225
+Stack trace:
+#0 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\data_validation_report.php on line 225
+[27-Jun-2026 13:00:44 Asia/Manila] PHP Fatal error:  Uncaught Error: Call to undefined function load_language() in C:\xampp\htdocs\hr 201\public\header.php:19
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\index.php(830): require()
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\header.php on line 19

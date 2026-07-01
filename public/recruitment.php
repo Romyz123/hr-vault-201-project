@@ -66,18 +66,21 @@ function sendSMS($phone, $message)
     curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($parameters));
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     $output = curl_exec($ch);
-    curl_close($ch);
+    $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
 
     if ($output === false) {
         error_log("[SMS ERROR] Semaphore API call failed: " . curl_error($ch));
+        curl_close($ch);
         return false;
     }
+    curl_close($ch); // Close handle after checking for cURL errors
 
     $response = json_decode($output, true);
-    if (isset($response['status']) && $response['status'] === 'success') {
+    // A successful response is a 2xx HTTP code and a JSON array. An error is a JSON object.
+    if ($http_code >= 200 && $http_code < 300 && is_array($response) && !isset($response['errors'])) {
         return true;
     } else {
-        error_log("[SMS ERROR] Semaphore API returned error: " . $output);
+        error_log("[SMS ERROR] Semaphore API returned HTTP {$http_code} with response: " . $output);
         return false;
     }
 }

@@ -37,6 +37,22 @@ if (!function_exists('post')) {
     }
 }
 
+if (!function_exists('val')) {
+    function val($key)
+    {
+        global $emp; // Requires $emp to be declared global in the calling script
+        $value = $_POST[$key] ?? $emp[$key] ?? '';
+        return htmlspecialchars((string)$value, ENT_QUOTES, 'UTF-8');
+    }
+}
+if (!function_exists('raw')) {
+    function raw($key)
+    {
+        global $emp; // Requires $emp to be declared global in the calling script
+        return (string)($_POST[$key] ?? $emp[$key] ?? '');
+    }
+}
+
 // The 'old' function relies on a global $old array, which is typically set
 // in add_employee.php and edit_employee.php. It's defined here for centralization.
 if (!function_exists('old')) {
@@ -47,6 +63,43 @@ if (!function_exists('old')) {
     }
 }
 
+// [NEW] Localization Functions
+if (!function_exists('load_language')) {
+    /**
+     * Loads a language file into a global variable.
+     *
+     * @param string $lang The language code (e.g., 'en', 'tl').
+     * @return void
+     */
+    function load_language(string $lang = 'en'): void
+    {
+        global $LANG;
+        $lang_file = __DIR__ . "/../src/locale/{$lang}.php";
+
+        if (file_exists($lang_file)) {
+            $LANG = require $lang_file;
+        } else {
+            // Fallback to English if the requested language file doesn't exist
+            $en_file = __DIR__ . "/../src/locale/en.php";
+            $LANG = file_exists($en_file) ? require $en_file : [];
+        }
+    }
+}
+
+if (!function_exists('lang')) {
+    /**
+     * Retrieves a string from the loaded language array.
+     *
+     * @param string $key The key of the string to retrieve.
+     * @return string The translated string or the key itself.
+     */
+    function lang(string $key): string
+    {
+        global $LANG;
+        // Return the translated string, or the key itself as a last resort
+        return h($LANG[$key] ?? ucwords(str_replace('_', ' ', $key)));
+    }
+}
 if (!function_exists('isDocUncategorized')) {
     /**
      * Checks if a document is uncategorized based on predefined rules.

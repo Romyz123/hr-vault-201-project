@@ -149,160 +149,117 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 // Sanitize key
                 $key = preg_replace('/[^a-zA-Z0-9_]/', '', (string)$key);
 
-                // Skip checkboxes as they are already handled safely above
                 if (in_array($key, $checkboxes, true)) {
                     continue;
                 }
 
-                // Handle array inputs (like approval_widgets)
                 if (is_array($value)) {
                     $value = json_encode(array_map(fn($v) => trim((string)$v), $value));
                     $updates[$key] = $value;
                     continue;
                 }
-
                 $value = trim((string)$value);
 
-                // Handle backup password
-                if ($key === 'backup_password') {
-                    if (isset($_POST['clear_backup_password'])) {
-                        $value = '';
-                    } elseif ($value === '') {
-                        // Preserve existing password if user left it blank
-                        $value = $currentBackupPassword;
-                    } else {
-                        if (strlen($value) > 50) {
-                            $errors[] = "ZIP Password is too long (Max 50 chars).";
-                        } elseif (strlen($value) < 8) {
-                            $errors[] = "ZIP Password must be at least 8 characters.";
-                        }
-                    }
-                }
-
-                // Validate Backup Schedule Format
-                if ($key === 'backup_time') {
-                    if (!empty($value) && !preg_match('/^(?:[01]\d|2[0-3]):[0-5]\d$/', $value)) {
-                        $errors[] = "Invalid Backup Time format. Expected HH:MM (24-hour).";
-                    }
-                }
-
-                if ($key === 'backup_day') {
-                    $allowedDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-                    if (!empty($value) && !in_array($value, $allowedDays, true)) {
-                        $errors[] = "Invalid Backup Day selected.";
-                    }
-                }
-
-                // Strict Path Validation for Backups (Prevent Directory Traversal)
-                if ($key === 'backup_path' || $key === 'secondary_backup_path') {
-                    $clean = str_replace("\0", '', $value);
-
-                    if ($clean === '') {
-                        $value = '';
-                    } else {
-                        // 1) Block Traversal Sequences and protocol wrappers
-                        if (strpos($clean, '..') !== false || preg_match('/[<>:"|?*]/', $clean) || strpos($clean, '://') !== false) {
-                            $errors[] = "Invalid path format: Directory traversal or protocol wrappers detected.";
+                // [FIX] Use a switch statement for clear, organized validation
+                switch ($key) {
+                    case 'backup_password':
+                        if (isset($_POST['clear_backup_password'])) {
+                            $value = '';
+                        } elseif ($value === '') {
+                            $value = $currentBackupPassword; // Preserve existing if blank
                         } else {
-                            // 2) System Folder Blacklist
-                            $normPath = str_replace(['/', '\\'], DIRECTORY_SEPARATOR, $clean);
-
-                            foreach ($forbidden as $f) {
-                                // Normalize forbidden entries too (helps on Windows)
-                                $fNorm = str_replace(['/', '\\'], DIRECTORY_SEPARATOR, $f);
-                                if (stripos($normPath, $fNorm) === 0) {
-                                    $errors[] = "Access Denied: Cannot target sensitive system directory '$f'.";
-                                    break;
-                                }
-                            }
+                            if (strlen($value) > 50) $errors[] = "ZIP Password is too long (Max 50 chars).";
+                            elseif (strlen($value) < 8) $errors[] = "ZIP Password must be at least 8 characters.";
                         }
+                        break;
 
-                        // 3) Resolve and verify if path exists (only if no errors found yet)
-                        if (empty($errors) && file_exists($clean)) {
-                            $resolved = realpath($clean);
+                    case 'backup_time':
+                        if (!empty($value) && !preg_match('/^(?:[01]\d|2[0-3]):[0-5]\d$/', $value)) {
+                            $errors[] = "Invalid Backup Time format. Expected HH:MM (24-hour).";
+                        }
+                        break;
 
-                            if ($resolved) {
+                    case 'backup_day':
+                        $allowedDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+                        if (!empty($value) && !in_array($value, $allowedDays, true)) {
+                            $errors[] = "Invalid Backup Day selected.";
+                        }
+                        break;
+
+                    case 'company_president':
+                    case 'default_project_name':
+                    case 'default_notice_place':
+                        if (strlen($value) > 100) $errors[] = "Field '$key' is too long (Max 100 chars).";
+                        elseif (!empty($value) && !preg_match("/^[a-zA-Z0-9\s\-\.\,()'\p{L}]+$/u", $value)) {
+                            $errors[] = "Field '$key' contains invalid characters.";
+                        }
+                        break;
+
+                    case 'backup_path':
+                    case 'secondary_backup_path':
+                        $clean = str_replace("\0", '', $value);
+                        if ($clean !== '') {
+                            if (strpos($clean, '..') !== false || preg_match('/[<>"|?*]/', $clean) || strpos($clean, '://') !== false) {
+                                $errors[] = "Invalid path format: Directory traversal or protocol wrappers detected.";
+                            } else {
+                                $normPath = str_replace(['/', '\\'], DIRECTORY_SEPARATOR, $clean);
                                 foreach ($forbidden as $f) {
                                     $fNorm = str_replace(['/', '\\'], DIRECTORY_SEPARATOR, $f);
-                                    if (stripos($resolved, $fNorm) === 0) {
-                                        $errors[] = "Resolved backup path targets a forbidden system directory.";
+                                    if (stripos($normPath, $fNorm) === 0) {
+                                        $errors[] = "Access Denied: Cannot target sensitive system directory '$f'.";
                                         break;
                                     }
                                 }
-
-                                if (empty($errors)) {
-                                    if (!is_dir($resolved)) {
-                                        $errors[] = "Backup path exists but is not a directory.";
-                                    } elseif (!is_writable($resolved)) {
-                                        $errors[] = "Backup path exists but is not writable by the web server.";
-                                    }
-                                }
                             }
                         }
-
                         $value = $clean;
-                    }
-                }
+                        break;
 
-                // Validate Alert Email Length and Format
-                if ($key === 'backup_alert_email') {
-                    if (strlen($value) > 100) {
-                        $errors[] = "Alert Email is too long (Max 100 chars).";
-                    } elseif (!empty($value) && !filter_var($value, FILTER_VALIDATE_EMAIL)) {
-                        $errors[] = "Invalid Alert Email format.";
-                    }
-                }
+                    case 'backup_alert_email':
+                        if (strlen($value) > 100) $errors[] = "Alert Email is too long (Max 100 chars).";
+                        elseif (!empty($value) && !filter_var($value, FILTER_VALIDATE_EMAIL)) $errors[] = "Invalid Alert Email format.";
+                        break;
 
-                // Validation for timeouts/intervals
-                if (strpos($key, 'timeout') !== false || strpos($key, 'interval') !== false) {
-                    if (!is_numeric($value) || (int)$value < 10) {
-                        $errors[] = "Timeout/Interval values must be numeric and at least 10 seconds.";
-                    }
-                    $value = (int)$value;
-                    if ($key === 'auto_refresh_interval' && $value > 3600) {
-                        $value = 3600; // Cap at 3600s
-                    }
-                }
+                    case 'session_timeout_server':
+                    case 'session_timeout_client':
+                    case 'auto_refresh_interval':
+                        if (!is_numeric($value) || (int)$value < 10) $errors[] = "Timeout/Interval values must be numeric and at least 10 seconds.";
+                        $value = (int)$value;
+                        if ($key === 'auto_refresh_interval' && $value > 3600) $value = 3600;
+                        break;
 
-                // Validation for margins
-                if (strpos($key, 'margin') !== false) {
-                    $value = preg_replace('/[^0-9]/', '', (string)$value);
-                    if ($value === '' || (int)$value > 500) {
-                        $value = '500';
-                    }
-                }
+                    case 'bulk_margin_left':
+                    case 'bulk_margin_right':
+                        $value = preg_replace('/[^0-9]/', '', (string)$value);
+                        if ($value === '' || (int)$value > 500) $value = '500';
+                        break;
 
-                // Validate font size
-                if ($key === 'document_font_size') {
-                    $value = preg_replace('/[^0-9\.]/', '', (string)$value);
-                    if ($value === '' || (float)$value < 8 || (float)$value > 24) {
-                        $value = '11';
-                    }
-                }
+                    case 'document_font_size':
+                        $value = preg_replace('/[^0-9\.]/', '', (string)$value);
+                        if ($value === '' || (float)$value < 8 || (float)$value > 24) $value = '11';
+                        break;
 
-                // Validate Vault Size Limit
-                if ($key === 'vault_size_limit_gb') {
-                    $value = (float)$value;
-                    if ($value < 0) $value = 0;
-                    if ($value > $diskTotalGB) $value = (float)$diskTotalGB;
-                }
+                    case 'vault_size_limit_gb':
+                        $value = (float)$value;
+                        if ($value < 0) $value = 0;
+                        if ($value > $diskTotalGB) $value = (float)$diskTotalGB;
+                        break;
 
-                // Validate Max Backup Size
-                if ($key === 'backup_max_size_gb') {
-                    $newBackupPath = rtrim(trim($_POST['settings']['backup_path'] ?? ''), '\\/');
-                    $valBackupPathForDisk = (!empty($newBackupPath) && file_exists($newBackupPath))
-                        ? realpath($newBackupPath)
-                        : realpath(__DIR__ . '/../backups');
+                    case 'backup_max_size_gb':
+                        $newBackupPath = rtrim(trim($_POST['settings']['backup_path'] ?? ''), '\\/');
+                        $valBackupPathForDisk = (!empty($newBackupPath) && file_exists($newBackupPath)) ? realpath($newBackupPath) : realpath(__DIR__ . '/../backups');
+                        if (!$valBackupPathForDisk) $valBackupPathForDisk = __DIR__;
+                        $valBackupDiskBytes = @disk_total_space($valBackupPathForDisk);
+                        $valBackupDiskGB = $valBackupDiskBytes ? floor($valBackupDiskBytes / 1024 / 1024 / 1024) : 1000;
+                        if ($valBackupDiskGB < 1) $valBackupDiskGB = 1;
+                        $value = (float)$value;
+                        if ($value < 0.01) $value = 0.01;
+                        if ($value > $valBackupDiskGB) $value = (float)$valBackupDiskGB;
+                        break;
 
-                    if (!$valBackupPathForDisk) $valBackupPathForDisk = __DIR__;
-
-                    $valBackupDiskBytes = @disk_total_space($valBackupPathForDisk);
-                    $valBackupDiskGB    = $valBackupDiskBytes ? floor($valBackupDiskBytes / 1024 / 1024 / 1024) : 1000;
-                    if ($valBackupDiskGB < 1) $valBackupDiskGB = 1;
-
-                    $value = (float)$value;
-                    if ($value < 0.01) $value = 0.01;
-                    if ($value > $valBackupDiskGB) $value = (float)$valBackupDiskGB;
+                    default:
+                        // Any other keys are ignored to prevent unexpected data saving.
+                        break;
                 }
 
                 $updates[$key] = $value;
@@ -350,7 +307,7 @@ try {
 $serverTimeout    = $currentSettings['session_timeout_server'] ?? 1800;
 $clientTimeout    = $currentSettings['session_timeout_client'] ?? 900;
 $refreshInterval  = $currentSettings['auto_refresh_interval'] ?? 60;
-$companyPresident = $currentSettings['company_president'] ?? 'JUNJI FURUYA';
+$companyPresident = !empty($currentSettings['company_president']) ? $currentSettings['company_president'] : 'JUNJI FURUYA';
 $vaultLimitGB     = $currentSettings['vault_size_limit_gb'] ?? '1';
 $maintMode        = $currentSettings['maintenance_mode'] ?? '0';
 
