@@ -118,7 +118,7 @@ try {
         $pos   = ucwords(strtolower(trim($_POST['position_applied'] ?? '')));
         $email = trim($_POST['email']);
         $phone = trim($_POST['phone_number']);
-        $date = $_POST['application_date'];
+        $date = !empty($_POST['application_date']) ? $_POST['application_date'] : null;
 
         // [SECURITY] Validation
         if (empty($first) || empty($last) || empty($pos)) $error = "Name and Position are required.";
@@ -227,7 +227,7 @@ try {
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['schedule_interview'])) {
         $security->checkCSRF($_POST['csrf_token']);
         $id = (int)$_POST['candidate_id'];
-        $intDate = $_POST['interview_date'];
+        $intDate = !empty($_POST['interview_date']) ? $_POST['interview_date'] : null;
         $message = trim($_POST['message']);
 
         // Validate datetime format

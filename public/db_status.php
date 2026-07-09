@@ -160,7 +160,8 @@ $columnSchema = [
         'employment_type' => "VARCHAR(50) NULL",
         'college_degree' => "VARCHAR(100) NULL",
         'college_course' => "VARCHAR(100) NULL",
-        'college_year' => "VARCHAR(10) NULL"
+        'college_year' => "VARCHAR(10) NULL",
+        'group' => "VARCHAR(300) NULL"
     ],
     'documents' => [
         'deleted_at' => "DATETIME NULL",
@@ -348,7 +349,7 @@ $tableSchema = [
         `id` INT AUTO_INCREMENT PRIMARY KEY,
         `employee_id` INT NOT NULL,
         `event_title` VARCHAR(100) NOT NULL,
-        `event_date` DATE NOT NULL,
+        `event_date` DATE NULL,
         `department` VARCHAR(100),
         `notes` TEXT,
         `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

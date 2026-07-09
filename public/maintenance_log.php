@@ -105,7 +105,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_log'])) {
         $equip  = $data['equipment_type'] ?? '';
         $issue  = $data['issue'] ?? '';
         $action = $data['action_taken'] ?? '';
-        $date   = $data['maintenance_date'] ?? '';
+        $date   = !empty($data['maintenance_date']) ? $data['maintenance_date'] : null;
         $vendor = substr($data['vendor_name'] ?? '', 0, 100);
         $admin_pw = $_POST['admin_password'] ?? ''; // password should not be HTML-escaped for verification
 
@@ -236,7 +236,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_log'])) {
         $equip  = $data['equipment_type'] ?? '';
         $issue  = $data['issue'] ?? '';
         $action = $data['action_taken'] ?? '';
-        $date   = $data['maintenance_date'] ?? '';
+        $date   = !empty($data['maintenance_date']) ? $data['maintenance_date'] : null;
         $status = $data['status'] ?? 'Pending';
         $vendor = substr($data['vendor_name'] ?? '', 0, 100);
         $admin_pw = $_POST['admin_password'] ?? '';

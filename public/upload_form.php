@@ -14,7 +14,8 @@ if (!isset($_SESSION['user_id'])) {
 
 // [SECURITY] Check Maintenance Mode
 if (($_SESSION['role'] ?? '') !== 'ADMIN') {
-    $chkMaint = $pdo->query("SELECT setting_value FROM system_settings WHERE setting_key = 'maintenance_mode'")->fetchColumn();
+    $maintQuery = $pdo->query("SELECT setting_value FROM system_settings WHERE setting_key = 'maintenance_mode'");
+    $chkMaint = $maintQuery ? $maintQuery->fetchColumn() : '0';
     if ($chkMaint === '1') {
         header("Location: login.php?msg=" . urlencode("🛠️ System is under maintenance."));
         exit;

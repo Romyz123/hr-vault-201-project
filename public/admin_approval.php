@@ -145,6 +145,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                         'system_role',
                         'dept',
                         'section',
+                        'group',
                         'employment_type',
                         'agency_name',
                         'company_name',
@@ -181,7 +182,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                         throw new Exception('No valid data provided for employee insertion');
                     }
 
-                    $cols = implode(", ", array_keys($filteredData));
+                    $cols = "`" . implode("`, `", array_keys($filteredData)) . "`";
                     $vals = implode(", ", array_fill(0, count($filteredData), "?"));
                     $pdo->prepare("INSERT INTO employees ($cols) VALUES ($vals)")->execute(array_values($filteredData));
 
@@ -217,13 +218,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                     // SAFETY: Remove the note so it doesn't break the SQL UPDATE
                     unset($profileData['request_note']);
 
-                    $allowedColumns = ['emp_id', 'first_name', 'middle_name', 'last_name', 'job_title', 'system_role', 'dept', 'section', 'employment_type', 'agency_name', 'company_name', 'previous_company', 'hire_date', 'gender', 'birth_date', 'contact_number', 'email', 'present_address', 'permanent_address', 'sss_no', 'tin_no', 'pagibig_no', 'philhealth_no', 'emergency_name', 'emergency_contact', 'emergency_address', 'education', 'experience', 'skills', 'licenses', 'college_degree', 'college_course', 'college_year', 'status', 'exit_date', 'exit_reason', 'avatar_path'];
+                    $allowedColumns = ['emp_id', 'first_name', 'middle_name', 'last_name', 'job_title', 'system_role', 'dept', 'section', 'group', 'employment_type', 'agency_name', 'company_name', 'previous_company', 'hire_date', 'gender', 'birth_date', 'contact_number', 'email', 'present_address', 'permanent_address', 'sss_no', 'tin_no', 'pagibig_no', 'philhealth_no', 'emergency_name', 'emergency_contact', 'emergency_address', 'education', 'experience', 'skills', 'licenses', 'college_degree', 'college_course', 'college_year', 'status', 'exit_date', 'exit_reason', 'avatar_path'];
                     $filteredData = array_intersect_key($profileData, array_flip($allowedColumns));
                     if (!empty($filteredData)) {
                         $setParts = [];
                         $updateValues = [];
                         foreach ($filteredData as $key => $val) {
-                            $setParts[] = "$key = ?";
+                            $setParts[] = "`$key` = ?";
                             $updateValues[] = $val;
                         }
                         $updateValues[] = $targetId;
@@ -604,8 +605,22 @@ function renderTable(array $requests, string $type): void
         // Dynamic Summary
         $summary = '';
         if ($type == 'hire') $summary = "<strong>New Employee:</strong> " . htmlspecialchars($data['first_name'], ENT_QUOTES, 'UTF-8') . " " . htmlspecialchars($data['last_name'], ENT_QUOTES, 'UTF-8');
-        elseif ($type == 'edit') $summary = "<strong>Update Profile:</strong> ID " . intval($r['target_id']);
-        elseif ($type == 'doc') $summary = "<strong>File Upload:</strong> " . htmlspecialchars($data['original_name'], ENT_QUOTES, 'UTF-8');
+        elseif ($type == 'edit') {
+            $summary = "<strong>Update Profile:</strong> ID " . intval($r['target_id']);
+            // [NEW] Count changed fields for a better summary
+            if (isset($data['new_data']) && isset($data['old_data'])) {
+                $changes = 0;
+                // Compare new data against old data
+                foreach ($data['new_data'] as $key => $newValue) {
+                    // Consider it a change if the key is new, or if the value is different
+                    if (!isset($data['old_data'][$key]) || (string)($data['old_data'][$key] ?? '') !== (string)$newValue) {
+                        // Ignore some fields that are always different or irrelevant
+                        if (!in_array($key, ['updated_at', 'request_note'])) $changes++;
+                    }
+                }
+                if ($changes > 0) $summary .= " <span class='badge bg-warning text-dark'>$changes field" . ($changes > 1 ? 's' : '') . " changed</span>";
+            }
+        } elseif ($type == 'doc') $summary = "<strong>File Upload:</strong> " . htmlspecialchars($data['original_name'], ENT_QUOTES, 'UTF-8');
         elseif ($type == 'doc_edit') {
             $orig = $data['original_details'] ?? [];
             $summary = "<strong>Edit Document:</strong> " . htmlspecialchars($orig['original_name'] ?? 'Unknown', ENT_QUOTES, 'UTF-8');
@@ -614,8 +629,8 @@ function renderTable(array $requests, string $type): void
             $summary = "<strong class='text-primary'><i class='bi bi-check2-circle'></i> Action Taken{$docLabel}:</strong> " . htmlspecialchars(substr($data['note'], 0, 100), ENT_QUOTES, 'UTF-8') . "...";
         }
 
-        
-echo "<tr>
+
+        echo "<tr>
     <td><input type='checkbox' name='req_ids[]' value='{$r['id']}' class='form-check-input bulk-check-{$type}'></td>
     <td>" . date('M d, H:i', strtotime($r['created_at'])) . "</td>
     <td><span class='badge bg-secondary'>{$r['username']}</span></td>
@@ -635,9 +650,9 @@ echo "<tr>
         </button>
     </td>
 </tr>";
-        }
-        echo '</tbody></table></form>';
     }
+    echo '</tbody></table></form>';
+}
 ?>
 
 <script src="assets/bootstrap.bundle.min.js"></script>

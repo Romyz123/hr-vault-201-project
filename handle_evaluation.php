@@ -55,6 +55,7 @@ if ($action === 'add_eval') {
 
     $stmt = $pdo->prepare("INSERT INTO performance_evaluations (employee_id, eval_date, score, rating, remarks, evaluator) VALUES (?, ?, ?, ?, ?, ?)");
     $stmt->execute([$id, $eval_date, $score, $rating, $remarks, $evaluator]);
+    $logger->log($_SESSION['user_id'], 'ADD_EVALUATION', "Added evaluation for employee ID $id");
     header("Location: edit_employee.php?id=$id&tab=eval&msg=" . urlencode("✅ Evaluation Added"));
     exit;
 }
@@ -111,6 +112,7 @@ if ($action === 'edit_eval') {
         header("Location: edit_employee.php?id=$id&tab=eval&error=" . urlencode("❌ Evaluation not found or access denied."));
         exit;
     }
+    $logger->log($_SESSION['user_id'], 'EDIT_EVALUATION', "Edited evaluation ID $eval_id for employee ID $id");
     header("Location: edit_employee.php?id=$id&tab=eval&msg=" . urlencode("✅ Evaluation Updated"));
     exit;
 }
@@ -125,6 +127,7 @@ if ($action === 'delete_eval') {
             header("Location: edit_employee.php?id=$id&tab=eval&error=" . urlencode("❌ Evaluation not found or access denied."));
             exit;
         }
+        $logger->log($_SESSION['user_id'], 'DELETE_EVALUATION', "Deleted evaluation ID $delEvalId for employee ID $id");
         header("Location: edit_employee.php?id=$id&tab=eval&msg=" . urlencode("✅ Evaluation Deleted"));
         exit;
     } else {

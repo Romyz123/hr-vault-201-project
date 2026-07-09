@@ -1332,3 +1332,260 @@ Stack trace:
 #0 C:\xampp\htdocs\hr 201\public\index.php(830): require()
 #1 {main}
   thrown in C:\xampp\htdocs\hr 201\public\header.php on line 19
+[07-Jul-2026 14:03:53 Asia/Manila] Database Error in add_employee.php: SQLSTATE[42000]: Syntax error or access violation: 1064 You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'group, employment_type, agency_name, company_name, previous_company, hire_dat...' at line 1. Stack: #0 C:\xampp\htdocs\hr 201\src\EmployeeService.php(46): PDO->prepare('INSERT INTO emp...')
+#1 C:\xampp\htdocs\hr 201\public\add_employee.php(307): EmployeeService->create(Array, 1)
+#2 {main}
+[07-Jul-2026 14:03:56 Asia/Manila] Database Error in add_employee.php: SQLSTATE[42000]: Syntax error or access violation: 1064 You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'group, employment_type, agency_name, company_name, previous_company, hire_dat...' at line 1. Stack: #0 C:\xampp\htdocs\hr 201\src\EmployeeService.php(46): PDO->prepare('INSERT INTO emp...')
+#1 C:\xampp\htdocs\hr 201\public\add_employee.php(307): EmployeeService->create(Array, 1)
+#2 {main}
+[07-Jul-2026 14:03:58 Asia/Manila] Database Error in add_employee.php: SQLSTATE[42000]: Syntax error or access violation: 1064 You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'group, employment_type, agency_name, company_name, previous_company, hire_dat...' at line 1. Stack: #0 C:\xampp\htdocs\hr 201\src\EmployeeService.php(46): PDO->prepare('INSERT INTO emp...')
+#1 C:\xampp\htdocs\hr 201\public\add_employee.php(307): EmployeeService->create(Array, 1)
+#2 {main}
+[07-Jul-2026 14:04:04 Asia/Manila] Database Error in add_employee.php: SQLSTATE[42000]: Syntax error or access violation: 1064 You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'group, employment_type, agency_name, company_name, previous_company, hire_dat...' at line 1. Stack: #0 C:\xampp\htdocs\hr 201\src\EmployeeService.php(46): PDO->prepare('INSERT INTO emp...')
+#1 C:\xampp\htdocs\hr 201\public\add_employee.php(307): EmployeeService->create(Array, 1)
+#2 {main}
+[07-Jul-2026 14:22:54 Asia/Manila] Database Error in add_employee.php: SQLSTATE[42000]: Syntax error or access violation: 1064 You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'group, employment_type, agency_name, company_name, previous_company, hire_dat...' at line 1. Stack: #0 C:\xampp\htdocs\hr 201\src\EmployeeService.php(46): PDO->prepare('INSERT INTO emp...')
+#1 C:\xampp\htdocs\hr 201\public\add_employee.php(307): EmployeeService->create(Array, 1)
+#2 {main}
+[07-Jul-2026 14:22:59 Asia/Manila] Database Error in add_employee.php: SQLSTATE[42000]: Syntax error or access violation: 1064 You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'group, employment_type, agency_name, company_name, previous_company, hire_dat...' at line 1. Stack: #0 C:\xampp\htdocs\hr 201\src\EmployeeService.php(46): PDO->prepare('INSERT INTO emp...')
+#1 C:\xampp\htdocs\hr 201\public\add_employee.php(307): EmployeeService->create(Array, 1)
+#2 {main}
+[07-Jul-2026 14:27:12 Asia/Manila] Database Error in add_employee.php: SQLSTATE[42000]: Syntax error or access violation: 1064 You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'group, employment_type, agency_name, company_name, previous_company, hire_dat...' at line 1. Stack: #0 C:\xampp\htdocs\hr 201\src\EmployeeService.php(46): PDO->prepare('INSERT INTO emp...')
+#1 C:\xampp\htdocs\hr 201\public\add_employee.php(307): EmployeeService->create(Array, 1)
+#2 {main}
+[07-Jul-2026 14:33:05 Asia/Manila] Database Error in add_employee.php: SQLSTATE[42000]: Syntax error or access violation: 1064 You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'group, employment_type, agency_name, company_name, previous_company, hire_dat...' at line 1. Stack: #0 C:\xampp\htdocs\hr 201\src\EmployeeService.php(46): PDO->prepare('INSERT INTO emp...')
+#1 C:\xampp\htdocs\hr 201\public\add_employee.php(307): EmployeeService->create(Array, 1)
+#2 {main}
+[07-Jul-2026 19:34:35 Asia/Manila] Database Error in add_employee.php: SQLSTATE[42000]: Syntax error or access violation: 1064 You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'group, employment_type, agency_name, company_name, previous_company, hire_dat...' at line 1. Stack: #0 C:\xampp\htdocs\hr 201\src\EmployeeService.php(46): PDO->prepare('INSERT INTO emp...')
+#1 C:\xampp\htdocs\hr 201\public\add_employee.php(307): EmployeeService->create(Array, 1)
+#2 {main}
+[07-Jul-2026 19:37:32 Asia/Manila] Database Error in add_employee.php: SQLSTATE[42000]: Syntax error or access violation: 1064 You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'group, employment_type, agency_name, company_name, previous_company, hire_dat...' at line 1. Stack: #0 C:\xampp\htdocs\hr 201\src\EmployeeService.php(46): PDO->prepare('INSERT INTO emp...')
+#1 C:\xampp\htdocs\hr 201\public\add_employee.php(307): EmployeeService->create(Array, 1)
+#2 {main}
+[07-Jul-2026 19:39:31 Asia/Manila] Database Error in add_employee.php: SQLSTATE[42000]: Syntax error or access violation: 1064 You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'group, employment_type, agency_name, company_name, previous_company, hire_dat...' at line 1. Stack: #0 C:\xampp\htdocs\hr 201\src\EmployeeService.php(46): PDO->prepare('INSERT INTO emp...')
+#1 C:\xampp\htdocs\hr 201\public\add_employee.php(307): EmployeeService->create(Array, 1)
+#2 {main}
+[07-Jul-2026 19:39:35 Asia/Manila] Database Error in add_employee.php: SQLSTATE[42000]: Syntax error or access violation: 1064 You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'group, employment_type, agency_name, company_name, previous_company, hire_dat...' at line 1. Stack: #0 C:\xampp\htdocs\hr 201\src\EmployeeService.php(46): PDO->prepare('INSERT INTO emp...')
+#1 C:\xampp\htdocs\hr 201\public\add_employee.php(307): EmployeeService->create(Array, 1)
+#2 {main}
+[07-Jul-2026 19:44:45 Asia/Manila] Database Error in add_employee.php: SQLSTATE[42000]: Syntax error or access violation: 1064 You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'group, employment_type, agency_name, company_name, previous_company, hire_dat...' at line 1. Stack: #0 C:\xampp\htdocs\hr 201\src\EmployeeService.php(46): PDO->prepare('INSERT INTO emp...')
+#1 C:\xampp\htdocs\hr 201\public\add_employee.php(307): EmployeeService->create(Array, 1)
+#2 {main}
+[07-Jul-2026 19:45:01 Asia/Manila] Database Error in add_employee.php: SQLSTATE[42000]: Syntax error or access violation: 1064 You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'group, employment_type, agency_name, company_name, previous_company, hire_dat...' at line 1. Stack: #0 C:\xampp\htdocs\hr 201\src\EmployeeService.php(46): PDO->prepare('INSERT INTO emp...')
+#1 C:\xampp\htdocs\hr 201\public\add_employee.php(307): EmployeeService->create(Array, 1)
+#2 {main}
+[07-Jul-2026 19:45:10 Asia/Manila] Database Error in add_employee.php: SQLSTATE[42000]: Syntax error or access violation: 1064 You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'group, employment_type, agency_name, company_name, previous_company, hire_dat...' at line 1. Stack: #0 C:\xampp\htdocs\hr 201\src\EmployeeService.php(46): PDO->prepare('INSERT INTO emp...')
+#1 C:\xampp\htdocs\hr 201\public\add_employee.php(307): EmployeeService->create(Array, 1)
+#2 {main}
+[07-Jul-2026 19:50:32 Asia/Manila] Database Error in edit_employee.php: SQLSTATE[42000]: Syntax error or access violation: 1064 You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'group = ?, employment_type = ?, agency_name = ?, company_name = ?, previous_c...' at line 1. Stack: #0 C:\xampp\htdocs\hr 201\public\edit_employee.php(697): PDO->prepare('UPDATE employee...')
+#1 {main}
+[07-Jul-2026 20:01:53 Asia/Manila] Database Error in edit_employee.php: SQLSTATE[42000]: Syntax error or access violation: 1064 You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'group = ?, employment_type = ?, agency_name = ?, company_name = ?, previous_c...' at line 1. Stack: #0 C:\xampp\htdocs\hr 201\public\edit_employee.php(697): PDO->prepare('UPDATE employee...')
+#1 {main}
+[07-Jul-2026 20:10:19 Asia/Manila] Database Error in edit_employee.php: SQLSTATE[42000]: Syntax error or access violation: 1064 You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'group = ?, employment_type = ?, agency_name = ?, company_name = ?, previous_c...' at line 1. Stack: #0 C:\xampp\htdocs\hr 201\public\edit_employee.php(697): PDO->prepare('UPDATE employee...')
+#1 {main}
+[08-Jul-2026 09:36:42 Asia/Manila] Database Error in edit_employee.php: SQLSTATE[42000]: Syntax error or access violation: 1064 You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'group = ?, employment_type = ?, agency_name = ?, company_name = ?, previous_c...' at line 1. Stack: #0 C:\xampp\htdocs\hr 201\public\edit_employee.php(705): PDO->prepare('UPDATE employee...')
+#1 {main}
+[08-Jul-2026 09:36:50 Asia/Manila] Database Error in edit_employee.php: SQLSTATE[42000]: Syntax error or access violation: 1064 You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'group = ?, employment_type = ?, agency_name = ?, company_name = ?, previous_c...' at line 1. Stack: #0 C:\xampp\htdocs\hr 201\public\edit_employee.php(705): PDO->prepare('UPDATE employee...')
+#1 {main}
+[08-Jul-2026 09:37:26 Asia/Manila] Database Error in edit_employee.php: SQLSTATE[42000]: Syntax error or access violation: 1064 You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'group = ?, employment_type = ?, agency_name = ?, company_name = ?, previous_c...' at line 1. Stack: #0 C:\xampp\htdocs\hr 201\public\edit_employee.php(705): PDO->prepare('UPDATE employee...')
+#1 {main}
+[08-Jul-2026 09:38:03 Asia/Manila] Database Error in edit_employee.php: SQLSTATE[42000]: Syntax error or access violation: 1064 You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'group = ?, employment_type = ?, agency_name = ?, company_name = ?, previous_c...' at line 1. Stack: #0 C:\xampp\htdocs\hr 201\public\edit_employee.php(705): PDO->prepare('UPDATE employee...')
+#1 {main}
+[08-Jul-2026 09:50:01 Asia/Manila] Database Error in edit_employee.php: SQLSTATE[42000]: Syntax error or access violation: 1064 You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'group = ?, employment_type = ?, agency_name = ?, company_name = ?, previous_c...' at line 1. Stack: #0 C:\xampp\htdocs\hr 201\public\edit_employee.php(705): PDO->prepare('UPDATE employee...')
+#1 {main}
+[08-Jul-2026 10:01:30 Asia/Manila] Database Error in edit_employee.php: SQLSTATE[42000]: Syntax error or access violation: 1064 You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'group = ?, employment_type = ?, agency_name = ?, company_name = ?, previous_c...' at line 1. Stack: #0 C:\xampp\htdocs\hr 201\public\edit_employee.php(705): PDO->prepare('UPDATE employee...')
+#1 {main}
+[08-Jul-2026 10:01:34 Asia/Manila] Database Error in edit_employee.php: SQLSTATE[42000]: Syntax error or access violation: 1064 You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'group = ?, employment_type = ?, agency_name = ?, company_name = ?, previous_c...' at line 1. Stack: #0 C:\xampp\htdocs\hr 201\public\edit_employee.php(705): PDO->prepare('UPDATE employee...')
+#1 {main}
+[08-Jul-2026 10:01:42 Asia/Manila] Database Error in edit_employee.php: SQLSTATE[42000]: Syntax error or access violation: 1064 You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'group = ?, employment_type = ?, agency_name = ?, company_name = ?, previous_c...' at line 1. Stack: #0 C:\xampp\htdocs\hr 201\public\edit_employee.php(705): PDO->prepare('UPDATE employee...')
+#1 {main}
+[08-Jul-2026 10:02:39 Asia/Manila] Database Error in edit_employee.php: SQLSTATE[42000]: Syntax error or access violation: 1064 You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'group = ?, employment_type = ?, agency_name = ?, company_name = ?, previous_c...' at line 1. Stack: #0 C:\xampp\htdocs\hr 201\public\edit_employee.php(705): PDO->prepare('UPDATE employee...')
+#1 {main}
+[08-Jul-2026 10:02:55 Asia/Manila] Database Error in edit_employee.php: SQLSTATE[42000]: Syntax error or access violation: 1064 You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'group = ?, employment_type = ?, agency_name = ?, company_name = ?, previous_c...' at line 1. Stack: #0 C:\xampp\htdocs\hr 201\public\edit_employee.php(705): PDO->prepare('UPDATE employee...')
+#1 {main}
+[08-Jul-2026 10:11:28 Asia/Manila] Database Error in edit_employee.php: SQLSTATE[42000]: Syntax error or access violation: 1064 You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'group = ?, employment_type = ?, agency_name = ?, company_name = ?, previous_c...' at line 1. Stack: #0 C:\xampp\htdocs\hr 201\public\edit_employee.php(705): PDO->prepare('UPDATE employee...')
+#1 {main}
+[08-Jul-2026 10:33:09 Asia/Manila] Database Error in edit_employee.php: SQLSTATE[42000]: Syntax error or access violation: 1064 You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'group = ?, employment_type = ?, agency_name = ?, company_name = ?, previous_c...' at line 1. Stack: #0 C:\xampp\htdocs\hr 201\public\edit_employee.php(705): PDO->prepare('UPDATE employee...')
+#1 {main}
+[08-Jul-2026 10:39:09 Asia/Manila] Database Error in edit_employee.php: SQLSTATE[42000]: Syntax error or access violation: 1064 You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'group = ?, employment_type = ?, agency_name = ?, company_name = ?, previous_c...' at line 1. Stack: #0 C:\xampp\htdocs\hr 201\public\edit_employee.php(705): PDO->prepare('UPDATE employee...')
+#1 {main}
+[08-Jul-2026 14:46:24 Asia/Manila] PHP Fatal error:  Uncaught TypeError: post(): Argument #2 ($default) must be of type string, null given, called in C:\xampp\htdocs\hr 201\public\edit_employee.php on line 430 and defined in C:\xampp\htdocs\hr 201\src\helpers.php:25
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\edit_employee.php(430): post('exit_date', NULL)
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\src\helpers.php on line 25
+[08-Jul-2026 14:52:20 Asia/Manila] PHP Fatal error:  Uncaught TypeError: post(): Argument #2 ($default) must be of type string, null given, called in C:\xampp\htdocs\hr 201\public\edit_employee.php on line 430 and defined in C:\xampp\htdocs\hr 201\src\helpers.php:25
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\edit_employee.php(430): post('exit_date', NULL)
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\src\helpers.php on line 25
+[08-Jul-2026 14:58:54 Asia/Manila] PHP Fatal error:  Uncaught TypeError: post(): Argument #2 ($default) must be of type string, null given, called in C:\xampp\htdocs\hr 201\public\edit_employee.php on line 430 and defined in C:\xampp\htdocs\hr 201\src\helpers.php:25
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\edit_employee.php(430): post('exit_date', NULL)
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\src\helpers.php on line 25
+[09-Jul-2026 07:49:23 Asia/Manila] PHP Fatal error:  Uncaught TypeError: post(): Argument #2 ($default) must be of type string, null given, called in C:\xampp\htdocs\hr 201\public\edit_employee.php on line 431 and defined in C:\xampp\htdocs\hr 201\src\helpers.php:25
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\edit_employee.php(431): post('exit_reason', NULL)
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\src\helpers.php on line 25
+[09-Jul-2026 07:49:33 Asia/Manila] PHP Fatal error:  Uncaught TypeError: post(): Argument #2 ($default) must be of type string, null given, called in C:\xampp\htdocs\hr 201\public\edit_employee.php on line 431 and defined in C:\xampp\htdocs\hr 201\src\helpers.php:25
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\edit_employee.php(431): post('exit_reason', NULL)
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\src\helpers.php on line 25
+[09-Jul-2026 08:46:28 Asia/Manila] PHP Fatal error:  Uncaught TypeError: post(): Argument #2 ($default) must be of type string, null given, called in C:\xampp\htdocs\hr 201\public\edit_employee.php on line 431 and defined in C:\xampp\htdocs\hr 201\src\helpers.php:25
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\edit_employee.php(431): post('exit_reason', NULL)
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\src\helpers.php on line 25
+[09-Jul-2026 09:41:00 Asia/Manila] PHP Fatal error:  Uncaught TypeError: post(): Argument #2 ($default) must be of type string, null given, called in C:\xampp\htdocs\hr 201\public\edit_employee.php on line 431 and defined in C:\xampp\htdocs\hr 201\src\helpers.php:25
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\edit_employee.php(431): post('exit_reason', NULL)
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\src\helpers.php on line 25
+[09-Jul-2026 09:49:05 Asia/Manila] PHP Fatal error:  Uncaught TypeError: post(): Argument #2 ($default) must be of type string, null given, called in C:\xampp\htdocs\hr 201\public\edit_employee.php on line 431 and defined in C:\xampp\htdocs\hr 201\src\helpers.php:25
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\edit_employee.php(431): post('exit_reason', NULL)
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\src\helpers.php on line 25
+[09-Jul-2026 09:50:57 Asia/Manila] PHP Fatal error:  Uncaught TypeError: post(): Argument #2 ($default) must be of type string, null given, called in C:\xampp\htdocs\hr 201\public\edit_employee.php on line 431 and defined in C:\xampp\htdocs\hr 201\src\helpers.php:25
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\edit_employee.php(431): post('exit_reason', NULL)
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\src\helpers.php on line 25
+[09-Jul-2026 09:51:07 Asia/Manila] PHP Fatal error:  Uncaught TypeError: post(): Argument #2 ($default) must be of type string, null given, called in C:\xampp\htdocs\hr 201\public\edit_employee.php on line 431 and defined in C:\xampp\htdocs\hr 201\src\helpers.php:25
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\edit_employee.php(431): post('exit_reason', NULL)
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\src\helpers.php on line 25
+[09-Jul-2026 10:02:53 Asia/Manila] PHP Fatal error:  Uncaught TypeError: post(): Argument #2 ($default) must be of type string, null given, called in C:\xampp\htdocs\hr 201\public\edit_employee.php on line 431 and defined in C:\xampp\htdocs\hr 201\src\helpers.php:25
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\edit_employee.php(431): post('exit_reason', NULL)
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\src\helpers.php on line 25
+[09-Jul-2026 10:54:36 Asia/Manila] PHP Fatal error:  Uncaught TypeError: post(): Argument #2 ($default) must be of type string, null given, called in C:\xampp\htdocs\hr 201\public\edit_employee.php on line 431 and defined in C:\xampp\htdocs\hr 201\src\helpers.php:25
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\edit_employee.php(431): post('exit_reason', NULL)
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\src\helpers.php on line 25
+[09-Jul-2026 10:59:29 Asia/Manila] PHP Fatal error:  Uncaught TypeError: post(): Argument #2 ($default) must be of type string, null given, called in C:\xampp\htdocs\hr 201\public\edit_employee.php on line 431 and defined in C:\xampp\htdocs\hr 201\src\helpers.php:25
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\edit_employee.php(431): post('exit_reason', NULL)
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\src\helpers.php on line 25
+[09-Jul-2026 11:00:01 Asia/Manila] PHP Fatal error:  Uncaught TypeError: post(): Argument #2 ($default) must be of type string, null given, called in C:\xampp\htdocs\hr 201\public\edit_employee.php on line 431 and defined in C:\xampp\htdocs\hr 201\src\helpers.php:25
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\edit_employee.php(431): post('exit_reason', NULL)
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\src\helpers.php on line 25
+[09-Jul-2026 11:00:47 Asia/Manila] PHP Fatal error:  Uncaught TypeError: post(): Argument #2 ($default) must be of type string, null given, called in C:\xampp\htdocs\hr 201\public\edit_employee.php on line 431 and defined in C:\xampp\htdocs\hr 201\src\helpers.php:25
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\edit_employee.php(431): post('exit_reason', NULL)
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\src\helpers.php on line 25
+[09-Jul-2026 11:22:26 Asia/Manila] PHP Fatal error:  Uncaught TypeError: post(): Argument #2 ($default) must be of type string, null given, called in C:\xampp\htdocs\hr 201\public\edit_employee.php on line 431 and defined in C:\xampp\htdocs\hr 201\src\helpers.php:25
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\edit_employee.php(431): post('exit_reason', NULL)
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\src\helpers.php on line 25
+[09-Jul-2026 11:22:29 Asia/Manila] PHP Fatal error:  Uncaught TypeError: post(): Argument #2 ($default) must be of type string, null given, called in C:\xampp\htdocs\hr 201\public\edit_employee.php on line 431 and defined in C:\xampp\htdocs\hr 201\src\helpers.php:25
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\edit_employee.php(431): post('exit_reason', NULL)
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\src\helpers.php on line 25
+[09-Jul-2026 11:23:03 Asia/Manila] PHP Fatal error:  Uncaught TypeError: post(): Argument #2 ($default) must be of type string, null given, called in C:\xampp\htdocs\hr 201\public\edit_employee.php on line 431 and defined in C:\xampp\htdocs\hr 201\src\helpers.php:25
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\edit_employee.php(431): post('exit_reason', NULL)
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\src\helpers.php on line 25
+[09-Jul-2026 11:28:17 Asia/Manila] PHP Fatal error:  Uncaught TypeError: post(): Argument #2 ($default) must be of type string, null given, called in C:\xampp\htdocs\hr 201\public\edit_employee.php on line 431 and defined in C:\xampp\htdocs\hr 201\src\helpers.php:25
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\edit_employee.php(431): post('exit_reason', NULL)
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\src\helpers.php on line 25
+[09-Jul-2026 11:30:14 Asia/Manila] PHP Fatal error:  Uncaught TypeError: post(): Argument #2 ($default) must be of type string, null given, called in C:\xampp\htdocs\hr 201\public\edit_employee.php on line 431 and defined in C:\xampp\htdocs\hr 201\src\helpers.php:25
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\edit_employee.php(431): post('exit_reason', NULL)
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\src\helpers.php on line 25
+[09-Jul-2026 11:30:17 Asia/Manila] PHP Fatal error:  Uncaught TypeError: post(): Argument #2 ($default) must be of type string, null given, called in C:\xampp\htdocs\hr 201\public\edit_employee.php on line 431 and defined in C:\xampp\htdocs\hr 201\src\helpers.php:25
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\edit_employee.php(431): post('exit_reason', NULL)
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\src\helpers.php on line 25
+[09-Jul-2026 11:30:34 Asia/Manila] PHP Fatal error:  Uncaught TypeError: post(): Argument #2 ($default) must be of type string, null given, called in C:\xampp\htdocs\hr 201\public\edit_employee.php on line 431 and defined in C:\xampp\htdocs\hr 201\src\helpers.php:25
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\edit_employee.php(431): post('exit_reason', NULL)
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\src\helpers.php on line 25
+[09-Jul-2026 11:33:07 Asia/Manila] PHP Fatal error:  Uncaught TypeError: post(): Argument #2 ($default) must be of type string, null given, called in C:\xampp\htdocs\hr 201\public\edit_employee.php on line 431 and defined in C:\xampp\htdocs\hr 201\src\helpers.php:25
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\edit_employee.php(431): post('exit_reason', NULL)
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\src\helpers.php on line 25
+[09-Jul-2026 11:34:56 Asia/Manila] PHP Fatal error:  Uncaught TypeError: post(): Argument #2 ($default) must be of type string, null given, called in C:\xampp\htdocs\hr 201\public\edit_employee.php on line 431 and defined in C:\xampp\htdocs\hr 201\src\helpers.php:25
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\edit_employee.php(431): post('exit_reason', NULL)
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\src\helpers.php on line 25
+[09-Jul-2026 11:35:04 Asia/Manila] PHP Fatal error:  Uncaught TypeError: post(): Argument #2 ($default) must be of type string, null given, called in C:\xampp\htdocs\hr 201\public\edit_employee.php on line 431 and defined in C:\xampp\htdocs\hr 201\src\helpers.php:25
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\edit_employee.php(431): post('exit_reason', NULL)
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\src\helpers.php on line 25
+[09-Jul-2026 11:36:19 Asia/Manila] PHP Fatal error:  Uncaught TypeError: post(): Argument #2 ($default) must be of type string, null given, called in C:\xampp\htdocs\hr 201\public\edit_employee.php on line 431 and defined in C:\xampp\htdocs\hr 201\src\helpers.php:25
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\edit_employee.php(431): post('exit_reason', NULL)
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\src\helpers.php on line 25
+[09-Jul-2026 11:39:36 Asia/Manila] PHP Fatal error:  Uncaught TypeError: post(): Argument #2 ($default) must be of type string, null given, called in C:\xampp\htdocs\hr 201\public\edit_employee.php on line 431 and defined in C:\xampp\htdocs\hr 201\src\helpers.php:25
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\edit_employee.php(431): post('exit_reason', NULL)
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\src\helpers.php on line 25
+[09-Jul-2026 11:39:46 Asia/Manila] PHP Fatal error:  Uncaught TypeError: post(): Argument #2 ($default) must be of type string, null given, called in C:\xampp\htdocs\hr 201\public\edit_employee.php on line 431 and defined in C:\xampp\htdocs\hr 201\src\helpers.php:25
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\edit_employee.php(431): post('exit_reason', NULL)
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\src\helpers.php on line 25
+[09-Jul-2026 11:40:26 Asia/Manila] PHP Fatal error:  Uncaught TypeError: post(): Argument #2 ($default) must be of type string, null given, called in C:\xampp\htdocs\hr 201\public\edit_employee.php on line 431 and defined in C:\xampp\htdocs\hr 201\src\helpers.php:25
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\edit_employee.php(431): post('exit_reason', NULL)
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\src\helpers.php on line 25
+[09-Jul-2026 11:43:36 Asia/Manila] PHP Fatal error:  Uncaught TypeError: post(): Argument #2 ($default) must be of type string, null given, called in C:\xampp\htdocs\hr 201\public\edit_employee.php on line 431 and defined in C:\xampp\htdocs\hr 201\src\helpers.php:25
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\edit_employee.php(431): post('exit_reason', NULL)
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\src\helpers.php on line 25
+[09-Jul-2026 11:43:40 Asia/Manila] PHP Fatal error:  Uncaught TypeError: post(): Argument #2 ($default) must be of type string, null given, called in C:\xampp\htdocs\hr 201\public\edit_employee.php on line 431 and defined in C:\xampp\htdocs\hr 201\src\helpers.php:25
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\edit_employee.php(431): post('exit_reason', NULL)
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\src\helpers.php on line 25
+[09-Jul-2026 11:45:23 Asia/Manila] PHP Fatal error:  Uncaught TypeError: post(): Argument #2 ($default) must be of type string, null given, called in C:\xampp\htdocs\hr 201\public\edit_employee.php on line 431 and defined in C:\xampp\htdocs\hr 201\src\helpers.php:25
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\edit_employee.php(431): post('exit_reason', NULL)
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\src\helpers.php on line 25
+[09-Jul-2026 11:45:36 Asia/Manila] PHP Fatal error:  Uncaught TypeError: post(): Argument #2 ($default) must be of type string, null given, called in C:\xampp\htdocs\hr 201\public\edit_employee.php on line 431 and defined in C:\xampp\htdocs\hr 201\src\helpers.php:25
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\edit_employee.php(431): post('exit_reason', NULL)
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\src\helpers.php on line 25
+[09-Jul-2026 11:55:02 Asia/Manila] PHP Fatal error:  Uncaught TypeError: post(): Argument #2 ($default) must be of type string, null given, called in C:\xampp\htdocs\hr 201\public\edit_employee.php on line 432 and defined in C:\xampp\htdocs\hr 201\src\helpers.php:25
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\edit_employee.php(432): post('exit_reason', NULL)
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\src\helpers.php on line 25
+[09-Jul-2026 11:55:11 Asia/Manila] PHP Fatal error:  Uncaught TypeError: post(): Argument #2 ($default) must be of type string, null given, called in C:\xampp\htdocs\hr 201\public\edit_employee.php on line 432 and defined in C:\xampp\htdocs\hr 201\src\helpers.php:25
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\edit_employee.php(432): post('exit_reason', NULL)
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\src\helpers.php on line 25
+[09-Jul-2026 11:55:16 Asia/Manila] PHP Fatal error:  Uncaught TypeError: post(): Argument #2 ($default) must be of type string, null given, called in C:\xampp\htdocs\hr 201\public\edit_employee.php on line 432 and defined in C:\xampp\htdocs\hr 201\src\helpers.php:25
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\edit_employee.php(432): post('exit_reason', NULL)
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\src\helpers.php on line 25

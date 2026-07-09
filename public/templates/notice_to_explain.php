@@ -10,6 +10,7 @@ $incident_date = (!empty($_GET['incident_date'])) ? date('F d, Y h:i A', strtoti
 $incident_place = (!empty($_GET['incident_place'])) ? htmlspecialchars($_GET['incident_place']) : '___________________________';
 $allegation = nl2br(htmlspecialchars($_GET['allegation'] ?? ''));
 $rule_violated = nl2br(htmlspecialchars($rule_violated ?? ''));
+$violation = nl2br(htmlspecialchars($violation ?? ''));
 ?>
 
 <!DOCTYPE html>

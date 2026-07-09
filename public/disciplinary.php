@@ -31,7 +31,8 @@ if (!isset($_SESSION['user_id']) || !in_array($_SESSION['role'], ['ADMIN', 'MANA
 
 // [SECURITY] Check Maintenance Mode
 if (($_SESSION['role'] ?? '') !== 'ADMIN') {
-    $chkMaint = $pdo->query("SELECT setting_value FROM system_settings WHERE setting_key = 'maintenance_mode'")->fetchColumn();
+    $maintQuery = $pdo->query("SELECT setting_value FROM system_settings WHERE setting_key = 'maintenance_mode'");
+    $chkMaint = $maintQuery ? $maintQuery->fetchColumn() : '0';
     if ($chkMaint === '1') {
         header("Location: login.php?msg=" . urlencode("🛠️ System is under maintenance."));
         exit;
@@ -69,9 +70,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     $rules      = $_POST['rule_violated'] ?? [];
     $rule_text  = is_array($rules) ? implode(', ', $rules) : trim($rules);
 
-    $date       = $_POST['incident_date'];
-    $action     = trim($_POST['action_taken']);
-    $desc       = trim($_POST['description']);
+    $date       = !empty($_POST['incident_date']) ? trim($_POST['incident_date']) : null;
+    $action     = trim($_POST['action_taken'] ?? '');
+    $desc       = trim($_POST['description'] ?? '');
 
     // [SECURITY] Input Validation
     if (strlen($type) > 255) {
@@ -249,9 +250,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     $rules   = $_POST['rule_violated'] ?? [];
     $rule_text = is_array($rules) ? implode(', ', $rules) : trim($rules);
 
-    $date    = $_POST['incident_date'];
-    $action  = trim($_POST['action_taken']);
-    $desc    = trim($_POST['description']);
+    $date    = !empty($_POST['incident_date']) ? trim($_POST['incident_date']) : null;
+    $action  = trim($_POST['action_taken'] ?? '');
+    $desc    = trim($_POST['description'] ?? '');
 
     // [SECURITY] Input Validation
     $isValid = true;

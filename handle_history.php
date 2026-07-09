@@ -6,6 +6,24 @@ if (!isset($pdo, $id, $_SESSION['user_id'], $logger, $emp)) {
     die('This script is a component and cannot be accessed directly.');
 }
 
+// [FIX] Auto-repair: Ensure the employment_history table exists to prevent 500 errors.
+try {
+    $pdo->query("SELECT 1 FROM employment_history LIMIT 1");
+} catch (PDOException $e) {
+    // Table doesn't exist, create it.
+    $createSql = "CREATE TABLE employment_history (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        employee_id INT NOT NULL,
+        event_title VARCHAR(100) NOT NULL,
+        event_date DATE NOT NULL,
+        department VARCHAR(100) NULL,
+        notes TEXT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        KEY idx_emp_hist (employee_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;";
+    $pdo->exec($createSql);
+}
+
 $action = $_POST['action'] ?? '';
 
 // Handle Add History Event
@@ -47,12 +65,15 @@ if ($action === 'add_history') {
         $logger->log($_SESSION['user_id'], 'ADD_HISTORY', "Added history event for {$emp['emp_id']}: $title");
         header("Location: edit_employee.php?id=$id&tab=history&msg=" . urlencode("✅ History event added."));
         exit;
+    } else {
+        // [FIX] Handle unauthorized attempts gracefully
+        header("Location: edit_employee.php?id=$id&tab=history&error=" . urlencode("❌ You do not have permission to add history events."));
+        exit;
     }
 }
 // Handle Delete History Event
 if ($action === 'delete_history') {
-    if (in_array($_SESSION['role'], ['ADMIN', 'MANAGER'])) {
-        $histId = (int)$_POST['history_id'];
+    if (in_array($_SESSION['role'], ['ADMIN', 'MANAGER', 'HR'])) {
         $histId = (int)$_POST['history_id'];
         $stmt = $pdo->prepare("DELETE FROM employment_history WHERE id = ? AND employee_id = ?");
         $stmt->execute([$histId, $id]);
@@ -60,7 +81,11 @@ if ($action === 'delete_history') {
             header("Location: edit_employee.php?id=$id&tab=history&error=" . urlencode("❌ History event not found or access denied."));
             exit;
         }
+        $logger->log($_SESSION['user_id'], 'DELETE_HISTORY', "Deleted history event ID $histId for employee ID $id");
         header("Location: edit_employee.php?id=$id&tab=history&msg=" . urlencode("✅ Event deleted."));
+        exit;
+    } else {
+        header("Location: edit_employee.php?id=$id&tab=history&error=" . urlencode("❌ You do not have permission to delete history events."));
         exit;
     }
 }

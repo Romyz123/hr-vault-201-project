@@ -61,7 +61,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         $alertType = "error";
         $alertMsg = "❌ Security Token Mismatch. Please refresh.";
     } else {
-        $new_email = trim($_POST['email']);
+        $new_email = trim($_POST['email'] ?? '');
         if (strlen($new_email) > 100) {
             $alertType = "error";
             $alertMsg = "❌ Email is too long (Max 100 characters).";
@@ -91,9 +91,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         $alertType = "error";
         $alertMsg = "❌ Security Token Mismatch. Please refresh.";
     } else {
-        $current_pass = $_POST['current_password'];
-        $new_pass     = $_POST['new_password'];
-        $confirm_pass = $_POST['confirm_password'];
+        $current_pass = $_POST['current_password'] ?? '';
+        $new_pass     = $_POST['new_password'] ?? '';
+        $confirm_pass = $_POST['confirm_password'] ?? '';
 
         // 1. Fetch current user data
         $stmt = $pdo->prepare("SELECT password FROM users WHERE id = ?");

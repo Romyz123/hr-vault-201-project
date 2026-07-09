@@ -124,7 +124,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_review'])) {
         $security->checkCSRF($_POST['csrf_token']);
 
         $edit_id = (int)$_POST['review_id'];
-        $date = $_POST['review_date'];
+        $date = !empty($_POST['review_date']) ? $_POST['review_date'] : null;
         $rating = (int)$_POST['rating'];
         $strengths = trim($_POST['strengths']);
         $weaknesses = trim($_POST['weaknesses']);
@@ -174,7 +174,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_review'])) {
         $security->checkCSRF($_POST['csrf_token']);
 
         $emp_id = (int)$_POST['employee_id'];
-        $date = $_POST['review_date'];
+        $date = !empty($_POST['review_date']) ? $_POST['review_date'] : null;
         $rating = (int)$_POST['rating'];
         $strengths = trim($_POST['strengths']);
         $weaknesses = trim($_POST['weaknesses']);

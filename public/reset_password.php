@@ -36,9 +36,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     // clear token whether valid or not to prevent reuse
     unset($_SESSION['reset_csrf']);
 
-    $pass = $_POST['password'];
-    $confirm = $_POST['confirm'];
-    $validToken = $_POST['token_check']; // Hidden field
+    $pass = $_POST['password'] ?? '';
+    $confirm = $_POST['confirm'] ?? '';
+    $validToken = $_POST['token_check'] ?? ''; // Hidden field
 
     // Re-verify to be safe
     $stmt = $pdo->prepare("SELECT id, username, password_changed_at FROM users WHERE reset_token = ? AND reset_expires > ?");

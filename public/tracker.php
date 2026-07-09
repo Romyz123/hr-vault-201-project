@@ -37,7 +37,8 @@ if (!isset($_SESSION['user_id'])) {
 
 // [SECURITY] Check Maintenance Mode
 if (($_SESSION['role'] ?? '') !== 'ADMIN') {
-    $chkMaint = $pdo->query("SELECT setting_value FROM system_settings WHERE setting_key = 'maintenance_mode'")->fetchColumn();
+    $maintQuery = $pdo->query("SELECT setting_value FROM system_settings WHERE setting_key = 'maintenance_mode'");
+    $chkMaint = $maintQuery ? $maintQuery->fetchColumn() : '0';
     if ($chkMaint === '1') {
         header("Location: login.php?msg=" . urlencode("🛠️ System is under maintenance."));
         exit;
@@ -74,8 +75,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($_SESSION['role'], ['ADMIN
                 exit;
             }
             try {
-                $name = trim($_POST['req_name']);
-                $keys = trim($_POST['req_keywords']);
+                $name = trim($_POST['req_name'] ?? '');
+                $keys = trim($_POST['req_keywords'] ?? '');
 
                 // [SECURITY] Validation
                 if (strlen($name) > 100 || !preg_match('/^[a-zA-Z0-9\s\-\(\)\.]+$/', $name)) {
@@ -136,9 +137,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($_SESSION['role'], ['ADMIN
                 exit;
             }
             try {
-                $id = $_POST['req_id'];
-                $name = trim($_POST['req_name']);
-                $keys = trim($_POST['req_keywords']);
+                $id = (int)($_POST['req_id'] ?? 0);
+                $name = trim($_POST['req_name'] ?? '');
+                $keys = trim($_POST['req_keywords'] ?? '');
 
                 if (strlen($name) > 100 || !preg_match('/^[a-zA-Z0-9\s\-\(\)\.]+$/', $name)) {
                     header("Location: tracker.php?error=" . urlencode("Invalid Requirement Name."));
@@ -336,13 +337,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($_SESSION['role'], ['ADMIN
                     <br><p>Thank you,<br><strong>Human Resources</strong></p></body></html>";
             $headers = "MIME-Version: 1.0\r\nContent-type:text/html;charset=UTF-8\r\nFrom: HR System <no-reply@hrsystem.com>\r\n";
 
-            if (mail($to, $subject, $body, $headers)) {
-                $pdo->prepare("UPDATE employees SET last_reminded = NOW() WHERE emp_id = ?")->execute([$empId]);
-                $logger->log($_SESSION['user_id'], 'SENT_AJAX_REMINDER', "Sent AJAX reminder to employee ID: $empId");
-                echo json_encode(['status' => 'success']);
-            } else {
-                echo json_encode(['status' => 'error', 'message' => 'Mail failed']);
-            }
+            // [MHI POLICY] Email disabled. Just update the timestamp for tracking manual reminders.
+            $pdo->prepare("UPDATE employees SET last_reminded = NOW() WHERE emp_id = ?")->execute([$empId]);
+            $logger->log($_SESSION['user_id'], 'SENT_AJAX_REMINDER', "Logged AJAX reminder for employee ID: $empId");
+            echo json_encode(['status' => 'success']);
             exit;
         } elseif ($_POST['action'] === 'toggle_exempt') {
             // [NEW] Handle N/A Toggle (Exemptions)
@@ -484,8 +482,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($_SESSION['role'], ['ADMIN
             exit;
         } elseif ($_POST['action'] === 'rename_file') {
             // [NEW] Rename File
-            $docId = $_POST['doc_id'];
-            $newName = trim($_POST['new_name']);
+            $docId = (int)($_POST['doc_id'] ?? 0);
+            $newName = trim($_POST['new_name'] ?? '');
 
             if ($docId && $newName) {
                 // [SECURITY] Validate Filename Characters

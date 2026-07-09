@@ -21,7 +21,8 @@ if (!isset($_SESSION['user_id'])) {
 
 // [SECURITY] Check Maintenance Mode
 if (($_SESSION['role'] ?? '') !== 'ADMIN') {
-    $chkMaint = $pdo->query("SELECT setting_value FROM system_settings WHERE setting_key = 'maintenance_mode'")->fetchColumn();
+    $maintQuery = $pdo->query("SELECT setting_value FROM system_settings WHERE setting_key = 'maintenance_mode'");
+    $chkMaint = $maintQuery ? $maintQuery->fetchColumn() : '0';
     if ($chkMaint === '1') {
         header("Location: login.php?msg=" . urlencode("🛠️ System is under maintenance."));
         exit;
@@ -89,7 +90,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $input_selection  = post('employment_type');
     $company_name     = post('company_name', 'TES Philippines');
     $previous_company = post('previous_company');
-    $hire_date        = post('hire_date');
+    $hire_date        = !empty($_POST['hire_date']) ? $_POST['hire_date'] : null;
 
     // Personal Info (FIXED LOGIC)
     $first_name       = ucwords(strtolower(post('first_name')));
@@ -103,7 +104,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } elseif (!in_array($gender, $allowedGenders, true)) {
         $errors[] = "Invalid gender selected.";
     }
-    $birth_date       = post('birth_date');
+    $birth_date       = !empty($_POST['birth_date']) ? $_POST['birth_date'] : null;
     $contact_number   = post('contact_number');
     $email            = post('email');
     $present_address  = post('present_address');
@@ -813,6 +814,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         </div>
     </div>
 
+    <script src="assets/sweetalert2.all.min.js"></script>
     <script src="assets/bootstrap.bundle.min.js"></script>
     <script>
         // [NEW] Real-time Duplicate ID Detector

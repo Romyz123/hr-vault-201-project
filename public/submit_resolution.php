@@ -22,7 +22,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SESSION['user_id'])) {
         exit;
     }
 
-    $note = trim($_POST['resolution_note']);
+    $note = trim($_POST['resolution_note'] ?? '');
 
     // [NEW] Fetch Document Name for Context
     $stmt = $pdo->prepare("SELECT id, original_name FROM documents WHERE id = ?");

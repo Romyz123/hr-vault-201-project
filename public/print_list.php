@@ -47,9 +47,8 @@ if (!empty($filter_dept)) {
 if (!empty($search_query)) {
     $terms = preg_split('/[\s,]+/', $search_query, -1, PREG_SPLIT_NO_EMPTY);
     foreach ($terms as $term) {
-        $sql .= " AND (emp_id LIKE ? ESCAPE '\\' OR first_name LIKE ? ESCAPE '\\' OR last_name LIKE ? ESCAPE '\\')";
-        $escaped = addcslashes($term, '%_');
-        $t = "%$escaped%";
+        $sql .= " AND (emp_id LIKE ? OR first_name LIKE ? OR last_name LIKE ?)";
+        $t = "%{$term}%";
         array_push($params, $t, $t, $t);
     }
 }

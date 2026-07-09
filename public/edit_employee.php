@@ -1,4 +1,7 @@
 <?php
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
+error_reporting(E_ALL);
 // ======================================================
 // [FILE] public/edit_employee.php
 // [STATUS] FULL VERSION: Status + Exit Date + Exit Reason
@@ -7,7 +10,13 @@
 require '../config/db.php';
 require '../src/Security.php';
 require '../src/Logger.php';
+require '../src/helpers.php';
 session_start();
+
+// [FIX] PRG Pattern for Validation: Load errors and old data from session
+$errors = $_SESSION['form_errors'] ?? [];
+$old_data = $_SESSION['form_data'] ?? [];
+unset($_SESSION['form_errors'], $_SESSION['form_data']);
 
 // 1. REQUIRE LOGIN
 if (!isset($_SESSION['user_id'])) {
@@ -15,32 +24,33 @@ if (!isset($_SESSION['user_id'])) {
     exit;
 }
 
-
-
 // [SECURITY] Check Maintenance Mode
 if (($_SESSION['role'] ?? '') !== 'ADMIN') {
-    $chkMaint = $pdo->query("SELECT setting_value FROM system_settings WHERE setting_key = 'maintenance_mode'")->fetchColumn();
-    if ($chkMaint === '1') {
-        header("Location: login.php?msg=" . urlencode("🛠️ System is under maintenance."));
-        exit;
+    try {
+        $maintStmt = $pdo->query("SELECT setting_value FROM system_settings WHERE setting_key = 'maintenance_mode'");
+        if ($maintStmt && $maintStmt->fetchColumn() === '1') {
+            header("Location: login.php?msg=" . urlencode("🛠️ System is under maintenance."));
+            exit;
+        }
+    } catch (Exception $e) {
+        // Table doesn't exist, ignore
     }
 }
 
 $security = new Security($pdo);
 $logger   = new Logger($pdo);
 
-// [FIX] Initialize $dynamicCats early so it always exists for rendering.
-// This prevents "Undefined variable" warnings in the HTML dropdowns if the later DB query fails.
 $dynamicCats = [];
-
 
 // [NEW] Fetch dynamic requirements for document categorization check
 $REQUIRED_DOCS = [];
 try {
     $reqStmt = $pdo->query("SELECT name, keywords FROM document_requirements ORDER BY id ASC");
-    $reqList = $reqStmt->fetchAll(PDO::FETCH_ASSOC);
-    foreach ($reqList as $r) {
-        $REQUIRED_DOCS[$r['name']] = array_map('trim', explode(',', $r['keywords']));
+    if ($reqStmt) {
+        $reqList = $reqStmt->fetchAll(PDO::FETCH_ASSOC);
+        foreach ($reqList as $r) {
+            $REQUIRED_DOCS[$r['name']] = array_map('trim', explode(',', $r['keywords']));
+        }
     }
 } catch (Exception $e) {
     $REQUIRED_DOCS = [
@@ -63,9 +73,11 @@ $stmt = $pdo->prepare("SELECT * FROM employees WHERE id = ?");
 $stmt->execute([$id]);
 $emp = $stmt->fetch(PDO::FETCH_ASSOC);
 
-// [FIX] Initialize $dynamicCats early so it always exists for rendering.
-// This prevents "Undefined variable" warnings in the HTML dropdowns if the later DB query fails.
-$dynamicCats = [];
+// [FIX] PRG Pattern for Validation: If there was a validation error, merge the old submitted data over the DB data
+// This repopulates the form with the user's input after a redirect.
+if (!empty($old_data)) {
+    $emp = array_merge($emp, $old_data);
+}
 
 if (!$emp) die("Employee not found.");
 
@@ -99,14 +111,15 @@ try {
 
 // [NEW] Fetch Dynamic Categories for the Edit Document Modal
 try {
-    // [FIX] Check if table exists before querying to prevent PDOExceptions
     $tableCheck = $pdo->query("SHOW TABLES LIKE 'document_requirements'");
-    if ($tableCheck->fetch()) {
+    if ($tableCheck && $tableCheck->fetch()) {
         $stmt = $pdo->query("SELECT DISTINCT name FROM document_requirements ORDER BY name ASC");
-        $dynamicCats = $stmt->fetchAll(PDO::FETCH_COLUMN);
-        $dynamicCats = array_filter($dynamicCats, function ($cat) {
-            return strcasecmp(trim($cat), 'Others') !== 0;
-        });
+        if ($stmt) {
+            $dynamicCats = $stmt->fetchAll(PDO::FETCH_COLUMN);
+            $dynamicCats = array_filter($dynamicCats, function ($cat) {
+                return strcasecmp(trim($cat), 'Others') !== 0;
+            });
+        }
     } else {
         throw new Exception("Table 'document_requirements' not found.");
     }
@@ -135,7 +148,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // [NEW] Handle Add Evaluation
     if (isset($_POST['action']) && $_POST['action'] === 'add_eval') {
-        $eval_date = $_POST['eval_date'];
+        $eval_date = !empty($_POST['eval_date']) ? $_POST['eval_date'] : null;
         $score = (int)$_POST['score'];
         $remarks = trim($_POST['remarks']);
         $evaluator = trim($_POST['evaluator']);
@@ -174,7 +187,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // [NEW] Handle Edit Evaluation
     if (isset($_POST['action']) && $_POST['action'] === 'edit_eval') {
         $eval_id = (int)$_POST['eval_id'];
-        $eval_date = $_POST['eval_date'];
+        $eval_date = !empty($_POST['eval_date']) ? $_POST['eval_date'] : null;
         $score = (int)$_POST['score'];
         $remarks = trim($_POST['remarks']);
         $evaluator = trim($_POST['evaluator']);
@@ -204,7 +217,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // [NEW] Handle Delete Evaluation
     if (isset($_POST['action']) && $_POST['action'] === 'delete_eval') {
-        if (in_array($_SESSION['role'], ['ADMIN', 'MANAGER', 'HR'])) {
+        if (in_array($_SESSION['role'] ?? '', ['ADMIN', 'MANAGER', 'HR'])) {
             $delEvalId = (int)$_POST['eval_id'];
             $pdo->prepare("DELETE FROM performance_evaluations WHERE id = ?")->execute([$delEvalId]);
             header("Location: edit_employee.php?id=$id&tab=eval&msg=" . urlencode("✅ Evaluation Deleted"));
@@ -214,9 +227,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // [NEW] Handle Add History Event
     if (isset($_POST['action']) && $_POST['action'] === 'add_history') {
-        if (in_array($_SESSION['role'], ['ADMIN', 'MANAGER', 'HR'])) {
+        if (in_array($_SESSION['role'] ?? '', ['ADMIN', 'MANAGER', 'HR'])) {
             $title = trim($_POST['event_title']);
-            $date  = $_POST['event_date'];
+            $date  = !empty($_POST['event_date']) ? $_POST['event_date'] : null;
             $dept  = trim($_POST['department']);
             $notes = trim($_POST['notes']);
 
@@ -249,7 +262,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     // [NEW] Handle Delete History Event
     if (isset($_POST['action']) && $_POST['action'] === 'delete_history') {
-        if (in_array($_SESSION['role'], ['ADMIN', 'MANAGER'])) {
+        if (in_array($_SESSION['role'] ?? '', ['ADMIN', 'MANAGER'])) {
             $histId = (int)$_POST['history_id'];
             $pdo->prepare("DELETE FROM employment_history WHERE id = ?")->execute([$histId]);
             header("Location: edit_employee.php?id=$id&tab=history&msg=" . urlencode("✅ Event deleted."));
@@ -259,7 +272,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // [NEW] Handle Delete All Documents
     if (isset($_POST['action']) && $_POST['action'] === 'delete_all_docs') {
-        if (in_array($_SESSION['role'], ['ADMIN', 'MANAGER'])) {
+        if (in_array($_SESSION['role'] ?? '', ['ADMIN', 'MANAGER'])) {
             $stmt = $pdo->prepare("UPDATE documents SET deleted_at = NOW() WHERE employee_id = ? AND deleted_at IS NULL");
             $stmt->execute([$emp['emp_id']]);
             $logger->log($_SESSION['user_id'], 'DELETE_ALL_DOCS', "Deleted all documents for {$emp['emp_id']}");
@@ -270,7 +283,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // [REVISED] Handle Edit Document Details -> Creates a request for approval
     if (isset($_POST['action']) && $_POST['action'] === 'edit_doc') {
-        if (in_array($_SESSION['role'], ['ADMIN', 'MANAGER', 'HR', 'STAFF'])) {
+        if (in_array($_SESSION['role'] ?? '', ['ADMIN', 'MANAGER', 'HR', 'STAFF'])) {
             $docId = (int)$_POST['doc_id'];
             $newName = trim($_POST['file_name']);
             $newCat = trim($_POST['category']);
@@ -334,7 +347,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
 
                 // 2a. STAFF: Submit Request
-                if ($_SESSION['role'] === 'STAFF') {
+                if (($_SESSION['role'] ?? '') === 'STAFF') {
                     // Check for existing pending request to prevent spam
                     $chkReq = $pdo->prepare("SELECT id FROM requests WHERE request_type = 'EDIT_DOC' AND target_id = ? AND status = 'PENDING'");
                     $chkReq->execute([$docId]);
@@ -392,7 +405,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // [NEW] Handle Delete Employee (Full Cleanup)
     if (isset($_POST['action']) && $_POST['action'] === 'delete_employee') {
-        if (in_array($_SESSION['role'], ['ADMIN', 'MANAGER'])) {
+        if (in_array($_SESSION['role'] ?? '', ['ADMIN', 'MANAGER'])) {
             // [FIX] Soft Delete instead of Hard Delete
             $pdo->prepare("UPDATE employees SET deleted_at = NOW() WHERE id = ?")->execute([$id]);
 
@@ -403,45 +416,44 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
-    $new_emp_id = post('emp_id', $emp['emp_id']);
-    $first_name = ucwords(strtolower(post('first_name', $emp['first_name'])));
-    $middle_name = ucwords(strtolower(post('middle_name', $emp['middle_name'])));
-    $last_name = ucwords(strtolower(post('last_name', $emp['last_name'])));
-    $job_title = ucwords(strtolower(post('job_title', $emp['job_title'])));
-    $system_role = post('system_role', $emp['system_role'] ?? 'Staff'); // [NEW]
-    $dept = post('dept', $emp['dept']);
-    $section = post('section', $emp['section']);
-    $company_name = post('company_name', $emp['company_name']);
-    $previous_company = post('previous_company', $emp['previous_company']);
-    $hire_date = post('hire_date', $emp['hire_date']);
-    $gender = post('gender', $emp['gender']);
-    $birth_date = post('birth_date', $emp['birth_date']);
-    $contact_number = post('contact_number', $emp['contact_number']);
-    $email = post('email', $emp['email']);
-    $present_address = post('present_address', $emp['present_address']);
-    $permanent_address = post('permanent_address', $emp['permanent_address']);
-    $sss_no = post('sss_no', $emp['sss_no']);
-    $tin_no = post('tin_no', $emp['tin_no']);
-    $philhealth_no = post('philhealth_no', $emp['philhealth_no']);
-    $pagibig_no = post('pagibig_no', $emp['pagibig_no']);
-    $status = post('status', $emp['status']);
-    $exit_date = post('exit_date', $emp['exit_date']);
-    $exit_reason = post('exit_reason', $emp['exit_reason']);
-    $emergency_name = ucwords(strtolower(post('emergency_name', $emp['emergency_name'])));
-
-    $emergency_contact = post('emergency_contact', $emp['emergency_contact']);
-    $emergency_address = post('emergency_address', $emp['emergency_address']);
-
-    $education  = post('education', $emp['education'] ?? '');
-    $experience = post('experience', $emp['experience'] ?? '');
-    $skills     = post('skills', $emp['skills'] ?? '');
-    $licenses   = post('licenses', $emp['licenses'] ?? '');
+    $new_emp_id = trim($_POST['emp_id'] ?? $emp['emp_id'] ?? '');
+    $first_name = ucwords(strtolower(trim($_POST['first_name'] ?? $emp['first_name'] ?? '')));
+    $middle_name = ucwords(strtolower(trim($_POST['middle_name'] ?? $emp['middle_name'] ?? '')));
+    $last_name = ucwords(strtolower(trim($_POST['last_name'] ?? $emp['last_name'] ?? '')));
+    $job_title = ucwords(strtolower(trim($_POST['job_title'] ?? $emp['job_title'] ?? '')));
+    $system_role = trim($_POST['system_role'] ?? $emp['system_role'] ?? 'Staff');
+    $dept = trim($_POST['dept'] ?? $emp['dept'] ?? '');
+    $section = trim($_POST['section'] ?? $emp['section'] ?? '');
+    $group = trim($_POST['group'] ?? $emp['group'] ?? '');
+    $company_name = trim($_POST['company_name'] ?? $emp['company_name'] ?? '');
+    $previous_company = trim($_POST['previous_company'] ?? $emp['previous_company'] ?? '');
+    $hire_date = !empty($_POST['hire_date']) ? $_POST['hire_date'] : null;
+    $gender = trim($_POST['gender'] ?? $emp['gender'] ?? '');
+    $birth_date = !empty($_POST['birth_date']) ? $_POST['birth_date'] : null;
+    $contact_number = trim($_POST['contact_number'] ?? $emp['contact_number'] ?? '');
+    $email = trim($_POST['email'] ?? $emp['email'] ?? '');
+    $present_address = trim($_POST['present_address'] ?? $emp['present_address'] ?? '');
+    $permanent_address = trim($_POST['permanent_address'] ?? $emp['permanent_address'] ?? '');
+    $sss_no = trim($_POST['sss_no'] ?? $emp['sss_no'] ?? '');
+    $tin_no = trim($_POST['tin_no'] ?? $emp['tin_no'] ?? '');
+    $philhealth_no = trim($_POST['philhealth_no'] ?? $emp['philhealth_no'] ?? '');
+    $pagibig_no = trim($_POST['pagibig_no'] ?? $emp['pagibig_no'] ?? '');
+    $status = trim($_POST['status'] ?? $emp['status'] ?? 'Active');
+    $exit_date = !empty($_POST['exit_date']) ? $_POST['exit_date'] : null;
+    $exit_reason = trim($_POST['exit_reason'] ?? $emp['exit_reason'] ?? '');
+    $emergency_name = ucwords(strtolower(trim($_POST['emergency_name'] ?? $emp['emergency_name'] ?? '')));
+    $emergency_contact = trim($_POST['emergency_contact'] ?? $emp['emergency_contact'] ?? '');
+    $emergency_address = trim($_POST['emergency_address'] ?? $emp['emergency_address'] ?? '');
+    $education  = trim($_POST['education'] ?? $emp['education'] ?? '');
+    $experience = trim($_POST['experience'] ?? $emp['experience'] ?? '');
+    $skills     = trim($_POST['skills'] ?? $emp['skills'] ?? '');
+    $licenses   = trim($_POST['licenses'] ?? $emp['licenses'] ?? '');
 
     // [NEW] Capture Request Note for Validation
-    $request_note = post('request_note', '');
+    $request_note = trim($_POST['request_note'] ?? '');
 
     // Employment Type Logic
-    $input_selection = post('employment_type', '');
+    $input_selection = trim($_POST['employment_type'] ?? '');
     if ($input_selection === 'TESP DIRECT') {
         $employment_type = 'TESP Direct';
         $agency_name = 'TESP';
@@ -479,6 +491,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'licenses'          => 1000,
         'exit_reason'       => 100,
         'dept'              => 50,
+        'group'             => 300,
         'section'           => 100,
         'request_note'      => 500,
     ];
@@ -489,6 +502,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
+    // [FIX] Validate required fields that might be NOT NULL in the database
+    if (empty($first_name)) $errors[] = "First Name is required.";
+    if (empty($last_name)) $errors[] = "Last Name is required.";
+    if (empty($job_title)) $errors[] = "Job Title is required.";
+
+    // [NEW] Department Validation
+    if (empty($dept)) $errors[] = "Department is required.";
+
     if ($new_emp_id === '') $errors[] = "Employee ID is required.";
     if (!preg_match('/^[A-Za-z0-9\-_]{1,20}$/', $new_emp_id)) {
         $errors[] = "Employee ID contains invalid characters (letters, numbers, dash, underscore only).";
@@ -497,6 +518,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $chk = $pdo->prepare("SELECT 1 FROM employees WHERE emp_id = ? AND id != ?");
         $chk->execute([$new_emp_id, $id]);
         if ($chk->fetch()) $errors[] = "ID $new_emp_id is already in use.";
+    }
+
+    // [NEW] Group Validation (from add_employee.php)
+    if ($group !== '') {
+        $groupItems = array_filter(array_map('trim', explode(',', $group)), fn($item) => $item !== '');
+        foreach ($groupItems as $item) {
+            if (!preg_match('/^[A-Za-z0-9\s\-]+$/', $item)) {
+                $errors[] = "Group contains invalid characters. Allowed: letters, numbers, spaces, and hyphens.";
+                break;
+            }
+        }
+        if (count($groupItems) !== count(array_unique($groupItems))) {
+            $errors[] = "Group contains duplicate values.";
+        }
+        $group = implode(', ', $groupItems);
     }
 
     // [SECURITY] Name Validation
@@ -546,21 +582,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!preg_match($qualRegex, $licenses))   $errors[] = "Licenses contains invalid characters.";
 
     // [SECURITY] Date Validation
-    $validHire  = DateTime::createFromFormat('Y-m-d', $hire_date) ?: false;
-    $validBirth = DateTime::createFromFormat('Y-m-d', $birth_date) ?: false;
+    $validHire  = $hire_date ? DateTime::createFromFormat('Y-m-d', $hire_date) : false;
+    $validBirth = $birth_date ? DateTime::createFromFormat('Y-m-d', $birth_date) : false;
+    $validExit  = $exit_date ? DateTime::createFromFormat('Y-m-d', $exit_date) : false;
     $today      = new DateTime('today');
 
     if ($hire_date && (!$validHire || $validHire->format('Y-m-d') !== $hire_date))  $errors[] = "Invalid Hire Date.";
     if ($birth_date && (!$validBirth || $validBirth->format('Y-m-d') !== $birth_date)) $errors[] = "Invalid Birth Date.";
+    if ($exit_date && (!$validExit || $validExit->format('Y-m-d') !== $exit_date)) $errors[] = "Invalid Exit Date format.";
 
     if ($validBirth && $validBirth > $today) {
         $errors[] = "Birth Date cannot be in the future.";
     }
-    if ($validHire && $validHire > (new DateTime('now'))->modify('+1 day')) {
-        $errors[] = "Hire Date cannot be in the future.";
-    }
     if ($validBirth && $validHire && $validHire < $validBirth) {
         $errors[] = "Hire Date cannot be earlier than Birth Date.";
+    }
+    // if ($validHire && $validHire > $today) {
+    //     $errors[] = "Hire Date cannot be in the future for an existing employee.";
+    // }
+    if ($validHire && $validExit && $validExit < $validHire) {
+        $errors[] = "Exit Date cannot be before the Hire Date.";
     }
 
     // Avatar Logic
@@ -607,6 +648,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'system_role' => $system_role,
             'dept' => $dept,
             'section' => $section,
+            'group' => $group,
             'employment_type' => $employment_type,
             'agency_name' => $agency_name,
             'company_name' => $company_name,
@@ -661,7 +703,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $setParts = [];
             $values = [];
             foreach ($updateData as $k => $v) {
-                $setParts[] = "$k = ?";
+                // [FIX] Added backticks around $k to protect reserved words like 'group'
+                $setParts[] = "`$k` = ?";
                 $values[] = $v;
             }
             // [NEW] Track when the profile was last updated
@@ -736,10 +779,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
                 // Log the full error server-side for debugging
                 error_log('Database Error in edit_employee.php: ' . $e->getMessage() . '. Stack: ' . $e->getTraceAsString());
-                // Show generic error to user
+                // Show generic error to user// Show EXACT error to user for debugging
+                $errors[] = "Database Error: " . $e->getMessage();
                 $errors[] = "A database error occurred. Please contact support if the problem persists.";
             }
         }
+    } else {
+        // [FIX] PRG Pattern for Validation: Store errors and POST data in session, then redirect.
+        $_SESSION['form_errors'] = $errors;
+        $_SESSION['form_data'] = $_POST;
+        header("Location: edit_employee.php?id=$id&tab=details"); // Redirect back to the details tab
+        exit;
     }
 }
 ?>
@@ -785,7 +835,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 </div>
             </div>
 
-            <!-- TABS NAVIGATION -->
             <ul class="nav nav-tabs mb-4" id="profileTabs" role="tablist">
                 <li class="nav-item"><button class="nav-link active fw-bold" id="details-tab" data-bs-toggle="tab" data-bs-target="#details" type="button"><i class="bi bi-person-vcard"></i> Personal Details</button></li>
                 <li class="nav-item"><button class="nav-link fw-bold" id="docs-tab" data-bs-toggle="tab" data-bs-target="#docs" type="button"><i class="bi bi-folder2-open"></i> Digital 201 File <span class="badge bg-secondary rounded-pill ms-1"><?php echo count($myDocs); ?></span></button></li>
@@ -794,7 +843,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </ul>
 
             <div class="tab-content" id="profileTabsContent">
-                <!-- TAB 1: PERSONAL DETAILS -->
                 <div class="tab-pane fade show active" id="details" role="tabpanel">
                     <form id="editEmployeeForm" method="POST" enctype="multipart/form-data">
                         <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
@@ -841,6 +889,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                     <button class="btn btn-outline-secondary" type="button" onclick="document.getElementById('section').value = ''" title="Clear"><i class="bi bi-x-lg"></i></button>
                                 </div>
                                 <select id="sectionPicker" class="form-select mt-1 form-select-sm text-muted" onchange="addSection(this.value)"></select>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Group(s)</label>
+                                <div class="input-group">
+                                    <input type="text" name="group" id="group" class="form-control bg-white" readonly value="<?php echo val('group'); ?>">
+                                    <button class="btn btn-outline-secondary" type="button" onclick="document.getElementById('group').value = ''" title="Clear"><i class="bi bi-x-lg"></i></button>
+                                </div>
+                                <select id="groupPicker" class="form-select mt-1 form-select-sm text-muted" onchange="addGroup(this.value)">
+                                    <option value="">+ Add Group...</option>
+                                    <?php
+                                    $groups = $groups ?? [];
+                                    foreach ($groups as $g): ?>
+                                        <option value="<?php echo h($g); ?>"><?php echo h($g); ?></option>
+                                    <?php endforeach; ?>
+                                </select>
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label"><?= lang('employment_type') ?></label>
@@ -1029,7 +1092,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         </div>
                     </form>
 
-                    <?php if (in_array($_SESSION['role'], ['ADMIN', 'MANAGER', 'HR', 'STAFF'])): ?>
+                    <?php if (in_array($_SESSION['role'] ?? '', ['ADMIN', 'MANAGER', 'HR', 'STAFF'])): ?>
                         <hr class="my-4">
                         <div class="card border-primary shadow-sm">
                             <div class="card-body d-flex justify-content-between align-items-center">
@@ -1044,7 +1107,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         </div>
                     <?php endif; ?>
 
-                    <?php if (in_array($_SESSION['role'], ['ADMIN', 'MANAGER'])): ?>
+                    <?php if (in_array($_SESSION['role'] ?? '', ['ADMIN', 'MANAGER'])): ?>
                         <hr class="my-5">
                         <div class="card border-danger shadow-sm">
                             <div class="card-body d-flex justify-content-between align-items-center">
@@ -1055,7 +1118,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <?php endif; ?>
                 </div>
 
-                <!-- TAB 2: DIGITAL 201 FILE -->
                 <div class="tab-pane fade" id="docs" role="tabpanel">
                     <div class="d-flex justify-content-between align-items-center mb-3">
                         <h6 class="fw-bold text-primary mb-0">📂 Uploaded Documents</h6>
@@ -1063,7 +1125,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             <button type="button" class="btn btn-sm btn-dark me-2" data-bs-toggle="modal" data-bs-target="#downloadAllModal">
                                 <i class="bi bi-file-earmark-zip-fill"></i> Download All
                             </button>
-                            <?php if (!empty($myDocs) && in_array($_SESSION['role'], ['ADMIN', 'MANAGER'])): ?>
+                            <?php if (!empty($myDocs) && in_array($_SESSION['role'] ?? '', ['ADMIN', 'MANAGER'])): ?>
                                 <form method="POST" class="d-inline" onsubmit="return confirm('Are you sure you want to delete ALL documents for this employee? They will be moved to the Recycle Bin.');">
                                     <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
                                     <input type="hidden" name="action" value="delete_all_docs">
@@ -1074,7 +1136,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         </div>
                     </div>
 
-                    <!-- [NEW] Document Search Filter -->
                     <div class="mb-3">
                         <div class="input-group input-group-sm shadow-sm rounded">
                             <span class="input-group-text bg-light border-end-0 text-muted"><i class="bi bi-search"></i></span>
@@ -1149,7 +1210,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                     </div>
                                     <a href="view_doc.php?id=<?php echo $d['file_uuid']; ?>" target="_blank" class="btn btn-sm btn-outline-primary position-relative z-2">View</a>
 
-                                    <?php if (in_array($_SESSION['role'], ['ADMIN', 'MANAGER', 'HR', 'STAFF'], true)): ?>
+                                    <?php if (in_array($_SESSION['role'] ?? '', ['ADMIN', 'MANAGER', 'HR', 'STAFF'], true)): ?>
                                         <button type="button" class="btn btn-sm btn-outline-warning position-relative z-2 ms-1"
                                             onclick='openEditDocModal(<?php echo (int)$d['id']; ?>, <?php echo json_encode($d['original_name'], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP); ?>, <?php echo json_encode($d['category'], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP); ?>, <?php echo json_encode($d['expiry_date']); ?>)'
                                             title="Edit Details">
@@ -1162,7 +1223,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <?php endif; ?>
                 </div>
 
-                <!-- TAB 3: EVALUATION -->
                 <div class="tab-pane fade" id="eval" role="tabpanel">
                     <div class="d-flex justify-content-between align-items-center mb-3">
                         <h6 class="fw-bold text-primary mb-0">📊 Evaluation History</h6>
@@ -1214,7 +1274,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     </div>
                 </div>
 
-                <!-- TAB 4: HISTORY TIMELINE -->
                 <div class="tab-pane fade" id="history" role="tabpanel">
                     <div class="d-flex justify-content-between align-items-center mb-4">
                         <h6 class="fw-bold text-primary mb-0">📅 Employment History</h6>
@@ -1242,7 +1301,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                                     <?php endif; ?>
                                                 </div>
                                             </div>
-                                            <?php if (in_array($_SESSION['role'], ['ADMIN', 'MANAGER'])): ?>
+                                            <?php if (in_array($_SESSION['role'] ?? '', ['ADMIN', 'MANAGER'])): ?>
                                                 <form method="POST" onsubmit="return confirm('Delete this event?');">
                                                     <input type="hidden" name="action" value="delete_history">
                                                     <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
@@ -1262,7 +1321,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             <?php endforeach; ?>
                         <?php endif; ?>
 
-                        <!-- Start Node -->
                         <div class="timeline-item mb-0">
                             <div class="timeline-marker bg-secondary"></div><span class="text-muted small">Joined Company</span>
                         </div>
@@ -1286,7 +1344,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <input type="hidden" name="redirect_to" value="edit_employee.php?id=<?php echo $id; ?>&tab=docs">
 </form>
 
-<!-- EDIT DOCUMENT MODAL -->
 <div class="modal fade" id="editDocModal" tabindex="-1">
     <div class="modal-dialog">
         <form method="POST" class="modal-content">
@@ -1352,7 +1409,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </div>
 </div>
 
-<!-- ADD EVALUATION MODAL -->
 <div class="modal fade" id="addEvalModal" tabindex="-1">
     <div class="modal-dialog">
         <form class="modal-content" method="POST">
@@ -1402,7 +1458,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </div>
 </div>
 
-<!-- ADD HISTORY MODAL -->
 <div class="modal fade" id="addHistoryModal" tabindex="-1">
     <div class="modal-dialog">
         <form class="modal-content" method="POST">
@@ -1420,7 +1475,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 </div>
                 <div class="row g-2 mb-3">
                     <div class="col-6"><label class="form-label">Date</label><input type="date" name="event_date" class="form-control" value="<?php echo date('Y-m-d'); ?>" required></div>
-                    <div class="col-6"><label class="form-label">Department (Optional)</label><input type="text" name="department" class="form-control" placeholder="e.g. IT Dept" value="<?php echo htmlspecialchars($emp['dept']); ?>"></div>
+                    <div class="col-6"><label class="form-label">Department (Optional)</label><input type="text" name="department" class="form-control" placeholder="e.g. IT Dept" value="<?php echo htmlspecialchars($emp['dept'] ?? ''); ?>"></div>
                 </div>
                 <div class="mb-3">
                     <label class="form-label">Notes / Details</label>
@@ -1432,7 +1487,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </div>
 </div>
 
-<!-- EDIT EVALUATION MODAL -->
 <div class="modal fade" id="editEvalModal" tabindex="-1">
     <div class="modal-dialog">
         <form class="modal-content" method="POST">
@@ -1469,7 +1523,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </div>
 </div>
 
-<!-- DOWNLOAD ALL MODAL -->
 <div class="modal fade" id="downloadAllModal" tabindex="-1">
     <div class="modal-dialog">
         <form action="export_files.php" method="POST" class="modal-content" onsubmit="showDownloadLoader(this)">
@@ -1484,7 +1537,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <li><strong><?php echo count($myDocs); ?> Uploaded Documents</strong></li>
                 </ul>
                 <input type="hidden" name="search" value="<?php echo h($emp['emp_id']); ?>">
-                <input type="hidden" name="csrf_token" value="<?php echo h($_SESSION['csrf_token']); ?>">
+                <input type="hidden" name="csrf_token" value="<?php echo h($_SESSION['csrf_token'] ?? ''); ?>">
 
                 <div class="mb-3">
                     <label class="form-label fw-bold text-danger">Set ZIP Password (Optional)</label>
@@ -1500,7 +1553,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </div>
 </div>
 
-<!-- DOCUMENT GENERATION MODAL -->
 <div class="modal fade" id="docModal" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
@@ -1513,9 +1565,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <input type="hidden" name="id" value="<?php echo $id; ?>">
 
                     <div class="mb-3">
-                        <!-- [SMART FILTER STEP 1] The "Filter" Dropdown -->
-                        <!-- This dropdown triggers the filterDocuments() function when changed. -->
-                        <!-- It acts as the "Parent" that controls the options available in the next dropdown. -->
                         <label class="form-label fw-bold text-success">1. Select Employee Category</label>
                         <select class="form-select" id="jobCategory" onchange="filterDocuments()">
                             <option value="" selected disabled>-- Choose Role --</option>
@@ -1527,8 +1576,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     </div>
 
                     <div class="mb-3">
-                        <!-- [SMART FILTER STEP 2] The "Result" Dropdown -->
-                        <!-- This is initially disabled. It gets populated by JavaScript based on Step 1. -->
                         <label class="form-label fw-bold">2. Select Document Template</label>
                         <select class="form-select" name="type" id="docType" onchange="toggleDateFields()" disabled>
                             <option value="" selected>-- Select Category First --</option>
@@ -1536,7 +1583,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <div class="form-text text-muted" id="docHelp"></div>
                     </div>
 
-                    <!-- [NEW] Auto-Save Copy Toggle -->
                     <div class="form-check form-switch mb-3 p-2 border rounded bg-light shadow-sm">
                         <input class="form-check-input ms-1" type="checkbox" name="auto_save_copy" id="autoSaveCopy" value="1">
                         <label class="form-check-label fw-bold text-primary ms-2" for="autoSaveCopy">
@@ -1544,7 +1590,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         </label>
                     </div>
 
-                    <!-- [NEW] COE Specific Fields -->
                     <div id="coeFields" style="display:none;" class="mb-3 p-3 bg-light border rounded">
                         <h6 class="text-primary fw-bold"><i class="bi bi-calendar-event"></i> Employment Period Options</h6>
                         <div class="form-check mb-2">
@@ -1555,7 +1600,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <div class="form-text extra-small">If "Override" is checked and date is empty, it will still show "Present".</div>
                     </div>
 
-                    <!-- [NEW] NTE Fields -->
                     <div id="nteFields" style="display:none;" class="mb-3 p-3 bg-danger-subtle border border-danger rounded">
                         <h6 class="text-danger fw-bold"><i class="bi bi-exclamation-triangle"></i> Incident Details</h6>
 
@@ -1601,7 +1645,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         </div>
                     </div>
 
-                    <!-- [NEW] NOD Fields -->
                     <div id="nodFields" style="display:none;" class="mb-3 p-3 bg-warning-subtle border border-warning rounded">
                         <h6 class="text-dark fw-bold"><i class="bi bi-gavel"></i> Decision Details</h6>
 
@@ -1639,20 +1682,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         </div>
                     </div>
 
-                    <!-- [NEW] Project Name Field -->
                     <div id="projectFields" style="display:none;" class="mb-3">
                         <label class="form-label fw-bold">Project Name</label>
                         <input type="text" name="project_name" id="projectNameInput" class="form-control" placeholder="e.g. MRT-3 Rehabilitation Project" maxlength="100">
                     </div>
 
-                    <!-- [NEW] Custom Duties Field -->
                     <div id="customDutiesField" style="display:none;" class="mb-3">
                         <label class="form-label fw-bold text-primary">Custom Duties (Optional Override)</label>
                         <textarea name="custom_duties" class="form-control" rows="5" maxlength="3000" style="text-align: center; white-space: pre-wrap; word-wrap: break-word;" placeholder="Type here to override the default role duties..." spellcheck="true" lang="en"></textarea>
                         <div class="form-text extra-small">Press Enter for new lines.</div>
                     </div>
 
-                    <!-- Date Selection (Hidden for NDA) -->
                     <div id="dateFields" class="p-3 bg-light border rounded mb-3" style="display:none;">
                         <h6 class="text-primary fw-bold mb-3">Contract Validity (Longevity)</h6>
 
@@ -1693,7 +1733,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </div>
 </div>
 
-<!-- CAMERA MODAL -->
 <div class="modal fade" id="cameraModal" tabindex="-1" data-bs-backdrop="static">
     <div class="modal-dialog">
         <div class="modal-content">
@@ -1723,13 +1762,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <script src="assets/bootstrap.bundle.min.js"></script>
 <script>
     // Logic for Sections and Auto-Capitalize
-    const sectionMap = <?php echo json_encode($sectionFriendlyMap); ?>;
-    const rawDeptMap = <?php echo json_encode($deptMap); ?>;
-    const currentSection = "<?php echo h($emp['section']); ?>";
+    const sectionMap = <?php echo json_encode($sectionFriendlyMap ?? []); ?>;
+    const rawDeptMap = <?php echo json_encode($deptMap ?? []); ?>;
+    const currentSection = "<?php echo h($emp['section'] ?? ''); ?>";
     const deptInput = document.getElementById('dept');
     const sectionSelect = document.getElementById('sectionPicker');
 
-    // [NEW] Multi-Department Logic
     function addDept(val) {
         if (!val) return;
         let current = deptInput.value;
@@ -1779,10 +1817,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         input.value = words.join(' ');
     }
 
-    // [NEW] Multi-Section Logic
     function addSection(val) {
         const picker = document.getElementById('sectionPicker');
-
         if (val) appendSectionValue(val);
         picker.value = "";
     }
@@ -1797,13 +1833,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
-    // [NEW] Local filter for Digital 201 File Tab
+    function addGroup(val) {
+        const picker = document.getElementById('groupPicker');
+        const input = document.getElementById('group');
+        if (!val) return;
+        let current = input.value;
+        const existing = current.split(',').map(s => s.trim()).filter(s => s !== '');
+        if (existing.includes(val)) return;
+        if (current) {
+            input.value = current + ', ' + val;
+        } else {
+            input.value = val;
+        }
+        picker.value = "";
+    }
+
     function filter201Docs() {
         const filter = document.getElementById('docSearch').value.toLowerCase();
         const items = document.querySelectorAll('#docs .list-group-item');
         items.forEach(item => {
             const text = item.innerText.toLowerCase();
-            // Toggles visibility while preserving d-flex layout if matched
             item.classList.toggle('d-none', !text.includes(filter));
         });
     }
@@ -1826,7 +1875,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     function confirmDelete(id) {
-        // [NEW] Check for existing documents
         const docCount = <?php echo htmlspecialchars(count($myDocs)); ?>;
         let warningText = "This action cannot be undone.";
 
@@ -1874,10 +1922,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         new bootstrap.Modal(document.getElementById('editEvalModal')).show();
     }
 
-    // [NEW] Tab Persistence Logic
     document.addEventListener("DOMContentLoaded", () => {
-        // [UX STABILIZATION] Scroll Memory Helper
-        // Keeps the user at their vertical scroll position even after switching tabs or saving changes
         const scrollKey = 'hr201_scroll_pos_' + window.location.pathname;
 
         window.addEventListener('beforeunload', () => {
@@ -1916,15 +1961,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         });
     }
 
-    // TOGGLE EXIT FIELDS LOGIC
     function toggleExitFields() {
         const statusSelect = document.getElementById('statusSelect');
-        if (!statusSelect) return; // Guard clause
+        if (!statusSelect) return;
 
         const status = statusSelect.value;
         const fields = document.querySelectorAll('.exit-field');
 
-        // If status is ANYTHING other than 'Active', show the exit fields
         if (status !== 'Active') {
             fields.forEach(field => field.style.display = 'block');
         } else {
@@ -1932,7 +1975,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
-    // [FIX] Centralized document list to remove redundancy.
     const standardDocs = [{
             val: 'probationary',
             text: '📄 Probationary Employment Contract'
@@ -1977,21 +2019,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'general': standardDocs
     };
 
-    // [SMART FILTER LOGIC]
-    // This function runs whenever the Category dropdown changes.
     function filterDocuments() {
         const category = document.getElementById('jobCategory').value;
         const docSelect = document.getElementById('docType');
         const btn = document.getElementById('generateBtn');
 
-        // 1. Reset the second dropdown (Clear old options)
         docSelect.innerHTML = '<option value="" selected disabled>-- Select Document --</option>';
 
         if (category && docLibrary[category]) {
-            // 3. Enable the dropdown
             docSelect.disabled = false;
-
-            // 4. Loop through the allowed documents and create <option> tags
             docLibrary[category].forEach(doc => {
                 const option = document.createElement('option');
                 option.value = doc.val;
@@ -1999,11 +2035,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 docSelect.appendChild(option);
             });
         } else {
-            // Disable if no category
             docSelect.disabled = true;
         }
-
-        // 5. Reset the date fields visibility since the document selection changed
         toggleDateFields();
     }
 
@@ -2014,7 +2047,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         inputs.forEach(el => el.disabled = disabled);
     }
 
-    // DOCUMENT MODAL LOGIC
     function toggleDateFields() {
         const type = document.getElementById('docType').value;
         const dateDiv = document.getElementById('dateFields');
@@ -2033,7 +2065,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             btn.disabled = true;
         }
 
-        // Reset all
         dateDiv.style.display = 'none';
         if (nteDiv) nteDiv.style.display = 'none';
         if (nodDiv) nodDiv.style.display = 'none';
@@ -2042,7 +2073,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (manualEndDateValue) manualEndDateValue.style.display = 'none';
         if (projectDiv) projectDiv.style.display = 'none';
 
-        // Disable hidden inputs to avoid conflicts
         setInputsDisabled('nteFields', true);
         setInputsDisabled('nodFields', true);
         setInputsDisabled('coeFields', true);
@@ -2052,11 +2082,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (nteDiv) nteDiv.style.display = 'block';
             setInputsDisabled('nteFields', false);
             help.innerText = "Generates a formal disciplinary notice requiring written explanation.";
-        }
-        // Show Dates ONLY for Contracts
-        else if (type.includes('probationary') || type.includes('contract') || type.includes('project') || type === 'consultant' || type === 'regular') {
+        } else if (type.includes('probationary') || type.includes('contract') || type.includes('project') || type === 'consultant' || type === 'regular') {
             dateDiv.style.display = 'block';
-            if (dutiesDiv && (type.includes('probationary') || type === 'regular' || type === 'consultant')) dutiesDiv.style.display = 'block'; // Show custom duties
+            if (dutiesDiv && (type.includes('probationary') || type === 'regular' || type === 'consultant')) dutiesDiv.style.display = 'block';
             if (type === 'probationary') {
                 document.getElementById('durationSelect').value = '6';
                 document.getElementById('durationInput').value = '6';
@@ -2078,11 +2106,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             });
             manualEndDateValue.required = document.getElementById('manualEndDateOverride').checked;
         } else {
-            // Reset to default state if hidden
             document.getElementById('durationInput').readOnly = true;
         }
 
-        // Show Project Name field only for project contract
         if (type === 'project') {
             projectDiv.style.display = 'block';
         } else {
@@ -2097,7 +2123,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (type === 'project' && projInput.value.trim() === '') {
             alert('Please enter a Project Name.');
             projInput.focus();
-            return false; // Prevent submission
+            return false;
         }
         return true;
     }
@@ -2115,10 +2141,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     function validateDuration(input) {
-        // Allow any 2 digit number
         if (input.value > 99) input.value = 99;
         if (input.value !== '' && input.value < 1) input.value = 1;
-        // Pad with zero if single digit for display consistency (optional)
     }
 
     function calcEndDate() {
@@ -2129,9 +2153,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!startVal || !duration) return;
 
         const date = new Date(startVal);
-        // Add months
         date.setMonth(date.getMonth() + parseInt(duration));
-        // Format YYYY-MM-DD
         const yyyy = date.getFullYear();
         const mm = String(date.getMonth() + 1).padStart(2, '0');
         const dd = String(date.getDate()).padStart(2, '0');
@@ -2140,9 +2162,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     document.addEventListener("DOMContentLoaded", () => {
         toggleExitFields();
-        updateSections(); // [FIX] Initialize sections on load
+        updateSections();
 
-        // [NEW] Handle URL Messages (Success/Error)
         const urlParams = new URLSearchParams(window.location.search);
 
         if (urlParams.has('msg')) {
@@ -2170,17 +2191,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
 
-        // AUTO-DETECT EMPLOYEE ROLE ON LOAD
-        // 1. Get Employee Data from PHP
-        const section = "<?php echo strtolower($emp['section']); ?>";
-        const job = "<?php echo strtolower($emp['job_title']); ?>";
+        // AUTO-DETECT EMPLOYEE ROLE ON LOAD (Null coalescing fix applied)
+        const section = "<?php echo strtolower($emp['section'] ?? ''); ?>";
+        const job = "<?php echo strtolower($emp['job_title'] ?? ''); ?>";
         const categorySelect = document.getElementById('jobCategory');
 
-        // 2. Logic to pick the Category
-        let autoCategory = 'general'; // Default fallback
+        let autoCategory = 'general';
 
-        // 1. LMS / TECHNICAL GROUP
-        // Includes: LMS, HMS, RAS, TRS, CTS, PSS, OCS, SIGCOM, BFS, WHS
         if (
             section.includes('light maintenance') || section.includes('lms') ||
             section.includes('heavy maintenance') || section.includes('hms') ||
@@ -2195,26 +2212,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             job.includes('technician')
         ) {
             autoCategory = 'lms_tech';
-        }
-        // 2. OFFICE / ADMIN GROUP
-        // Includes: SQP, ADMIN, DOS, Finance, HR
-        else if (section.includes('sqp') || section.includes('admin') || section.includes('finance') || section.includes('dos') || section.includes('department operations')) {
+        } else if (section.includes('sqp') || section.includes('admin') || section.includes('finance') || section.includes('dos') || section.includes('department operations')) {
             autoCategory = 'office';
         }
 
-        // 3. Set the Dropdown & Trigger Filter
         if (categorySelect) {
             categorySelect.value = autoCategory;
-            // [STRICT MODE] Lock the category so they can't switch to wrong contracts
-            // categorySelect.disabled = true;
-            filterDocuments(); // This updates the document list immediately
+            filterDocuments();
         }
 
-        // 4. Also calculate dates
         calcEndDate();
     });
 
-    // [NEW] Auto-Resize Textareas (On Input, On Load, On Modal Show)
     document.addEventListener('input', function(e) {
         if (e.target.tagName.toLowerCase() === 'textarea') {
             autoResize(e.target);
@@ -2223,8 +2232,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     document.addEventListener("DOMContentLoaded", () => {
         document.querySelectorAll('textarea').forEach(autoResize);
-
-        // Also resize when modals open (since hidden elements have 0 height)
         document.querySelectorAll('.modal').forEach(modal => {
             modal.addEventListener('shown.bs.modal', () => {
                 modal.querySelectorAll('textarea').forEach(autoResize);
@@ -2258,13 +2265,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         const select = document.getElementById('edit_category');
         const otherInput = document.getElementById('edit_other_category');
 
-        // [FIX] Reset Move Fields
         document.getElementById('edit_employeeSearch').value = '';
         document.getElementById('edit_move_to_emp_id').value = '';
         const form = document.querySelector('#editDocModal form');
         if (form) form.classList.remove('was-validated');
 
-        // Check if category is in the standard list
         let isStandard = false;
         for (let i = 0; i < select.options.length; i++) {
             if (select.options[i].value === category && category !== 'Others') {
@@ -2285,7 +2290,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         new bootstrap.Modal(document.getElementById('editDocModal')).show();
     }
 
-    // [NEW] Modal Form Validation Styling
     const editDocForm = document.querySelector('#editDocModal form');
     if (editDocForm) {
         editDocForm.addEventListener('submit', function(event) {
@@ -2296,7 +2300,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 return;
             }
 
-            // [FIX] Validate Move Employee Selection (Prevent silent failure)
             const moveSearch = document.getElementById('edit_employeeSearch');
             const moveIdInput = document.getElementById('edit_move_to_emp_id');
 
@@ -2311,7 +2314,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 return;
             }
 
-            // [NEW] Move Confirmation
             const moveIdVal = moveIdInput.value;
             const moveName = moveSearch.value;
 
@@ -2363,7 +2365,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }, 1000);
     }
 
-    // [NEW] Employee Search Logic for "Move Document"
     document.addEventListener("DOMContentLoaded", () => {
         const searchInput = document.getElementById('edit_employeeSearch');
         const suggestionBox = document.getElementById('edit_suggestionBox');
@@ -2374,7 +2375,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             searchInput.addEventListener('input', function() {
                 const q = this.value.trim();
-                hiddenIdInput.value = ''; // Clear ID if user types something new
+                hiddenIdInput.value = '';
 
                 if (q.length < 2) {
                     suggestionBox.innerHTML = '';
@@ -2401,7 +2402,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                     small.textContent = ` ${emp.emp_id}`;
                                     item.appendChild(strong);
                                     item.appendChild(small);
-                                    // [FIX] Use mousedown for better responsiveness and change format to remove parentheses
+
                                     item.onmousedown = () => {
                                         searchInput.value = `${emp.first_name} ${emp.last_name} - ${emp.emp_id}`;
                                         hiddenIdInput.value = emp.emp_id;
@@ -2417,7 +2418,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }, 250);
             });
 
-            // Hide suggestions when clicking outside
             document.addEventListener('click', function(e) {
                 if (!searchInput.contains(e.target) && !suggestionBox.contains(e.target)) {
                     suggestionBox.style.display = 'none';
@@ -2425,12 +2425,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             });
         }
 
-        // [NEW] Edit Confirmation Alert
         const editForm = document.getElementById('editEmployeeForm');
         let clickedButtonValue = null;
 
         if (editForm) {
-            // Track which button was clicked
             editForm.querySelectorAll('button[type="submit"]').forEach(btn => {
                 btn.addEventListener('click', function() {
                     clickedButtonValue = this.value;
@@ -2463,9 +2461,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     });
 
-    // --- AVATAR PREVIEW & CAMERA LOGIC ---
     function previewAvatar(input) {
-        // Un-flag removal if they select a new picture
         document.getElementById('removeAvatarFlag').value = '0';
         if (input.files && input.files[0]) {
             const reader = new FileReader();
@@ -2491,8 +2487,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     async function startCamera() {
         const video = document.getElementById('cameraVideo');
-        stopCamera(); // Ensure previous stream is killed
-        retakePhoto(); // Reset UI
+        stopCamera();
+        retakePhoto();
 
         if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
             console.error("Camera API not available.");
@@ -2511,7 +2507,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         try {
-            // Request camera (prioritizes front-facing/webcam)
             videoStream = await navigator.mediaDevices.getUserMedia({
                 video: {
                     facingMode: {
@@ -2534,7 +2529,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     function stopCamera() {
         if (videoStream) {
-            videoStream.getTracks().forEach(track => track.stop()); // Turn off webcam light
+            videoStream.getTracks().forEach(track => track.stop());
             videoStream = null;
         }
     }
@@ -2544,7 +2539,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         const canvas = document.getElementById('cameraCanvas');
         if (!videoStream) return;
 
-        // --- VISUAL SHUTTER FLASH ---
         const modalBody = video.closest('.modal-body');
         if (modalBody) {
             const flash = document.createElement('div');
@@ -2562,12 +2556,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }, 300);
         }
 
-        // [FIX] Remove crop and downscale to max 800px width/height while keeping aspect ratio
         const MAX_DIM = 800;
         let outWidth = video.videoWidth;
         let outHeight = video.videoHeight;
 
-        // [FIX] Fallback if video metadata isn't loaded yet to prevent 0x0 blank images
         if (outWidth === 0 || outHeight === 0) {
             outWidth = video.clientWidth || 640;
             outHeight = video.clientHeight || 480;
@@ -2589,7 +2581,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         ctx.drawImage(video, 0, 0, outWidth, outHeight);
 
-        // [FIX] Use Data URL for 100% reliable instant preview on all mobile browsers
         const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
         const previewImg = document.getElementById('cameraPreviewImage');
         if (previewImg) {
@@ -2602,7 +2593,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         document.getElementById('cameraControls').style.display = 'none';
         document.getElementById('previewControls').style.display = 'block';
 
-        // Disable confirm button until blob is ready
         const confirmBtn = document.querySelector('#previewControls button.btn-primary');
         if (confirmBtn) confirmBtn.disabled = true;
 
