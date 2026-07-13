@@ -79,119 +79,91 @@ $sql = "SELECT id, emp_id, first_name, last_name, job_title, dept, status, exit_
         ORDER BY last_name ASC";
 $stmt = $pdo->query($sql);
 $inactiveEmployees = $stmt->fetchAll(PDO::FETCH_ASSOC);
+require 'header.php';
 ?>
-<!DOCTYPE html>
-<html lang="en">
-
-<head>
-    <meta charset="UTF-8">
-    <title>Bulk Archive Employees</title>
-    <link rel="icon" href="assets/tesp-logo.png?v=4" type="image/png">
-    <link href="assets/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="assets/icons/bootstrap-icons.css">
-    <script src="assets/sweetalert2.all.min.js"></script>
-</head>
-
-<body class="bg-body-tertiary">
-    <nav class="navbar navbar-dark bg-dark mb-4">
-        <div class="container">
-            <a class="navbar-brand" href="index.php">Back to Dashboard</a>
-            <div class="d-flex align-items-center gap-2">
-                <button id="darkModeToggle" class="btn btn-sm btn-outline-light border-0" title="Toggle Dark Mode">
-                    <i class="bi bi-moon-stars-fill"></i>
-                </button>
-                <span class="navbar-text text-white fw-bold"><i class="bi bi-archive-fill"></i> Bulk Archive Tool</span>
-            </div>
-        </div>
-    </nav>
-
-    <div class="container">
-        <div class="alert alert-info shadow-sm mb-4">
-            <i class="bi bi-info-circle-fill me-2"></i>
-            <strong>How this works:</strong> This tool shows all employees whose status is marked as <em>Resigned, Terminated, AWOL, or Retired</em>. Archiving them will move their records and documents into the <strong>Recycle Bin</strong>, keeping your main active directory clean.
-        </div>
-
-        <form method="POST" id="bulkArchiveForm">
-            <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
-            <input type="hidden" name="archive_employees" value="1">
-
-            <div class="card shadow-sm border-danger mb-4">
-                <div class="card-header bg-danger text-white d-flex justify-content-between align-items-center">
-                    <h6 class="mb-0 fw-bold"><i class="bi bi-person-x-fill"></i> Inactive Employees Pending Archive</h6>
-                    <button type="button" id="archiveBtn" class="btn btn-light text-danger btn-sm fw-bold shadow-sm">
-                        <i class="bi bi-archive"></i> Archive Selected
-                    </button>
-                </div>
-                <div class="card-body p-0 table-responsive">
-                    <table class="table table-hover mb-0 align-middle">
-                        <thead class="table-light">
-                            <tr>
-                                <th style="width: 40px;" class="text-center"><input type="checkbox" class="form-check-input" onclick="document.querySelectorAll('.emp-check').forEach(c => c.checked = this.checked)"></th>
-                                <th>Employee</th>
-                                <th>Dept / Job</th>
-                                <th>Status</th>
-                                <th>Exit Date</th>
-                                <th>Exit Reason</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php if (empty($inactiveEmployees)): ?>
-                                <tr>
-                                    <td colspan="6" class="text-center p-5 text-muted">
-                                        <i class="bi bi-check-circle-fill text-success fs-1"></i><br>
-                                        <span class="fw-bold mt-2 d-block">No inactive employees found!</span>
-                                    </td>
-                                </tr>
-                            <?php else: ?>
-                                <?php foreach ($inactiveEmployees as $e): ?>
-                                    <tr>
-                                        <td class="text-center"><input type="checkbox" name="employee_ids[]" value="<?php echo htmlspecialchars($e['id']); ?>" class="form-check-input emp-check"></td>
-                                        <td>
-                                            <div class="fw-bold text-dark"><?php echo htmlspecialchars($e['last_name'] . ', ' . $e['first_name']); ?></div>
-                                            <small class="text-muted"><?php echo htmlspecialchars($e['emp_id']); ?></small>
-                                        </td>
-                                        <td><?php echo htmlspecialchars($e['dept'] . ' / ' . $e['job_title']); ?></td>
-                                        <td><span class="badge bg-secondary"><?php echo htmlspecialchars($e['status']); ?></span></td>
-                                        <td class="text-danger fw-bold"><?php echo htmlspecialchars($e['exit_date'] ?: 'Not specified'); ?></td>
-                                        <td class="small text-muted text-wrap" style="max-width: 250px;"><?php echo htmlspecialchars($e['exit_reason'] ?: 'None provided'); ?></td>
-                                    </tr>
-                                <?php endforeach; ?>
-                            <?php endif; ?>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </form>
+<div class="container">
+    <div class="alert alert-info shadow-sm mb-4">
+        <i class="bi bi-info-circle-fill me-2"></i>
+        <strong>How this works:</strong> This tool shows all employees whose status is marked as <em>Resigned, Terminated, AWOL, or Retired</em>. Archiving them will move their records and documents into the <strong>Recycle Bin</strong>, keeping your main active directory clean.
     </div>
 
-    <script src="assets/bootstrap.bundle.min.js"></script>
-    <script src="dark_mode.js"></script>
-    <script>
-        <?php if ($msg): ?> Swal.fire('Success', <?php echo json_encode($msg); ?>, 'success').then(() => {
-                if (window.history.replaceState) window.history.replaceState(null, null, window.location.pathname);
-            });
-        <?php endif; ?>
-        <?php if ($error): ?> Swal.fire('Error', <?php echo json_encode($error); ?>, 'error').then(() => {
-                if (window.history.replaceState) window.history.replaceState(null, null, window.location.pathname);
-            });
-        <?php endif; ?>
+    <form method="POST" id="bulkArchiveForm">
+        <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
+        <input type="hidden" name="archive_employees" value="1">
 
-        document.getElementById('archiveBtn').addEventListener('click', function(e) {
-            e.preventDefault();
-            const checkboxes = document.querySelectorAll('input[name="employee_ids[]"]:checked');
-            if (checkboxes.length === 0) return Swal.fire('No Selection', 'Please select at least one employee to archive.', 'warning');
-            Swal.fire({
-                title: `Archive ${checkboxes.length} Employees?`,
-                text: "They will be moved to the Recycle Bin.",
-                icon: 'warning',
-                showCancelButton: true,
-                confirmButtonColor: '#dc3545',
-                confirmButtonText: 'Yes, Archive'
-            }).then((result) => {
-                if (result.isConfirmed) document.getElementById('bulkArchiveForm').submit();
-            });
+        <div class="card shadow-sm border-danger mb-4">
+            <div class="card-header bg-danger text-white d-flex justify-content-between align-items-center">
+                <h6 class="mb-0 fw-bold"><i class="bi bi-person-x-fill"></i> Inactive Employees Pending Archive</h6>
+                <button type="button" id="archiveBtn" class="btn btn-light text-danger btn-sm fw-bold shadow-sm">
+                    <i class="bi bi-archive"></i> Archive Selected
+                </button>
+            </div>
+            <div class="card-body p-0 table-responsive">
+                <table class="table table-hover mb-0 align-middle">
+                    <thead class="table-light">
+                        <tr>
+                            <th style="width: 40px;" class="text-center"><input type="checkbox" class="form-check-input" onclick="document.querySelectorAll('.emp-check').forEach(c => c.checked = this.checked)"></th>
+                            <th>Employee</th>
+                            <th>Dept / Job</th>
+                            <th>Status</th>
+                            <th>Exit Date</th>
+                            <th>Exit Reason</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php if (empty($inactiveEmployees)): ?>
+                            <tr>
+                                <td colspan="6" class="text-center p-5 text-muted">
+                                    <i class="bi bi-check-circle-fill text-success fs-1"></i><br>
+                                    <span class="fw-bold mt-2 d-block">No inactive employees found!</span>
+                                </td>
+                            </tr>
+                        <?php else: ?>
+                            <?php foreach ($inactiveEmployees as $e): ?>
+                                <tr>
+                                    <td class="text-center"><input type="checkbox" name="employee_ids[]" value="<?php echo htmlspecialchars($e['id']); ?>" class="form-check-input emp-check"></td>
+                                    <td>
+                                        <div class="fw-bold text-dark"><?php echo htmlspecialchars($e['last_name'] . ', ' . $e['first_name']); ?></div>
+                                        <small class="text-muted"><?php echo htmlspecialchars($e['emp_id']); ?></small>
+                                    </td>
+                                    <td><?php echo htmlspecialchars($e['dept'] . ' / ' . $e['job_title']); ?></td>
+                                    <td><span class="badge bg-secondary"><?php echo htmlspecialchars($e['status']); ?></span></td>
+                                    <td class="text-danger fw-bold"><?php echo htmlspecialchars($e['exit_date'] ?: 'Not specified'); ?></td>
+                                    <td class="small text-muted text-wrap" style="max-width: 250px;"><?php echo htmlspecialchars($e['exit_reason'] ?: 'None provided'); ?></td>
+                                </tr>
+                            <?php endforeach; ?>
+                        <?php endif; ?>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </form>
+</div>
+
+<script>
+    <?php if ($msg): ?> Swal.fire('Success', <?php echo json_encode($msg); ?>, 'success').then(() => {
+            if (window.history.replaceState) window.history.replaceState(null, null, window.location.pathname);
         });
-    </script>
-</body>
+    <?php endif; ?>
+    <?php if ($error): ?> Swal.fire('Error', <?php echo json_encode($error); ?>, 'error').then(() => {
+            if (window.history.replaceState) window.history.replaceState(null, null, window.location.pathname);
+        });
+    <?php endif; ?>
 
-</html>
+    document.getElementById('archiveBtn').addEventListener('click', function(e) {
+        e.preventDefault();
+        const checkboxes = document.querySelectorAll('input[name="employee_ids[]"]:checked');
+        if (checkboxes.length === 0) return Swal.fire('No Selection', 'Please select at least one employee to archive.', 'warning');
+        Swal.fire({
+            title: `Archive ${checkboxes.length} Employees?`,
+            text: "They will be moved to the Recycle Bin.",
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#dc3545',
+            confirmButtonText: 'Yes, Archive'
+        }).then((result) => {
+            if (result.isConfirmed) document.getElementById('bulkArchiveForm').submit();
+        });
+    });
+</script>
+<?php require 'footer.php'; ?>

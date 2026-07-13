@@ -284,6 +284,7 @@ $depts = $pdo->query("SELECT DISTINCT dept FROM employees WHERE status='Active' 
 
 // Fetch History Logs
 $historyLogs = $pdo->query("SELECT a.*, u.username FROM activity_logs a LEFT JOIN users u ON a.user_id = u.id WHERE action = 'BULK_UPDATE_ROLE' ORDER BY created_at DESC LIMIT 5")->fetchAll(PDO::FETCH_ASSOC);
+require 'header.php';
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -667,3 +668,4 @@ $historyLogs = $pdo->query("SELECT a.*, u.username FROM activity_logs a LEFT JOI
 </body>
 
 </html>
+<?php require 'footer.php'; ?>

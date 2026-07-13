@@ -224,7 +224,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 <head>
     <meta charset="UTF-8">
-    <title>Forgot Password</title>
+    <title>Forgot Password | TESP HR 201 System</title>
     <link rel="icon" type="image/png" href="../uploads/tesp-logo.png">
     <link rel="shortcut icon" type="image/png" href="../uploads/tesp-logo.png">
     <link rel="apple-touch-icon" href="../uploads/tesp-logo.png">

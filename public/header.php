@@ -142,7 +142,22 @@ $pageTitles = [
     'activity_logs.php'      => 'Security Audit Trail',
     'access_review.php'      => 'User Access Review',
     'my_requests.php'        => 'My Requests',
-    'profile_settings.php'   => 'Profile Settings'
+    'profile_settings.php'   => 'Profile Settings',
+    'bulk_archive.php'           => 'Bulk Archive',
+    'bulk_contract.php'          => 'Bulk Contract Generator',
+    'bulk_import_vault.php'      => 'Bulk Vault Importer',
+    'bulk_update_roles.php'      => 'Bulk Update Roles',
+    'change_password_forced.php' => 'Update Password',
+    'data_validation_report.php' => 'Data Validation Report',
+    'db_status.php'              => 'Database Status',
+    'disciplinary.php'           => 'Disciplinary Console',
+    'error_logs.php'             => 'Error Logs',
+    'evaluation_report.php'      => 'Evaluation Report',
+    'expiry_report.php'          => 'Expiry Forecast',
+    'forgot_password.php'        => 'Forgot Password',
+    'help.php'                   => 'User Manual',
+    'import_employees.php'       => 'Import Employees',
+    'login.php'                  => 'Login',
 ];
 $displayTitle = $pageTitles[$currentPage] ?? 'TESP HR 201 System';
 ?>

@@ -45,13 +45,14 @@ if ($logFile && file_exists($logFile)) {
 } else {
     $logContents = "No error log file found. System is healthy!";
 }
+require 'header.php';
 ?>
 <!DOCTYPE html>
 <html lang="en">
 
 <head>
     <meta charset="UTF-8">
-    <title>PHP Error Logs</title>
+    <title>Error Logs | TESP HR 201 System</title>
     <link rel="icon" href="assets/tesp-logo.png?v=4" type="image/png">
     <link href="assets/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="assets/icons/bootstrap-icons.css">
@@ -93,3 +94,4 @@ if ($logFile && file_exists($logFile)) {
 </body>
 
 </html>
+<?php require 'footer.php'; ?>

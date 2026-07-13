@@ -222,7 +222,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
 
 <head>
     <meta charset="UTF-8">
-    <title>Login - TES Philippines HR</title>
+    <title>Login | TESP HR 201 System</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <link href="assets/bootstrap.min.css?v=3" rel="stylesheet">
     <link rel="stylesheet" href="assets/icons/bootstrap-icons.css?v=3">

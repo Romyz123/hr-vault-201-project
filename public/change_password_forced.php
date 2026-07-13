@@ -84,7 +84,7 @@ end_post:
 
 <head>
     <meta charset="UTF-8">
-    <title>Update Password</title>
+    <title>Update Password | TESP HR 201 System</title>
     <link rel="icon" type="image/png" href="../uploads/tesp-logo.png">
     <link rel="shortcut icon" type="image/png" href="../uploads/tesp-logo.png">
     <link rel="apple-touch-icon" href="../uploads/tesp-logo.png">

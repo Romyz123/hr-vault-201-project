@@ -125,125 +125,94 @@ if ($sourceDir && is_dir($sourceDir)) {
         return $item !== '.' && $item !== '..' && is_dir($sourceDir . DIRECTORY_SEPARATOR . $item);
     }));
 }
+require 'header.php';
 ?>
-<!DOCTYPE html>
-<html lang="en">
-
-<head>
-    <meta charset="UTF-8">
-    <title>Bulk Vault Importer</title>
-    <link rel="icon" href="assets/tesp-logo.png?v=4" type="image/png">
-    <link href="assets/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="assets/icons/bootstrap-icons.css">
-    <link rel="icon" type="image/png" href="../uploads/tesp-logo.png">
-    <link rel="shortcut icon" type="image/png" href="../uploads/tesp-logo.png">
-    <link rel="apple-touch-icon" href="../uploads/tesp-logo.png">
-</head>
-
-<body class="bg-body-tertiary">
-
-    <nav class="navbar navbar-dark bg-dark mb-4">
-        <div class="container">
-            <a class="navbar-brand" href="index.php">Back to Dashboard</a>
-            <div class="d-flex align-items-center gap-2">
-                <button id="darkModeToggle" class="btn btn-sm btn-outline-light border-0" title="Toggle Dark Mode">
-                    <i class="bi bi-moon-stars-fill"></i>
-                </button>
-                <span class="navbar-text text-white fw-bold"><i class="bi bi-hdd-network-fill"></i> Bulk Vault Importer</span>
-            </div>
+<div class="container" style="max-width: 700px;">
+    <div class="card shadow">
+        <div class="card-header bg-primary text-white fw-bold">
+            <i class="bi bi-hdd-network-fill"></i> Legacy Data Migration
         </div>
-    </nav>
+        <div class="card-body">
+            <p>This tool securely encrypts and imports massive amounts of legacy PDFs from the <code>temp_import</code> directory into the active Vault.</p>
 
-    <div class="container" style="max-width: 700px;">
-        <div class="card shadow">
-            <div class="card-header bg-primary text-white fw-bold">
-                <i class="bi bi-hdd-network-fill"></i> Legacy Data Migration
+            <div class="alert alert-warning">
+                <strong>Status:</strong> Found <strong><span id="folderCount"><?php echo $foldersFound; ?></span></strong> employee folders pending import.
             </div>
-            <div class="card-body">
-                <p>This tool securely encrypts and imports massive amounts of legacy PDFs from the <code>temp_import</code> directory into the active Vault.</p>
 
-                <div class="alert alert-warning">
-                    <strong>Status:</strong> Found <strong><span id="folderCount"><?php echo $foldersFound; ?></span></strong> employee folders pending import.
+            <?php if ($foldersFound > 0): ?>
+                <div id="progressUI" style="display: none;">
+                    <label class="fw-bold mb-1">Migration Progress</label>
+                    <div class="progress mb-2" style="height: 25px;">
+                        <div id="progressBar" class="progress-bar progress-bar-striped progress-bar-animated bg-success" style="width: 0%;">0%</div>
+                    </div>
+                    <div class="small text-muted mb-3" id="progressText">Initializing...</div>
+
+                    <div class="bg-dark text-success p-2 rounded small font-monospace" id="terminalLog" style="height: 150px; overflow-y: auto;"></div>
                 </div>
 
-                <?php if ($foldersFound > 0): ?>
-                    <div id="progressUI" style="display: none;">
-                        <label class="fw-bold mb-1">Migration Progress</label>
-                        <div class="progress mb-2" style="height: 25px;">
-                            <div id="progressBar" class="progress-bar progress-bar-striped progress-bar-animated bg-success" style="width: 0%;">0%</div>
-                        </div>
-                        <div class="small text-muted mb-3" id="progressText">Initializing...</div>
-
-                        <div class="bg-dark text-success p-2 rounded small font-monospace" id="terminalLog" style="height: 150px; overflow-y: auto;"></div>
-                    </div>
-
-                    <button id="startBtn" class="btn btn-success w-100 fw-bold py-2 mt-3" onclick="startMigration()">
-                        <i class="bi bi-play-fill"></i> Start Migration Process
-                    </button>
-                <?php else: ?>
-                    <div class="alert alert-success"><i class="bi bi-check-circle-fill"></i> No pending files found. Migration is complete or directory is empty.</div>
-                <?php endif; ?>
-            </div>
+                <button id="startBtn" class="btn btn-success w-100 fw-bold py-2 mt-3" onclick="startMigration()">
+                    <i class="bi bi-play-fill"></i> Start Migration Process
+                </button>
+            <?php else: ?>
+                <div class="alert alert-success"><i class="bi bi-check-circle-fill"></i> No pending files found. Migration is complete or directory is empty.</div>
+            <?php endif; ?>
         </div>
     </div>
+</div>
 
-    <script>
-        let totalFolders = <?php echo $foldersFound; ?>;
-        let processed = 0;
+<script>
+    let totalFolders = <?php echo $foldersFound; ?>;
+    let processed = 0;
 
-        function logToTerminal(msg) {
-            const term = document.getElementById('terminalLog');
-            term.innerHTML += `<div>> ${msg}</div>`;
-            term.scrollTop = term.scrollHeight;
-        }
+    function logToTerminal(msg) {
+        const term = document.getElementById('terminalLog');
+        term.innerHTML += `<div>> ${msg}</div>`;
+        term.scrollTop = term.scrollHeight;
+    }
 
-        function processNextBatch() {
-            fetch('bulk_import_vault.php?ajax=1')
-                .then(r => r.json())
-                .then(data => {
-                    if (data.status === 'complete') {
-                        document.getElementById('progressBar').style.width = '100%';
-                        document.getElementById('progressBar').innerText = '100%';
-                        document.getElementById('progressText').innerText = 'All files migrated successfully!';
-                        document.getElementById('progressBar').classList.remove('progress-bar-animated');
-                        logToTerminal('<span class="text-white">Migration Completed! You can close this page.</span>');
-                        return;
+    function processNextBatch() {
+        fetch('bulk_import_vault.php?ajax=1')
+            .then(r => r.json())
+            .then(data => {
+                if (data.status === 'complete') {
+                    document.getElementById('progressBar').style.width = '100%';
+                    document.getElementById('progressBar').innerText = '100%';
+                    document.getElementById('progressText').innerText = 'All files migrated successfully!';
+                    document.getElementById('progressBar').classList.remove('progress-bar-animated');
+                    logToTerminal('<span class="text-white">Migration Completed! You can close this page.</span>');
+                    return;
+                }
+
+                if (data.status === 'progress') {
+                    processed++;
+                    let pct = Math.round((processed / totalFolders) * 100);
+
+                    document.getElementById('progressBar').style.width = pct + '%';
+                    document.getElementById('progressBar').innerText = pct + '%';
+                    document.getElementById('folderCount').innerText = data.remaining;
+                    document.getElementById('progressText').innerText = `Processing folder ${processed} of ${totalFolders}...`;
+
+                    if (data.message) {
+                        logToTerminal(data.message);
+                    } else {
+                        logToTerminal(`Imported [${data.emp_id}]: ${data.files_processed} file(s) encrypted & saved.`);
                     }
 
-                    if (data.status === 'progress') {
-                        processed++;
-                        let pct = Math.round((processed / totalFolders) * 100);
+                    // Trigger next batch immediately
+                    processNextBatch();
+                }
+            })
+            .catch(err => {
+                logToTerminal('<span class="text-danger">Error communicating with server. Retrying in 3 seconds...</span>');
+                setTimeout(processNextBatch, 3000);
+            });
+    }
 
-                        document.getElementById('progressBar').style.width = pct + '%';
-                        document.getElementById('progressBar').innerText = pct + '%';
-                        document.getElementById('folderCount').innerText = data.remaining;
-                        document.getElementById('progressText').innerText = `Processing folder ${processed} of ${totalFolders}...`;
-
-                        if (data.message) {
-                            logToTerminal(data.message);
-                        } else {
-                            logToTerminal(`Imported [${data.emp_id}]: ${data.files_processed} file(s) encrypted & saved.`);
-                        }
-
-                        // Trigger next batch immediately
-                        processNextBatch();
-                    }
-                })
-                .catch(err => {
-                    logToTerminal('<span class="text-danger">Error communicating with server. Retrying in 3 seconds...</span>');
-                    setTimeout(processNextBatch, 3000);
-                });
-        }
-
-        function startMigration() {
-            document.getElementById('startBtn').style.display = 'none';
-            document.getElementById('progressUI').style.display = 'block';
-            logToTerminal('Starting automated migration protocol...');
-            processNextBatch();
-        }
-    </script>
-    <script src="assets/bootstrap.bundle.min.js"></script>
-    <script src="dark_mode.js"></script>
-</body>
-
-</html>
+    function startMigration() {
+        document.getElementById('startBtn').style.display = 'none';
+        document.getElementById('progressUI').style.display = 'block';
+        logToTerminal('Starting automated migration protocol...');
+        processNextBatch();
+    }
+</script>
+<?php require 'footer.php'; ?>

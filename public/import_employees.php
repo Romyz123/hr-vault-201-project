@@ -968,7 +968,7 @@ $history = $pdo->query("SELECT import_batch, MAX(agency_name) as agency_name, CO
 
 <head>
     <meta charset="UTF-8">
-    <title>Import Employees | HR System</title>
+    <title>Import Employees | TESP HR 201 System</title>
     <?php
     // [FIX] Ensure the tab logo displays correctly using a reliable path
     $fav = 'uploads/favicon.png';

@@ -56,11 +56,12 @@ if (empty($logo_src)) {
 
 <head>
     <meta charset="UTF-8">
-    <title>Evaluation Report</title>
+    <title>Evaluation Report | TESP HR 201 System</title>
     <link rel="icon" href="assets/tesp-logo.png?v=4" type="image/png">
     <link href="assets/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="assets/icons/bootstrap-icons.css">
     <script src="assets/chart.min.js"></script>
+    <?php require 'header.php'; ?>
     <style>
         /* =========================================
            PRINT STYLES: Custom layout for paper
@@ -403,3 +404,4 @@ if (empty($logo_src)) {
 </body>
 
 </html>
+<?php require 'footer.php'; ?>
