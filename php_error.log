@@ -1589,3 +1589,7 @@ Stack trace:
 #0 C:\xampp\htdocs\hr 201\public\edit_employee.php(432): post('exit_reason', NULL)
 #1 {main}
   thrown in C:\xampp\htdocs\hr 201\src\helpers.php on line 25
+[16-Jul-2026 15:10:26 Asia/Manila] PHP Fatal error:  Uncaught TypeError: Cannot access offset of type string on string in C:\xampp\htdocs\hr 201\public\manage_hierarchy.php:231
+Stack trace:
+#0 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\manage_hierarchy.php on line 231

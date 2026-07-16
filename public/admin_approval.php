@@ -58,7 +58,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 
     // Validate and sanitize POST values
     $req_id  = isset($_POST['req_id']) ? (int)$_POST['req_id'] : 0;
-    $rawAction = $_POST['action'];
+    $rawAction = $_POST['action'] ?? ''; // [FIX] Handle undefined action
     $tab     = $_POST['tab_name'] ?? '';
     $adminId = $_SESSION['user_id'];
 
@@ -97,6 +97,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         }
         if (preg_match('/[<>]/', $reject_reason)) {
             die('Invalid characters detected in rejection reason.');
+        }
+    }
+
+    // [NEW] Capture approval note
+    $approval_note = trim($_POST['approval_note'] ?? '');
+    if (!empty($approval_note)) {
+        if (mb_strlen($approval_note, 'UTF-8') > 255) {
+            die('Approval note too long (Max 255 chars)');
+        }
+        if (preg_match('/[<>]/', $approval_note)) {
+            die('Invalid characters detected in approval note.');
         }
     }
 
@@ -348,7 +359,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 }
 
                 // [MHI 5.2] ARCHIVE REQUEST (Retention) - Do not delete
-                $pdo->prepare("UPDATE requests SET status = 'APPROVED', admin_comment = ? WHERE id = ?")->execute(["Approved by " . $_SESSION['username'], $current_req_id]);
+                // [NEW] Add approval note to comment
+                $comment = "Approved by " . $_SESSION['username'];
+                if (!empty($approval_note)) {
+                    $comment .= ". Note: " . $approval_note;
+                }
+                $pdo->prepare("UPDATE requests SET status = 'APPROVED', admin_comment = ? WHERE id = ?")->execute([$comment, $current_req_id]);
                 $pdo->commit(); // [DATA INTEGRITY] Commit All Changes
                 $successCount++;
             } catch (Exception $e) {
@@ -371,25 +387,45 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 // [LOGICAL FIX] Cleanup physical files to prevent orphans on rejection
                 if ($req['request_type'] === 'UPLOAD_DOC') {
                     $vPath = $config['VAULT_PATH'] ?? dirname(__DIR__) . DIRECTORY_SEPARATOR . 'vault' . DIRECTORY_SEPARATOR;
-                    $vaultPath = realpath($vPath) . DIRECTORY_SEPARATOR;
-                    $filePath = $vaultPath . basename($data['file_path'] ?? '');
-                    if (!empty($data['file_path']) && $vaultPath && file_exists($filePath)) {
-                        @unlink($filePath);
+                    $vaultPathReal = realpath($vPath);
+                    $filePath = $data['file_path'] ?? '';
+                    if ($filePath && $vaultPathReal) {
+                        $fullPath = realpath($vaultPathReal . DIRECTORY_SEPARATOR . basename($filePath));
+                        // [SECURITY] Ensure the resolved path is inside the vault before deleting
+                        if ($fullPath && strpos($fullPath, $vaultPathReal) === 0 && file_exists($fullPath)) {
+                            @unlink($fullPath);
+                        }
                     }
                 } elseif ($req['request_type'] === 'ADD_EMPLOYEE') {
                     if (!empty($data['avatar_path']) && $data['avatar_path'] !== 'default.png') {
-                        $avatarPath = dirname(__DIR__) . '/uploads/avatars/' . basename($data['avatar_path']);
-                        if (file_exists($avatarPath)) @unlink($avatarPath);
+                        $avatarDir = realpath(dirname(__DIR__) . '/uploads/avatars');
+                        $avatarPath = $data['avatar_path'];
+                        if ($avatarDir && $avatarPath) {
+                            $fullPath = realpath($avatarDir . DIRECTORY_SEPARATOR . basename($avatarPath));
+                            if ($fullPath && strpos($fullPath, $avatarDir) === 0 && file_exists($fullPath)) {
+                                @unlink($fullPath);
+                            }
+                        }
                     }
                 } elseif ($req['request_type'] === 'EDIT_PROFILE') {
+                    // [SECURITY] Use prepared statement for target_id
                     $oldIdStmt = $pdo->prepare("SELECT avatar_path FROM employees WHERE id = ?");
+                    if (!is_numeric($req['target_id'])) {
+                        throw new Exception("Invalid target ID for profile edit rejection.");
+                    }
                     $oldIdStmt->execute([$req['target_id']]);
                     $oldEmp = $oldIdStmt->fetch();
                     $profileData = isset($data['new_data']) ? $data['new_data'] : $data;
                     // Only delete if they actually uploaded a NEW avatar
                     if (!empty($profileData['avatar_path']) && $profileData['avatar_path'] !== 'default.png' && (!$oldEmp || $oldEmp['avatar_path'] !== $profileData['avatar_path'])) {
-                        $avatarPath = dirname(__DIR__) . '/uploads/avatars/' . basename($profileData['avatar_path']);
-                        if (file_exists($avatarPath)) @unlink($avatarPath);
+                        $avatarDir = realpath(dirname(__DIR__) . '/uploads/avatars');
+                        $avatarPath = $profileData['avatar_path'];
+                        if ($avatarDir && $avatarPath) {
+                            $fullPath = realpath($avatarDir . DIRECTORY_SEPARATOR . basename($avatarPath));
+                            if ($fullPath && strpos($fullPath, $avatarDir) === 0 && file_exists($fullPath)) {
+                                @unlink($fullPath);
+                            }
+                        }
                     }
                 }
 
@@ -504,6 +540,33 @@ $tickets  = in_array('tickets', $enabledWidgets) ? $pdo->query("SELECT r.*, u.us
                 }
                 ?>
             </div>
+        </div>
+    </div>
+</div>
+
+<!-- [NEW] APPROVE MODAL -->
+<div class="modal fade" id="approveModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title">Approve Request</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST">
+                <div class="modal-body">
+                    <input type="hidden" name="req_id" id="approve_req_id">
+                    <input type="hidden" name="tab_name" id="approve_tab_name">
+                    <input type="hidden" name="action" value="approve">
+                    <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
+
+                    <label class="form-label fw-bold">Approval Notes (Optional):</label>
+                    <textarea name="approval_note" class="form-control" rows="3" placeholder="e.g. Approved, pending final document submission." maxlength="255" oninput="this.value = this.value.replace(/[<>]/g, '')"></textarea>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-success">Confirm Approval</button>
+                </div>
+            </form>
         </div>
     </div>
 </div>
@@ -640,8 +703,7 @@ function renderTable(array $requests, string $type): void
             onclick='openPreview($jsonData, \"$type\", {$r['id']})'>
             <i class='bi bi-eye'></i> View
         </button>
-        <button type='button' class='btn btn-sm btn-success'
-            onclick='submitSingle({$r['id']}, \"$tabName\", \"approve\")'>
+        <button type='button' class='btn btn-sm btn-success' onclick='openApproveModal({$r['id']}, \"$tabName\")'>
             <i class='bi bi-check-lg'></i>
         </button>
         <button type='button' class='btn btn-sm btn-danger'
@@ -675,6 +737,77 @@ function renderTable(array $requests, string $type): void
             }
         }
     });
+
+    // --- SINGLE ACTIONS ---
+    function openApproveModal(reqId, tabName) {
+        document.getElementById('approve_req_id').value = reqId;
+        document.getElementById('approve_tab_name').value = tabName;
+        bootstrap.Modal.getOrCreateInstance(document.getElementById('approveModal')).show();
+    }
+
+    function openRejectModal(reqId, tabName) {
+        document.getElementById('reject_req_id').value = reqId;
+        document.getElementById('reject_tab_name').value = tabName;
+        bootstrap.Modal.getOrCreateInstance(document.getElementById('rejectModal')).show();
+    }
+
+    // --- BULK ACTIONS ---
+    function toggleAll(source, type) {
+        const checkboxes = document.querySelectorAll('.bulk-check-' + type);
+        checkboxes.forEach(cb => cb.checked = source.checked);
+    }
+
+    function submitBulk(type, action) {
+        const form = document.getElementById('bulkForm_' + type);
+        const checkboxes = form.querySelectorAll('.bulk-check-' + type + ':checked');
+        if (checkboxes.length === 0) {
+            Swal.fire('No Selection', 'Please select at least one request by checking the boxes on the left.', 'warning');
+            return;
+        }
+
+        if (action === 'bulk_reject') {
+            Swal.fire({
+                title: 'Bulk Reject',
+                input: 'textarea',
+                inputLabel: 'Reason for Rejection (Optional)',
+                inputAttributes: {
+                    maxlength: 255
+                },
+                showCancelButton: true,
+                confirmButtonText: 'Reject All',
+                confirmButtonColor: '#dc3545',
+                inputValidator: (value) => {
+                    if (value && /<|>/.test(value)) {
+                        return 'Characters < and > are not allowed.';
+                    }
+                }
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    document.getElementById('bulkAction_' + type).value = action;
+                    const reasonInput = document.createElement('input');
+                    reasonInput.type = 'hidden';
+                    reasonInput.name = 'reject_reason';
+                    reasonInput.value = result.value || '';
+                    form.appendChild(reasonInput);
+                    form.submit();
+                }
+            });
+        } else {
+            Swal.fire({
+                title: 'Bulk Approve',
+                text: `Are you sure you want to approve ${checkboxes.length} request(s)?`,
+                icon: 'question',
+                showCancelButton: true,
+                confirmButtonText: 'Yes, Approve All',
+                confirmButtonColor: '#198754'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    document.getElementById('bulkAction_' + type).value = action;
+                    form.submit();
+                }
+            });
+        }
+    }
 
     // --- SINGLE ACTIONS ---
     function submitSingle(reqId, tabName, action) {

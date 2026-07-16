@@ -30,26 +30,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if (!isset($_SESSION['user_id'])) die("ACCESS DENIED");
 
-    // [FIX] Check if POST is empty FIRST (indicates file exceeds post_max_size)
-    if (empty($_POST) && isset($_SERVER['CONTENT_LENGTH']) && $_SERVER['CONTENT_LENGTH'] > 0) {
-        sendResponse('error', "Upload failed: File is too large (Server Limit: " . ini_get('post_max_size') . ").");
-    }
-
-    // CSRF Token Validation (Check AFTER size check)
-    // [FIX] CSRF check MUST happen FIRST, before any POST data processing
+    // [SECURITY] 1. CSRF Token Validation (MUST be first)
     if (empty($_POST['csrf_token']) || !hash_equals($_SESSION['csrf_token'] ?? '', $_POST['csrf_token'])) {
-        // Debugging: Log the mismatch to help troubleshoot
-        $postedToken = $_POST['csrf_token'] ?? '';
-        $sessionToken = $_SESSION['csrf_token'] ?? '';
-        // truncate or hash tokens for logging
-        $logPost = $postedToken ? substr($postedToken, 0, 4) . '...' . substr($postedToken, -4) : 'MISSING';
-        $logSess = $sessionToken ? substr($sessionToken, 0, 4) . '...' . substr($sessionToken, -4) : 'MISSING';
-        error_log("CSRF Mismatch in process_upload.php. POST: $logPost, SESSION: $logSess");
-
+        // If POST is empty, it's likely a file size issue, not CSRF. Give a better error.
+        if (empty($_POST) && isset($_SERVER['CONTENT_LENGTH']) && $_SERVER['CONTENT_LENGTH'] > 0) {
+            sendResponse('error', "Upload failed: File is too large (Server Limit: " . ini_get('post_max_size') . "). Please upload smaller files.");
+        }
         sendResponse('error', "Security token expired or invalid. Please refresh and try again.");
     }
 
-    // 1. GATHER INPUTS
+    // [SECURITY] 2. Check for upload errors after CSRF
+    if (!isset($_FILES['document']) || (is_array($_FILES['document']['name']) && empty($_FILES['document']['name'][0])) || (!is_array($_FILES['document']['name']) && empty($_FILES['document']['name']))) {
+        sendResponse('error', "No file was selected for upload. Please choose a file.");
+    }
+
+    // 3. GATHER INPUTS
     // Validate and sanitize emp_id
     $emp_id = isset($_POST['emp_id']) ? trim($_POST['emp_id']) : '';
     if (!preg_match('/^[a-zA-Z0-9-]+$/', $emp_id) || empty($emp_id)) {
@@ -167,6 +162,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($errorCode !== UPLOAD_ERR_NO_FILE) {
                 $errors[] = "File " . ($idx + 1) . " error code: " . $errorCode;
             }
+            continue;
+        }
+
+        // [SECURITY] Verify the file was uploaded via HTTP POST
+        if (!is_uploaded_file($file['tmp_name'])) {
+            $errors[] = "File " . ($idx + 1) . ": Invalid upload. The file was not uploaded via a legitimate HTTP POST.";
             continue;
         }
 

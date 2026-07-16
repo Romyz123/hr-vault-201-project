@@ -47,51 +47,26 @@ if ($logFile && file_exists($logFile)) {
 }
 require 'header.php';
 ?>
-<!DOCTYPE html>
-<html lang="en">
 
-<head>
-    <meta charset="UTF-8">
-    <title>Error Logs | TESP HR 201 System</title>
-    <link rel="icon" href="assets/tesp-logo.png?v=4" type="image/png">
-    <link href="assets/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="assets/icons/bootstrap-icons.css">
-</head>
-
-<body class="bg-body-tertiary">
-    <nav class="navbar navbar-dark bg-dark mb-4">
-        <div class="container-fluid px-4">
-            <a class="navbar-brand" href="index.php">Back to Dashboard</a>
-            <div class="d-flex align-items-center gap-2">
-                <button id="darkModeToggle" class="btn btn-sm btn-outline-light border-0" title="Toggle Dark Mode">
-                    <i class="bi bi-moon-stars-fill"></i>
-                </button>
-                <span class="navbar-text text-white fw-bold"><i class="bi bi-bug-fill text-danger"></i> PHP Error Logs</span>
-            </div>
+<div class="container-fluid px-4">
+    <?php if ($msg): ?><div class="alert alert-success shadow-sm"><?php echo htmlspecialchars($msg); ?></div><?php endif; ?>
+    <div class="card shadow-sm border-danger">
+        <div class="card-header bg-danger text-white d-flex justify-content-between align-items-center">
+            <span class="fw-bold"><i class="bi bi-terminal"></i> Server Error Log</span>
+            <form method="POST" class="m-0" onsubmit="return confirm('Are you sure you want to clear the error log?');">
+                <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
+                <button type="submit" name="clear_log" class="btn btn-sm btn-light text-danger fw-bold"><i class="bi bi-trash-fill"></i> Clear Log</button>
+            </form>
         </div>
-    </nav>
-    <div class="container-fluid px-4">
-        <?php if ($msg): ?><div class="alert alert-success shadow-sm"><?php echo htmlspecialchars($msg); ?></div><?php endif; ?>
-        <div class="card shadow-sm border-danger">
-            <div class="card-header bg-danger text-white d-flex justify-content-between align-items-center">
-                <span class="fw-bold"><i class="bi bi-terminal"></i> Server Error Log</span>
-                <form method="POST" class="m-0" onsubmit="return confirm('Are you sure you want to clear the error log?');">
-                    <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
-                    <button type="submit" name="clear_log" class="btn btn-sm btn-light text-danger fw-bold"><i class="bi bi-trash-fill"></i> Clear Log</button>
-                </form>
-            </div>
-            <div class="card-body p-0">
-                <pre class="bg-dark text-success p-3 mb-0" style="height: 75vh; overflow-y: auto; font-size: 0.85rem; white-space: pre-wrap; word-wrap: break-word;"><?php echo htmlspecialchars($logContents); ?></pre>
-            </div>
+        <div class="card-body p-0">
+            <pre class="bg-dark text-success p-3 mb-0" style="height: 75vh; overflow-y: auto; font-size: 0.85rem; white-space: pre-wrap; word-wrap: break-word;"><?php echo htmlspecialchars($logContents); ?></pre>
         </div>
     </div>
-    <script>
-        document.addEventListener("DOMContentLoaded", function() {
-            const pre = document.querySelector('pre');
-            if (pre) pre.scrollTop = pre.scrollHeight; // Auto-scroll to latest errors
-        });
-    </script>
-</body>
-
-</html>
+</div>
+<script>
+    document.addEventListener("DOMContentLoaded", function() {
+        const pre = document.querySelector('pre');
+        if (pre) pre.scrollTop = pre.scrollHeight; // Auto-scroll to latest errors
+    });
+</script>
 <?php require 'footer.php'; ?>

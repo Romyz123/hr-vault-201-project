@@ -10,8 +10,8 @@ $error = '';
 $step = 'verify'; // Default step: Ask for code
 
 // 1. CAPTURE INPUTS
-$token = $_REQUEST['token'] ?? '';
-$email = $_REQUEST['email'] ?? '';
+$token = $_GET['token'] ?? '';
+$email = $_GET['email'] ?? '';
 
 // 2. VERIFY TOKEN (If provided via Link or Form)
 if ($token) {

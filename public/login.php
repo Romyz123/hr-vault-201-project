@@ -355,7 +355,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
                     <label class="form-label text-secondary">Password</label>
                     <div class="input-group">
                         <span class="input-group-text bg-light"><i class="bi bi-key"></i></span>
-                        <input type="password" name="password" id="loginPass" class="form-control" placeholder="Enter password" required minlength="10" maxlength="128">
+                        <input type="password" name="password" id="loginPass" class="form-control" placeholder="Enter password" required minlength="10" maxlength="128" autocomplete="current-password">
                         <button class="btn btn-outline-secondary" type="button" onclick="toggleLoginPass(this)"><i class="bi bi-eye"></i></button>
                     </div>
                     <div id="capsLockWarning" class="form-text text-danger fw-bold mt-1" style="display: none;">

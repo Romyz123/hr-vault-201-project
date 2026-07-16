@@ -2,6 +2,13 @@
 // --- START: UI REPAIR ---
 // header.php
 
+// [SECURITY] HTTP Security Headers
+header("Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self';");
+header("X-Content-Type-Options: nosniff");
+header("X-Frame-Options: SAMEORIGIN");
+header("X-XSS-Protection: 1; mode=block");
+header("Strict-Transport-Security: max-age=31536000; includeSubDomains");
+
 $doc_alerts = [];
 $msgCount = 0;
 $notifCount = 0;
@@ -133,6 +140,7 @@ $currentPage = basename($_SERVER['PHP_SELF']);
 $pageTitles = [
     'index.php'              => 'Dashboard',
     'edit_employee.php'      => 'Edit Employee',
+    'upload_form.php'        => 'Upload Document',
     'admin_approval.php'     => 'Approval Center',
     'system_recovery.php'    => 'System Recovery',
     'analytics.php'          => 'Workforce Analytics',
@@ -404,6 +412,45 @@ $displayTitle = $pageTitles[$currentPage] ?? 'TESP HR 201 System';
             </button>
 
             <div class="collapse navbar-collapse" id="navbarContent">
+                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                    <!-- Modules Dropdown -->
+                    <?php if (in_array($userRole, ['ADMIN', 'MANAGER', 'HR'])): ?>
+                        <li class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                Modules
+                            </a>
+                            <ul class="dropdown-menu">
+                                <li><a class="dropdown-item" href="analytics.php"><i class="bi bi-graph-up me-2"></i> Analytics</a></li>
+                                <li><a class="dropdown-item" href="recruitment.php"><i class="bi bi-person-lines-fill me-2"></i> Recruitment</a></li>
+                                <li><a class="dropdown-item" href="performance_review.php"><i class="bi bi-clipboard2-data me-2"></i> Performance</a></li>
+                                <li><a class="dropdown-item" href="disciplinary.php"><i class="bi bi-exclamation-triangle me-2"></i> Disciplinary</a></li>
+                            </ul>
+                        </li>
+                        <li class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                Tools & Reports
+                            </a>
+                            <ul class="dropdown-menu">
+                                <li><a class="dropdown-item" href="tracker.php"><i class="bi bi-kanban me-2"></i> Compliance Tracker</a></li>
+                                <li><a class="dropdown-item" href="expiry_report.php"><i class="bi bi-binoculars-fill me-2"></i> Expiry Forecast</a></li>
+                                <li><a class="dropdown-item" href="evaluation_report.php"><i class="bi bi-bar-chart-line me-2"></i> Evaluation Report</a></li>
+                                <li>
+                                    <hr class="dropdown-divider">
+                                </li>
+                                <li><a class="dropdown-item" href="import_employees.php"><i class="bi bi-file-spreadsheet me-2"></i> Bulk Import</a></li>
+                                <li><a class="dropdown-item" href="bulk_update_roles.php"><i class="bi bi-people-fill me-2"></i> Bulk Update</a></li>
+                                <li><a class="dropdown-item" href="bulk_contract.php"><i class="bi bi-printer-fill me-2"></i> Bulk Print</a></li>
+                                <li><a class="dropdown-item" href="bulk_archive.php"><i class="bi bi-archive-fill me-2"></i> Bulk Archive</a></li>
+                            </ul>
+                        </li>
+                    <?php else: // For STAFF 
+                    ?>
+                        <li class="nav-item">
+                            <a class="nav-link" href="tracker.php">Compliance Tracker</a>
+                        </li>
+                    <?php endif; ?>
+                </ul>
+
                 <div class="d-flex align-items-center ms-auto mt-3 mt-lg-0">
                     <!-- Session Timer -->
                     <div class="text-white me-3 small d-none d-md-block" title="Time until auto-logout">
@@ -530,7 +577,6 @@ $displayTitle = $pageTitles[$currentPage] ?? 'TESP HR 201 System';
                             <?php if ($userRole === 'ADMIN'): ?>
                                 <li><a class="dropdown-item" href="settings.php"><i class="bi bi-sliders me-2"></i> System Settings</a></li>
                                 <li><a class="dropdown-item" href="manage_hierarchy.php"><i class="bi bi-diagram-3-fill me-2"></i> Manage Org Structure</a></li>
-                                <li><a class="dropdown-item" href="data_validation_report.php"><i class="bi bi-clipboard-check-fill me-2 text-warning"></i> Data Validation</a></li>
                             <?php endif; ?>
                             <li><a class="dropdown-item" href="profile_settings.php"><i class="bi bi-gear me-2"></i> Change Password</a></li>
                             <?php if ($userRole === 'ADMIN'): ?>
@@ -542,6 +588,9 @@ $displayTitle = $pageTitles[$currentPage] ?? 'TESP HR 201 System';
                             <?php endif; ?>
                             <?php if (in_array($userRole, ['ADMIN', 'MANAGER'])): ?>
                                 <li><a class="dropdown-item" href="activity_logs.php"><i class="bi bi-shield-lock-fill me-2 text-danger"></i> Activity Logs</a></li>
+                            <?php endif; ?>
+                            <?php if (in_array($userRole, ['ADMIN', 'MANAGER', 'HR'])): ?>
+                                <li><a class="dropdown-item" href="data_validation_report.php"><i class="bi bi-clipboard-check-fill me-2 text-warning"></i> Data Validation</a></li>
                             <?php endif; ?>
                             <?php if ($userRole === 'STAFF'): ?>
                                 <li><a class="dropdown-item" href="my_requests.php"><i class="bi bi-clock-history me-2 text-primary"></i> My Requests</a></li>

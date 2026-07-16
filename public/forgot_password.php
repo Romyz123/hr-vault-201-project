@@ -44,6 +44,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // [SECURITY] Validate Input Length
             if (strlen($username) > 100) {
                 $error = "❌ Username or Email exceeds maximum length.";
+            } elseif (strpos($username, '@') === false && !preg_match('/^[a-zA-Z0-9]+$/', $username)) {
+                // If it's not an email, it must be an alphanumeric username
+                $error = "❌ Username contains invalid characters. Only letters and numbers are allowed.";
             } else {
                 try {
                     $stmt = $pdo->prepare("SELECT id, username, security_question, totp_secret FROM users WHERE username = ? OR email = ?");
@@ -133,35 +136,49 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $error = "Session expired. Please start the recovery process again.";
                 $step = 1;
             } else {
-                $code = strtoupper(preg_replace('/[^A-Z0-9]/', '', $_POST['backup_code'] ?? ''));
-                try {
-                    $stmt = $pdo->prepare("SELECT recovery_codes FROM users WHERE id = ?");
-                    $stmt->execute([$_SESSION['forgot_user_id']]);
-                    $json = $stmt->fetchColumn();
-                    $hashes = $json ? json_decode($json, true) : [];
+                // [SECURITY] Brute-force protection for codes
+                if (!isset($_SESSION['forgot_code_attempts']) || !is_array($_SESSION['forgot_code_attempts'])) {
+                    $_SESSION['forgot_code_attempts'] = ['count' => 0, 'ts' => time()];
+                }
+                if (time() - ($_SESSION['forgot_code_attempts']['ts'] ?? 0) > 300) { // Reset after 5 mins
+                    $_SESSION['forgot_code_attempts'] = ['count' => 0, 'ts' => time()];
+                }
+                if (($_SESSION['forgot_code_attempts']['count'] ?? 0) >= 5) {
+                    $error = "⛔ Too many attempts. Please wait a few minutes before trying again.";
+                    $step = 'backup_code';
+                } else {
+                    $code = strtoupper(preg_replace('/[^A-Z0-9]/', '', $_POST['backup_code'] ?? ''));
+                    try {
+                        $stmt = $pdo->prepare("SELECT recovery_codes FROM users WHERE id = ?");
+                        $stmt->execute([$_SESSION['forgot_user_id']]);
+                        $json = $stmt->fetchColumn();
+                        $hashes = $json ? json_decode($json, true) : [];
 
-                    $valid = false;
-                    if (is_array($hashes)) {
-                        foreach ($hashes as $index => $hash) {
-                            if (password_verify($code, $hash)) {
-                                $valid = true;
-                                unset($hashes[$index]); // Remove used code so it can't be used twice
-                                $pdo->prepare("UPDATE users SET recovery_codes = ? WHERE id = ?")->execute([json_encode(array_values($hashes)), $_SESSION['forgot_user_id']]);
-                                break;
+                        $valid = false;
+                        if (is_array($hashes)) {
+                            foreach ($hashes as $index => $hash) {
+                                if (password_verify($code, $hash)) {
+                                    $valid = true;
+                                    unset($hashes[$index]); // Remove used code so it can't be used twice
+                                    $pdo->prepare("UPDATE users SET recovery_codes = ? WHERE id = ?")->execute([json_encode(array_values($hashes)), $_SESSION['forgot_user_id']]);
+                                    break;
+                                }
                             }
                         }
-                    }
 
-                    if ($valid) {
-                        $_SESSION['forgot_step'] = 3;
-                        $step = 3;
-                    } else {
-                        $error = "❌ Invalid or already used Backup Code.";
+                        if ($valid) {
+                            unset($_SESSION['forgot_code_attempts']);
+                            $_SESSION['forgot_step'] = 3;
+                            $step = 3;
+                        } else {
+                            $error = "❌ Invalid or already used Backup Code.";
+                            $_SESSION['forgot_code_attempts']['count']++;
+                            $step = 'backup_code';
+                        }
+                    } catch (PDOException $e) {
+                        $error = "❌ Database error during verification.";
                         $step = 'backup_code';
                     }
-                } catch (PDOException $e) {
-                    $error = "❌ Database error during verification.";
-                    $step = 'backup_code';
                 }
             }
         } elseif ($posted_step === 'authenticator') {
@@ -169,24 +186,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $error = "Session expired. Please start the recovery process again.";
                 $step = 1;
             } else {
-                $code = trim($_POST['auth_code'] ?? '');
-                try {
-                    $stmt = $pdo->prepare("SELECT totp_secret FROM users WHERE id = ?");
-                    $stmt->execute([$_SESSION['forgot_user_id']]);
-                    $secret = $stmt->fetchColumn();
+                // [SECURITY] Brute-force protection for codes
+                if (!isset($_SESSION['forgot_code_attempts']) || !is_array($_SESSION['forgot_code_attempts'])) {
+                    $_SESSION['forgot_code_attempts'] = ['count' => 0, 'ts' => time()];
+                }
+                if (time() - ($_SESSION['forgot_code_attempts']['ts'] ?? 0) > 300) { // Reset after 5 mins
+                    $_SESSION['forgot_code_attempts'] = ['count' => 0, 'ts' => time()];
+                }
+                if (($_SESSION['forgot_code_attempts']['count'] ?? 0) >= 5) {
+                    $error = "⛔ Too many attempts. Please wait a few minutes before trying again.";
+                    $step = 'authenticator';
+                } else {
+                    $code = trim($_POST['auth_code'] ?? '');
+                    try {
+                        $stmt = $pdo->prepare("SELECT totp_secret FROM users WHERE id = ?");
+                        $stmt->execute([$_SESSION['forgot_user_id']]);
+                        $secret = $stmt->fetchColumn();
 
-                    require_once '../src/GoogleAuthenticator.php';
-                    if ($secret && GoogleAuthenticator::verifyCode($secret, $code)) {
-                        $_SESSION['forgot_step'] = 3;
-                        $step = 3;
-                        $logger->log($_SESSION['forgot_user_id'], 'PASSWORD_RECOVERY_AUTH_VERIFIED', "Authenticator code verified for password recovery.");
-                    } else {
-                        $error = "❌ Invalid Authenticator code.";
+                        require_once '../src/GoogleAuthenticator.php';
+                        if ($secret && GoogleAuthenticator::verifyCode($secret, $code)) {
+                            unset($_SESSION['forgot_code_attempts']);
+                            $_SESSION['forgot_step'] = 3;
+                            $step = 3;
+                            $logger->log($_SESSION['forgot_user_id'], 'PASSWORD_RECOVERY_AUTH_VERIFIED', "Authenticator code verified for password recovery.");
+                        } else {
+                            $_SESSION['forgot_code_attempts']['count']++;
+                            $error = "❌ Invalid Authenticator code.";
+                            $step = 'authenticator';
+                        }
+                    } catch (PDOException $e) {
+                        $error = "❌ Database error during verification.";
                         $step = 'authenticator';
                     }
-                } catch (PDOException $e) {
-                    $error = "❌ Database error during verification.";
-                    $step = 'authenticator';
                 }
             }
         } elseif ($posted_step === '3' && isset($_SESSION['forgot_user_id'])) {
