@@ -1,8 +1,11 @@
 <?php
 //// ---------- 1) ERROR HANDLING & HEADERS ----------// config/db.php
 // [SECURITY] Production Error Handling
-ini_set('display_errors', '0');
-ini_set('display_startup_errors', '0');
+$configPath = __DIR__ . '/config.php';
+$_ENV = file_exists($configPath) ? require $configPath : [];
+$debugEnabled = filter_var($_ENV['APP_DEBUG'] ?? false, FILTER_VALIDATE_BOOLEAN);
+ini_set('display_errors', $debugEnabled ? '1' : '0');
+ini_set('display_startup_errors', $debugEnabled ? '1' : '0');
 ini_set('log_errors', '1');
 ini_set('error_log', __DIR__ . '/../php_error.log');
 error_reporting(E_ALL);
@@ -19,9 +22,6 @@ header('Referrer-Policy: strict-origin-when-cross-origin');
 
 // ---------- 2) ENVIRONMENT LOAD ----------
 // Load settings directly from PHP file instead of .env to avoid permission errors
-$configPath = __DIR__ . '/config.php';
-$_ENV = file_exists($configPath) ? require $configPath : [];
-
 // ---------- 3) GLOBAL INPUT SANITIZATION ----------
 // ✅ FIX for Intelephense P1132: add param type + return type
 function sanitize_global_input(array &$array): void

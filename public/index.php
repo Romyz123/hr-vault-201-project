@@ -688,7 +688,8 @@ try {
 
     $recentActSql .= " WHERE " . implode(" AND ", $actWhere);
     $recentActSql .= " ORDER BY d.uploaded_at DESC LIMIT 5";
-    $recentActivity = $pdo->query($recentActSql)->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    $stmt = $pdo->query($recentActSql);
+    $recentActivity = $stmt ? $stmt->fetchAll(PDO::FETCH_ASSOC) : [];
 } catch (Exception $e) {
     error_log("Recent Activity Fetch Error: " . $e->getMessage());
 }

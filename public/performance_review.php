@@ -511,6 +511,9 @@ require 'header.php';
         </form>
 
         <div class="d-flex gap-2">
+            <a href="performance_review.php?<?php echo http_build_query($keepParams + ['export' => '1']); ?>" class="btn btn-outline-success">
+                <i class="bi bi-file-earmark-excel"></i> Export to Excel
+            </a>
             <button onclick="window.print()" class="btn btn-secondary">
                 <i class="bi bi-printer"></i> Print Report
             </button>

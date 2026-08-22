@@ -46,6 +46,37 @@ if (!empty($dateFrom) && !empty($dateTo)) {
     $endDate   = "$yearFilter-12-31";
 }
 
+// [NEW] Reusable filter function to reduce code duplication
+function apply_common_filters(string $sql, array $params, array $filters): array
+{
+    if (!empty($filters['job_search'])) {
+        $sql .= " AND job_title LIKE ? ";
+        $params[] = "%{$filters['job_search']}%";
+    }
+    if (!empty($filters['dept_filter'])) {
+        $sql .= " AND dept = ? ";
+        $params[] = $filters['dept_filter'];
+    }
+    if (!empty($filters['section_filter'])) {
+        $sql .= " AND section = ? ";
+        $params[] = $filters['section_filter'];
+    }
+    if (!empty($filters['group_filter'])) {
+        $sql .= " AND `group` = ? ";
+        $params[] = $filters['group_filter'];
+    }
+    // Note: Gender is applied separately as it only affects active queries
+    if (!empty($filters['agency_filter'])) {
+        if ($filters['agency_filter'] === 'TESP_DIRECT') {
+            $sql .= " AND (agency_name IS NULL OR agency_name = '' OR agency_name LIKE 'TESP%') ";
+        } else {
+            $sql .= " AND agency_name = ? ";
+            $params[] = $filters['agency_filter'];
+        }
+    }
+    return [$sql, $params];
+}
+
 $debug         = isset($_GET['debug']) ? (bool)$_GET['debug'] : false;
 $includeDeleted = isset($_GET['include_deleted']) ? (bool)$_GET['include_deleted'] : false;
 
@@ -61,8 +92,6 @@ try {
 
 // --- 2. BUILD SQL (base WHERE reused by several queries) ---
 $activeSQL = " WHERE status = 'Active' ";
-$params = [];
-
 if ($hasEmpDeletedAt && !$includeDeleted) $activeSQL .= " AND deleted_at IS NULL ";
 
 $inactiveSQL = " WHERE status IN ('Resigned', 'Terminated', 'AWOL', 'Retired')
@@ -70,48 +99,23 @@ $inactiveSQL = " WHERE status IN ('Resigned', 'Terminated', 'AWOL', 'Retired')
                      (exit_date BETWEEN ? AND ?) 
                      OR ((exit_date IS NULL OR exit_date = '0000-00-00') AND DATE(updated_at) BETWEEN ? AND ?)
                  ) ";
-$inactiveParams = [$startDate, $endDate, $startDate, $endDate];
 
-// Apply Filters (to both active & inactive where applicable)
-if ($jobSearch !== '') {
-    $term = "%$jobSearch%";
-    $activeSQL   .= " AND job_title LIKE ? ";
-    $params[] = $term;
-    $inactiveSQL .= " AND job_title LIKE ? ";
-    $inactiveParams[] = $term;
-}
-if ($deptFilter !== '') {
-    $activeSQL   .= " AND dept = ? ";
-    $params[] = $deptFilter;
-    $inactiveSQL .= " AND dept = ? ";
-    $inactiveParams[] = $deptFilter;
-}
-if ($sectionFilter !== '') {
-    $activeSQL   .= " AND section = ? ";
-    $params[] = $sectionFilter;
-    $inactiveSQL .= " AND section = ? ";
-    $inactiveParams[] = $sectionFilter;
-}
-if ($groupFilter !== '') {
-    $activeSQL   .= " AND `group` = ? ";
-    $params[] = $groupFilter;
-    $inactiveSQL .= " AND `group` = ? ";
-    $inactiveParams[] = $groupFilter;
-}
+// [REFACTOR] Use the new function to apply filters
+$filters = [
+    'job_search' => $jobSearch,
+    'dept_filter' => $deptFilter,
+    'section_filter' => $sectionFilter,
+    'group_filter' => $groupFilter,
+    'agency_filter' => $agencyFilter,
+];
+
+list($activeSQL, $params) = apply_common_filters($activeSQL, [], $filters);
+list($inactiveSQL, $inactiveParams) = apply_common_filters($inactiveSQL, [$startDate, $endDate, $startDate, $endDate], $filters);
+
+// Apply gender filter only to active SQL (as per original logic)
 if ($genderFilter !== '') {
     $activeSQL .= " AND gender = ? ";
     $params[] = $genderFilter;
-}
-if ($agencyFilter !== '') {
-    if ($agencyFilter === 'TESP_DIRECT') {
-        $activeSQL   .= " AND (agency_name IS NULL OR agency_name = '' OR agency_name LIKE 'TESP%') ";
-        $inactiveSQL .= " AND (agency_name IS NULL OR agency_name = '' OR agency_name LIKE 'TESP%') ";
-    } else {
-        $activeSQL   .= " AND agency_name = ? ";
-        $params[] = $agencyFilter;
-        $inactiveSQL .= " AND agency_name = ? ";
-        $inactiveParams[] = $agencyFilter;
-    }
 }
 
 // [NEW] Handle Overdue Export
@@ -182,25 +186,33 @@ if (!empty($dateTo)) {
 // ============================================================
 
 // 1) HEADCOUNTS (Active)
-$countStmt = $pdo->prepare("SELECT COUNT(*) FROM employees $activeSQL");
-$countStmt->execute($params);
-// [SECURITY FIX] Validate fetchColumn() result before using
-$countResult = $countStmt->fetchColumn();
-$totalHeadcount = ($countResult !== false && $countResult !== null) ? (int)$countResult : 0;
-
-// [NEW] EDUCATION ATTAINMENT
+// [PERFORMANCE] Combine headcount and education queries into one
+$totalHeadcount = 0;
 $gradCount = 0;
-$undergradCount = $totalHeadcount;
+$hasCollegeDegree = false;
+$hasCollegeCourse = false;
 try {
-    $gradStmt = $pdo->prepare("SELECT COUNT(*) FROM employees $activeSQL AND college_degree IS NOT NULL AND college_degree != ''");
-    $gradStmt->execute($params);
-    $res = $gradStmt->fetchColumn();
-    if ($res !== false) {
-        $gradCount = (int)$res;
-        $undergradCount = max(0, $totalHeadcount - $gradCount);
+    $checkCols = $pdo->query("SHOW COLUMNS FROM `employees` LIKE 'college_degree'");
+    $hasCollegeDegree = $checkCols && $checkCols->rowCount() > 0;
+    $checkCols = $pdo->query("SHOW COLUMNS FROM `employees` LIKE 'college_course'");
+    $hasCollegeCourse = $checkCols && $checkCols->rowCount() > 0;
+} catch (PDOException $e) {
+}
+try {
+    $headcountSQL = $hasCollegeDegree
+        ? "SELECT COUNT(*) as total, SUM(CASE WHEN college_degree IS NOT NULL AND college_degree != '' THEN 1 ELSE 0 END) as graduates FROM employees $activeSQL"
+        : "SELECT COUNT(*) as total FROM employees $activeSQL";
+    $countStmt = $pdo->prepare($headcountSQL);
+    $countStmt->execute($params);
+    $counts = $countStmt->fetch(PDO::FETCH_ASSOC);
+    if ($counts) {
+        $totalHeadcount = (int)$counts['total'];
+        $gradCount = $hasCollegeDegree ? (int)$counts['graduates'] : 0;
     }
 } catch (Exception $e) {
+    // Silently fail, counts will remain 0
 }
+$undergradCount = max(0, $totalHeadcount - $gradCount);
 
 $eduLabels = json_encode(['College Graduate', 'No Degree Info / Undergrad']);
 $eduCounts = json_encode([$gradCount, $undergradCount]);
@@ -290,10 +302,10 @@ $trendStmt->execute($trendParams);
 $trendRaw = $trendStmt->fetchAll(PDO::FETCH_KEY_PAIR);
 
 // [NEW] Generate Dynamic Labels for Trend Charts
-$trendLabelsArr = [];
-$trendDataArr   = [];
-$attrDataArr    = [];
-$netGrowthArr   = [];
+$trendLabelsArr = []; // [FIX] Initialize arrays to prevent PHP notices
+$trendDataArr   = []; // [FIX] Initialize arrays to prevent PHP notices
+$attrDataArr    = []; // [FIX] Initialize arrays to prevent PHP notices
+$netGrowthArr   = []; // [FIX] Initialize arrays to prevent PHP notices
 
 $start    = new DateTime($startDate);
 $endObj   = new DateTime($endDate);
@@ -408,7 +420,6 @@ try {
 // 7) DEMOGRAPHICS & TENURE MATRIX (Slug Strategy + Column Totals)
 
 // Stable computation IDs
-$bandOrder = ['b0', 'b1', 'b2', 'b3', 'b4'];
 $bandLabels = [
     'b0' => '< 1 Yr',
     'b1' => '1-3 Yrs',
@@ -416,8 +427,16 @@ $bandLabels = [
     'b3' => '5-10 Yrs',
     'b4' => '10+ Yrs',
 ];
+$bandOrder = array_keys($bandLabels);
 
-$rawStmt = $pdo->prepare("SELECT emp_id, dept, birth_date, hire_date, gender, college_degree, college_course FROM employees $activeSQL");
+$selectCols = "emp_id, dept, birth_date, hire_date, gender";
+if ($hasCollegeDegree) {
+    $selectCols .= ", college_degree";
+}
+if ($hasCollegeCourse) {
+    $selectCols .= ", college_course";
+}
+$rawStmt = $pdo->prepare("SELECT $selectCols FROM employees $activeSQL");
 $rawStmt->execute($params);
 $rows = $rawStmt->fetchAll(PDO::FETCH_ASSOC);
 

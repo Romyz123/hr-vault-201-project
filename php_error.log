@@ -1593,3 +1593,851 @@ Stack trace:
 Stack trace:
 #0 {main}
   thrown in C:\xampp\htdocs\hr 201\public\manage_hierarchy.php on line 231
+[31-Jul-2026 10:05:14 Asia/Manila] SQLSTATE[HY000] [2002] No connection could be made because the target machine actively refused it
+[06-Aug-2026 11:16:41 Asia/Manila] SQLSTATE[HY000] [2006] MySQL server has gone away
+[06-Aug-2026 11:25:24 Asia/Manila] SQLSTATE[HY000] [2006] MySQL server has gone away
+[06-Aug-2026 11:25:24 Asia/Manila] PHP Warning:  Uncaught PDOException: PDO::__construct(): Error while reading greeting packet. PID=136668 in C:\xampp\htdocs\hr 201\config\db.php:104
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\config\db.php(104): PDO->__construct('mysql:host=127....', 'root', '', Array)
+#1 C:\xampp\htdocs\hr 201\public\index.php(7): require('C:\\xampp\\htdocs...')
+#2 {main}
+
+Next PDOException: SQLSTATE[HY000] [2006] MySQL server has gone away in C:\xampp\htdocs\hr 201\config\db.php:104
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\config\db.php(104): PDO->__construct('mysql:host=127....', 'root', '', Array)
+#1 C:\xampp\htdocs\hr 201\public\index.php(7): require('C:\\xampp\\htdocs...')
+#2 {main}
+  thrown in C:\xampp\htdocs\hr 201\config\db.php on line 104
+[06-Aug-2026 11:25:24 Asia/Manila] PHP Warning:  Uncaught PDOException: PDO::__construct(): Error while reading greeting packet. PID=136668 in C:\xampp\htdocs\hr 201\config\db.php:104
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\config\db.php(104): PDO->__construct('mysql:host=127....', 'root', '', Array)
+#1 C:\xampp\htdocs\hr 201\public\import_employees.php(8): require('C:\\xampp\\htdocs...')
+#2 {main}
+
+Next PDOException: SQLSTATE[HY000] [2006] MySQL server has gone away in C:\xampp\htdocs\hr 201\config\db.php:104
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\config\db.php(104): PDO->__construct('mysql:host=127....', 'root', '', Array)
+#1 C:\xampp\htdocs\hr 201\public\import_employees.php(8): require('C:\\xampp\\htdocs...')
+#2 {main}
+  thrown in C:\xampp\htdocs\hr 201\config\db.php on line 104
+[06-Aug-2026 11:25:24 Asia/Manila] PHP Warning:  Uncaught PDOException: PDO::__construct(): Error while reading greeting packet. PID=136668 in C:\xampp\htdocs\hr 201\config\db.php:104
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\config\db.php(104): PDO->__construct('mysql:host=127....', 'root', '', Array)
+#1 C:\xampp\htdocs\hr 201\public\index.php(7): require('C:\\xampp\\htdocs...')
+#2 {main}
+
+Next PDOException: SQLSTATE[HY000] [2006] MySQL server has gone away in C:\xampp\htdocs\hr 201\config\db.php:104
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\config\db.php(104): PDO->__construct('mysql:host=127....', 'root', '', Array)
+#1 C:\xampp\htdocs\hr 201\public\index.php(7): require('C:\\xampp\\htdocs...')
+#2 {main}
+  thrown in C:\xampp\htdocs\hr 201\config\db.php on line 104
+[06-Aug-2026 11:25:24 Asia/Manila] PHP Fatal error:  Maximum execution time of 300 seconds exceeded in C:\xampp\htdocs\hr 201\config\db.php on line 121
+[06-Aug-2026 11:25:24 Asia/Manila] PHP Fatal error:  Maximum execution time of 300 seconds exceeded in C:\xampp\htdocs\hr 201\config\db.php on line 121
+[06-Aug-2026 11:25:24 Asia/Manila] PHP Fatal error:  Maximum execution time of 300 seconds exceeded in C:\xampp\htdocs\hr 201\config\db.php on line 121
+[06-Aug-2026 11:25:56 Asia/Manila] SQLSTATE[HY000] [2002] No connection could be made because the target machine actively refused it
+[06-Aug-2026 11:25:57 Asia/Manila] SQLSTATE[HY000] [2002] No connection could be made because the target machine actively refused it
+[06-Aug-2026 11:25:57 Asia/Manila] SQLSTATE[HY000] [2002] No connection could be made because the target machine actively refused it
+[06-Aug-2026 11:26:31 Asia/Manila] SQLSTATE[HY000] [2002] No connection could be made because the target machine actively refused it
+[06-Aug-2026 11:26:38 Asia/Manila] SQLSTATE[HY000] [2002] No connection could be made because the target machine actively refused it
+[06-Aug-2026 14:17:03 Asia/Manila] PHP Warning:  Uncaught PDOException: PDO::__construct(): Error while reading greeting packet. PID=53184 in C:\xampp\htdocs\hr 201\config\db.php:104
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\config\db.php(104): PDO->__construct('mysql:host=127....', 'root', '', Array)
+#1 C:\xampp\htdocs\hr 201\public\login.php(2): require('C:\\xampp\\htdocs...')
+#2 {main}
+
+Next PDOException: SQLSTATE[HY000] [2006] MySQL server has gone away in C:\xampp\htdocs\hr 201\config\db.php:104
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\config\db.php(104): PDO->__construct('mysql:host=127....', 'root', '', Array)
+#1 C:\xampp\htdocs\hr 201\public\login.php(2): require('C:\\xampp\\htdocs...')
+#2 {main}
+  thrown in C:\xampp\htdocs\hr 201\config\db.php on line 104
+[06-Aug-2026 14:17:03 Asia/Manila] PHP Warning:  Uncaught PDOException: PDO::__construct(): Error while reading greeting packet. PID=53184 in C:\xampp\htdocs\hr 201\config\db.php:105
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\config\db.php(105): PDO->__construct('mysql:host=127....', 'root', '', Array)
+#1 C:\xampp\htdocs\hr 201\public\bulk_update_roles.php(7): require('C:\\xampp\\htdocs...')
+#2 {main}
+
+Next PDOException: SQLSTATE[HY000] [2006] MySQL server has gone away in C:\xampp\htdocs\hr 201\config\db.php:105
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\config\db.php(105): PDO->__construct('mysql:host=127....', 'root', '', Array)
+#1 C:\xampp\htdocs\hr 201\public\bulk_update_roles.php(7): require('C:\\xampp\\htdocs...')
+#2 {main}
+  thrown in C:\xampp\htdocs\hr 201\config\db.php on line 105
+[06-Aug-2026 14:17:03 Asia/Manila] PHP Warning:  Uncaught PDOException: PDO::__construct(): Error while reading greeting packet. PID=53184 in C:\xampp\htdocs\hr 201\config\db.php:105
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\config\db.php(105): PDO->__construct('mysql:host=127....', 'root', '', Array)
+#1 C:\xampp\htdocs\hr 201\public\index.php(7): require('C:\\xampp\\htdocs...')
+#2 {main}
+
+Next PDOException: SQLSTATE[HY000] [2006] MySQL server has gone away in C:\xampp\htdocs\hr 201\config\db.php:105
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\config\db.php(105): PDO->__construct('mysql:host=127....', 'root', '', Array)
+#1 C:\xampp\htdocs\hr 201\public\index.php(7): require('C:\\xampp\\htdocs...')
+#2 {main}
+  thrown in C:\xampp\htdocs\hr 201\config\db.php on line 105
+[06-Aug-2026 14:17:03 Asia/Manila] PHP Warning:  Uncaught PDOException: PDO::__construct(): Error while reading greeting packet. PID=53184 in C:\xampp\htdocs\hr 201\config\db.php:104
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\config\db.php(104): PDO->__construct('mysql:host=127....', 'root', '', Array)
+#1 C:\xampp\htdocs\hr 201\public\manager_dashboard.php(7): require('C:\\xampp\\htdocs...')
+#2 {main}
+
+Next PDOException: SQLSTATE[HY000] [2006] MySQL server has gone away in C:\xampp\htdocs\hr 201\config\db.php:104
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\config\db.php(104): PDO->__construct('mysql:host=127....', 'root', '', Array)
+#1 C:\xampp\htdocs\hr 201\public\manager_dashboard.php(7): require('C:\\xampp\\htdocs...')
+#2 {main}
+  thrown in C:\xampp\htdocs\hr 201\config\db.php on line 104
+[06-Aug-2026 14:17:03 Asia/Manila] PHP Warning:  Uncaught PDOException: PDO::__construct(): Error while reading greeting packet. PID=53184 in C:\xampp\htdocs\hr 201\config\db.php:104
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\config\db.php(104): PDO->__construct('mysql:host=127....', 'root', '', Array)
+#1 C:\xampp\htdocs\hr 201\public\login.php(2): require('C:\\xampp\\htdocs...')
+#2 {main}
+
+Next PDOException: SQLSTATE[HY000] [2006] MySQL server has gone away in C:\xampp\htdocs\hr 201\config\db.php:104
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\config\db.php(104): PDO->__construct('mysql:host=127....', 'root', '', Array)
+#1 C:\xampp\htdocs\hr 201\public\login.php(2): require('C:\\xampp\\htdocs...')
+#2 {main}
+  thrown in C:\xampp\htdocs\hr 201\config\db.php on line 104
+[06-Aug-2026 14:17:03 Asia/Manila] PHP Warning:  Uncaught PDOException: PDO::__construct(): Error while reading greeting packet. PID=53184 in C:\xampp\htdocs\hr 201\config\db.php:104
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\config\db.php(104): PDO->__construct('mysql:host=127....', 'root', '', Array)
+#1 C:\xampp\htdocs\hr 201\public\login.php(2): require('C:\\xampp\\htdocs...')
+#2 {main}
+
+Next PDOException: SQLSTATE[HY000] [2006] MySQL server has gone away in C:\xampp\htdocs\hr 201\config\db.php:104
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\config\db.php(104): PDO->__construct('mysql:host=127....', 'root', '', Array)
+#1 C:\xampp\htdocs\hr 201\public\login.php(2): require('C:\\xampp\\htdocs...')
+#2 {main}
+  thrown in C:\xampp\htdocs\hr 201\config\db.php on line 104
+[06-Aug-2026 14:17:03 Asia/Manila] PHP Fatal error:  Maximum execution time of 300 seconds exceeded in C:\xampp\htdocs\hr 201\config\db.php on line 121
+[06-Aug-2026 14:17:03 Asia/Manila] PHP Fatal error:  Maximum execution time of 300 seconds exceeded in C:\xampp\htdocs\hr 201\config\db.php on line 122
+[06-Aug-2026 14:17:03 Asia/Manila] PHP Fatal error:  Maximum execution time of 300 seconds exceeded in C:\xampp\htdocs\hr 201\config\db.php on line 122
+[06-Aug-2026 14:17:03 Asia/Manila] PHP Fatal error:  Maximum execution time of 300 seconds exceeded in C:\xampp\htdocs\hr 201\config\db.php on line 121
+[06-Aug-2026 14:17:03 Asia/Manila] PHP Fatal error:  Maximum execution time of 300 seconds exceeded in C:\xampp\htdocs\hr 201\config\db.php on line 121
+[06-Aug-2026 14:17:03 Asia/Manila] PHP Fatal error:  Maximum execution time of 300 seconds exceeded in C:\xampp\htdocs\hr 201\config\db.php on line 121
+[06-Aug-2026 14:38:45 Asia/Manila] SQLSTATE[HY000] [2006] MySQL server has gone away
+[06-Aug-2026 14:38:45 Asia/Manila] SQLSTATE[HY000] [2006] MySQL server has gone away
+[06-Aug-2026 14:38:45 Asia/Manila] SQLSTATE[HY000] [2006] MySQL server has gone away
+[06-Aug-2026 14:44:38 Asia/Manila] SQLSTATE[HY000] [2006] MySQL server has gone away
+[07-Aug-2026 16:16:26 Asia/Manila] PHP Warning:  Uncaught PDOException: PDO::__construct(): Error while reading greeting packet. PID=46264 in C:\xampp\htdocs\hr 201\config\db.php:105
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\config\db.php(105): PDO->__construct('mysql:host=127....', 'root', '', Array)
+#1 C:\xampp\htdocs\hr 201\public\index.php(7): require('C:\\xampp\\htdocs...')
+#2 {main}
+
+Next PDOException: SQLSTATE[HY000] [2006] MySQL server has gone away in C:\xampp\htdocs\hr 201\config\db.php:105
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\config\db.php(105): PDO->__construct('mysql:host=127....', 'root', '', Array)
+#1 C:\xampp\htdocs\hr 201\public\index.php(7): require('C:\\xampp\\htdocs...')
+#2 {main}
+  thrown in C:\xampp\htdocs\hr 201\config\db.php on line 105
+[07-Aug-2026 16:16:26 Asia/Manila] PHP Fatal error:  Maximum execution time of 300 seconds exceeded in C:\xampp\htdocs\hr 201\config\db.php on line 122
+[08-Aug-2026 13:17:17 Asia/Manila] PHP Warning:  Uncaught PDOException: PDO::__construct(): Error while reading greeting packet. PID=46264 in C:\xampp\htdocs\hr 201\config\db.php:105
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\config\db.php(105): PDO->__construct('mysql:host=127....', 'root', '', Array)
+#1 C:\xampp\htdocs\hr 201\public\index.php(7): require('C:\\xampp\\htdocs...')
+#2 {main}
+
+Next PDOException: SQLSTATE[HY000] [2006] MySQL server has gone away in C:\xampp\htdocs\hr 201\config\db.php:105
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\config\db.php(105): PDO->__construct('mysql:host=127....', 'root', '', Array)
+#1 C:\xampp\htdocs\hr 201\public\index.php(7): require('C:\\xampp\\htdocs...')
+#2 {main}
+  thrown in C:\xampp\htdocs\hr 201\config\db.php on line 105
+[08-Aug-2026 13:17:17 Asia/Manila] PHP Fatal error:  Maximum execution time of 300 seconds exceeded in C:\xampp\htdocs\hr 201\config\db.php on line 122
+[08-Aug-2026 14:14:43 Asia/Manila] PHP Warning:  Uncaught PDOException: PDO::__construct(): Error while reading greeting packet. PID=46264 in C:\xampp\htdocs\hr 201\config\db.php:105
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\config\db.php(105): PDO->__construct('mysql:host=127....', 'root', '', Array)
+#1 C:\xampp\htdocs\hr 201\public\index.php(7): require('C:\\xampp\\htdocs...')
+#2 {main}
+
+Next PDOException: SQLSTATE[HY000] [2006] MySQL server has gone away in C:\xampp\htdocs\hr 201\config\db.php:105
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\config\db.php(105): PDO->__construct('mysql:host=127....', 'root', '', Array)
+#1 C:\xampp\htdocs\hr 201\public\index.php(7): require('C:\\xampp\\htdocs...')
+#2 {main}
+  thrown in C:\xampp\htdocs\hr 201\config\db.php on line 105
+[08-Aug-2026 14:14:43 Asia/Manila] PHP Fatal error:  Maximum execution time of 300 seconds exceeded in C:\xampp\htdocs\hr 201\config\db.php on line 122
+[08-Aug-2026 15:03:54 Asia/Manila] PHP Warning:  Uncaught PDOException: PDO::__construct(): Error while reading greeting packet. PID=46264 in C:\xampp\htdocs\hr 201\config\db.php:105
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\config\db.php(105): PDO->__construct('mysql:host=127....', 'root', '', Array)
+#1 C:\xampp\htdocs\hr 201\public\index.php(7): require('C:\\xampp\\htdocs...')
+#2 {main}
+
+Next PDOException: SQLSTATE[HY000] [2006] MySQL server has gone away in C:\xampp\htdocs\hr 201\config\db.php:105
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\config\db.php(105): PDO->__construct('mysql:host=127....', 'root', '', Array)
+#1 C:\xampp\htdocs\hr 201\public\index.php(7): require('C:\\xampp\\htdocs...')
+#2 {main}
+  thrown in C:\xampp\htdocs\hr 201\config\db.php on line 105
+[08-Aug-2026 15:03:54 Asia/Manila] PHP Fatal error:  Maximum execution time of 300 seconds exceeded in C:\xampp\htdocs\hr 201\config\db.php on line 122
+[08-Aug-2026 15:05:25 Asia/Manila] PHP Warning:  Uncaught PDOException: PDO::__construct(): Error while reading greeting packet. PID=46264 in C:\xampp\htdocs\hr 201\config\db.php:105
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\config\db.php(105): PDO->__construct('mysql:host=127....', 'root', '', Array)
+#1 C:\xampp\htdocs\hr 201\public\index.php(7): require('C:\\xampp\\htdocs...')
+#2 {main}
+
+Next PDOException: SQLSTATE[HY000] [2006] MySQL server has gone away in C:\xampp\htdocs\hr 201\config\db.php:105
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\config\db.php(105): PDO->__construct('mysql:host=127....', 'root', '', Array)
+#1 C:\xampp\htdocs\hr 201\public\index.php(7): require('C:\\xampp\\htdocs...')
+#2 {main}
+  thrown in C:\xampp\htdocs\hr 201\config\db.php on line 105
+[08-Aug-2026 15:05:25 Asia/Manila] PHP Fatal error:  Maximum execution time of 300 seconds exceeded in C:\xampp\htdocs\hr 201\config\db.php on line 122
+[08-Aug-2026 16:32:21 Asia/Manila] PHP Warning:  Uncaught PDOException: PDO::__construct(): Error while reading greeting packet. PID=46264 in C:\xampp\htdocs\hr 201\config\db.php:105
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\config\db.php(105): PDO->__construct('mysql:host=127....', 'root', '', Array)
+#1 C:\xampp\htdocs\hr 201\public\index.php(7): require('C:\\xampp\\htdocs...')
+#2 {main}
+
+Next PDOException: SQLSTATE[HY000] [2006] MySQL server has gone away in C:\xampp\htdocs\hr 201\config\db.php:105
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\config\db.php(105): PDO->__construct('mysql:host=127....', 'root', '', Array)
+#1 C:\xampp\htdocs\hr 201\public\index.php(7): require('C:\\xampp\\htdocs...')
+#2 {main}
+  thrown in C:\xampp\htdocs\hr 201\config\db.php on line 105
+[08-Aug-2026 16:32:21 Asia/Manila] PHP Fatal error:  Maximum execution time of 300 seconds exceeded in C:\xampp\htdocs\hr 201\config\db.php on line 122
+[08-Aug-2026 16:37:39 Asia/Manila] PHP Warning:  Uncaught PDOException: PDO::__construct(): Error while reading greeting packet. PID=46264 in C:\xampp\htdocs\hr 201\config\db.php:105
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\config\db.php(105): PDO->__construct('mysql:host=127....', 'root', '', Array)
+#1 C:\xampp\htdocs\hr 201\public\index.php(7): require('C:\\xampp\\htdocs...')
+#2 {main}
+
+Next PDOException: SQLSTATE[HY000] [2006] MySQL server has gone away in C:\xampp\htdocs\hr 201\config\db.php:105
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\config\db.php(105): PDO->__construct('mysql:host=127....', 'root', '', Array)
+#1 C:\xampp\htdocs\hr 201\public\index.php(7): require('C:\\xampp\\htdocs...')
+#2 {main}
+  thrown in C:\xampp\htdocs\hr 201\config\db.php on line 105
+[08-Aug-2026 16:37:39 Asia/Manila] PHP Fatal error:  Maximum execution time of 300 seconds exceeded in C:\xampp\htdocs\hr 201\config\db.php on line 122
+[08-Aug-2026 20:29:33 Asia/Manila] PHP Warning:  Uncaught PDOException: PDO::__construct(): Error while reading greeting packet. PID=46264 in C:\xampp\htdocs\hr 201\config\db.php:105
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\config\db.php(105): PDO->__construct('mysql:host=127....', 'root', '', Array)
+#1 C:\xampp\htdocs\hr 201\public\index.php(7): require('C:\\xampp\\htdocs...')
+#2 {main}
+
+Next PDOException: SQLSTATE[HY000] [2006] MySQL server has gone away in C:\xampp\htdocs\hr 201\config\db.php:105
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\config\db.php(105): PDO->__construct('mysql:host=127....', 'root', '', Array)
+#1 C:\xampp\htdocs\hr 201\public\index.php(7): require('C:\\xampp\\htdocs...')
+#2 {main}
+  thrown in C:\xampp\htdocs\hr 201\config\db.php on line 105
+[08-Aug-2026 20:29:33 Asia/Manila] PHP Fatal error:  Maximum execution time of 300 seconds exceeded in C:\xampp\htdocs\hr 201\config\db.php on line 122
+[08-Aug-2026 20:57:06 Asia/Manila] PHP Warning:  Uncaught PDOException: PDO::__construct(): Error while reading greeting packet. PID=46264 in C:\xampp\htdocs\hr 201\config\db.php:105
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\config\db.php(105): PDO->__construct('mysql:host=127....', 'root', '', Array)
+#1 C:\xampp\htdocs\hr 201\public\index.php(7): require('C:\\xampp\\htdocs...')
+#2 {main}
+
+Next PDOException: SQLSTATE[HY000] [2006] MySQL server has gone away in C:\xampp\htdocs\hr 201\config\db.php:105
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\config\db.php(105): PDO->__construct('mysql:host=127....', 'root', '', Array)
+#1 C:\xampp\htdocs\hr 201\public\index.php(7): require('C:\\xampp\\htdocs...')
+#2 {main}
+  thrown in C:\xampp\htdocs\hr 201\config\db.php on line 105
+[08-Aug-2026 20:57:06 Asia/Manila] PHP Fatal error:  Maximum execution time of 300 seconds exceeded in C:\xampp\htdocs\hr 201\config\db.php on line 122
+[10-Aug-2026 23:05:21 Asia/Manila] PHP Warning:  Uncaught PDOException: PDO::__construct(): Error while reading greeting packet. PID=46264 in C:\xampp\htdocs\hr 201\config\db.php:105
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\config\db.php(105): PDO->__construct('mysql:host=127....', 'root', '', Array)
+#1 C:\xampp\htdocs\hr 201\public\index.php(7): require('C:\\xampp\\htdocs...')
+#2 {main}
+
+Next PDOException: SQLSTATE[HY000] [2006] MySQL server has gone away in C:\xampp\htdocs\hr 201\config\db.php:105
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\config\db.php(105): PDO->__construct('mysql:host=127....', 'root', '', Array)
+#1 C:\xampp\htdocs\hr 201\public\index.php(7): require('C:\\xampp\\htdocs...')
+#2 {main}
+  thrown in C:\xampp\htdocs\hr 201\config\db.php on line 105
+[10-Aug-2026 23:05:21 Asia/Manila] PHP Fatal error:  Maximum execution time of 300 seconds exceeded in C:\xampp\htdocs\hr 201\config\db.php on line 122
+[11-Aug-2026 08:16:49 Asia/Manila] PHP Warning:  Uncaught PDOException: PDO::__construct(): Error while reading greeting packet. PID=46264 in C:\xampp\htdocs\hr 201\config\db.php:105
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\config\db.php(105): PDO->__construct('mysql:host=127....', 'root', '', Array)
+#1 C:\xampp\htdocs\hr 201\public\index.php(7): require('C:\\xampp\\htdocs...')
+#2 {main}
+
+Next PDOException: SQLSTATE[HY000] [2006] MySQL server has gone away in C:\xampp\htdocs\hr 201\config\db.php:105
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\config\db.php(105): PDO->__construct('mysql:host=127....', 'root', '', Array)
+#1 C:\xampp\htdocs\hr 201\public\index.php(7): require('C:\\xampp\\htdocs...')
+#2 {main}
+  thrown in C:\xampp\htdocs\hr 201\config\db.php on line 105
+[11-Aug-2026 08:16:49 Asia/Manila] PHP Fatal error:  Maximum execution time of 300 seconds exceeded in C:\xampp\htdocs\hr 201\config\db.php on line 122
+[11-Aug-2026 08:29:57 Asia/Manila] PHP Warning:  Uncaught PDOException: PDO::__construct(): Error while reading greeting packet. PID=46264 in C:\xampp\htdocs\hr 201\config\db.php:105
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\config\db.php(105): PDO->__construct('mysql:host=127....', 'root', '', Array)
+#1 C:\xampp\htdocs\hr 201\public\index.php(7): require('C:\\xampp\\htdocs...')
+#2 {main}
+
+Next PDOException: SQLSTATE[HY000] [2006] MySQL server has gone away in C:\xampp\htdocs\hr 201\config\db.php:105
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\config\db.php(105): PDO->__construct('mysql:host=127....', 'root', '', Array)
+#1 C:\xampp\htdocs\hr 201\public\index.php(7): require('C:\\xampp\\htdocs...')
+#2 {main}
+  thrown in C:\xampp\htdocs\hr 201\config\db.php on line 105
+[11-Aug-2026 08:29:57 Asia/Manila] PHP Fatal error:  Maximum execution time of 300 seconds exceeded in C:\xampp\htdocs\hr 201\config\db.php on line 122
+[11-Aug-2026 08:36:47 Asia/Manila] PHP Warning:  Uncaught PDOException: PDO::__construct(): Error while reading greeting packet. PID=46264 in C:\xampp\htdocs\hr 201\config\db.php:105
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\config\db.php(105): PDO->__construct('mysql:host=127....', 'root', '', Array)
+#1 C:\xampp\htdocs\hr 201\public\index.php(7): require('C:\\xampp\\htdocs...')
+#2 {main}
+
+Next PDOException: SQLSTATE[HY000] [2006] MySQL server has gone away in C:\xampp\htdocs\hr 201\config\db.php:105
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\config\db.php(105): PDO->__construct('mysql:host=127....', 'root', '', Array)
+#1 C:\xampp\htdocs\hr 201\public\index.php(7): require('C:\\xampp\\htdocs...')
+#2 {main}
+  thrown in C:\xampp\htdocs\hr 201\config\db.php on line 105
+[11-Aug-2026 08:36:47 Asia/Manila] PHP Fatal error:  Maximum execution time of 300 seconds exceeded in C:\xampp\htdocs\hr 201\config\db.php on line 122
+[11-Aug-2026 09:23:49 Asia/Manila] PHP Warning:  Uncaught PDOException: PDO::__construct(): Error while reading greeting packet. PID=46264 in C:\xampp\htdocs\hr 201\config\db.php:105
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\config\db.php(105): PDO->__construct('mysql:host=127....', 'root', '', Array)
+#1 C:\xampp\htdocs\hr 201\public\index.php(7): require('C:\\xampp\\htdocs...')
+#2 {main}
+
+Next PDOException: SQLSTATE[HY000] [2006] MySQL server has gone away in C:\xampp\htdocs\hr 201\config\db.php:105
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\config\db.php(105): PDO->__construct('mysql:host=127....', 'root', '', Array)
+#1 C:\xampp\htdocs\hr 201\public\index.php(7): require('C:\\xampp\\htdocs...')
+#2 {main}
+  thrown in C:\xampp\htdocs\hr 201\config\db.php on line 105
+[11-Aug-2026 09:23:49 Asia/Manila] PHP Fatal error:  Maximum execution time of 300 seconds exceeded in C:\xampp\htdocs\hr 201\config\db.php on line 122
+[11-Aug-2026 14:17:11 Asia/Manila] PHP Warning:  Uncaught PDOException: PDO::__construct(): Error while reading greeting packet. PID=46264 in C:\xampp\htdocs\hr 201\config\db.php:105
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\config\db.php(105): PDO->__construct('mysql:host=127....', 'root', '', Array)
+#1 C:\xampp\htdocs\hr 201\public\index.php(7): require('C:\\xampp\\htdocs...')
+#2 {main}
+
+Next PDOException: SQLSTATE[HY000] [2006] MySQL server has gone away in C:\xampp\htdocs\hr 201\config\db.php:105
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\config\db.php(105): PDO->__construct('mysql:host=127....', 'root', '', Array)
+#1 C:\xampp\htdocs\hr 201\public\index.php(7): require('C:\\xampp\\htdocs...')
+#2 {main}
+  thrown in C:\xampp\htdocs\hr 201\config\db.php on line 105
+[11-Aug-2026 14:17:11 Asia/Manila] PHP Fatal error:  Maximum execution time of 300 seconds exceeded in C:\xampp\htdocs\hr 201\config\db.php on line 122
+[11-Aug-2026 15:23:51 Asia/Manila] PHP Warning:  Uncaught PDOException: PDO::__construct(): Error while reading greeting packet. PID=46264 in C:\xampp\htdocs\hr 201\config\db.php:105
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\config\db.php(105): PDO->__construct('mysql:host=127....', 'root', '', Array)
+#1 C:\xampp\htdocs\hr 201\public\index.php(7): require('C:\\xampp\\htdocs...')
+#2 {main}
+
+Next PDOException: SQLSTATE[HY000] [2006] MySQL server has gone away in C:\xampp\htdocs\hr 201\config\db.php:105
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\config\db.php(105): PDO->__construct('mysql:host=127....', 'root', '', Array)
+#1 C:\xampp\htdocs\hr 201\public\index.php(7): require('C:\\xampp\\htdocs...')
+#2 {main}
+  thrown in C:\xampp\htdocs\hr 201\config\db.php on line 105
+[11-Aug-2026 15:23:51 Asia/Manila] PHP Fatal error:  Maximum execution time of 300 seconds exceeded in C:\xampp\htdocs\hr 201\config\db.php on line 122
+[11-Aug-2026 18:01:28 Asia/Manila] PHP Warning:  Uncaught PDOException: PDO::__construct(): Error while reading greeting packet. PID=46264 in C:\xampp\htdocs\hr 201\config\db.php:105
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\config\db.php(105): PDO->__construct('mysql:host=127....', 'root', '', Array)
+#1 C:\xampp\htdocs\hr 201\public\login.php(2): require('C:\\xampp\\htdocs...')
+#2 {main}
+
+Next PDOException: SQLSTATE[HY000] [2006] MySQL server has gone away in C:\xampp\htdocs\hr 201\config\db.php:105
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\config\db.php(105): PDO->__construct('mysql:host=127....', 'root', '', Array)
+#1 C:\xampp\htdocs\hr 201\public\login.php(2): require('C:\\xampp\\htdocs...')
+#2 {main}
+  thrown in C:\xampp\htdocs\hr 201\config\db.php on line 105
+[11-Aug-2026 18:01:28 Asia/Manila] PHP Warning:  Uncaught PDOException: PDO::__construct(): Error while reading greeting packet. PID=46264 in C:\xampp\htdocs\hr 201\config\db.php:105
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\config\db.php(105): PDO->__construct('mysql:host=127....', 'root', '', Array)
+#1 C:\xampp\htdocs\hr 201\public\index.php(7): require('C:\\xampp\\htdocs...')
+#2 {main}
+
+Next PDOException: SQLSTATE[HY000] [2006] MySQL server has gone away in C:\xampp\htdocs\hr 201\config\db.php:105
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\config\db.php(105): PDO->__construct('mysql:host=127....', 'root', '', Array)
+#1 C:\xampp\htdocs\hr 201\public\index.php(7): require('C:\\xampp\\htdocs...')
+#2 {main}
+  thrown in C:\xampp\htdocs\hr 201\config\db.php on line 105
+[11-Aug-2026 18:01:28 Asia/Manila] PHP Warning:  Uncaught PDOException: PDO::__construct(): Error while reading greeting packet. PID=46264 in C:\xampp\htdocs\hr 201\config\db.php:105
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\config\db.php(105): PDO->__construct('mysql:host=127....', 'root', '', Array)
+#1 C:\xampp\htdocs\hr 201\public\index.php(7): require('C:\\xampp\\htdocs...')
+#2 {main}
+
+Next PDOException: SQLSTATE[HY000] [2006] MySQL server has gone away in C:\xampp\htdocs\hr 201\config\db.php:105
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\config\db.php(105): PDO->__construct('mysql:host=127....', 'root', '', Array)
+#1 C:\xampp\htdocs\hr 201\public\index.php(7): require('C:\\xampp\\htdocs...')
+#2 {main}
+  thrown in C:\xampp\htdocs\hr 201\config\db.php on line 105
+[11-Aug-2026 18:01:28 Asia/Manila] PHP Warning:  Uncaught PDOException: PDO::__construct(): Error while reading greeting packet. PID=46264 in C:\xampp\htdocs\hr 201\config\db.php:105
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\config\db.php(105): PDO->__construct('mysql:host=127....', 'root', '', Array)
+#1 C:\xampp\htdocs\hr 201\public\login.php(2): require('C:\\xampp\\htdocs...')
+#2 {main}
+
+Next PDOException: SQLSTATE[HY000] [2006] MySQL server has gone away in C:\xampp\htdocs\hr 201\config\db.php:105
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\config\db.php(105): PDO->__construct('mysql:host=127....', 'root', '', Array)
+#1 C:\xampp\htdocs\hr 201\public\login.php(2): require('C:\\xampp\\htdocs...')
+#2 {main}
+  thrown in C:\xampp\htdocs\hr 201\config\db.php on line 105
+[11-Aug-2026 18:01:28 Asia/Manila] PHP Warning:  Uncaught PDOException: PDO::__construct(): Error while reading greeting packet. PID=46264 in C:\xampp\htdocs\hr 201\config\db.php:105
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\config\db.php(105): PDO->__construct('mysql:host=127....', 'root', '', Array)
+#1 C:\xampp\htdocs\hr 201\public\index.php(7): require('C:\\xampp\\htdocs...')
+#2 {main}
+
+Next PDOException: SQLSTATE[HY000] [2006] MySQL server has gone away in C:\xampp\htdocs\hr 201\config\db.php:105
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\config\db.php(105): PDO->__construct('mysql:host=127....', 'root', '', Array)
+#1 C:\xampp\htdocs\hr 201\public\index.php(7): require('C:\\xampp\\htdocs...')
+#2 {main}
+  thrown in C:\xampp\htdocs\hr 201\config\db.php on line 105
+[11-Aug-2026 18:01:28 Asia/Manila] PHP Fatal error:  Maximum execution time of 300 seconds exceeded in C:\xampp\htdocs\hr 201\config\db.php on line 122
+[11-Aug-2026 18:01:28 Asia/Manila] PHP Fatal error:  Maximum execution time of 300 seconds exceeded in C:\xampp\htdocs\hr 201\config\db.php on line 122
+[11-Aug-2026 18:01:28 Asia/Manila] PHP Fatal error:  Maximum execution time of 300 seconds exceeded in C:\xampp\htdocs\hr 201\config\db.php on line 122
+[11-Aug-2026 18:01:28 Asia/Manila] PHP Fatal error:  Maximum execution time of 300 seconds exceeded in C:\xampp\htdocs\hr 201\config\db.php on line 122
+[11-Aug-2026 18:01:28 Asia/Manila] PHP Fatal error:  Maximum execution time of 300 seconds exceeded in C:\xampp\htdocs\hr 201\config\db.php on line 122
+[11-Aug-2026 18:09:16 Asia/Manila] SQLSTATE[HY000] [2006] MySQL server has gone away
+[11-Aug-2026 18:09:16 Asia/Manila] SQLSTATE[HY000] [2006] MySQL server has gone away
+[11-Aug-2026 18:09:16 Asia/Manila] SQLSTATE[HY000] [2006] MySQL server has gone away
+[15-Aug-2026 15:37:47 Asia/Manila] PHP Warning:  Uncaught PDOException: PDO::__construct(): Error while reading greeting packet. PID=2176 in C:\xampp\htdocs\hr 201\config\db.php:105
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\config\db.php(105): PDO->__construct('mysql:host=127....', 'root', '', Array)
+#1 C:\xampp\htdocs\hr 201\public\index.php(7): require('C:\\xampp\\htdocs...')
+#2 {main}
+
+Next PDOException: SQLSTATE[HY000] [2006] MySQL server has gone away in C:\xampp\htdocs\hr 201\config\db.php:105
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\config\db.php(105): PDO->__construct('mysql:host=127....', 'root', '', Array)
+#1 C:\xampp\htdocs\hr 201\public\index.php(7): require('C:\\xampp\\htdocs...')
+#2 {main}
+  thrown in C:\xampp\htdocs\hr 201\config\db.php on line 105
+[15-Aug-2026 15:37:47 Asia/Manila] PHP Fatal error:  Maximum execution time of 300 seconds exceeded in C:\xampp\htdocs\hr 201\config\db.php on line 122
+[15-Aug-2026 16:12:26 Asia/Manila] SQLSTATE[HY000] [2002] No connection could be made because the target machine actively refused it
+[15-Aug-2026 16:14:33 Asia/Manila] SQLSTATE[HY000] [1049] Unknown database 'hr201_local'
+[15-Aug-2026 16:24:30 Asia/Manila] SQLSTATE[HY000] [1049] Unknown database 'hr201_local'
+[15-Aug-2026 16:24:31 Asia/Manila] SQLSTATE[HY000] [1049] Unknown database 'hr201_local'
+[15-Aug-2026 16:24:31 Asia/Manila] SQLSTATE[HY000] [1049] Unknown database 'hr201_local'
+[15-Aug-2026 16:36:03 Asia/Manila] SQLSTATE[HY000] [1049] Unknown database 'hr201_local'
+[15-Aug-2026 16:44:21 Asia/Manila] PHP Fatal error:  Uncaught PDOException: SQLSTATE[42S02]: Base table or view not found: 1932 Table 'hr201_local.rate_limits' doesn't exist in engine in C:\xampp\htdocs\hr 201\src\Security.php:62
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\src\Security.php(62): PDO->prepare('INSERT INTO rat...')
+#1 C:\xampp\htdocs\hr 201\public\login.php(79): Security->checkRateLimit('::1', 10, 60)
+#2 {main}
+  thrown in C:\xampp\htdocs\hr 201\src\Security.php on line 62
+[15-Aug-2026 16:45:48 Asia/Manila] Rate limit table creation failed: SQLSTATE[HY000]: General error: 1813 Tablespace for table '`hr201_local`.`rate_limits`' exists. Please DISCARD the tablespace before IMPORT
+[15-Aug-2026 16:46:00 Asia/Manila] Rate limit table creation failed: SQLSTATE[HY000]: General error: 1813 Tablespace for table '`hr201_local`.`rate_limits`' exists. Please DISCARD the tablespace before IMPORT
+[15-Aug-2026 16:47:29 Asia/Manila] Rate limit table creation failed: SQLSTATE[HY000]: General error: 1813 Tablespace for table '`hr201_local`.`rate_limits`' exists. Please DISCARD the tablespace before IMPORT
+[15-Aug-2026 16:50:36 Asia/Manila] Rate limit table creation failed: SQLSTATE[HY000]: General error: 1813 Tablespace for table '`hr201_local`.`rate_limits`' exists. Please DISCARD the tablespace before IMPORT
+[15-Aug-2026 16:51:01 Asia/Manila] Rate limit table creation failed: SQLSTATE[HY000]: General error: 1813 Tablespace for table '`hr201_local`.`rate_limits`' exists. Please DISCARD the tablespace before IMPORT
+[15-Aug-2026 16:52:33 Asia/Manila] Rate limit table creation failed: SQLSTATE[HY000]: General error: 1813 Tablespace for table '`hr201_local`.`rate_limits`' exists. Please DISCARD the tablespace before IMPORT
+[15-Aug-2026 16:54:54 Asia/Manila] PHP Warning:  Undefined array key "college_course" in C:\xampp\htdocs\hr 201\public\index.php on line 1582
+[15-Aug-2026 16:54:54 Asia/Manila] PHP Warning:  Undefined array key "college_course" in C:\xampp\htdocs\hr 201\public\index.php on line 1582
+[15-Aug-2026 16:54:54 Asia/Manila] PHP Warning:  Undefined array key "college_course" in C:\xampp\htdocs\hr 201\public\index.php on line 1582
+[15-Aug-2026 16:54:54 Asia/Manila] PHP Warning:  Undefined array key "college_course" in C:\xampp\htdocs\hr 201\public\index.php on line 1582
+[15-Aug-2026 16:54:54 Asia/Manila] PHP Warning:  Undefined array key "college_course" in C:\xampp\htdocs\hr 201\public\index.php on line 1582
+[15-Aug-2026 16:54:54 Asia/Manila] PHP Warning:  Undefined array key "group" in C:\xampp\htdocs\hr 201\public\index.php on line 1691
+[15-Aug-2026 16:54:54 Asia/Manila] PHP Warning:  Undefined array key "group" in C:\xampp\htdocs\hr 201\public\index.php on line 1691
+[15-Aug-2026 16:54:54 Asia/Manila] PHP Warning:  Undefined array key "group" in C:\xampp\htdocs\hr 201\public\index.php on line 1691
+[15-Aug-2026 16:54:54 Asia/Manila] PHP Warning:  Undefined array key "group" in C:\xampp\htdocs\hr 201\public\index.php on line 1691
+[15-Aug-2026 16:54:54 Asia/Manila] PHP Warning:  Undefined array key "group" in C:\xampp\htdocs\hr 201\public\index.php on line 1691
+[15-Aug-2026 16:54:58 Asia/Manila] PHP Warning:  Undefined array key "college_course" in C:\xampp\htdocs\hr 201\public\index.php on line 1582
+[15-Aug-2026 16:54:58 Asia/Manila] PHP Warning:  Undefined array key "college_course" in C:\xampp\htdocs\hr 201\public\index.php on line 1582
+[15-Aug-2026 16:54:58 Asia/Manila] PHP Warning:  Undefined array key "college_course" in C:\xampp\htdocs\hr 201\public\index.php on line 1582
+[15-Aug-2026 16:54:58 Asia/Manila] PHP Warning:  Undefined array key "college_course" in C:\xampp\htdocs\hr 201\public\index.php on line 1582
+[15-Aug-2026 16:54:58 Asia/Manila] PHP Warning:  Undefined array key "college_course" in C:\xampp\htdocs\hr 201\public\index.php on line 1582
+[15-Aug-2026 16:54:58 Asia/Manila] PHP Warning:  Undefined array key "group" in C:\xampp\htdocs\hr 201\public\index.php on line 1691
+[15-Aug-2026 16:54:58 Asia/Manila] PHP Warning:  Undefined array key "group" in C:\xampp\htdocs\hr 201\public\index.php on line 1691
+[15-Aug-2026 16:54:58 Asia/Manila] PHP Warning:  Undefined array key "group" in C:\xampp\htdocs\hr 201\public\index.php on line 1691
+[15-Aug-2026 16:54:58 Asia/Manila] PHP Warning:  Undefined array key "group" in C:\xampp\htdocs\hr 201\public\index.php on line 1691
+[15-Aug-2026 16:54:58 Asia/Manila] PHP Warning:  Undefined array key "group" in C:\xampp\htdocs\hr 201\public\index.php on line 1691
+[15-Aug-2026 16:55:00 Asia/Manila] PHP Fatal error:  Uncaught PDOException: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'college_degree' in 'field list' in C:\xampp\htdocs\hr 201\public\analytics.php:420
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\analytics.php(420): PDO->prepare('SELECT emp_id, ...')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\analytics.php on line 420
+[15-Aug-2026 16:55:03 Asia/Manila] PHP Warning:  Undefined array key "college_course" in C:\xampp\htdocs\hr 201\public\index.php on line 1582
+[15-Aug-2026 16:55:03 Asia/Manila] PHP Warning:  Undefined array key "college_course" in C:\xampp\htdocs\hr 201\public\index.php on line 1582
+[15-Aug-2026 16:55:03 Asia/Manila] PHP Warning:  Undefined array key "college_course" in C:\xampp\htdocs\hr 201\public\index.php on line 1582
+[15-Aug-2026 16:55:03 Asia/Manila] PHP Warning:  Undefined array key "college_course" in C:\xampp\htdocs\hr 201\public\index.php on line 1582
+[15-Aug-2026 16:55:03 Asia/Manila] PHP Warning:  Undefined array key "college_course" in C:\xampp\htdocs\hr 201\public\index.php on line 1582
+[15-Aug-2026 16:55:03 Asia/Manila] PHP Warning:  Undefined array key "group" in C:\xampp\htdocs\hr 201\public\index.php on line 1691
+[15-Aug-2026 16:55:03 Asia/Manila] PHP Warning:  Undefined array key "group" in C:\xampp\htdocs\hr 201\public\index.php on line 1691
+[15-Aug-2026 16:55:03 Asia/Manila] PHP Warning:  Undefined array key "group" in C:\xampp\htdocs\hr 201\public\index.php on line 1691
+[15-Aug-2026 16:55:03 Asia/Manila] PHP Warning:  Undefined array key "group" in C:\xampp\htdocs\hr 201\public\index.php on line 1691
+[15-Aug-2026 16:55:03 Asia/Manila] PHP Warning:  Undefined array key "group" in C:\xampp\htdocs\hr 201\public\index.php on line 1691
+[15-Aug-2026 16:55:10 Asia/Manila] PHP Warning:  Undefined array key "college_course" in C:\xampp\htdocs\hr 201\public\index.php on line 1582
+[15-Aug-2026 16:55:10 Asia/Manila] PHP Warning:  Undefined array key "college_course" in C:\xampp\htdocs\hr 201\public\index.php on line 1582
+[15-Aug-2026 16:55:10 Asia/Manila] PHP Warning:  Undefined array key "college_course" in C:\xampp\htdocs\hr 201\public\index.php on line 1582
+[15-Aug-2026 16:55:10 Asia/Manila] PHP Warning:  Undefined array key "college_course" in C:\xampp\htdocs\hr 201\public\index.php on line 1582
+[15-Aug-2026 16:55:10 Asia/Manila] PHP Warning:  Undefined array key "college_course" in C:\xampp\htdocs\hr 201\public\index.php on line 1582
+[15-Aug-2026 16:55:10 Asia/Manila] PHP Warning:  Undefined array key "group" in C:\xampp\htdocs\hr 201\public\index.php on line 1691
+[15-Aug-2026 16:55:10 Asia/Manila] PHP Warning:  Undefined array key "group" in C:\xampp\htdocs\hr 201\public\index.php on line 1691
+[15-Aug-2026 16:55:10 Asia/Manila] PHP Warning:  Undefined array key "group" in C:\xampp\htdocs\hr 201\public\index.php on line 1691
+[15-Aug-2026 16:55:10 Asia/Manila] PHP Warning:  Undefined array key "group" in C:\xampp\htdocs\hr 201\public\index.php on line 1691
+[15-Aug-2026 16:55:10 Asia/Manila] PHP Warning:  Undefined array key "group" in C:\xampp\htdocs\hr 201\public\index.php on line 1691
+[15-Aug-2026 16:55:21 Asia/Manila] PHP Warning:  Undefined array key "college_course" in C:\xampp\htdocs\hr 201\public\index.php on line 1582
+[15-Aug-2026 16:55:21 Asia/Manila] PHP Warning:  Undefined array key "college_course" in C:\xampp\htdocs\hr 201\public\index.php on line 1582
+[15-Aug-2026 16:55:21 Asia/Manila] PHP Warning:  Undefined array key "college_course" in C:\xampp\htdocs\hr 201\public\index.php on line 1582
+[15-Aug-2026 16:55:21 Asia/Manila] PHP Warning:  Undefined array key "college_course" in C:\xampp\htdocs\hr 201\public\index.php on line 1582
+[15-Aug-2026 16:55:21 Asia/Manila] PHP Warning:  Undefined array key "group" in C:\xampp\htdocs\hr 201\public\index.php on line 1691
+[15-Aug-2026 16:55:21 Asia/Manila] PHP Warning:  Undefined array key "group" in C:\xampp\htdocs\hr 201\public\index.php on line 1691
+[15-Aug-2026 16:55:21 Asia/Manila] PHP Warning:  Undefined array key "group" in C:\xampp\htdocs\hr 201\public\index.php on line 1691
+[15-Aug-2026 16:55:21 Asia/Manila] PHP Warning:  Undefined array key "group" in C:\xampp\htdocs\hr 201\public\index.php on line 1691
+[15-Aug-2026 16:55:28 Asia/Manila] PHP Warning:  Undefined array key "college_course" in C:\xampp\htdocs\hr 201\public\index.php on line 1582
+[15-Aug-2026 16:55:28 Asia/Manila] PHP Warning:  Undefined array key "college_course" in C:\xampp\htdocs\hr 201\public\index.php on line 1582
+[15-Aug-2026 16:55:28 Asia/Manila] PHP Warning:  Undefined array key "college_course" in C:\xampp\htdocs\hr 201\public\index.php on line 1582
+[15-Aug-2026 16:55:28 Asia/Manila] PHP Warning:  Undefined array key "college_course" in C:\xampp\htdocs\hr 201\public\index.php on line 1582
+[15-Aug-2026 16:55:28 Asia/Manila] PHP Warning:  Undefined array key "group" in C:\xampp\htdocs\hr 201\public\index.php on line 1691
+[15-Aug-2026 16:55:28 Asia/Manila] PHP Warning:  Undefined array key "group" in C:\xampp\htdocs\hr 201\public\index.php on line 1691
+[15-Aug-2026 16:55:28 Asia/Manila] PHP Warning:  Undefined array key "group" in C:\xampp\htdocs\hr 201\public\index.php on line 1691
+[15-Aug-2026 16:55:28 Asia/Manila] PHP Warning:  Undefined array key "group" in C:\xampp\htdocs\hr 201\public\index.php on line 1691
+[15-Aug-2026 16:56:02 Asia/Manila] PHP Warning:  Undefined array key "doc_id" in C:\xampp\htdocs\hr 201\public\admin_approval.php on line 282
+[15-Aug-2026 16:56:03 Asia/Manila] PHP Warning:  Undefined array key "college_course" in C:\xampp\htdocs\hr 201\public\index.php on line 1582
+[15-Aug-2026 16:56:03 Asia/Manila] PHP Warning:  Undefined array key "college_course" in C:\xampp\htdocs\hr 201\public\index.php on line 1582
+[15-Aug-2026 16:56:03 Asia/Manila] PHP Warning:  Undefined array key "college_course" in C:\xampp\htdocs\hr 201\public\index.php on line 1582
+[15-Aug-2026 16:56:03 Asia/Manila] PHP Warning:  Undefined array key "college_course" in C:\xampp\htdocs\hr 201\public\index.php on line 1582
+[15-Aug-2026 16:56:03 Asia/Manila] PHP Warning:  Undefined array key "group" in C:\xampp\htdocs\hr 201\public\index.php on line 1691
+[15-Aug-2026 16:56:03 Asia/Manila] PHP Warning:  Undefined array key "group" in C:\xampp\htdocs\hr 201\public\index.php on line 1691
+[15-Aug-2026 16:56:03 Asia/Manila] PHP Warning:  Undefined array key "group" in C:\xampp\htdocs\hr 201\public\index.php on line 1691
+[15-Aug-2026 16:56:03 Asia/Manila] PHP Warning:  Undefined array key "group" in C:\xampp\htdocs\hr 201\public\index.php on line 1691
+[15-Aug-2026 16:56:06 Asia/Manila] PHP Fatal error:  Uncaught PDOException: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'college_degree' in 'field list' in C:\xampp\htdocs\hr 201\public\analytics.php:420
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\analytics.php(420): PDO->prepare('SELECT emp_id, ...')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\analytics.php on line 420
+[15-Aug-2026 16:56:35 Asia/Manila] PHP Warning:  Undefined array key "college_course" in C:\xampp\htdocs\hr 201\public\index.php on line 1582
+[15-Aug-2026 16:56:35 Asia/Manila] PHP Warning:  Undefined array key "college_course" in C:\xampp\htdocs\hr 201\public\index.php on line 1582
+[15-Aug-2026 16:56:35 Asia/Manila] PHP Warning:  Undefined array key "college_course" in C:\xampp\htdocs\hr 201\public\index.php on line 1582
+[15-Aug-2026 16:56:35 Asia/Manila] PHP Warning:  Undefined array key "college_course" in C:\xampp\htdocs\hr 201\public\index.php on line 1582
+[15-Aug-2026 16:56:35 Asia/Manila] PHP Warning:  Undefined array key "group" in C:\xampp\htdocs\hr 201\public\index.php on line 1691
+[15-Aug-2026 16:56:35 Asia/Manila] PHP Warning:  Undefined array key "group" in C:\xampp\htdocs\hr 201\public\index.php on line 1691
+[15-Aug-2026 16:56:35 Asia/Manila] PHP Warning:  Undefined array key "group" in C:\xampp\htdocs\hr 201\public\index.php on line 1691
+[15-Aug-2026 16:56:35 Asia/Manila] PHP Warning:  Undefined array key "group" in C:\xampp\htdocs\hr 201\public\index.php on line 1691
+[15-Aug-2026 16:56:39 Asia/Manila] PHP Warning:  Undefined array key "college_course" in C:\xampp\htdocs\hr 201\public\index.php on line 1582
+[15-Aug-2026 16:56:39 Asia/Manila] PHP Warning:  Undefined array key "college_course" in C:\xampp\htdocs\hr 201\public\index.php on line 1582
+[15-Aug-2026 16:56:39 Asia/Manila] PHP Warning:  Undefined array key "college_course" in C:\xampp\htdocs\hr 201\public\index.php on line 1582
+[15-Aug-2026 16:56:39 Asia/Manila] PHP Warning:  Undefined array key "college_course" in C:\xampp\htdocs\hr 201\public\index.php on line 1582
+[15-Aug-2026 16:56:39 Asia/Manila] PHP Warning:  Undefined array key "group" in C:\xampp\htdocs\hr 201\public\index.php on line 1691
+[15-Aug-2026 16:56:39 Asia/Manila] PHP Warning:  Undefined array key "group" in C:\xampp\htdocs\hr 201\public\index.php on line 1691
+[15-Aug-2026 16:56:39 Asia/Manila] PHP Warning:  Undefined array key "group" in C:\xampp\htdocs\hr 201\public\index.php on line 1691
+[15-Aug-2026 16:56:39 Asia/Manila] PHP Warning:  Undefined array key "group" in C:\xampp\htdocs\hr 201\public\index.php on line 1691
+[15-Aug-2026 16:56:48 Asia/Manila] PHP Fatal error:  Uncaught PDOException: SQLSTATE[42S02]: Base table or view not found: 1932 Table 'hr201_local.groups' doesn't exist in engine in C:\xampp\htdocs\hr 201\public\manage_hierarchy.php:138
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\manage_hierarchy.php(138): PDO->query('SELECT * FROM g...')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\manage_hierarchy.php on line 138
+[15-Aug-2026 16:57:06 Asia/Manila] PHP Fatal error:  Uncaught PDOException: SQLSTATE[42S02]: Base table or view not found: 1932 Table 'hr201_local.groups' doesn't exist in engine in C:\xampp\htdocs\hr 201\public\manage_hierarchy.php:138
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\manage_hierarchy.php(138): PDO->query('SELECT * FROM g...')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\manage_hierarchy.php on line 138
+[15-Aug-2026 16:57:57 Asia/Manila] PHP Warning:  Undefined array key "college_course" in C:\xampp\htdocs\hr 201\public\index.php on line 1582
+[15-Aug-2026 16:57:57 Asia/Manila] PHP Warning:  Undefined array key "college_course" in C:\xampp\htdocs\hr 201\public\index.php on line 1582
+[15-Aug-2026 16:57:57 Asia/Manila] PHP Warning:  Undefined array key "college_course" in C:\xampp\htdocs\hr 201\public\index.php on line 1582
+[15-Aug-2026 16:57:57 Asia/Manila] PHP Warning:  Undefined array key "college_course" in C:\xampp\htdocs\hr 201\public\index.php on line 1582
+[15-Aug-2026 16:57:57 Asia/Manila] PHP Warning:  Undefined array key "group" in C:\xampp\htdocs\hr 201\public\index.php on line 1691
+[15-Aug-2026 16:57:57 Asia/Manila] PHP Warning:  Undefined array key "group" in C:\xampp\htdocs\hr 201\public\index.php on line 1691
+[15-Aug-2026 16:57:57 Asia/Manila] PHP Warning:  Undefined array key "group" in C:\xampp\htdocs\hr 201\public\index.php on line 1691
+[15-Aug-2026 16:57:57 Asia/Manila] PHP Warning:  Undefined array key "group" in C:\xampp\htdocs\hr 201\public\index.php on line 1691
+[15-Aug-2026 16:58:08 Asia/Manila] PHP Warning:  Undefined array key "college_course" in C:\xampp\htdocs\hr 201\public\index.php on line 1582
+[15-Aug-2026 16:58:08 Asia/Manila] PHP Warning:  Undefined array key "college_course" in C:\xampp\htdocs\hr 201\public\index.php on line 1582
+[15-Aug-2026 16:58:08 Asia/Manila] PHP Warning:  Undefined array key "college_course" in C:\xampp\htdocs\hr 201\public\index.php on line 1582
+[15-Aug-2026 16:58:08 Asia/Manila] PHP Warning:  Undefined array key "college_course" in C:\xampp\htdocs\hr 201\public\index.php on line 1582
+[15-Aug-2026 16:58:08 Asia/Manila] PHP Warning:  Undefined array key "group" in C:\xampp\htdocs\hr 201\public\index.php on line 1691
+[15-Aug-2026 16:58:08 Asia/Manila] PHP Warning:  Undefined array key "group" in C:\xampp\htdocs\hr 201\public\index.php on line 1691
+[15-Aug-2026 16:58:08 Asia/Manila] PHP Warning:  Undefined array key "group" in C:\xampp\htdocs\hr 201\public\index.php on line 1691
+[15-Aug-2026 16:58:08 Asia/Manila] PHP Warning:  Undefined array key "group" in C:\xampp\htdocs\hr 201\public\index.php on line 1691
+[18-Aug-2026 10:13:34 Asia/Manila] PHP Warning:  Undefined array key "college_course" in C:\xampp\htdocs\hr 201\public\index.php on line 1582
+[18-Aug-2026 10:13:34 Asia/Manila] PHP Warning:  Undefined array key "college_course" in C:\xampp\htdocs\hr 201\public\index.php on line 1582
+[18-Aug-2026 10:13:34 Asia/Manila] PHP Warning:  Undefined array key "college_course" in C:\xampp\htdocs\hr 201\public\index.php on line 1582
+[18-Aug-2026 10:13:34 Asia/Manila] PHP Warning:  Undefined array key "college_course" in C:\xampp\htdocs\hr 201\public\index.php on line 1582
+[18-Aug-2026 10:13:34 Asia/Manila] PHP Warning:  Undefined array key "group" in C:\xampp\htdocs\hr 201\public\index.php on line 1691
+[18-Aug-2026 10:13:34 Asia/Manila] PHP Warning:  Undefined array key "group" in C:\xampp\htdocs\hr 201\public\index.php on line 1691
+[18-Aug-2026 10:13:34 Asia/Manila] PHP Warning:  Undefined array key "group" in C:\xampp\htdocs\hr 201\public\index.php on line 1691
+[18-Aug-2026 10:13:34 Asia/Manila] PHP Warning:  Undefined array key "group" in C:\xampp\htdocs\hr 201\public\index.php on line 1691
+[18-Aug-2026 10:13:44 Asia/Manila] PHP Fatal error:  Uncaught PDOException: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'college_degree' in 'field list' in C:\xampp\htdocs\hr 201\public\analytics.php:420
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\analytics.php(420): PDO->prepare('SELECT emp_id, ...')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\analytics.php on line 420
+[18-Aug-2026 10:14:07 Asia/Manila] PHP Warning:  Undefined array key "college_course" in C:\xampp\htdocs\hr 201\public\index.php on line 1582
+[18-Aug-2026 10:14:07 Asia/Manila] PHP Warning:  Undefined array key "college_course" in C:\xampp\htdocs\hr 201\public\index.php on line 1582
+[18-Aug-2026 10:14:07 Asia/Manila] PHP Warning:  Undefined array key "college_course" in C:\xampp\htdocs\hr 201\public\index.php on line 1582
+[18-Aug-2026 10:14:07 Asia/Manila] PHP Warning:  Undefined array key "college_course" in C:\xampp\htdocs\hr 201\public\index.php on line 1582
+[18-Aug-2026 10:14:07 Asia/Manila] PHP Warning:  Undefined array key "group" in C:\xampp\htdocs\hr 201\public\index.php on line 1691
+[18-Aug-2026 10:14:07 Asia/Manila] PHP Warning:  Undefined array key "group" in C:\xampp\htdocs\hr 201\public\index.php on line 1691
+[18-Aug-2026 10:14:07 Asia/Manila] PHP Warning:  Undefined array key "group" in C:\xampp\htdocs\hr 201\public\index.php on line 1691
+[18-Aug-2026 10:14:07 Asia/Manila] PHP Warning:  Undefined array key "group" in C:\xampp\htdocs\hr 201\public\index.php on line 1691
+[18-Aug-2026 10:14:21 Asia/Manila] PHP Warning:  Undefined array key "college_course" in C:\xampp\htdocs\hr 201\public\index.php on line 1582
+[18-Aug-2026 10:14:21 Asia/Manila] PHP Warning:  Undefined array key "college_course" in C:\xampp\htdocs\hr 201\public\index.php on line 1582
+[18-Aug-2026 10:14:21 Asia/Manila] PHP Warning:  Undefined array key "college_course" in C:\xampp\htdocs\hr 201\public\index.php on line 1582
+[18-Aug-2026 10:14:21 Asia/Manila] PHP Warning:  Undefined array key "college_course" in C:\xampp\htdocs\hr 201\public\index.php on line 1582
+[18-Aug-2026 10:14:21 Asia/Manila] PHP Warning:  Undefined array key "group" in C:\xampp\htdocs\hr 201\public\index.php on line 1691
+[18-Aug-2026 10:14:21 Asia/Manila] PHP Warning:  Undefined array key "group" in C:\xampp\htdocs\hr 201\public\index.php on line 1691
+[18-Aug-2026 10:14:21 Asia/Manila] PHP Warning:  Undefined array key "group" in C:\xampp\htdocs\hr 201\public\index.php on line 1691
+[18-Aug-2026 10:14:21 Asia/Manila] PHP Warning:  Undefined array key "group" in C:\xampp\htdocs\hr 201\public\index.php on line 1691
+[18-Aug-2026 10:43:31 Asia/Manila] PHP Warning:  Undefined array key "college_course" in C:\xampp\htdocs\hr 201\public\index.php on line 1582
+[18-Aug-2026 10:43:31 Asia/Manila] PHP Warning:  Undefined array key "college_course" in C:\xampp\htdocs\hr 201\public\index.php on line 1582
+[18-Aug-2026 10:43:31 Asia/Manila] PHP Warning:  Undefined array key "college_course" in C:\xampp\htdocs\hr 201\public\index.php on line 1582
+[18-Aug-2026 10:43:31 Asia/Manila] PHP Warning:  Undefined array key "college_course" in C:\xampp\htdocs\hr 201\public\index.php on line 1582
+[18-Aug-2026 10:43:31 Asia/Manila] PHP Warning:  Undefined array key "group" in C:\xampp\htdocs\hr 201\public\index.php on line 1691
+[18-Aug-2026 10:43:31 Asia/Manila] PHP Warning:  Undefined array key "group" in C:\xampp\htdocs\hr 201\public\index.php on line 1691
+[18-Aug-2026 10:43:31 Asia/Manila] PHP Warning:  Undefined array key "group" in C:\xampp\htdocs\hr 201\public\index.php on line 1691
+[18-Aug-2026 10:43:31 Asia/Manila] PHP Warning:  Undefined array key "group" in C:\xampp\htdocs\hr 201\public\index.php on line 1691
+[18-Aug-2026 10:43:34 Asia/Manila] PHP Fatal error:  Uncaught PDOException: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'college_degree' in 'field list' in C:\xampp\htdocs\hr 201\public\analytics.php:420
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\analytics.php(420): PDO->prepare('SELECT emp_id, ...')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\analytics.php on line 420
+[18-Aug-2026 10:43:36 Asia/Manila] PHP Warning:  Undefined array key "college_course" in C:\xampp\htdocs\hr 201\public\index.php on line 1582
+[18-Aug-2026 10:43:36 Asia/Manila] PHP Warning:  Undefined array key "college_course" in C:\xampp\htdocs\hr 201\public\index.php on line 1582
+[18-Aug-2026 10:43:36 Asia/Manila] PHP Warning:  Undefined array key "college_course" in C:\xampp\htdocs\hr 201\public\index.php on line 1582
+[18-Aug-2026 10:43:36 Asia/Manila] PHP Warning:  Undefined array key "college_course" in C:\xampp\htdocs\hr 201\public\index.php on line 1582
+[18-Aug-2026 10:43:36 Asia/Manila] PHP Warning:  Undefined array key "group" in C:\xampp\htdocs\hr 201\public\index.php on line 1691
+[18-Aug-2026 10:43:36 Asia/Manila] PHP Warning:  Undefined array key "group" in C:\xampp\htdocs\hr 201\public\index.php on line 1691
+[18-Aug-2026 10:43:36 Asia/Manila] PHP Warning:  Undefined array key "group" in C:\xampp\htdocs\hr 201\public\index.php on line 1691
+[18-Aug-2026 10:43:36 Asia/Manila] PHP Warning:  Undefined array key "group" in C:\xampp\htdocs\hr 201\public\index.php on line 1691
+[18-Aug-2026 10:43:38 Asia/Manila] PHP Fatal error:  Uncaught PDOException: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'college_degree' in 'field list' in C:\xampp\htdocs\hr 201\public\analytics.php:420
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\analytics.php(420): PDO->prepare('SELECT emp_id, ...')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\analytics.php on line 420
+[18-Aug-2026 10:43:41 Asia/Manila] PHP Warning:  Undefined array key "college_course" in C:\xampp\htdocs\hr 201\public\index.php on line 1582
+[18-Aug-2026 10:43:41 Asia/Manila] PHP Warning:  Undefined array key "college_course" in C:\xampp\htdocs\hr 201\public\index.php on line 1582
+[18-Aug-2026 10:43:41 Asia/Manila] PHP Warning:  Undefined array key "college_course" in C:\xampp\htdocs\hr 201\public\index.php on line 1582
+[18-Aug-2026 10:43:41 Asia/Manila] PHP Warning:  Undefined array key "college_course" in C:\xampp\htdocs\hr 201\public\index.php on line 1582
+[18-Aug-2026 10:43:41 Asia/Manila] PHP Warning:  Undefined array key "group" in C:\xampp\htdocs\hr 201\public\index.php on line 1691
+[18-Aug-2026 10:43:41 Asia/Manila] PHP Warning:  Undefined array key "group" in C:\xampp\htdocs\hr 201\public\index.php on line 1691
+[18-Aug-2026 10:43:41 Asia/Manila] PHP Warning:  Undefined array key "group" in C:\xampp\htdocs\hr 201\public\index.php on line 1691
+[18-Aug-2026 10:43:41 Asia/Manila] PHP Warning:  Undefined array key "group" in C:\xampp\htdocs\hr 201\public\index.php on line 1691
+[18-Aug-2026 10:43:44 Asia/Manila] PHP Fatal error:  Uncaught PDOException: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'college_degree' in 'field list' in C:\xampp\htdocs\hr 201\public\analytics.php:420
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\analytics.php(420): PDO->prepare('SELECT emp_id, ...')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\analytics.php on line 420
+[18-Aug-2026 10:43:46 Asia/Manila] PHP Warning:  Undefined array key "college_course" in C:\xampp\htdocs\hr 201\public\index.php on line 1582
+[18-Aug-2026 10:43:46 Asia/Manila] PHP Warning:  Undefined array key "college_course" in C:\xampp\htdocs\hr 201\public\index.php on line 1582
+[18-Aug-2026 10:43:46 Asia/Manila] PHP Warning:  Undefined array key "college_course" in C:\xampp\htdocs\hr 201\public\index.php on line 1582
+[18-Aug-2026 10:43:46 Asia/Manila] PHP Warning:  Undefined array key "college_course" in C:\xampp\htdocs\hr 201\public\index.php on line 1582
+[18-Aug-2026 10:43:46 Asia/Manila] PHP Warning:  Undefined array key "group" in C:\xampp\htdocs\hr 201\public\index.php on line 1691
+[18-Aug-2026 10:43:46 Asia/Manila] PHP Warning:  Undefined array key "group" in C:\xampp\htdocs\hr 201\public\index.php on line 1691
+[18-Aug-2026 10:43:46 Asia/Manila] PHP Warning:  Undefined array key "group" in C:\xampp\htdocs\hr 201\public\index.php on line 1691
+[18-Aug-2026 10:43:46 Asia/Manila] PHP Warning:  Undefined array key "group" in C:\xampp\htdocs\hr 201\public\index.php on line 1691
+[18-Aug-2026 10:43:47 Asia/Manila] PHP Fatal error:  Uncaught PDOException: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'college_degree' in 'field list' in C:\xampp\htdocs\hr 201\public\analytics.php:420
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\analytics.php(420): PDO->prepare('SELECT emp_id, ...')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\analytics.php on line 420
+[18-Aug-2026 10:46:42 Asia/Manila] PHP Warning:  Undefined array key "college_course" in C:\xampp\htdocs\hr 201\public\index.php on line 1582
+[18-Aug-2026 10:46:42 Asia/Manila] PHP Warning:  Undefined array key "college_course" in C:\xampp\htdocs\hr 201\public\index.php on line 1582
+[18-Aug-2026 10:46:42 Asia/Manila] PHP Warning:  Undefined array key "college_course" in C:\xampp\htdocs\hr 201\public\index.php on line 1582
+[18-Aug-2026 10:46:42 Asia/Manila] PHP Warning:  Undefined array key "college_course" in C:\xampp\htdocs\hr 201\public\index.php on line 1582
+[18-Aug-2026 10:46:42 Asia/Manila] PHP Warning:  Undefined array key "group" in C:\xampp\htdocs\hr 201\public\index.php on line 1691
+[18-Aug-2026 10:46:42 Asia/Manila] PHP Warning:  Undefined array key "group" in C:\xampp\htdocs\hr 201\public\index.php on line 1691
+[18-Aug-2026 10:46:42 Asia/Manila] PHP Warning:  Undefined array key "group" in C:\xampp\htdocs\hr 201\public\index.php on line 1691
+[18-Aug-2026 10:46:42 Asia/Manila] PHP Warning:  Undefined array key "group" in C:\xampp\htdocs\hr 201\public\index.php on line 1691
+[18-Aug-2026 13:08:58 Asia/Manila] PHP Fatal error:  Uncaught PDOException: SQLSTATE[42S02]: Base table or view not found: 1932 Table 'hr201_local.employee_training' doesn't exist in engine in C:\xampp\htdocs\hr 201\public\analytics.php:523
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\analytics.php(523): PDO->prepare('SELECT \r\n    (S...')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\analytics.php on line 523
+[18-Aug-2026 14:01:19 Asia/Manila] PHP Fatal error:  Uncaught PDOException: SQLSTATE[42S02]: Base table or view not found: 1932 Table 'hr201_local.employee_training' doesn't exist in engine in C:\xampp\htdocs\hr 201\public\analytics.php:523
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\analytics.php(523): PDO->prepare('SELECT \r\n    (S...')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\analytics.php on line 523
+[18-Aug-2026 14:01:23 Asia/Manila] PHP Fatal error:  Uncaught PDOException: SQLSTATE[42S02]: Base table or view not found: 1932 Table 'hr201_local.employee_training' doesn't exist in engine in C:\xampp\htdocs\hr 201\public\analytics.php:523
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\analytics.php(523): PDO->prepare('SELECT \r\n    (S...')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\analytics.php on line 523
+[18-Aug-2026 14:01:55 Asia/Manila] PHP Fatal error:  Uncaught PDOException: SQLSTATE[42S02]: Base table or view not found: 1932 Table 'hr201_local.employee_training' doesn't exist in engine in C:\xampp\htdocs\hr 201\public\analytics.php:523
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\analytics.php(523): PDO->prepare('SELECT \r\n    (S...')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\analytics.php on line 523
+[18-Aug-2026 14:04:44 Asia/Manila] PHP Fatal error:  Uncaught PDOException: SQLSTATE[42S02]: Base table or view not found: 1932 Table 'hr201_local.employee_training' doesn't exist in engine in C:\xampp\htdocs\hr 201\public\analytics.php:523
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\analytics.php(523): PDO->prepare('SELECT \r\n    (S...')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\analytics.php on line 523
+[18-Aug-2026 14:04:45 Asia/Manila] PHP Fatal error:  Uncaught PDOException: SQLSTATE[42S02]: Base table or view not found: 1932 Table 'hr201_local.employee_training' doesn't exist in engine in C:\xampp\htdocs\hr 201\public\analytics.php:523
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\analytics.php(523): PDO->prepare('SELECT \r\n    (S...')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\analytics.php on line 523
+[18-Aug-2026 14:04:46 Asia/Manila] PHP Fatal error:  Uncaught PDOException: SQLSTATE[42S02]: Base table or view not found: 1932 Table 'hr201_local.employee_training' doesn't exist in engine in C:\xampp\htdocs\hr 201\public\analytics.php:523
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\analytics.php(523): PDO->prepare('SELECT \r\n    (S...')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\analytics.php on line 523
+[18-Aug-2026 14:04:46 Asia/Manila] PHP Fatal error:  Uncaught PDOException: SQLSTATE[42S02]: Base table or view not found: 1932 Table 'hr201_local.employee_training' doesn't exist in engine in C:\xampp\htdocs\hr 201\public\analytics.php:523
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\analytics.php(523): PDO->prepare('SELECT \r\n    (S...')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\analytics.php on line 523
+[18-Aug-2026 14:04:47 Asia/Manila] PHP Fatal error:  Uncaught PDOException: SQLSTATE[42S02]: Base table or view not found: 1932 Table 'hr201_local.employee_training' doesn't exist in engine in C:\xampp\htdocs\hr 201\public\analytics.php:523
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\analytics.php(523): PDO->prepare('SELECT \r\n    (S...')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\analytics.php on line 523
+[18-Aug-2026 14:04:47 Asia/Manila] PHP Fatal error:  Uncaught PDOException: SQLSTATE[42S02]: Base table or view not found: 1932 Table 'hr201_local.employee_training' doesn't exist in engine in C:\xampp\htdocs\hr 201\public\analytics.php:523
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\analytics.php(523): PDO->prepare('SELECT \r\n    (S...')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\analytics.php on line 523
+[18-Aug-2026 14:04:47 Asia/Manila] PHP Fatal error:  Uncaught PDOException: SQLSTATE[42S02]: Base table or view not found: 1932 Table 'hr201_local.employee_training' doesn't exist in engine in C:\xampp\htdocs\hr 201\public\analytics.php:523
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\analytics.php(523): PDO->prepare('SELECT \r\n    (S...')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\analytics.php on line 523
+[18-Aug-2026 14:04:47 Asia/Manila] PHP Fatal error:  Uncaught PDOException: SQLSTATE[42S02]: Base table or view not found: 1932 Table 'hr201_local.employee_training' doesn't exist in engine in C:\xampp\htdocs\hr 201\public\analytics.php:523
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\analytics.php(523): PDO->prepare('SELECT \r\n    (S...')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\analytics.php on line 523
+[18-Aug-2026 14:04:47 Asia/Manila] PHP Fatal error:  Uncaught PDOException: SQLSTATE[42S02]: Base table or view not found: 1932 Table 'hr201_local.employee_training' doesn't exist in engine in C:\xampp\htdocs\hr 201\public\analytics.php:523
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\analytics.php(523): PDO->prepare('SELECT \r\n    (S...')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\analytics.php on line 523
+[18-Aug-2026 14:04:48 Asia/Manila] PHP Fatal error:  Uncaught PDOException: SQLSTATE[42S02]: Base table or view not found: 1932 Table 'hr201_local.employee_training' doesn't exist in engine in C:\xampp\htdocs\hr 201\public\analytics.php:523
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\analytics.php(523): PDO->prepare('SELECT \r\n    (S...')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\analytics.php on line 523
+[18-Aug-2026 14:04:48 Asia/Manila] PHP Fatal error:  Uncaught PDOException: SQLSTATE[42S02]: Base table or view not found: 1932 Table 'hr201_local.employee_training' doesn't exist in engine in C:\xampp\htdocs\hr 201\public\analytics.php:523
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\analytics.php(523): PDO->prepare('SELECT \r\n    (S...')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\analytics.php on line 523
+[18-Aug-2026 14:05:04 Asia/Manila] PHP Fatal error:  Uncaught PDOException: SQLSTATE[42S02]: Base table or view not found: 1932 Table 'hr201_local.employee_training' doesn't exist in engine in C:\xampp\htdocs\hr 201\public\analytics.php:523
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\analytics.php(523): PDO->prepare('SELECT \r\n    (S...')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\analytics.php on line 523
+[18-Aug-2026 14:06:57 Asia/Manila] PHP Fatal error:  Uncaught PDOException: SQLSTATE[42S02]: Base table or view not found: 1932 Table 'hr201_local.employee_training' doesn't exist in engine in C:\xampp\htdocs\hr 201\public\analytics.php:523
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\analytics.php(523): PDO->prepare('SELECT \r\n    (S...')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\analytics.php on line 523
+[18-Aug-2026 14:06:58 Asia/Manila] PHP Fatal error:  Uncaught PDOException: SQLSTATE[42S02]: Base table or view not found: 1932 Table 'hr201_local.employee_training' doesn't exist in engine in C:\xampp\htdocs\hr 201\public\analytics.php:523
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\analytics.php(523): PDO->prepare('SELECT \r\n    (S...')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\analytics.php on line 523
+[18-Aug-2026 14:06:58 Asia/Manila] PHP Fatal error:  Uncaught PDOException: SQLSTATE[42S02]: Base table or view not found: 1932 Table 'hr201_local.employee_training' doesn't exist in engine in C:\xampp\htdocs\hr 201\public\analytics.php:523
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\analytics.php(523): PDO->prepare('SELECT \r\n    (S...')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\analytics.php on line 523
+[18-Aug-2026 14:07:04 Asia/Manila] PHP Fatal error:  Uncaught PDOException: SQLSTATE[42S02]: Base table or view not found: 1932 Table 'hr201_local.employee_training' doesn't exist in engine in C:\xampp\htdocs\hr 201\public\analytics.php:523
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\analytics.php(523): PDO->prepare('SELECT \r\n    (S...')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\analytics.php on line 523
+[18-Aug-2026 14:10:55 Asia/Manila] PHP Fatal error:  Uncaught PDOException: SQLSTATE[42S02]: Base table or view not found: 1932 Table 'hr201_local.employee_training' doesn't exist in engine in C:\xampp\htdocs\hr 201\public\analytics.php:523
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\analytics.php(523): PDO->prepare('SELECT \r\n    (S...')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\analytics.php on line 523
+[18-Aug-2026 14:12:38 Asia/Manila] PHP Fatal error:  Uncaught PDOException: SQLSTATE[42S02]: Base table or view not found: 1932 Table 'hr201_local.employee_training' doesn't exist in engine in C:\xampp\htdocs\hr 201\public\analytics.php:523
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\analytics.php(523): PDO->prepare('SELECT \r\n    (S...')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\analytics.php on line 523
+[18-Aug-2026 18:24:12 Asia/Manila] PHP Warning:  Undefined variable $bandOrder in C:\xampp\htdocs\hr 201\public\analytics.php on line 705
+[18-Aug-2026 18:24:12 Asia/Manila] PHP Fatal error:  Uncaught TypeError: array_fill_keys(): Argument #1 ($keys) must be of type array, null given in C:\xampp\htdocs\hr 201\public\analytics.php:705
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\analytics.php(705): array_fill_keys(NULL, 0)
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\analytics.php on line 705
+[18-Aug-2026 18:29:33 Asia/Manila] PHP Warning:  Undefined variable $bandOrder in C:\xampp\htdocs\hr 201\public\analytics.php on line 705
+[18-Aug-2026 18:29:33 Asia/Manila] PHP Fatal error:  Uncaught TypeError: array_fill_keys(): Argument #1 ($keys) must be of type array, null given in C:\xampp\htdocs\hr 201\public\analytics.php:705
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\analytics.php(705): array_fill_keys(NULL, 0)
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\analytics.php on line 705
+[18-Aug-2026 18:29:34 Asia/Manila] PHP Warning:  Undefined variable $bandOrder in C:\xampp\htdocs\hr 201\public\analytics.php on line 705
+[18-Aug-2026 18:29:34 Asia/Manila] PHP Fatal error:  Uncaught TypeError: array_fill_keys(): Argument #1 ($keys) must be of type array, null given in C:\xampp\htdocs\hr 201\public\analytics.php:705
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\analytics.php(705): array_fill_keys(NULL, 0)
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\analytics.php on line 705
+[18-Aug-2026 18:29:35 Asia/Manila] PHP Warning:  Undefined variable $bandOrder in C:\xampp\htdocs\hr 201\public\analytics.php on line 705
+[18-Aug-2026 18:29:35 Asia/Manila] PHP Fatal error:  Uncaught TypeError: array_fill_keys(): Argument #1 ($keys) must be of type array, null given in C:\xampp\htdocs\hr 201\public\analytics.php:705
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\analytics.php(705): array_fill_keys(NULL, 0)
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\analytics.php on line 705
+[18-Aug-2026 18:29:35 Asia/Manila] PHP Warning:  Undefined variable $bandOrder in C:\xampp\htdocs\hr 201\public\analytics.php on line 705
+[18-Aug-2026 18:29:35 Asia/Manila] PHP Fatal error:  Uncaught TypeError: array_fill_keys(): Argument #1 ($keys) must be of type array, null given in C:\xampp\htdocs\hr 201\public\analytics.php:705
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\analytics.php(705): array_fill_keys(NULL, 0)
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\analytics.php on line 705
+[18-Aug-2026 18:29:55 Asia/Manila] PHP Warning:  Undefined variable $bandOrder in C:\xampp\htdocs\hr 201\public\analytics.php on line 705
+[18-Aug-2026 18:29:55 Asia/Manila] PHP Fatal error:  Uncaught TypeError: array_fill_keys(): Argument #1 ($keys) must be of type array, null given in C:\xampp\htdocs\hr 201\public\analytics.php:705
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\analytics.php(705): array_fill_keys(NULL, 0)
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\analytics.php on line 705
+[18-Aug-2026 18:29:56 Asia/Manila] PHP Warning:  Undefined variable $bandOrder in C:\xampp\htdocs\hr 201\public\analytics.php on line 705
+[18-Aug-2026 18:29:56 Asia/Manila] PHP Fatal error:  Uncaught TypeError: array_fill_keys(): Argument #1 ($keys) must be of type array, null given in C:\xampp\htdocs\hr 201\public\analytics.php:705
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\analytics.php(705): array_fill_keys(NULL, 0)
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\analytics.php on line 705
+[18-Aug-2026 18:29:56 Asia/Manila] PHP Warning:  Undefined variable $bandOrder in C:\xampp\htdocs\hr 201\public\analytics.php on line 705
+[18-Aug-2026 18:29:56 Asia/Manila] PHP Fatal error:  Uncaught TypeError: array_fill_keys(): Argument #1 ($keys) must be of type array, null given in C:\xampp\htdocs\hr 201\public\analytics.php:705
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\analytics.php(705): array_fill_keys(NULL, 0)
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\analytics.php on line 705
+[18-Aug-2026 18:29:56 Asia/Manila] PHP Warning:  Undefined variable $bandOrder in C:\xampp\htdocs\hr 201\public\analytics.php on line 705
+[18-Aug-2026 18:29:56 Asia/Manila] PHP Fatal error:  Uncaught TypeError: array_fill_keys(): Argument #1 ($keys) must be of type array, null given in C:\xampp\htdocs\hr 201\public\analytics.php:705
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\analytics.php(705): array_fill_keys(NULL, 0)
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\analytics.php on line 705
+[18-Aug-2026 18:29:57 Asia/Manila] PHP Warning:  Undefined variable $bandOrder in C:\xampp\htdocs\hr 201\public\analytics.php on line 705
+[18-Aug-2026 18:29:57 Asia/Manila] PHP Fatal error:  Uncaught TypeError: array_fill_keys(): Argument #1 ($keys) must be of type array, null given in C:\xampp\htdocs\hr 201\public\analytics.php:705
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\analytics.php(705): array_fill_keys(NULL, 0)
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\analytics.php on line 705
+[18-Aug-2026 18:29:57 Asia/Manila] PHP Warning:  Undefined variable $bandOrder in C:\xampp\htdocs\hr 201\public\analytics.php on line 705
+[18-Aug-2026 18:29:57 Asia/Manila] PHP Fatal error:  Uncaught TypeError: array_fill_keys(): Argument #1 ($keys) must be of type array, null given in C:\xampp\htdocs\hr 201\public\analytics.php:705
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\analytics.php(705): array_fill_keys(NULL, 0)
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\analytics.php on line 705
+[18-Aug-2026 18:32:41 Asia/Manila] PHP Warning:  Undefined variable $bandOrder in C:\xampp\htdocs\hr 201\public\analytics.php on line 705
+[18-Aug-2026 18:32:41 Asia/Manila] PHP Fatal error:  Uncaught TypeError: array_fill_keys(): Argument #1 ($keys) must be of type array, null given in C:\xampp\htdocs\hr 201\public\analytics.php:705
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\analytics.php(705): array_fill_keys(NULL, 0)
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\analytics.php on line 705
+[18-Aug-2026 18:32:41 Asia/Manila] PHP Warning:  Undefined variable $bandOrder in C:\xampp\htdocs\hr 201\public\analytics.php on line 705
+[18-Aug-2026 18:32:41 Asia/Manila] PHP Fatal error:  Uncaught TypeError: array_fill_keys(): Argument #1 ($keys) must be of type array, null given in C:\xampp\htdocs\hr 201\public\analytics.php:705
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\analytics.php(705): array_fill_keys(NULL, 0)
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\analytics.php on line 705
+[18-Aug-2026 18:37:53 Asia/Manila] PHP Warning:  Undefined variable $bandOrder in C:\xampp\htdocs\hr 201\public\analytics.php on line 705
+[18-Aug-2026 18:37:53 Asia/Manila] PHP Fatal error:  Uncaught TypeError: array_fill_keys(): Argument #1 ($keys) must be of type array, null given in C:\xampp\htdocs\hr 201\public\analytics.php:705
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\analytics.php(705): array_fill_keys(NULL, 0)
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\analytics.php on line 705
+[18-Aug-2026 18:37:58 Asia/Manila] PHP Warning:  Undefined variable $bandOrder in C:\xampp\htdocs\hr 201\public\analytics.php on line 705
+[18-Aug-2026 18:37:58 Asia/Manila] PHP Fatal error:  Uncaught TypeError: array_fill_keys(): Argument #1 ($keys) must be of type array, null given in C:\xampp\htdocs\hr 201\public\analytics.php:705
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\analytics.php(705): array_fill_keys(NULL, 0)
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\analytics.php on line 705
+[18-Aug-2026 18:38:51 Asia/Manila] PHP Warning:  Undefined variable $bandOrder in C:\xampp\htdocs\hr 201\public\analytics.php on line 705
+[18-Aug-2026 18:38:51 Asia/Manila] PHP Fatal error:  Uncaught TypeError: array_fill_keys(): Argument #1 ($keys) must be of type array, null given in C:\xampp\htdocs\hr 201\public\analytics.php:705
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\analytics.php(705): array_fill_keys(NULL, 0)
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\analytics.php on line 705

@@ -22,7 +22,7 @@ if (!function_exists('post')) {
      * @param string $default The default value if the key is not set or invalid.
      * @return string
      */
-    function post(string $key, string $default = ''): string
+    function post(string $key, ?string $default = ''): ?string
     {
         if (!isset($_POST[$key])) {
             return $default;

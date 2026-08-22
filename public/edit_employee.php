@@ -449,6 +449,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $skills     = trim($_POST['skills'] ?? $emp['skills'] ?? '');
     $licenses   = trim($_POST['licenses'] ?? $emp['licenses'] ?? '');
 
+    // [FIX] Capture missing college fields from form
+    $college_degree = trim($_POST['college_degree'] ?? $emp['college_degree'] ?? '');
+    $college_course = trim($_POST['college_course'] ?? $emp['college_course'] ?? '');
+    $college_year   = trim($_POST['college_year'] ?? $emp['college_year'] ?? '');
+
+
     // [NEW] Capture Request Note for Validation
     $request_note = trim($_POST['request_note'] ?? '');
 
@@ -488,6 +494,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'education'         => 1000,
         'experience'        => 1000,
         'skills'            => 1000,
+        'college_degree'    => 100,
+        'college_course'    => 100,
+        'college_year'      => 10,
         'licenses'          => 1000,
         'exit_reason'       => 100,
         'dept'              => 50,
@@ -580,6 +589,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!preg_match($qualRegex, $experience)) $errors[] = "Experience contains invalid characters.";
     if (!preg_match($qualRegex, $skills))     $errors[] = "Skills contains invalid characters.";
     if (!preg_match($qualRegex, $licenses))   $errors[] = "Licenses contains invalid characters.";
+    // [FIX] Add validation for college fields
+    if ($college_degree !== '' && !preg_match("/^[a-zA-Z0-9\s\-\.\(\)\',]*$/", $college_degree)) $errors[] = "College Degree contains invalid characters.";
+    if ($college_course !== '' && !preg_match("/^[a-zA-Z0-9\s\-\.\(\)\',]*$/", $college_course)) $errors[] = "College Course contains invalid characters.";
+    if ($college_year !== '' && !preg_match("/^[0-9]*$/", $college_year)) $errors[] = "Year Finished contains invalid characters.";
+
 
     // [SECURITY] Date Validation
     $validHire  = $hire_date ? DateTime::createFromFormat('Y-m-d', $hire_date) : false;
@@ -639,6 +653,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // 5. UPDATE DATABASE
     if (empty($errors)) {
 
+        $employeeColumns = [];
+        try {
+            $columnStmt = $pdo->query("SHOW COLUMNS FROM `employees`");
+            foreach ($columnStmt->fetchAll(PDO::FETCH_ASSOC) as $column) {
+                $employeeColumns[$column['Field']] = true;
+            }
+        } catch (Exception $e) {
+            // Older schemas may omit optional columns; retain the base update fields.
+        }
+
         $updateData = [
             'emp_id' => $new_emp_id,
             'first_name' => $first_name,
@@ -676,6 +700,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'exit_reason' => $exit_reason, // <--- SAVING THE REASON
             'avatar_path' => $final_avatar_path
         ];
+        foreach (['college_degree' => $college_degree, 'college_course' => $college_course, 'college_year' => $college_year] as $column => $value) {
+            if (isset($employeeColumns[$column])) {
+                $updateData[$column] = $value;
+            }
+        }
 
         // LOGIC FIX: STAFF REQUEST vs ADMIN UPDATE
         if (($_SESSION['role'] ?? '') === 'STAFF') {
@@ -1061,6 +1090,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 <label class="form-label"><?= lang('education') ?></label>
                                 <textarea name="education" class="form-control" rows="2" maxlength="1000" spellcheck="true" lang="en" style="text-align: center; white-space: pre-wrap; word-wrap: break-word;" oninput="this.value = this.value.replace(/[^a-zA-Z0-9\s\.,\-\(\)\/\':]/g, '')"><?php echo val('education'); ?></textarea>
                                 <div class="form-text small text-center">Max 1000 chars. Text auto-wraps. Press Enter for new lines.</div>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">College Degree</label>
+                                <input type="text" name="college_degree" class="form-control" value="<?php echo val('college_degree'); ?>" maxlength="100">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">College Course</label>
+                                <input type="text" name="college_course" class="form-control" value="<?php echo val('college_course'); ?>" maxlength="100">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">College Year</label>
+                                <input type="text" name="college_year" class="form-control" value="<?php echo val('college_year'); ?>" maxlength="10">
                             </div>
                             <div class="col-12">
                                 <label class="form-label"><?= lang('experience') ?></label>

@@ -24,16 +24,35 @@ class Security
             // SQLSTATE 42S02 = Table doesn't exist (MySQL/MariaDB)
             // SQLSTATE 42P01 = Undefined table (PostgreSQL)
             if ($errorCode === '42S02' || $errorCode === '42P01' || stripos($e->getMessage(), 'doesn\'t exist') !== false) {
+                $lockAcquired = false;
                 try {
-                    $this->pdo->exec("CREATE TABLE IF NOT EXISTS rate_limits (
-                        ip_address VARCHAR(45) PRIMARY KEY, 
-                        request_count INT DEFAULT 1, 
-                        last_request DATETIME
-                    )");
-                    $row = false;
+                    $lockStmt = $this->pdo->prepare("SELECT GET_LOCK(?, 10)");
+                    $lockStmt->execute(['hr201_rate_limits_repair']);
+                    $lockAcquired = (int)$lockStmt->fetchColumn() === 1;
+                    if (!$lockAcquired) {
+                        return false;
+                    }
+
+                    try {
+                        $retry = $this->pdo->prepare("SELECT request_count, last_request FROM rate_limits WHERE ip_address = ?");
+                        $retry->execute([$ip]);
+                        $row = $retry->fetch();
+                    } catch (PDOException $retryEx) {
+                        $this->pdo->exec("DROP TABLE IF EXISTS rate_limits");
+                        $this->pdo->exec("CREATE TABLE rate_limits (
+                            ip_address VARCHAR(45) PRIMARY KEY,
+                            request_count INT DEFAULT 1,
+                            last_request DATETIME
+                        )");
+                        $row = false;
+                    }
                 } catch (PDOException $createEx) {
                     error_log("Rate limit table creation failed: " . $createEx->getMessage());
                     return false; // Fail closed if we can't create the table
+                } finally {
+                    if ($lockAcquired) {
+                        $this->pdo->query("SELECT RELEASE_LOCK('hr201_rate_limits_repair')");
+                    }
                 }
             } else {
                 error_log("Rate limit check failed: " . $e->getMessage());

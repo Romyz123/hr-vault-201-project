@@ -145,9 +145,15 @@ if ($success) {
 
                 $sqlFileInZip = "database_Part{$partNumber}.sql";
                 if ($zip instanceof ZipArchive) {
-                    if (!$zip->addFile($tmpSqlFile, $sqlFileInZip)) {
+                    if (!empty($tmpSqlFile) && file_exists($tmpSqlFile)) {
+                        if (!$zip->addFile($tmpSqlFile, $sqlFileInZip)) {
+                            $success = false;
+                            $errorMessage = "Failed to add SQL file to ZIP archive.";
+                            goto backup_end;
+                        }
+                    } else {
                         $success = false;
-                        $errorMessage = "Failed to add SQL file to ZIP archive.";
+                        $errorMessage = "SQL file missing for ZIP archive.";
                         goto backup_end;
                     }
                     if ($zipPass) $zip->setEncryptionName($sqlFileInZip, ZipArchive::EM_AES_256, $zipPass);
@@ -196,9 +202,15 @@ if ($success) {
 
     $sqlFileInZip = "database_Part{$partNumber}.sql";
     if ($zip instanceof ZipArchive) {
-        if (!$zip->addFile($tmpSqlFile, $sqlFileInZip)) {
+        if (!empty($tmpSqlFile) && file_exists($tmpSqlFile)) {
+            if (!$zip->addFile($tmpSqlFile, $sqlFileInZip)) {
+                $success = false;
+                $errorMessage = "Failed to add final SQL file to ZIP.";
+                goto backup_end;
+            }
+        } else {
             $success = false;
-            $errorMessage = "Failed to add final SQL file to ZIP.";
+            $errorMessage = "Final SQL file missing for ZIP archive.";
             goto backup_end;
         }
         if ($zipPass) $zip->setEncryptionName($sqlFileInZip, ZipArchive::EM_AES_256, $zipPass);
@@ -210,8 +222,13 @@ if ($success) {
     if ($incVault) {
         // [LOGICAL FIX] Backup the Encryption Key! Without this, vault files are permanently locked if server dies.
         $configPath = realpath(__DIR__ . '/../config/config.php');
-        if ($configPath && file_exists($configPath)) {
+        if ($configPath && is_file($configPath)) {
             $fsize = filesize($configPath);
+            if ($fsize === false) {
+                $success = false;
+                $errorMessage = "Could not read config file size for ZIP archive.";
+                goto backup_end;
+            }
             if ($currentBytes + $fsize > $maxSizeBytes && $currentBytes > 0) {
                 if ($zip instanceof ZipArchive) $zip->close();
                 foreach ($pendingUnlink as $f) @unlink($f);
@@ -230,10 +247,18 @@ if ($success) {
             }
 
             if ($zip instanceof ZipArchive) {
-                $zip->addFile($configPath, 'config/config.php');
+                if (!$zip->addFile($configPath, 'config/config.php')) {
+                    $success = false;
+                    $errorMessage = "Failed to add config file to ZIP archive.";
+                    goto backup_end;
+                }
                 if ($zipPass) $zip->setEncryptionName('config/config.php', ZipArchive::EM_AES_256, $zipPass);
             }
             $currentBytes += $fsize;
+        } else {
+            $success = false;
+            $errorMessage = "Config file is missing or has an invalid path.";
+            goto backup_end;
         }
 
         // [MULTI-VOLUME FILE SPLIT] Compress Vault items and track bytes
@@ -245,7 +270,17 @@ if ($success) {
             foreach ($files as $name => $file) {
                 if (!$file->isDir()) {
                     $src = $file->getRealPath();
+                    if ($src === false || !is_file($src)) {
+                        $success = false;
+                        $errorMessage = "Vault file has an invalid path.";
+                        goto backup_end;
+                    }
                     $fsize = filesize($src);
+                    if ($fsize === false) {
+                        $success = false;
+                        $errorMessage = "Could not read vault file size: $src";
+                        goto backup_end;
+                    }
 
                     // [SPLIT LOGIC]
                     if ($currentBytes + $fsize > $maxSizeBytes && $currentBytes > 0) {
@@ -266,12 +301,13 @@ if ($success) {
                     }
 
                     $relativePath = 'vault/' . str_replace(DIRECTORY_SEPARATOR, '/', substr($src, strlen($vaultPath) + 1));
-                    if ($zip instanceof ZipArchive) {
-                        if (!$zip->addFile($src, $relativePath)) {
-                            error_log("CRON BACKUP: Skipping file due to archive error: $src");
-                        } else {
-                            if ($zipPass) $zip->setEncryptionName($relativePath, ZipArchive::EM_AES_256, $zipPass);
-                        }
+                    if (!$zip instanceof ZipArchive || !$zip->addFile($src, $relativePath)) {
+                        $success = false;
+                        $errorMessage = "Failed to add vault file to ZIP archive: $src";
+                        goto backup_end;
+                    }
+                    if ($zipPass) {
+                        $zip->setEncryptionName($relativePath, ZipArchive::EM_AES_256, $zipPass);
                     }
                     $currentBytes += $fsize;
                     $syncCount++;

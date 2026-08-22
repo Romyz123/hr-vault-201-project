@@ -171,7 +171,7 @@ foreach ($employees as $row) {
             maskSensitive($row['philhealth_no']),
             maskSensitive($row['pagibig_no']),
             $row['emergency_name'],
-            $row['emergency_contact'],
+            maskSensitive($row['emergency_contact']),
             $row['emergency_address']
         ]);
 

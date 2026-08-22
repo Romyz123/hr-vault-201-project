@@ -17,6 +17,21 @@ $system_roles = $system_roles ?? [];
 // [FIX] Ensure college_courses_list is initialized
 $college_courses_list = $college_courses_list ?? [];
 
+// [FIX] Check for college column existence to prevent crashes on older DB schemas
+$hasCollegeDegree = false;
+$hasCollegeCourse = false;
+$hasCollegeYear = false;
+try {
+    $checkCols = $pdo->query("SHOW COLUMNS FROM `employees` LIKE 'college_degree'");
+    if ($checkCols && $checkCols->rowCount() > 0) $hasCollegeDegree = true;
+    $checkCols = $pdo->query("SHOW COLUMNS FROM `employees` LIKE 'college_course'");
+    if ($checkCols && $checkCols->rowCount() > 0) $hasCollegeCourse = true;
+    $checkCols = $pdo->query("SHOW COLUMNS FROM `employees` LIKE 'college_year'");
+    if ($checkCols && $checkCols->rowCount() > 0) $hasCollegeYear = true;
+} catch (PDOException $e) {
+    // Safely assume no columns if table doesn't exist or other error
+}
+
 // [FIX] Ensure checkSessionTimeout is defined before calling it
 if (!function_exists('checkSessionTimeout')) {
     require_once __DIR__ . '/../config/db.php';
@@ -39,12 +54,36 @@ $msg = "";
 $error = "";
 
 // ensure rollback table exists for import undo support
-// NOTE: this table creation should be handled by a one-time migration
-// (see schema/migrations/2026-03-07-add-import-rollbacks.sql) rather than
-// running DDL on every request. The migration also adds indexes on
-// employee_id and import_batch to speed up undo lookups.
-//
-// $pdo->exec("CREATE TABLE IF NOT EXISTS import_rollbacks ( ... )");
+// NOTE: The best practice, as noted here, is to handle this with a one-time migration script.
+// The code below is a robust auto-repair fallback for development environments.
+/*
+try {
+    // Check if table is accessible
+    $pdo->query("SELECT 1 FROM import_rollbacks LIMIT 1");
+} catch (PDOException $e) {
+    // If table doesn't exist or is corrupted (MySQL error 1932), recreate it.
+    if ($e->getCode() === '42S02') {
+        try {
+            $pdo->exec("DROP TABLE IF EXISTS import_rollbacks");
+            $pdo->exec("
+                CREATE TABLE `import_rollbacks` (
+                  `id` int(11) NOT NULL AUTO_INCREMENT,
+                  `employee_id` int(11) NOT NULL,
+                  `import_batch` varchar(255) NOT NULL,
+                  `old_data` json NOT NULL,
+                  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+                  PRIMARY KEY (`id`),
+                  KEY `idx_import_batch` (`import_batch`),
+                  KEY `idx_employee_id` (`employee_id`)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+            ");
+        } catch (PDOException $createEx) {
+            error_log("Failed to create import_rollbacks table: " . $createEx->getMessage());
+            // Fail gracefully if table creation fails
+        }
+    }
+}
+*/
 
 
 
@@ -183,7 +222,7 @@ function normalizeCourse(string $input, array $masterList)
         if ($input === strtoupper($item['course_name'])) return $item['course_name'];
 
         // Match 2: Keywords/Tags
-        $keywords = explode(',', $item['keywords']);
+        $keywords = explode(',', (string)($item['keywords'] ?? '')); // Ensure keywords is a string
         foreach ($keywords as $k) {
             if ($input === strtoupper(trim($k))) return $item['course_name'];
         }
@@ -786,49 +825,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['undo_batch'])) {
                                     }
 
                                     // UPDATE EXISTING RECORD, also tag with current batch
-                                    $sql = "UPDATE employees SET 
-                                        first_name=?, middle_name=?, last_name=?, dept=?, section=?, 
-                                        employment_type=?, agency_name=?, job_title=?, 
-                                        gender=?, birth_date=?, hire_date=?, contact_number=?, 
-                                        present_address=?, permanent_address=?, sss_no=?, tin_no=?, pagibig_no=?, philhealth_no=?, email=?,
-                                        emergency_name=?, emergency_contact=?, emergency_address=?,
-                                        education=?, experience=?, licenses=?,
-                                        import_batch=?, updated_at=NOW(),
-                                        college_degree=?, college_course=?, college_year=?
-                                        WHERE id=?";
+                                    $updateSqlParts = [
+                                        "first_name=?", "middle_name=?", "last_name=?", "dept=?", "section=?",
+                                        "employment_type=?", "agency_name=?", "job_title=?",
+                                        "gender=?", "birth_date=?", "hire_date=?", "contact_number=?",
+                                        "present_address=?", "permanent_address=?", "sss_no=?", "tin_no=?", "pagibig_no=?", "philhealth_no=?", "email=?",
+                                        "emergency_name=?", "emergency_contact=?", "emergency_address=?",
+                                        "education=?", "experience=?", "licenses=?",
+                                        "import_batch=?", "updated_at=NOW()"
+                                    ];
+                                    $updateParams = [
+                                        $first_name, $middle_name, $last_name, $dept, $section,
+                                        $empType, $actual_agency, $job_title,
+                                        $gender, $birth_date, $hire_date, trim($contact_raw),
+                                        $present_addr, $permanent_addr, trim($sss_raw), trim($tin_raw), trim($pagibig_raw), trim($phil_raw), $email,
+                                        $emg_name, $emg_contact, $emg_addr,
+                                        $education, $experience, $licenses,
+                                        $batch_id
+                                    ];
+
+                                    if ($hasCollegeDegree) { $updateSqlParts[] = "college_degree=?"; $updateParams[] = $college_degree; }
+                                    if ($hasCollegeCourse) { $updateSqlParts[] = "college_course=?"; $updateParams[] = $college_course; }
+                                    if ($hasCollegeYear)   { $updateSqlParts[] = "college_year=?";   $updateParams[] = $college_year; }
+
+                                    $sql = "UPDATE employees SET " . implode(', ', $updateSqlParts) . " WHERE id=?";
+                                    $updateParams[] = $existingId;
+
                                     $stmt = $pdo->prepare($sql);
-                                    $stmt->execute([
-                                        $first_name,
-                                        $middle_name,
-                                        $last_name,
-                                        $dept,
-                                        $section,
-                                        $empType,
-                                        $actual_agency,
-                                        $job_title,
-                                        $gender,
-                                        $birth_date,
-                                        $hire_date,
-                                        trim($contact_raw),
-                                        $present_addr,
-                                        $permanent_addr,
-                                        trim($sss_raw),
-                                        trim($tin_raw),
-                                        trim($pagibig_raw),
-                                        trim($phil_raw),
-                                        $email,
-                                        $emg_name,
-                                        $emg_contact,
-                                        $emg_addr,
-                                        $education,
-                                        $experience,
-                                        $licenses,
-                                        $batch_id,
-                                        $college_degree,
-                                        $college_course,
-                                        $college_year,
-                                        $existingId
-                                    ]);
+                                    $stmt->execute($updateParams);
                                     $updated_count++;
                                 }
                             } elseif (!$existingId) {
@@ -881,52 +905,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['undo_batch'])) {
                                     $success_count++;
                                 } else {
                                     // INSERT NEW RECORD
-                                    $sql = "INSERT INTO employees 
-                                    (emp_id, first_name, middle_name, last_name, dept, section, 
-                                    employment_type, agency_name, job_title, status, 
-                                    gender, birth_date, hire_date, contact_number, 
-                                    present_address, permanent_address, avatar_path, import_batch,
-                                    sss_no, tin_no, pagibig_no, philhealth_no, email,
-                                    emergency_name, emergency_contact, emergency_address,
-                                    education, experience, licenses,
-                                    college_degree, college_course, college_year) 
-                                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+                                    $insertCols = [
+                                        'emp_id', 'first_name', 'middle_name', 'last_name', 'dept', 'section',
+                                        'employment_type', 'agency_name', 'job_title', 'status',
+                                        'gender', 'birth_date', 'hire_date', 'contact_number',
+                                        'present_address', 'permanent_address', 'avatar_path', 'import_batch',
+                                        'sss_no', 'tin_no', 'pagibig_no', 'philhealth_no', 'email',
+                                        'emergency_name', 'emergency_contact', 'emergency_address',
+                                        'education', 'experience', 'licenses'
+                                    ];
+                                    $insertParams = [
+                                        $emp_id, $first_name, $middle_name, $last_name, $dept, $section,
+                                        $empType, $actual_agency, $job_title, $status,
+                                        $gender, $birth_date, $hire_date, trim($contact_raw),
+                                        $present_addr, $permanent_addr, $photo, $batch_id,
+                                        trim($sss_raw), trim($tin_raw), trim($pagibig_raw), trim($phil_raw), $email,
+                                        $emg_name, $emg_contact, $emg_addr,
+                                        $education, $experience, $licenses
+                                    ];
 
+                                    if ($hasCollegeDegree) { $insertCols[] = 'college_degree'; $insertParams[] = $college_degree; }
+                                    if ($hasCollegeCourse) { $insertCols[] = 'college_course'; $insertParams[] = $college_course; }
+                                    if ($hasCollegeYear)   { $insertCols[] = 'college_year';   $insertParams[] = $college_year; }
+
+                                    $colsString = '`' . implode('`, `', $insertCols) . '`';
+                                    $placeholders = implode(', ', array_fill(0, count($insertCols), '?'));
+
+                                    $sql = "INSERT INTO employees ($colsString) VALUES ($placeholders)";
                                     $stmt = $pdo->prepare($sql);
-                                    $stmt->execute([
-                                        $emp_id,
-                                        $first_name,
-                                        $middle_name,
-                                        $last_name,
-                                        $dept,
-                                        $section,
-                                        $empType,
-                                        $actual_agency,
-                                        $job_title,
-                                        $status,
-                                        $gender,
-                                        $birth_date,
-                                        $hire_date,
-                                        trim($contact_raw),
-                                        $present_addr,
-                                        $permanent_addr,
-                                        $photo,
-                                        $batch_id,
-                                        trim($sss_raw),
-                                        trim($tin_raw),
-                                        trim($pagibig_raw),
-                                        trim($phil_raw),
-                                        $email,
-                                        $emg_name,
-                                        $emg_contact,
-                                        $emg_addr,
-                                        $education,
-                                        $experience,
-                                        $licenses,
-                                        $college_degree,
-                                        $college_course,
-                                        $college_year
-                                    ]);
+                                    $stmt->execute($insertParams);
                                     $success_count++;
                                 }
                             }
