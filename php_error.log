@@ -2441,3 +2441,39 @@ Stack trace:
 #0 C:\xampp\htdocs\hr 201\public\analytics.php(705): array_fill_keys(NULL, 0)
 #1 {main}
   thrown in C:\xampp\htdocs\hr 201\public\analytics.php on line 705
+[22-Aug-2026 10:35:24 Asia/Manila] PHP Fatal error:  Uncaught PDOException: SQLSTATE[42S02]: Base table or view not found: 1146 Table 'hr201_local.groups' doesn't exist in C:\xampp\htdocs\hr 201\public\manage_hierarchy.php:138
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\manage_hierarchy.php(138): PDO->query('SELECT * FROM g...')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\manage_hierarchy.php on line 138
+[22-Aug-2026 10:35:25 Asia/Manila] PHP Fatal error:  Uncaught PDOException: SQLSTATE[42S02]: Base table or view not found: 1146 Table 'hr201_local.groups' doesn't exist in C:\xampp\htdocs\hr 201\public\manage_hierarchy.php:138
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\manage_hierarchy.php(138): PDO->query('SELECT * FROM g...')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\manage_hierarchy.php on line 138
+[22-Aug-2026 10:35:26 Asia/Manila] PHP Fatal error:  Uncaught PDOException: SQLSTATE[42S02]: Base table or view not found: 1146 Table 'hr201_local.groups' doesn't exist in C:\xampp\htdocs\hr 201\public\manage_hierarchy.php:138
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\manage_hierarchy.php(138): PDO->query('SELECT * FROM g...')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\manage_hierarchy.php on line 138
+[22-Aug-2026 10:36:03 Asia/Manila] PHP Fatal error:  Uncaught PDOException: SQLSTATE[42S02]: Base table or view not found: 1146 Table 'hr201_local.groups' doesn't exist in C:\xampp\htdocs\hr 201\public\manage_hierarchy.php:138
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\manage_hierarchy.php(138): PDO->query('SELECT * FROM g...')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\manage_hierarchy.php on line 138
+[22-Aug-2026 11:48:43 Asia/Manila] PHP Fatal error:  Uncaught TypeError: Cannot access offset of type string on string in C:\xampp\htdocs\hr 201\public\manage_hierarchy.php:231
+Stack trace:
+#0 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\manage_hierarchy.php on line 231
+[22-Aug-2026 11:49:59 Asia/Manila] PHP Fatal error:  Uncaught TypeError: Cannot access offset of type string on string in C:\xampp\htdocs\hr 201\public\manage_hierarchy.php:231
+Stack trace:
+#0 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\manage_hierarchy.php on line 231
+[22-Aug-2026 11:50:09 Asia/Manila] PHP Fatal error:  Uncaught TypeError: Cannot access offset of type string on string in C:\xampp\htdocs\hr 201\public\manage_hierarchy.php:231
+Stack trace:
+#0 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\manage_hierarchy.php on line 231
+[22-Aug-2026 11:50:22 Asia/Manila] PHP Fatal error:  Uncaught TypeError: Cannot access offset of type string on string in C:\xampp\htdocs\hr 201\public\manage_hierarchy.php:231
+Stack trace:
+#0 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\manage_hierarchy.php on line 231

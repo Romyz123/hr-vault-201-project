@@ -44,15 +44,30 @@ $currentQuestion = $currentUser['security_question'] ?? '';
 $hasCodes = !empty($currentUser['recovery_codes']) && $currentUser['recovery_codes'] !== '[]';
 $currentTotpSecret = $currentUser['totp_secret'] ?? '';
 
+function buildTotpProvisioning(string $secret, string $issuer, string $accountName): array
+{
+    $label = $issuer . ':' . $accountName;
+    $query = http_build_query([
+        'secret' => $secret,
+        'issuer' => $issuer,
+        'algorithm' => 'SHA1',
+        'digits' => 6,
+        'period' => 30,
+    ], '', '&', PHP_QUERY_RFC3986);
+
+    return [
+        'manualSecret' => $secret,
+        'otpauthUrl' => 'otpauth://totp/' . rawurlencode($label) . '?' . $query,
+    ];
+}
+
 // Generate QR Code URL if secret exists
 $otpauthUrl = '';
 $manualSecret = '';
 if (!empty($currentTotpSecret)) {
-    require_once '../src/GoogleAuthenticator.php';
-    $qrData = GoogleAuthenticator::getQRCodeDataUri($_SESSION['username'], $currentTotpSecret);
-    $manualSecret = $qrData['secret'];
-    // Build the raw OTP URI for offline JS QR generation
-    $otpauthUrl = "otpauth://totp/TESP%20HR%20Vault:" . rawurlencode($_SESSION['username']) . "?secret=" . $manualSecret . "&issuer=TESP%20HR%20Vault";
+    $issuer = 'TESP HR Vault';
+    $accountName = $_SESSION['username'] ?? $currentEmail ?? 'User';
+    ['manualSecret' => $manualSecret, 'otpauthUrl' => $otpauthUrl] = buildTotpProvisioning($currentTotpSecret, $issuer, $accountName);
 }
 
 // 2. HANDLE EMAIL UPDATE
@@ -221,9 +236,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         $newSecret = GoogleAuthenticator::generateSecret();
         $pdo->prepare("UPDATE users SET totp_secret = ? WHERE id = ?")->execute([$newSecret, $_SESSION['user_id']]);
         $currentTotpSecret = $newSecret;
-        $qrData = GoogleAuthenticator::getQRCodeDataUri($_SESSION['username'], $currentTotpSecret);
-        $manualSecret = $qrData['secret'];
-        $otpauthUrl = "otpauth://totp/TESP%20HR%20Vault:" . rawurlencode($_SESSION['username']) . "?secret=" . $manualSecret . "&issuer=TESP%20HR%20Vault";
+        ['manualSecret' => $manualSecret, 'otpauthUrl' => $otpauthUrl] = buildTotpProvisioning($currentTotpSecret, $issuer, $accountName);
         $alertType = "success";
         $alertMsg = "✅ Authenticator App Secret generated! Please scan the new QR code.";
     }
@@ -240,7 +253,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             $alertType = "error";
             $alertMsg = "❌ Invalid device selected.";
         } else {
-            // Note: Device tracking not implemented yet; clear trusted device token as a best-effort.
             $stmt = $pdo->prepare("UPDATE users SET trusted_device_token = NULL, trusted_device_expires = NULL WHERE id = ?");
             if ($stmt->execute([$_SESSION['user_id']])) {
                 $alertType = "success";
@@ -379,19 +391,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 <div class="card-body">
                     <p class="small text-muted">Use an app like Google Authenticator or Authy to generate secure codes for login and account recovery.</p>
 
-                    <?php if (!empty($currentTotpSecret)): ?>
+                    <?php if (!empty($currentTotpSecret) && !empty($otpauthUrl)): ?>
                         <div class="text-center mb-3 d-flex flex-column align-items-center">
-                            <div id="qrcode" class="p-2 bg-white border rounded mb-2" style="min-width: 160px; min-height: 160px;">
-                                <img src="https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=<?php echo urlencode($otpauthUrl); ?>" alt="QR Code" style="width: 160px; height: 160px;">
+                            <!-- Dedicated container for local JS rendering -->
+                            <div
+                                id="qrcode"
+                                data-otp="<?php echo htmlspecialchars($otpauthUrl, ENT_QUOTES, 'UTF-8'); ?>"
+                                class="p-2 bg-white border rounded mb-2 d-flex justify-content-center align-items-center"
+                                style="width: 176px; height: 176px;">
+                                <span class="small text-muted">Generating QR...</span>
                             </div>
+
                             <div class="mb-2">
-                                <button type="button" class="btn btn-sm btn-outline-secondary" onclick="saveQRCode()"><i class="bi bi-download"></i> Save QR Code</button>
+                                <button type="button" class="btn btn-sm btn-outline-secondary" onclick="saveQRCode()">
+                                    <i class="bi bi-download"></i> Save QR Code
+                                </button>
                             </div>
+
                             <div class="p-2 bg-light border rounded small mt-2 mb-3 text-center">
                                 <strong>Manual Setup Key:</strong><br>
-                                <span class="font-monospace fs-5 fw-bold text-primary"><?php echo htmlspecialchars($manualSecret); ?></span>
+                                <span class="font-monospace fs-5 fw-bold text-primary">
+                                    <?php echo htmlspecialchars($manualSecret, ENT_QUOTES, 'UTF-8'); ?>
+                                </span>
                             </div>
-                            <p class="small text-danger fw-bold mb-0">Scan this QR Code with your Authenticator App.</p>
+
+                            <p class="small text-danger fw-bold mb-0">
+                                Scan this QR code with your authenticator app.
+                            </p>
                         </div>
                     <?php endif; ?>
 
@@ -413,7 +439,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                     <h5 class="mb-0"><i class="bi bi-shield-lock"></i> Change Password</h5>
                 </div>
                 <div class="card-body">
-
                     <form method="POST">
                         <input type="hidden" name="action" value="change_pass">
                         <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token); ?>">
@@ -434,7 +459,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                             <div class="progress mt-1" style="height: 5px;">
                                 <div id="strengthBar" class="progress-bar bg-danger" role="progressbar" style="width: 0%"></div>
                             </div>
-                            <!-- Real-time Validation Checklist -->
                             <div class="mt-2 ps-1 small">
                                 <div id="rule-len" class="text-muted mb-1"><i class="bi bi-circle"></i> At least 15 characters</div>
                                 <div id="rule-let" class="text-muted mb-1"><i class="bi bi-circle"></i> Contains a letter</div>
@@ -458,7 +482,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                             <a href="index.php" class="btn btn-secondary">Cancel</a>
                         </div>
                     </form>
-
                 </div>
             </div>
 
@@ -504,8 +527,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                             </tr>
                         </thead>
                         <tbody>
-                            <?php $registeredDevices = []; // TODO: Fetch from database when WebAuthn is implemented 
-                            ?>
+                            <?php $registeredDevices = []; ?>
                             <?php if (empty($registeredDevices)): ?>
                                 <tr>
                                     <td colspan="2" class="text-center text-muted p-3">No biometric devices registered.</td>
@@ -531,6 +553,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         </div>
     </div>
 </div>
+
 <script src="assets/bootstrap.bundle.min.js"></script>
 
 <form id="webauthnForm" method="POST" style="display:none;">
@@ -608,7 +631,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             let allValid = true;
             let score = 0;
 
-            // Check Complexity
             for (const key in rules) {
                 const rule = rules[key];
                 const icon = rule.el.querySelector('i');
@@ -625,17 +647,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 }
             }
 
-            // Update Strength Meter
             let width = (score / 4) * 100;
             let color = 'red';
             if (score === 2) color = 'orange';
-            if (score === 3) color = '#ffc107'; // yellow
-            if (score === 4) color = '#198754'; // green
+            if (score === 3) color = '#ffc107';
+            if (score === 4) color = '#198754';
 
             strengthBar.style.width = width + '%';
             strengthBar.style.backgroundColor = color;
 
-            // Check Match
             const match = p2.value && p1.value === p2.value;
             if (p2.value && !match) {
                 matchMsg.style.display = 'block';
@@ -666,47 +686,59 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     }
 </script>
 
-<?php if (!empty($currentTotpSecret)): ?>
-    <script src="assets/qrcode.min.js"></script>
+<?php if (!empty($currentTotpSecret) && !empty($otpauthUrl)): ?>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"
+        integrity="sha512-CNgIRecGo7nphbeZ04Sc13ka07paqdeTu0WR1IM4kNcpmBAUSHSQX0FslNhTDadL4O5SAGapGt4FodqL8My0mA=="
+        crossorigin="anonymous"></script>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
-            var qrCodeDiv = document.getElementById("qrcode");
-            var otpUrl = <?php echo json_encode($otpauthUrl); ?>;
+            const qrContainer = document.getElementById('qrcode');
+            const otpUrl = <?php echo json_encode($otpauthUrl, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
 
-            if (qrCodeDiv && otpUrl && typeof QRCode !== 'undefined') {
-                try {
-                    // Create a temporary element to render the new QR
-                    var temp = document.createElement('div');
-                    new QRCode(temp, {
-                        text: otpUrl,
-                        width: 160,
-                        height: 160,
-                        colorDark: "#000000",
-                        colorLight: "#ffffff",
-                        correctLevel: QRCode.CorrectLevel.M
-                    });
-                    // Only replace the fallback if rendering was successful
-                    qrCodeDiv.innerHTML = "";
-                    qrCodeDiv.appendChild(temp.firstChild);
-                    while (temp.firstChild) qrCodeDiv.appendChild(temp.firstChild);
-                } catch (e) {
-                    console.error("Local QR Render failed, keeping fallback.");
-                }
+            if (!qrContainer || !otpUrl) return;
+
+            if (typeof QRCode === 'undefined') {
+                qrContainer.innerHTML = '<span class="text-danger small">QR library failed to load.</span>';
+                return;
+            }
+
+            try {
+                qrContainer.innerHTML = '';
+                new QRCode(qrContainer, {
+                    text: otpUrl,
+                    width: 160,
+                    height: 160,
+                    colorDark: '#000000',
+                    colorLight: '#ffffff',
+                    correctLevel: QRCode.CorrectLevel.M
+                });
+            } catch (error) {
+                console.error('QR generation failed:', error);
+                qrContainer.innerHTML = '<span class="text-danger small">Failed to generate QR code.</span>';
             }
         });
 
         function saveQRCode() {
-            var canvas = document.querySelector('#qrcode canvas');
-            if (canvas) {
-                var link = document.createElement('a');
-                link.download = '2FA_QRCode.png';
-                link.href = canvas.toDataURL('image/png');
-                link.click();
+            const container = document.getElementById('qrcode');
+            if (!container) return;
+
+            const canvas = container.querySelector('canvas');
+            const image = container.querySelector('img');
+            const imageUrl = canvas ? canvas.toDataURL('image/png') : (image ? image.src : null);
+
+            if (!imageUrl) {
+                alert('The QR code has not finished rendering.');
+                return;
             }
+
+            const link = document.createElement('a');
+            link.href = imageUrl;
+            link.download = '2FA_QRCode.png';
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
         }
     </script>
 <?php endif; ?>
-
-</body>
 
 </html>
