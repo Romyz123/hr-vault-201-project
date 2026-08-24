@@ -1,7 +1,7 @@
 <?php
 // ======================================================
 // [FILE] public/data_validation_report.php
-// [PURPOSE] Identify employees with missing IDs or Photos
+// [PURPOSE] Identify employees with missing IDs or Photos + Excel Export
 // ======================================================
 
 require '../config/db.php';
@@ -89,13 +89,193 @@ foreach ($employees as $emp) {
 }
 $stats['total'] = count($flagged);
 
+// --- Handle Excel (CSV) Export Request ---
+if (isset($_GET['export']) && $_GET['export'] === 'excel') {
+    // Clear output buffers to ensure clean CSV stream
+    while (ob_get_level()) {
+        ob_end_clean();
+    }
+
+    $filename = "Data_Validation_Report_" . date('Y-m-d') . ".csv";
+
+    header('Content-Type: text/csv; charset=utf-8');
+    header('Content-Disposition: attachment; filename="' . $filename . '"');
+
+    $output = fopen('php://output', 'w');
+
+    // Add UTF-8 BOM for proper Excel character encoding compatibility
+    fprintf($output, chr(0xEF) . chr(0xBB) . chr(0xBF));
+
+    // CSV Header row
+    fputcsv($output, ['Employee ID', 'Last Name', 'First Name', 'Department', 'Agency', 'Photo Status', 'Missing Government IDs', 'Missing 201 Files']);
+
+    // CSV Data rows
+    foreach ($flagged as $f) {
+        fputcsv($output, [
+            $f['data']['emp_id'],
+            $f['data']['last_name'],
+            $f['data']['first_name'],
+            $f['data']['dept'],
+            $f['data']['agency_name'] ?? 'N/A',
+            $f['missing_photo'] ? 'Missing' : 'OK',
+            implode(', ', $f['missing_id_nums']),
+            implode(', ', $f['missing_docs'])
+        ]);
+    }
+
+    fclose($output);
+    exit;
+}
+
 require 'header.php';
 ?>
 
+<style>
+    /* Professional Print / Excel Table Styles */
+    @media print {
+
+        nav,
+        .breadcrumb,
+        .card-header form,
+        .btn,
+        .no-print,
+        th:last-child,
+        td:last-child {
+            display: none !important;
+        }
+
+        body {
+            background-color: #ffffff !important;
+            color: #000000 !important;
+            font-family: Arial, sans-serif !important;
+            font-size: 10pt !important;
+        }
+
+        .container {
+            width: 100% !important;
+            max-width: 100% !important;
+            padding: 0 !important;
+            margin: 0 !important;
+        }
+
+        .print-header {
+            display: block !important;
+            text-align: center;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #333;
+            padding-bottom: 10px;
+        }
+
+        .print-header h2 {
+            font-size: 16pt;
+            font-weight: bold;
+            margin: 0 0 5px 0;
+            text-transform: uppercase;
+        }
+
+        .print-header p {
+            font-size: 9pt;
+            color: #555;
+            margin: 0;
+        }
+
+        .row.g-3.mb-4 {
+            display: flex !important;
+            flex-wrap: nowrap !important;
+            gap: 10px !important;
+            margin-bottom: 15px !important;
+        }
+
+        .row.g-3.mb-4 .col-md-3 {
+            flex: 1 !important;
+            max-width: 25% !important;
+        }
+
+        .card {
+            border: 1px solid #ccc !important;
+            box-shadow: none !important;
+            border-radius: 0 !important;
+        }
+
+        .card-body {
+            padding: 8px !important;
+        }
+
+        .card-body h6 {
+            font-size: 8pt !important;
+            color: #333 !important;
+        }
+
+        .card-body h2 {
+            font-size: 14pt !important;
+        }
+
+        .card.shadow-sm {
+            border: none !important;
+            box-shadow: none !important;
+        }
+
+        .table-responsive {
+            overflow: visible !important;
+        }
+
+        .table {
+            width: 100% !important;
+            border-collapse: collapse !important;
+            margin-top: 10px;
+        }
+
+        .table th {
+            background-color: #f2f2f2 !important;
+            color: #000000 !important;
+            border: 1px solid #000000 !important;
+            font-size: 9pt !important;
+            font-weight: bold;
+            text-align: left;
+            padding: 6px !important;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+        }
+
+        .table td {
+            border: 1px solid #cccccc !important;
+            padding: 5px 6px !important;
+            font-size: 9pt !important;
+            vertical-align: middle !important;
+        }
+
+        .badge {
+            border: 1px solid #999 !important;
+            background: transparent !important;
+            color: #000 !important;
+            font-size: 8pt !important;
+            padding: 2px 4px !important;
+            font-weight: normal !important;
+        }
+    }
+
+    .print-header {
+        display: none;
+    }
+</style>
+
 <div class="container mt-4">
+    <div class="print-header">
+        <h2>TES Philippines, Inc. - HR Department</h2>
+        <p>Employee Data Validation & Compliance Report | Generated on: <?php echo date('F d, Y'); ?></p>
+    </div>
+
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h4><i class="bi bi-shield-exclamation text-danger"></i> Data Validation Report</h4>
-        <div class="btn-group">
+        <div class="btn-group gap-2">
+            <!-- New Excel Export Button -->
+            <?php
+            // Preserve current filters for the excel export link
+            $exportQuery = $_GET;
+            $exportQuery['export'] = 'excel';
+            $exportUrl = 'data_validation_report.php?' . http_build_query($exportQuery);
+            ?>
+            <a href="<?php echo $exportUrl; ?>" class="btn btn-outline-success btn-sm"><i class="bi bi-file-earmark-excel"></i> Export to Excel</a>
             <button onclick="window.print()" class="btn btn-outline-dark btn-sm"><i class="bi bi-printer"></i> Print Report</button>
         </div>
     </div>
@@ -105,7 +285,7 @@ require 'header.php';
         <div class="col-md-3">
             <div class="card border-start border-danger border-4 shadow-sm">
                 <div class="card-body">
-                    <h6 class="text-muted small text-uppercase fw-bold">Total Flagged Employees</h6>
+                    <h6 class="text-muted small text-uppercase fw-bold">Total Flagged</h6>
                     <h2 class="mb-0"><?php echo $stats['total']; ?></h2>
                 </div>
             </div>
@@ -113,7 +293,7 @@ require 'header.php';
         <div class="col-md-3">
             <div class="card border-start border-warning border-4 shadow-sm">
                 <div class="card-body">
-                    <h6 class="text-muted small text-uppercase fw-bold">Incomplete Govt IDs</h6>
+                    <h6 class="text-muted small text-uppercase fw-bold">Incomplete IDs</h6>
                     <h2 class="mb-0"><?php echo $stats['missing_ids']; ?></h2>
                 </div>
             </div>
@@ -121,7 +301,7 @@ require 'header.php';
         <div class="col-md-3">
             <div class="card border-start border-info border-4 shadow-sm">
                 <div class="card-body">
-                    <h6 class="text-muted small text-uppercase fw-bold">Missing Profile Photos</h6>
+                    <h6 class="text-muted small text-uppercase fw-bold">Missing Photos</h6>
                     <h2 class="mb-0"><?php echo $stats['missing_photos']; ?></h2>
                 </div>
             </div>

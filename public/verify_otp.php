@@ -6,7 +6,8 @@ require '../src/GoogleAuthenticator.php';
 session_start();
 
 // Redirect if no partial login session
-if (!isset($_SESSION['partial_user_id'])) {
+if (!isset($_SESSION['partial_user_id']) || !isset($_SESSION['partial_login_at']) || time() - (int)$_SESSION['partial_login_at'] > 300) {
+    unset($_SESSION['partial_user_id'], $_SESSION['partial_login_at'], $_SESSION['pending_totp_secret']);
     header("Location: login.php");
     exit;
 }
@@ -30,6 +31,8 @@ if (!$user) {
 $isFirstTimeSetup = false;
 $otpauthUrl = '';
 $manualSecret = '';
+$issuer = 'TESP HR Vault';
+$accountName = (string)($user['username'] ?? 'User');
 
 // Generate a new secret if they don't have one yet (do not persist until verified)
 $secret = $user['totp_secret'] ?? '';
@@ -43,10 +46,9 @@ if (empty($secret)) {
 }
 
 if ($isFirstTimeSetup) {
-    $qrData = GoogleAuthenticator::getQRCodeDataUri($user['username'], $secret);
+    $qrData = GoogleAuthenticator::getQRCodeDataUri($accountName, $secret, $issuer);
     $manualSecret = $qrData['secret'];
-    // Build the raw OTP URI for offline JS QR generation
-    $otpauthUrl = "otpauth://totp/TESP%20HR%20Vault:" . rawurlencode($user['username']) . "?secret=" . $manualSecret . "&issuer=TESP%20HR%20Vault";
+    $otpauthUrl = $qrData['uri'];
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -140,6 +142,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
             // SUCCESS: Log them in fully
+            session_regenerate_id(true);
             $_SESSION['user_id'] = $user['id'];
             $_SESSION['username'] = $user['username'];
             $_SESSION['role'] = $user['role'];
@@ -161,7 +164,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // Reset failed attempts upon successful 2FA
             $pdo->prepare("UPDATE users SET failed_attempts = 0, locked_until = NULL WHERE id = ?")->execute([$userId]);
 
-            unset($_SESSION['partial_user_id']);
+            unset($_SESSION['partial_user_id'], $_SESSION['partial_login_at']);
 
             $logMsg = $isBackupCode ? "2FA Verified Successfully using Backup Code" : "2FA Verified Successfully";
             $logger->log($user['id'], 'LOGIN_2FA', $logMsg);
@@ -235,7 +238,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <p class="text-muted small"><strong>First Time Setup:</strong> Scan this QR code using an Authenticator app (Google Authenticator, Authy, or Microsoft Authenticator).</p>
                 <div class="mb-3 d-flex flex-column align-items-center">
                     <div id="qrcode" class="p-2 bg-white border rounded" style="min-width: 160px; min-height: 160px;">
-                        <img src="https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=<?php echo urlencode($otpauthUrl); ?>" alt="QR Code" style="width: 160px; height: 160px;">
+                        <noscript>Enable JavaScript to generate the QR code locally, or enter the key below manually.</noscript>
                     </div>
                     <div class="mt-2">
                         <button type="button" class="btn btn-sm btn-outline-secondary" onclick="saveQRCode()"><i class="bi bi-download"></i> Save QR Code</button>
@@ -297,12 +300,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             colorLight: "#ffffff",
                             correctLevel: QRCode.CorrectLevel.M
                         });
-                        // Only replace the fallback if rendering was successful
                         qrCodeDiv.innerHTML = "";
-                        qrCodeDiv.appendChild(temp.firstChild);
                         while (temp.firstChild) qrCodeDiv.appendChild(temp.firstChild);
                     } catch (e) {
-                        console.error("Local QR Render failed, keeping fallback.");
+                        console.error("Local QR Render failed.", e);
                     }
                 }
             });

@@ -7,7 +7,7 @@ class FileService
     private $manifestFile;
     // [SECURITY] Encryption Key (In production, move this to config.php or .env)
     private $key;
-    private $cipher = 'aes-256-cbc';
+    private $cipher = 'aes-256-gcm';
 
     public function __construct($vaultPath)
     {
@@ -20,6 +20,9 @@ class FileService
                 throw new Exception("Failed to create vault directory: " . $this->vaultPath);
             }
         }
+        if (!is_writable($this->vaultPath)) {
+            throw new Exception("Vault directory is not writable.");
+        }
 
         // [SECURITY] Protect vault from direct web access if within web root
         $htaccess = $this->vaultPath . '.htaccess';
@@ -30,7 +33,7 @@ class FileService
         // The Fail-Safe Map (Text file)
         $this->manifestFile = $this->vaultPath . 'manifest_DO_NOT_DELETE.txt';
 
-        // [FIXED] Load Key directly from config.php
+        // Load the installation secret from protected configuration.
         $config = require __DIR__ . '/../config/config.php';
 
         if (!empty($config['VAULT_KEY'])) {
@@ -44,22 +47,31 @@ class FileService
     private function encrypt($data)
     {
         $ivlen = openssl_cipher_iv_length($this->cipher);
-        $iv = random_bytes($ivlen); // [SECURITY] MHI Compliance: Use CSPRNG
-        // [FIX] Use OPENSSL_RAW_DATA for cleaner binary handling
-        $ciphertext = openssl_encrypt($data, $this->cipher, $this->key, OPENSSL_RAW_DATA, $iv);
+        $iv = random_bytes($ivlen);
+        $tag = '';
+        $ciphertext = openssl_encrypt($data, $this->cipher, hash('sha256', $this->key, true), OPENSSL_RAW_DATA, $iv, $tag);
         if ($ciphertext === false) return false;
-        return base64_encode($iv . $ciphertext);
+        return base64_encode("GCM1" . $iv . $tag . $ciphertext);
     }
 
     public function decrypt($data)
     {
-        $data = base64_decode($data);
+        $data = base64_decode($data, true);
+        if ($data === false) return false;
+        $key = hash('sha256', $this->key, true);
         $ivlen = openssl_cipher_iv_length($this->cipher);
-        if (strlen($data) < $ivlen) return false;
-        $iv = substr($data, 0, $ivlen);
-        $ciphertext = substr($data, $ivlen);
-        // [FIX] Use OPENSSL_RAW_DATA to match encrypt
-        return openssl_decrypt($ciphertext, $this->cipher, $this->key, OPENSSL_RAW_DATA, $iv);
+        if (strncmp($data, 'GCM1', 4) === 0) {
+            if (strlen($data) < 4 + $ivlen + 16) return false;
+            $iv = substr($data, 4, $ivlen);
+            $tag = substr($data, 4 + $ivlen, 16);
+            $ciphertext = substr($data, 4 + $ivlen + 16);
+            return openssl_decrypt($ciphertext, $this->cipher, $key, OPENSSL_RAW_DATA, $iv, $tag);
+        }
+
+        // Read pre-GCM vault entries during migration; all new entries are authenticated.
+        $legacyIvlen = openssl_cipher_iv_length('aes-256-cbc');
+        if (strlen($data) < $legacyIvlen) return false;
+        return openssl_decrypt(substr($data, $legacyIvlen), 'aes-256-cbc', $this->key, OPENSSL_RAW_DATA, substr($data, 0, $legacyIvlen));
     }
 
     /**
@@ -108,14 +120,42 @@ class FileService
 
     public function getFileContent($filename)
     {
-        $path = $this->vaultPath . $filename;
-        if (!file_exists($path)) return false;
+        if (!is_string($filename) || trim($filename) === '') {
+            return false;
+        }
 
-        $content = file_get_contents($path);
-        $decrypted = $this->decrypt($content);
+        $candidates = [];
+        $normalized = trim($filename);
 
-        // [SECURITY] Strict Mode: Return false if decryption fails.
-        return $decrypted;
+        if (preg_match('/^[a-f0-9-]{36}\.[a-z0-9]{1,10}$/i', $normalized)) {
+            $candidates[] = $this->vaultPath . $normalized;
+        } else {
+            $candidates[] = $this->vaultPath . basename($normalized);
+            $candidates[] = $this->vaultPath . ltrim($normalized, '/\\');
+            $candidates[] = $normalized;
+        }
+
+        $seen = [];
+        foreach ($candidates as $path) {
+            $path = str_replace(['\\', '/'], DIRECTORY_SEPARATOR, $path);
+            if ($path === '' || isset($seen[$path])) continue;
+            $seen[$path] = true;
+
+            if (!file_exists($path) || is_dir($path)) {
+                continue;
+            }
+
+            $content = file_get_contents($path);
+            if ($content === false) {
+                continue;
+            }
+
+            // Support both encrypted vault files and legacy plaintext files.
+            $decoded = $this->decrypt($content);
+            return $decoded !== false ? $decoded : $content;
+        }
+
+        return false;
     }
 
     private function logToManifest($storedName, $realName)

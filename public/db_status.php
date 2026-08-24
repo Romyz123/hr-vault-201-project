@@ -22,6 +22,16 @@ if (empty($_SESSION['csrf_token'])) {
     $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 }
 
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $security = new Security($pdo);
+    try {
+        $security->checkCSRF($_POST['csrf_token'] ?? '');
+    } catch (Exception $e) {
+        http_response_code(403);
+        exit('Forbidden');
+    }
+}
+
 $msg = "";
 $masterVersion = "2.1.0"; // Master Schema Version
 

@@ -1,6 +1,8 @@
 <?php
 require '../config/db.php';
+require '../src/Security.php';
 session_start();
+$security = new Security($pdo);
 $msg = '';
 // [FIX] Include global helper functions
 if (!function_exists('h')) {
@@ -13,16 +15,36 @@ $step = 'verify'; // Default step: Ask for code
 $token = $_GET['token'] ?? '';
 $email = $_GET['email'] ?? '';
 
+if (!$security->checkRateLimit($_SERVER['REMOTE_ADDR'] ?? 'unknown', 5, 300)) {
+    http_response_code(429);
+    exit('Too many reset attempts. Please try again later.');
+}
+
+$tokenAttempts = $_SESSION['reset_token_attempts'] ?? ['count' => 0, 'ts' => time()];
+if (time() - (int)($tokenAttempts['ts'] ?? 0) > 300) {
+    $tokenAttempts = ['count' => 0, 'ts' => time()];
+}
+$token = (string)$token;
+if (strlen($token) < 32 || !preg_match('/^[a-f0-9]+$/i', $token) || (int)$tokenAttempts['count'] >= 5) {
+    if ($token !== '') $tokenAttempts['count']++;
+    $_SESSION['reset_token_attempts'] = $tokenAttempts;
+    $token = '';
+}
+$tokenHash = $token !== '' ? hash('sha256', $token) : '';
+
 // 2. VERIFY TOKEN (If provided via Link or Form)
 if ($token) {
     $stmt = $pdo->prepare("SELECT id, username FROM users WHERE reset_token = ? AND reset_expires > ?");
-    $stmt->execute([$token, date('Y-m-d H:i:s')]);
+    $stmt->execute([$tokenHash, date('Y-m-d H:i:s')]);
     $user = $stmt->fetch();
 
     if ($user) {
         $step = 'reset'; // Token is valid, move to reset step
         // generate CSRF token for reset form
         $_SESSION['reset_csrf'] = bin2hex(random_bytes(32));
+    } else {
+        $tokenAttempts['count']++;
+        $_SESSION['reset_token_attempts'] = $tokenAttempts;
     }
 }
 
@@ -38,11 +60,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
     $pass = $_POST['password'] ?? '';
     $confirm = $_POST['confirm'] ?? '';
-    $validToken = $_POST['token_check'] ?? ''; // Hidden field
+    $validToken = (string)($_POST['token_check'] ?? '');
 
     // Re-verify to be safe
     $stmt = $pdo->prepare("SELECT id, username, password_changed_at FROM users WHERE reset_token = ? AND reset_expires > ?");
-    $stmt->execute([$validToken, date('Y-m-d H:i:s')]);
+    $stmt->execute([hash('sha256', $validToken), date('Y-m-d H:i:s')]);
     $user = $stmt->fetch();
 
     if ($user) {

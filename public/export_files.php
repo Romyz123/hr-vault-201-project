@@ -28,7 +28,12 @@ if (isset($_GET['download_part'])) {
         exit;
     }
 
-    $exportDir = __DIR__ . '/../backups/exports';
+    $config = require '../config/config.php';
+    $exportDir = rtrim((string)($config['BACKUP_PATH'] ?? __DIR__ . '/../backups'), '/\\') . DIRECTORY_SEPARATOR . 'exports';
+    if (!is_dir($exportDir) && !mkdir($exportDir, 0700, true) && !is_dir($exportDir)) {
+        http_response_code(500);
+        exit;
+    }
     $exportDirReal = realpath($exportDir);
     $filePath = realpath($exportDir . DIRECTORY_SEPARATOR . $requested);
 

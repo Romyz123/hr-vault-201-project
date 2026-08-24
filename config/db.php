@@ -94,10 +94,10 @@ try {
     $envHost = (string)($_ENV['DB_HOST'] ?? '127.0.0.1');
     $dbHost  = ($envHost === 'localhost') ? '127.0.0.1' : $envHost;
 
-    $port    = (int)($_ENV['DB_PORT'] ?? 3307);
-    $dbName  = (string)($_ENV['DB_NAME'] ?? '');
+    $port    = (int)($_ENV['DB_PORT'] ?? 3306);
+    $dbName  = (string)($_ENV['DB_NAME'] ?? 'hr201_local');
     $charset = (string)($_ENV['DB_CHARSET'] ?? 'utf8mb4');
-    $dbUser  = (string)($_ENV['DB_USER'] ?? '');
+    $dbUser  = (string)($_ENV['DB_USER'] ?? 'root');
     $dbPass  = (string)($_ENV['DB_PASS'] ?? '');
 
     $dsn = "mysql:host={$dbHost};port={$port};dbname={$dbName};charset={$charset}";

@@ -67,13 +67,20 @@ if (!class_exists('ZipArchive')) {
 }
 
 // 3. PREPARE PATHS
-$backupDir = !empty($customPath) ? $customPath : realpath(__DIR__ . '/../backups');
+$config = require __DIR__ . '/../config/config.php';
+$defaultBackupDir = rtrim((string)($config['BACKUP_PATH'] ?? __DIR__ . '/../backups'), '/\\');
+$backupDir = !empty($customPath) ? $customPath : $defaultBackupDir;
 if (!$backupDir) {
     $backupDir = __DIR__ . '/../backups';
 }
 
-if ($backupDir && !is_dir($backupDir)) @mkdir($backupDir, 0755, true);
+if ($backupDir && !is_dir($backupDir)) @mkdir($backupDir, 0700, true);
 if ($backupDir) $backupDir = realpath($backupDir);
+if (!$backupDir || !is_writable($backupDir)) {
+    $success = false;
+    $errorMessage = 'Backup directory is unavailable or not writable.';
+    goto backup_end;
+}
 
 $dateStr = date('Y-m-d_H-i-s');
 $baseName = "AutoBackup_" . $dateStr;

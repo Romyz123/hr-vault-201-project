@@ -84,6 +84,15 @@ if (empty($_POST['csrf_token']) || !hash_equals($_SESSION['csrf_token'] ?? '', $
 
 // [NEW] Fetch System Settings
 $config = require '../config/config.php';
+$backupRoot = rtrim((string)($config['BACKUP_PATH'] ?? dirname(__DIR__) . DIRECTORY_SEPARATOR . 'backups'), '/\\');
+if (!is_dir($backupRoot) && !mkdir($backupRoot, 0700, true) && !is_dir($backupRoot)) {
+    http_response_code(500);
+    exit('Backup directory is unavailable.');
+}
+if (!is_writable($backupRoot)) {
+    http_response_code(500);
+    exit('Backup directory is not writable.');
+}
 $settings = [];
 try {
     $stmt = $pdo->query("SELECT setting_key, setting_value FROM system_settings");
@@ -206,7 +215,7 @@ if ($useZip) {
         if ($mode === 'server') {
             // MIRROR MODE (When saving directly to server)
             $customPath = $settings['backup_path'] ?? '';
-            $primaryPath = (!empty($customPath) && is_dir($customPath)) ? $customPath : realpath(__DIR__ . '/../backups');
+            $primaryPath = (!empty($customPath) && is_dir($customPath)) ? $customPath : $backupRoot;
             $mirrorPath = rtrim($primaryPath, '/\\') . DIRECTORY_SEPARATOR . 'vault_mirror';
             if (!is_dir($mirrorPath)) @mkdir($mirrorPath, 0755, true);
 
@@ -276,7 +285,7 @@ setcookie("downloadToken", $_POST['csrf_token'] ?? '1', time() + 300, "/");
 if ($mode === 'server') {
     // [FIX] Use path from settings or default
     $customPath = $settings['backup_path'] ?? '';
-    $defaultBackupPath = __DIR__ . '/../backups';
+    $defaultBackupPath = $backupRoot;
     $primaryPath = !empty($customPath) ? $customPath : (realpath($defaultBackupPath) ?: $defaultBackupPath);
 
     if (!is_dir($primaryPath)) {

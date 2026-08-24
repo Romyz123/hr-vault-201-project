@@ -43,6 +43,8 @@ $currentEmail = $currentUser['email'] ?? '';
 $currentQuestion = $currentUser['security_question'] ?? '';
 $hasCodes = !empty($currentUser['recovery_codes']) && $currentUser['recovery_codes'] !== '[]';
 $currentTotpSecret = $currentUser['totp_secret'] ?? '';
+$issuer = 'TESP HR Vault';
+$accountName = (string)($_SESSION['username'] ?? $currentEmail ?? 'User');
 
 function buildTotpProvisioning(string $secret, string $issuer, string $accountName): array
 {
@@ -65,8 +67,6 @@ function buildTotpProvisioning(string $secret, string $issuer, string $accountNa
 $otpauthUrl = '';
 $manualSecret = '';
 if (!empty($currentTotpSecret)) {
-    $issuer = 'TESP HR Vault';
-    $accountName = $_SESSION['username'] ?? $currentEmail ?? 'User';
     ['manualSecret' => $manualSecret, 'otpauthUrl' => $otpauthUrl] = buildTotpProvisioning($currentTotpSecret, $issuer, $accountName);
 }
 
@@ -76,26 +76,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         $alertType = "error";
         $alertMsg = "❌ Security Token Mismatch. Please refresh.";
     } else {
-        $new_email = trim($_POST['email'] ?? '');
-        if (strlen($new_email) > 100) {
+        $currentPassword = $_POST['current_password'] ?? '';
+        $passwordStmt = $pdo->prepare("SELECT password FROM users WHERE id = ?");
+        $passwordStmt->execute([$_SESSION['user_id']]);
+        $passwordHash = $passwordStmt->fetchColumn();
+        if (!$passwordHash || !password_verify($currentPassword, $passwordHash)) {
             $alertType = "error";
-            $alertMsg = "❌ Email is too long (Max 100 characters).";
-        } elseif (filter_var($new_email, FILTER_VALIDATE_EMAIL)) {
-            // Check uniqueness
-            $chk = $pdo->prepare("SELECT id FROM users WHERE email = ? AND id != ?");
-            $chk->execute([$new_email, $_SESSION['user_id']]);
-            if ($chk->rowCount() > 0) {
+            $alertMsg = "❌ Current password is incorrect.";
+        }
+
+        if ($alertType !== "error") {
+            $new_email = trim($_POST['email'] ?? '');
+            if (strlen($new_email) > 100) {
                 $alertType = "error";
-                $alertMsg = "❌ Email is already in use by another account.";
+                $alertMsg = "❌ Email is too long (Max 100 characters).";
+            } elseif (filter_var($new_email, FILTER_VALIDATE_EMAIL)) {
+                // Check uniqueness
+                $chk = $pdo->prepare("SELECT id FROM users WHERE email = ? AND id != ?");
+                $chk->execute([$new_email, $_SESSION['user_id']]);
+                if ($chk->rowCount() > 0) {
+                    $alertType = "error";
+                    $alertMsg = "❌ Email is already in use by another account.";
+                } else {
+                    $pdo->prepare("UPDATE users SET email = ? WHERE id = ?")->execute([$new_email, $_SESSION['user_id']]);
+                    $alertType = "success";
+                    $alertMsg = "✅ Email address updated successfully.";
+                    $currentEmail = $new_email;
+                }
             } else {
-                $pdo->prepare("UPDATE users SET email = ? WHERE id = ?")->execute([$new_email, $_SESSION['user_id']]);
-                $alertType = "success";
-                $alertMsg = "✅ Email address updated successfully.";
-                $currentEmail = $new_email;
+                $alertType = "error";
+                $alertMsg = "❌ Invalid email format.";
             }
-        } else {
-            $alertType = "error";
-            $alertMsg = "❌ Invalid email format.";
         }
     }
 }
@@ -153,7 +164,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                             $new_hash = password_hash($new_pass, PASSWORD_BCRYPT);
                             $pdo->beginTransaction();
                             try {
-                                $pdo->prepare("UPDATE users SET password = ?, password_changed_at = NOW() WHERE id = ?")->execute([$new_hash, $_SESSION['user_id']]);
+                                $pdo->prepare("UPDATE users SET password = ?, password_changed_at = NOW(), reset_token = NULL, reset_expires = NULL, trusted_device_token = NULL, trusted_device_expires = NULL WHERE id = ?")->execute([$new_hash, $_SESSION['user_id']]);
                                 $security->logPasswordHistory($_SESSION['user_id'], $new_hash);
                                 $pdo->commit();
                                 $alertType = "success";
@@ -280,6 +291,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                     <form method="POST">
                         <input type="hidden" name="action" value="update_email">
                         <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token); ?>">
+                        <input type="password" name="current_password" class="form-control mb-2" placeholder="Current password" autocomplete="current-password" required>
                         <div class="input-group">
                             <input type="email" name="email" class="form-control" placeholder="Enter your email..." value="<?php echo htmlspecialchars($currentEmail); ?>" maxlength="100" required>
                             <button class="btn btn-info text-white" type="submit">Save Email</button>
@@ -687,9 +699,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 </script>
 
 <?php if (!empty($currentTotpSecret) && !empty($otpauthUrl)): ?>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"
-        integrity="sha512-CNgIRecGo7nphbeZ04Sc13ka07paqdeTu0WR1IM4kNcpmBAUSHSQX0FslNhTDadL4O5SAGapGt4FodqL8My0mA=="
-        crossorigin="anonymous"></script>
+    <script src="assets/qrcode.min.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             const qrContainer = document.getElementById('qrcode');

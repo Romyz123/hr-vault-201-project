@@ -74,8 +74,9 @@ function return_bytes($val)
     }
     return $val;
 }
-$maxUploadBytes = min(return_bytes(ini_get('upload_max_filesize')), return_bytes(ini_get('post_max_size')));
-if ($maxUploadBytes <= 0) $maxUploadBytes = 128 * 1024 * 1024; // Fallback to 128MB
+$configuredUploadBytes = (int)($config['MAX_UPLOAD_BYTES'] ?? 52428800);
+$phpUploadBytes = min(return_bytes(ini_get('upload_max_filesize')), return_bytes(ini_get('post_max_size')));
+$maxUploadBytes = $phpUploadBytes > 0 ? min($configuredUploadBytes, $phpUploadBytes) : $configuredUploadBytes;
 $maxUploadMB = floor($maxUploadBytes / (1024 * 1024));
 
 // [NEW] Fetch Vault Usage Details

@@ -244,4 +244,6 @@ require 'header.php';
     </div>
 </div>
 
+<!-- Ensure Bootstrap JS bundle is available for navigation dropdowns -->
+<script src="assets/bootstrap.bundle.min.js"></script>
 <?php require 'footer.php'; ?>

@@ -15,7 +15,7 @@ if (!isset($_SESSION['user_id'])) {
 
 try {
     $userId = (int) $_SESSION['user_id'];
-    $userRole = $_SESSION['role'] ?? '';
+    $userRole = strtoupper(trim((string)($_SESSION['role'] ?? '')));
     $isHrRole = in_array($userRole, ['ADMIN', 'MANAGER', 'HR'], true);
 
     $hideZeros = $_SESSION['hide_chart_zeros'] ?? false;
@@ -88,7 +88,6 @@ try {
 
     // [NEW] Check Pending Requests (For Admin/HR)
     $pendingHtml = '';
-    $userRole = $_SESSION['role'] ?? '';
     $pCount = 0;
     if ($isHrRole) {
         // [FIX] Only count PENDING requests so approved ones disappear

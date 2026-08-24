@@ -4,6 +4,7 @@ ob_start();
 require '../config/db.php';
 require '../src/Security.php';
 require '../src/FileService.php';
+require '../src/Logger.php';
 session_start();
 
 // [FIX] Load Config to ensure VAULT_PATH is available
@@ -28,15 +29,18 @@ if (!is_numeric($req_id)) {
     exit('Invalid Request ID');
 }
 
-// Fetch the pending request
-$stmt = $pdo->prepare("SELECT json_payload FROM requests WHERE id = ?");
+// Fetch the pending request and validate request type
+$stmt = $pdo->prepare("SELECT json_payload, request_type FROM requests WHERE id = ?");
 $stmt->execute([$req_id]);
 $req = $stmt->fetch();
 
-if (!$req) {
+if (!$req || $req['request_type'] !== 'UPLOAD_DOC') {
     http_response_code(404);
-    exit('Request not found.');
+    exit('Request not found or invalid request type.');
 }
+
+$logger = new Logger($pdo);
+$logger->log((int)$_SESSION['user_id'], 'VIEW_PENDING_DOCUMENT', 'Viewed pending request ' . (int)$req_id);
 
 // Decode JSON to find the file path
 $data = json_decode($req['json_payload'], true);

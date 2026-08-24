@@ -18,6 +18,7 @@ if (!function_exists('checkSessionTimeout')) {
 }
 session_start();
 checkSessionTimeout($pdo); // [SECURITY] Enforce Timeout
+$userRole = strtoupper(trim((string)($_SESSION['role'] ?? '')));
 
 $logger = new Logger($pdo);
 // [UX] Fetch Client Timeout
@@ -61,7 +62,7 @@ if (empty($_SESSION['csrf_token'])) {
 }
 
 // ---------- 2) ACTION HANDLERS (CRUD) ----------
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($_SESSION['role'], ['ADMIN', 'MANAGER', 'HR', 'STAFF'])) {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($userRole, ['ADMIN', 'MANAGER', 'HR', 'STAFF'], true)) {
     // [SECURITY] Verify CSRF Token
     if (empty($_POST['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'])) {
         die(json_encode(['status' => 'error', 'message' => 'Invalid CSRF Token']));
@@ -70,7 +71,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($_SESSION['role'], ['ADMIN
     if (isset($_POST['action'])) {
         if ($_POST['action'] === 'add_req') {
             // [SECURITY] Staff cannot manage requirements
-            if ($_SESSION['role'] === 'STAFF') {
+            if ($userRole === 'STAFF') {
                 header("Location: tracker.php?error=" . urlencode("Access Denied."));
                 exit;
             }
@@ -487,8 +488,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($_SESSION['role'], ['ADMIN
 
             if ($docId && $newName) {
                 // [SECURITY] Validate Filename Characters
-                if (!preg_match('/^[a-zA-Z0-9\s\-\.\(\)_]+$/', $newName)) {
-                    header("Location: tracker.php?report=misclassified&error=" . urlencode("❌ Invalid filename. Allowed: Alphanumeric, Spaces, Dots, Dashes, Underscores, Parentheses."));
+                if ($newName === '.' || $newName === '..' || preg_match('/[\\\/\:\*\?"<>|\x00-\x1F]/', $newName)) {
+                    header("Location: tracker.php?report=misclassified&error=" . urlencode("❌ Invalid filename. Do not use path separators or Windows reserved characters."));
                     exit;
                 }
                 if (strlen($newName) > 100) {
@@ -509,7 +510,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($_SESSION['role'], ['ADMIN
                     }
 
                     // [STAFF WORKFLOW] Create a request
-                    if ($_SESSION['role'] === 'STAFF') {
+                    if ($userRole === 'STAFF') {
                         $payload = [
                             'new_name' => $newName,
                             'original_details' => $currentDoc
@@ -523,7 +524,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($_SESSION['role'], ['ADMIN
                     }
 
                     // [ADMIN/HR/MANAGER WORKFLOW] Direct update
-                    $pdo->prepare("UPDATE documents SET original_name = ?, updated_at = NOW() WHERE id = ?")->execute([$newName, $docId]);
+                    // Keep the rename independent of optional audit columns on older databases.
+                    try {
+                        $renameStmt = $pdo->prepare("UPDATE documents SET original_name = ? WHERE id = ?");
+                        $renameStmt->execute([$newName, $docId]);
+                    } catch (PDOException $e) {
+                        error_log('Tracker rename error: ' . $e->getMessage());
+                        header("Location: tracker.php?report=misclassified&error=" . urlencode("Unable to rename this document. Please check the database connection."));
+                        exit;
+                    }
+                } else {
+                    header("Location: tracker.php?report=misclassified&error=" . urlencode("Document not found."));
+                    exit;
                 }
                 header("Location: tracker.php?report=misclassified&msg=" . urlencode("✅ File renamed."));
                 $logger->log($_SESSION['user_id'], 'RENAME_DOCUMENT', "Renamed document ID: $docId from {$currentDoc['original_name']} to $newName");
@@ -1364,9 +1376,10 @@ $paginatedEmployees = array_slice($employees, $offset, $perPage);
                                                     <span class="badge bg-secondary">Keyword Mismatch</span>
                                                 <?php endif; ?>
                                             </td>
-                                            <td>
-                                                <a href="view_doc.php?id=<?php echo $doc['file_uuid']; ?>&embed=1" target="_blank" class="btn btn-sm btn-info text-white py-0 px-1" title="Preview"><i class="bi bi-eye"></i></a>
-                                                <button type="button" class="btn btn-xs btn-outline-primary" onclick="renameFile(<?php echo (int)$doc['id']; ?>, <?php echo htmlspecialchars(json_encode($doc['original_name']), ENT_QUOTES, 'UTF-8'); ?>)">Rename</button>
+
+
+                                            <td><a href="view_doc.php?id=<?php echo (int)$doc['id']; ?>&embed=1" target="_blank" class="btn btn-sm btn-info text-white py-0 px-1" title="Preview"><i class="bi bi-eye"></i></a>
+                                                <button type="button" class="btn btn-xs btn-outline-primary rename-file-btn" data-doc-id="<?php echo (int)$doc['id']; ?>" data-old-name="<?php echo htmlspecialchars($doc['original_name'], ENT_QUOTES, 'UTF-8'); ?>" onclick="event.stopPropagation(); return renameFile(this.dataset.docId, this.dataset.oldName);">Rename</button>
                                                 <button type="button" class="btn btn-xs btn-outline-dark" onclick="prepareMove(event, '<?php echo $doc['id']; ?>')">Select</button>
                                             </td>
                                         </tr>
@@ -1380,6 +1393,8 @@ $paginatedEmployees = array_slice($employees, $offset, $perPage);
         </div>
     </div>
 </div>
+
+
 
 <!-- RENAME FORM (Hidden) -->
 <form id="renameForm" method="POST" style="display:none;">
@@ -1780,22 +1795,25 @@ $paginatedEmployees = array_slice($employees, $offset, $perPage);
 
     // [NEW] Rename Logic
     function renameFile(id, oldName) {
-        Swal.fire({
-            title: 'Rename File',
-            input: 'text',
-            inputValue: oldName,
-            showCancelButton: true,
-            inputValidator: (value) => {
-                if (!value) return 'You need to write something!'
-            }
-        }).then((result) => {
-            if (result.isConfirmed) {
-                document.getElementById('renameDocId').value = id;
-                document.getElementById('renameNewName').value = result.value;
-                document.getElementById('renameForm').submit();
-            }
-        });
+        const requestedName = window.prompt('Enter the new file name:', oldName || '');
+        if (requestedName === null) return false;
+
+        const newName = requestedName.trim();
+        if (!newName) {
+            window.alert('Please enter a file name.');
+            return false;
+        }
+
+        document.getElementById('renameDocId').value = id;
+        document.getElementById('renameNewName').value = newName;
+        document.getElementById('renameForm').submit();
+        return false;
     }
+
+    document.addEventListener('click', function(event) {
+        const button = event.target.closest('.rename-file-btn');
+        if (button) renameFile(button.dataset.docId, button.dataset.oldName);
+    });
 
     function toggleBulk(source) {
         document.querySelectorAll('.bulk-check').forEach(cb => cb.checked = source.checked);

@@ -58,7 +58,7 @@ return [
 
     // Security Keys
     'VAULT_PATH' => __DIR__ . '/../vault/',
-    'VAULT_KEY'  => 'GENERATE_RANDOM_32_CHAR_STRING_HERE!!'
+    'VAULT_KEY'  => getenv('VAULT_KEY')
 ];
 ```
 
@@ -68,6 +68,12 @@ Ensure the web server user (e.g., `www-data`, `apache`, or `IUSR`) has **Write**
 
 - `vault/` (For encrypted documents)
 - `public/uploads/` (For avatars and temporary files)
+- `backups/` (For generated backup archives)
+
+For the default XAMPP setup, start MySQL on port `3306` with database `hr201_local`, user `root`, and an empty password. The application reads database, vault, backup, and upload settings from protected environment variables. Copy `config/config.example.php` as a deployment reference and set `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASS`, `VAULT_KEY`, `VAULT_PATH`, `BACKUP_PATH`, and `MAX_UPLOAD_BYTES` in Apache or the deployment service.
+
+Never rotate `VAULT_KEY` by replacing it alone. Follow `migrations/README.md` to re-encrypt existing vault files during a maintenance window.
+
 - `backups/` (For system backups)
 
 ### Step 5: Database Initialization

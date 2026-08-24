@@ -553,9 +553,12 @@ try {
         FROM documents d 
         JOIN employees e ON d.employee_id = e.emp_id 
         WHERE d.expiry_date <= LAST_DAY(DATE_ADD(CURDATE(), INTERVAL 6 MONTH))
-          AND d.deleted_at IS NULL 
-          AND d.is_resolved = 0
-          AND e.status = 'Active'";
+                    AND d.is_resolved = 0
+                    AND e.status = 'Active'";
+
+    if (!$includeDeleted) {
+        $expSQL .= " AND d.deleted_at IS NULL ";
+    }
 
     $expParams = [];
     if ($jobSearch !== '') {
@@ -582,6 +585,10 @@ try {
             $expParams[] = $agencyFilter;
         }
     }
+    if ($genderFilter !== '') {
+        $expSQL .= " AND e.gender = ? ";
+        $expParams[] = $genderFilter;
+    }
     $expSQL .= "
         GROUP BY ym, d.category
     ";
@@ -607,7 +614,10 @@ try {
 
     // Determine if we have overdue documents to trigger the red border (Respecting current filters)
     $overdueCheckSQL = "SELECT COUNT(*) FROM documents d JOIN employees e ON d.employee_id = e.emp_id 
-                        WHERE d.expiry_date < CURDATE() AND d.deleted_at IS NULL AND d.is_resolved = 0 AND e.status = 'Active'";
+                        WHERE d.expiry_date < CURDATE() AND d.is_resolved = 0 AND e.status = 'Active'";
+    if (!$includeDeleted) {
+        $overdueCheckSQL .= " AND d.deleted_at IS NULL ";
+    }
     $checkParams = [];
     if ($jobSearch !== '') {
         $overdueCheckSQL .= " AND e.job_title LIKE ? ";
@@ -631,6 +641,10 @@ try {
             $overdueCheckSQL .= " AND e.agency_name = ? ";
             $checkParams[] = $agencyFilter;
         }
+    }
+    if ($genderFilter !== '') {
+        $overdueCheckSQL .= " AND e.gender = ? ";
+        $checkParams[] = $genderFilter;
     }
     $chkStmt = $pdo->prepare($overdueCheckSQL);
     $chkStmt->execute($checkParams);

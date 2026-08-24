@@ -13,6 +13,7 @@ session_start();
 // [FIX] Load Config to ensure VAULT_PATH is available
 $config = require '../config/config.php';
 $vaultPath = $config['VAULT_PATH'] ?? dirname(__DIR__) . DIRECTORY_SEPARATOR . 'vault' . DIRECTORY_SEPARATOR;
+$maxUploadBytes = (int)($config['MAX_UPLOAD_BYTES'] ?? 52428800);
 
 // Helper to return JSON if AJAX
 function sendResponse($status, $message, $emp_id = null) // [FIX] h() is not used here, but it's good practice to have it available
@@ -199,6 +200,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         $fileSize = $file['size'];
+        if ($fileSize <= 0 || $fileSize > $maxUploadBytes) {
+            $errors[] = "File " . ($idx + 1) . ": File size must not exceed " . floor($maxUploadBytes / 1024 / 1024) . " MB.";
+            fclose($handle);
+            continue;
+        }
         $header = fread($handle, min(2048, $fileSize));
 
         // 1. Block Disguised Executables & Scripts (Windows PE, Linux ELF, PHP)

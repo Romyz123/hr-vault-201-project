@@ -147,6 +147,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
 
                         // Redirect to Authenticator Verification
                         $_SESSION['partial_user_id'] = $user['id'];
+                        $_SESSION['partial_login_at'] = time();
                         header("Location: verify_otp.php");
                         exit;
                     }

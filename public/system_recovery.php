@@ -315,10 +315,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (empty($docsToArchive)) {
             $msg = "ℹ️ No active files older than $months months found to compress.";
         } else {
-            $backupDir = realpath(__DIR__ . '/../backups');
+            $config = require __DIR__ . '/../config/config.php';
+            $backupRoot = rtrim((string)($config['BACKUP_PATH'] ?? __DIR__ . '/../backups'), '/\\');
+            $backupDir = realpath($backupRoot);
             if (!$backupDir) {
-                @mkdir(__DIR__ . '/../backups', 0755, true);
-                $backupDir = realpath(__DIR__ . '/../backups');
+                @mkdir($backupRoot, 0700, true);
+                $backupDir = realpath($backupRoot);
+            }
+            if (!$backupDir || !is_writable($backupDir)) {
+                throw new RuntimeException('Backup directory is unavailable or not writable.');
             }
 
             $zipFile = $backupDir . '/Vault_Archive_' . $months . 'MonthsOld_' . date('Ymd_His') . '.zip';

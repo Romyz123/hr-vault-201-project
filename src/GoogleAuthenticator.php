@@ -67,12 +67,9 @@ class GoogleAuthenticator
     public static function getQRCodeDataUri($name, $secret, $title = 'TESP_HR_Vault')
     {
         $uri = self::getOtpauthUri($name, $secret, $title);
-        $encoded = rawurlencode($uri);
-        $qrUrl = 'https://api.qrserver.com/v1/create-qr-code/?data=' . $encoded . '&size=200x200&ecc=M';
 
         return [
             'uri' => $uri,
-            'qr_url' => $qrUrl,
             'secret' => $secret
         ];
     }

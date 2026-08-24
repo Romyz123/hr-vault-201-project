@@ -7,7 +7,7 @@ session_start();
 
 
 // 1. SECURITY: Admin/HR Only
-if (!isset($_SESSION['role']) || !in_array($_SESSION['role'], ['ADMIN', 'MANAGER', 'HR'])) {
+if (!isset($_SESSION['user_id']) || !isset($_SESSION['role']) || !in_array($_SESSION['role'], ['ADMIN', 'MANAGER', 'HR'], true)) {
     die("ACCESS DENIED");
 }
 

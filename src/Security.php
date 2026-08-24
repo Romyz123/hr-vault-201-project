@@ -105,7 +105,8 @@ class Security
 
     public function checkCSRF($token)
     {
-        if (!hash_equals($_SESSION['csrf_token'], $token)) {
+        $sessionToken = $_SESSION['csrf_token'] ?? null;
+        if (!is_string($sessionToken) || $sessionToken === '' || !is_string($token) || !hash_equals($sessionToken, $token)) {
             throw new Exception("Invalid CSRF Token");
         }
     }

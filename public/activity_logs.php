@@ -22,6 +22,13 @@ if (!isset($_SESSION['user_id']) || !in_array($_SESSION['role'] ?? '', ['ADMIN',
 // --- MANAGEMENT ACTIONS ---
 // [REMOVED] delete_log action to maintain audit integrity.
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
+    $security = new Security($pdo);
+    try {
+        $security->checkCSRF($_POST['csrf_token'] ?? '');
+    } catch (Exception $e) {
+        http_response_code(403);
+        exit('Forbidden');
+    }
     if ($_POST['action'] === 'archive_logs') {
         // This moves older data to a secondary storage table if needed, 
         // but keeps the records in the system for compliance.
