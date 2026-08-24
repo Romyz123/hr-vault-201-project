@@ -46,11 +46,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($canSend) {
                 // 3. Generate OTP
                 $otp = str_pad(rand(0, 999999), 6, '0', STR_PAD_LEFT);
+                $tokenHash = hash('sha256', $otp);
 
                 // 4. Update DB
-                // [FIX] Use MySQL NOW() for all time fields to ensure consistency
                 $pdo->prepare("UPDATE users SET reset_token = ?, reset_expires = DATE_ADD(NOW(), INTERVAL 15 MINUTE), last_otp_sent = NOW() WHERE id = ?")
-                    ->execute([$otp, $user['id']]);
+                    ->execute([$tokenHash, $user['id']]);
 
                 // 5. Send Email
                 $subject = "Password Reset Code - HR System";

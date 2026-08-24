@@ -26,11 +26,29 @@ if (!preg_match('/^[a-zA-Z0-9-]+$/', $file_uuid)) {
 }
 
 // 3. FETCH FILE INFO
-$stmt = $pdo->prepare("SELECT file_path, original_name, deleted_at FROM documents WHERE file_uuid = ?");
+$stmt = $pdo->prepare("SELECT file_path, original_name, deleted_at, employee_id FROM documents WHERE file_uuid = ?");
 $stmt->execute([$file_uuid]);
 $file = $stmt->fetch();
 
 if (!$file) die("File entry not found in database.");
+
+$userRole = $_SESSION['role'] ?? '';
+$userId = (int) ($_SESSION['user_id'] ?? 0);
+$authorized = in_array($userRole, ['ADMIN', 'HR', 'MANAGER'], true);
+
+if (!$authorized) {
+    $empStmt = $pdo->prepare("SELECT emp_id FROM employees WHERE user_id = ? LIMIT 1");
+    $empStmt->execute([$userId]);
+    $userEmployee = $empStmt->fetchColumn();
+    if ($userEmployee !== false && (string)$userEmployee === (string)$file['employee_id']) {
+        $authorized = true;
+    }
+}
+
+if (!$authorized) {
+    http_response_code(403);
+    die("Access Denied: You do not have permission to view this document.");
+}
 
 if ($file['deleted_at'] !== null && !in_array($_SESSION['role'], ['ADMIN', 'HR'])) {
     die("Access Denied: This file has been deleted.");

@@ -18,7 +18,7 @@ if (!$emp_id) die("Invalid ID");
 // SECURITY: Verify authorization - user can only download for their own employee record or if they have admin/hr role
 $authorized = false;
 $userRoles = $_SESSION['role'] ?? '';
-$isAdmin = in_array($userRoles, ['ADMIN', 'MANAGER', 'HR']);
+$isAdmin = in_array($userRoles, ['ADMIN', 'MANAGER', 'HR'], true);
 
 if ($isAdmin) {
     // Admins, managers, HR can download any employee's files

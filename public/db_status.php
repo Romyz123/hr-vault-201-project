@@ -14,6 +14,17 @@ if (!isset($_SESSION['user_id']) || ($_SESSION['role'] ?? '') !== 'ADMIN') {
     exit;
 }
 
+$security = new Security($pdo);
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['auto_fix'])) {
+    try {
+        $security->checkCSRF($_POST['csrf_token'] ?? '');
+    } catch (Exception $e) {
+        header('Location: db_status.php?error=' . urlencode('Security token mismatch. Please refresh and try again.'));
+        exit;
+    }
+}
+
 $msg = "";
 $masterVersion = "2.1.0"; // Master Schema Version
 
