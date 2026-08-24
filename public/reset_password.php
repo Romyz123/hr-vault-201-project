@@ -1,8 +1,20 @@
 <?php
 require '../config/db.php';
+require '../src/Security.php';
+session_start();
+
+$security = new Security($pdo);
+$rateKey = 'reset:' . ($_SERVER['REMOTE_ADDR'] ?? 'unknown');
+if (!$security->checkAttemptLimit($rateKey, 5, 600)) {
+    http_response_code(429);
+    $error = 'Too many reset attempts. Please try again in 10 minutes.';
+    $step = 'verify';
+} else {
+    $step = 'verify';
+}
+
 $msg = '';
-$error = '';
-$step = 'verify'; // Default step: Ask for code
+$error = $error ?? '';
 
 // 1. CAPTURE INPUTS
 $token = $_REQUEST['token'] ?? '';
@@ -10,15 +22,21 @@ $email = $_REQUEST['email'] ?? '';
 
 // 2. VERIFY TOKEN (If provided via Link or Form)
 if ($token) {
-    $stmt = $pdo->prepare("SELECT id, username FROM users WHERE reset_token = ? AND reset_expires > ?");
-    $stmt->execute([$token, date('Y-m-d H:i:s')]);
-    $user = $stmt->fetch();
-
-    if ($user) {
-        $step = 'reset'; // Token is valid, move to reset step
+    if (!preg_match('/^[0-9]{6}$/', $token)) {
+        $error = "Invalid reset code format.";
+        $step = 'verify';
     } else {
-        $error = "Invalid or expired code. Please try again.";
-        $step = 'verify'; // Stay on verify step
+        $tokenHash = hash('sha256', $token);
+        $stmt = $pdo->prepare("SELECT id, username FROM users WHERE reset_token = ? AND reset_expires > ?");
+        $stmt->execute([$tokenHash, date('Y-m-d H:i:s')]);
+        $user = $stmt->fetch();
+
+        if ($user) {
+            $step = 'reset';
+        } else {
+            $error = "Invalid or expired code. Please try again.";
+            $step = 'verify';
+        }
     }
 }
 
@@ -29,8 +47,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     $validToken = $_POST['token_check']; // Hidden field
 
     // Re-verify to be safe
+    $tokenHash = hash('sha256', $validToken);
     $stmt = $pdo->prepare("SELECT id FROM users WHERE reset_token = ? AND reset_expires > ?");
-    $stmt->execute([$validToken, date('Y-m-d H:i:s')]);
+    $stmt->execute([$tokenHash, date('Y-m-d H:i:s')]);
     $user = $stmt->fetch();
 
     if ($user) {

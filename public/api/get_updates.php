@@ -3,8 +3,23 @@
 // [STATUS] MERGED: Notifications + Chart + Live Dashboard Stats
 
 require '../../config/db.php';
+require '../../src/Security.php';
 session_start();
 header('Content-Type: application/json');
+
+$security = new Security($pdo);
+if (empty($_SESSION['user_id'])) {
+    http_response_code(401);
+    echo json_encode(['status' => 'error', 'message' => 'Authentication required']);
+    exit;
+}
+
+$userRole = strtoupper((string)($_SESSION['role'] ?? ''));
+if (!in_array($userRole, ['ADMIN', 'MANAGER', 'HR'], true)) {
+    http_response_code(403);
+    echo json_encode(['status' => 'error', 'message' => 'Access denied']);
+    exit;
+}
 
 try {
     // ============================================================

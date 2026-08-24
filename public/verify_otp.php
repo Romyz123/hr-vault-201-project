@@ -10,9 +10,19 @@ if (!isset($_SESSION['partial_user_id'])) {
     exit;
 }
 
-$error = "";
-$success = "";
-$logger = new Logger($pdo);
+$security = new Security($pdo);
+$attemptKey = 'otp:' . ($_SESSION['partial_user_id'] ?? $_SERVER['REMOTE_ADDR'] ?? 'unknown');
+if (!$security->checkAttemptLimit($attemptKey, 5, 600)) {
+    http_response_code(429);
+    $error = "Too many OTP attempts. Please try again in 10 minutes.";
+    $success = "";
+    $logger = new Logger($pdo);
+    $logger->log($_SESSION['partial_user_id'] ?? 0, 'OTP_RATE_LIMIT', 'Too many failed verification attempts');
+} else {
+    $error = "";
+    $success = "";
+    $logger = new Logger($pdo);
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // [NEW] Handle Resend Request
@@ -46,38 +56,43 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $code = trim($_POST['otp_code']);
         $userId = $_SESSION['partial_user_id'];
 
-        // Verify OTP
-        $stmt = $pdo->prepare("SELECT * FROM users WHERE id = ? AND otp_code = ? AND otp_expires > NOW()");
-        $stmt->execute([$userId, $code]);
-        $user = $stmt->fetch();
-
-        if ($user) {
-            // SUCCESS: Log them in fully
-            $_SESSION['user_id'] = $user['id'];
-            $_SESSION['username'] = $user['username'];
-            $_SESSION['role'] = $user['role'];
-
-            // Clear OTP
-            $sql = "UPDATE users SET otp_code = NULL, otp_expires = NULL";
-
-            // [NEW] Handle "Trust Device" (Remember Me)
-            if (isset($_POST['trust_device'])) {
-                $token = bin2hex(random_bytes(32));
-                $hash = hash('sha256', $token);
-                $expires = date('Y-m-d H:i:s', time() + (30 * 24 * 60 * 60)); // 30 Days
-                $sql .= ", trusted_device_token = '$hash', trusted_device_expires = '$expires'";
-                setcookie('hr_trust_device', $token, time() + (30 * 24 * 60 * 60), "/", "", false, true);
-            }
-
-            $pdo->prepare("$sql WHERE id = ?")->execute([$userId]);
-            unset($_SESSION['partial_user_id']);
-
-            $logger->log($user['id'], 'LOGIN_2FA', "2FA Verified Successfully");
-            header("Location: index.php");
-            exit;
+        if (!$security->checkAttemptLimit($attemptKey, 5, 600)) {
+            $error = "Too many OTP attempts. Please try again in 10 minutes.";
+            $logger->log($userId, 'OTP_RATE_LIMIT', 'Failed OTP verification rate limit hit');
         } else {
-            $error = "❌ Invalid or Expired OTP Code.";
-            $logger->log($userId, 'LOGIN_FAIL_2FA', "Failed 2FA attempt");
+            // Verify OTP
+            $stmt = $pdo->prepare("SELECT * FROM users WHERE id = ? AND otp_code = ? AND otp_expires > NOW()");
+            $stmt->execute([$userId, $code]);
+            $user = $stmt->fetch();
+
+            if ($user) {
+                // SUCCESS: Log them in fully
+                $_SESSION['user_id'] = $user['id'];
+                $_SESSION['username'] = $user['username'];
+                $_SESSION['role'] = $user['role'];
+
+                // Clear OTP
+                $sql = "UPDATE users SET otp_code = NULL, otp_expires = NULL";
+
+                // [NEW] Handle "Trust Device" (Remember Me)
+                if (isset($_POST['trust_device'])) {
+                    $token = bin2hex(random_bytes(32));
+                    $hash = hash('sha256', $token);
+                    $expires = date('Y-m-d H:i:s', time() + (30 * 24 * 60 * 60));
+                    $sql .= ", trusted_device_token = '$hash', trusted_device_expires = '$expires'";
+                    setcookie('hr_trust_device', $token, time() + (30 * 24 * 60 * 60), "/", "", false, true);
+                }
+
+                $pdo->prepare("$sql WHERE id = ?")->execute([$userId]);
+                unset($_SESSION['partial_user_id']);
+
+                $logger->log($user['id'], 'LOGIN_2FA', "2FA Verified Successfully");
+                header("Location: index.php");
+                exit;
+            } else {
+                $error = "❌ Invalid or Expired OTP Code.";
+                $logger->log($userId, 'LOGIN_FAIL_2FA', "Failed 2FA attempt");
+            }
         }
     }
 }

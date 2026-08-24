@@ -6,19 +6,19 @@ require '../src/Security.php';
 require '../src/FileService.php';
 session_start();
 
+$security = new Security($pdo);
+$security->requireRole(['ADMIN', 'MANAGER', 'HR']);
+
 // [FIX] Load Config to ensure VAULT_PATH is available
 $config = require '../config/config.php';
 $vaultPath = $config['VAULT_PATH'] ?? dirname(__DIR__) . DIRECTORY_SEPARATOR . 'vault' . DIRECTORY_SEPARATOR;
-
-// In a real app, ensure ONLY Admins can access this!
-// if ($_SESSION['role'] !== 'ADMIN') die("Access Denied");
 
 $req_id = $_GET['id'] ?? '';
 
 if (!is_numeric($req_id)) die("Invalid Request ID");
 
-// Fetch the pending request
-$stmt = $pdo->prepare("SELECT json_payload FROM pending_requests WHERE id = ?");
+// Fetch the pending request from the active approval queue
+$stmt = $pdo->prepare("SELECT json_payload FROM requests WHERE id = ? AND status = 'PENDING'");
 $stmt->execute([$req_id]);
 $req = $stmt->fetch();
 

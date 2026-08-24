@@ -1,6 +1,12 @@
 <?php
 require '../config/db.php';
+require '../src/Security.php';
 session_start();
+
+$security = new Security($pdo);
+if (empty($_SESSION['csrf_token'])) {
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+}
 
 if (!isset($_SESSION['temp_user_id'])) {
     header("Location: login.php");
@@ -10,23 +16,30 @@ if (!isset($_SESSION['temp_user_id'])) {
 $error = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $pass = $_POST['password'];
-    $confirm = $_POST['confirm'];
+    try {
+        $security->checkCSRF($_POST['csrf_token'] ?? '');
+    } catch (Exception $e) {
+        $error = 'Security token mismatch. Please refresh and try again.';
+    }
 
-    if ($pass !== $confirm) {
-        $error = "❌ Passwords do not match.";
-    } elseif (strlen($pass) < 12 || !preg_match('/[0-9]/', $pass) || !preg_match('/[\W_]/', $pass)) {
-        $error = "❌ Password must be 12+ chars, with a number & symbol.";
-    } else {
-        $hash = password_hash($pass, PASSWORD_BCRYPT);
-        // Update password and reset the timer (password_changed_at)
-        $stmt = $pdo->prepare("UPDATE users SET password = ?, password_changed_at = NOW() WHERE id = ?");
-        if ($stmt->execute([$hash, $_SESSION['temp_user_id']])) {
-            unset($_SESSION['temp_user_id']);
-            header("Location: login.php?msg=" . urlencode("✅ Password updated! Please login."));
-            exit;
+    if ($error === '') {
+        $pass = $_POST['password'];
+        $confirm = $_POST['confirm'];
+
+        if ($pass !== $confirm) {
+            $error = "❌ Passwords do not match.";
+        } elseif (strlen($pass) < 12 || !preg_match('/[0-9]/', $pass) || !preg_match('/[\W_]/', $pass)) {
+            $error = "❌ Password must be 12+ chars, with a number & symbol.";
         } else {
-            $error = "❌ Database error.";
+            $hash = password_hash($pass, PASSWORD_BCRYPT);
+            $stmt = $pdo->prepare("UPDATE users SET password = ?, password_changed_at = NOW() WHERE id = ?");
+            if ($stmt->execute([$hash, $_SESSION['temp_user_id']])) {
+                unset($_SESSION['temp_user_id']);
+                header("Location: login.php?msg=" . urlencode("✅ Password updated! Please login."));
+                exit;
+            } else {
+                $error = "❌ Database error.";
+            }
         }
     }
 }
@@ -50,6 +63,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <?php endif; ?>
 
         <form method="POST">
+            <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token'], ENT_QUOTES, 'UTF-8'); ?>">
             <div class="mb-3">
                 <label class="form-label">New Password</label>
                 <input type="password" name="password" class="form-control" required minlength="12" placeholder="Min 12 chars, # and symbol">

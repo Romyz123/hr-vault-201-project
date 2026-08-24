@@ -1,8 +1,24 @@
 <?php
 // config/db.php
 
-// Load settings directly from PHP file instead of .env to avoid permission errors
+// Load settings directly from PHP file instead of .env to avoid permission errors.
+// Supports environment overrides for deployment secrets without committing them to source.
 $_ENV = require 'config.php';
+if (!empty(getenv('VAULT_KEY'))) {
+    $_ENV['VAULT_KEY'] = getenv('VAULT_KEY');
+}
+if (!empty(getenv('DB_HOST'))) {
+    $_ENV['DB_HOST'] = getenv('DB_HOST');
+}
+if (!empty(getenv('DB_NAME'))) {
+    $_ENV['DB_NAME'] = getenv('DB_NAME');
+}
+if (!empty(getenv('DB_USER'))) {
+    $_ENV['DB_USER'] = getenv('DB_USER');
+}
+if (!empty(getenv('DB_PASS'))) {
+    $_ENV['DB_PASS'] = getenv('DB_PASS');
+}
 
 try {
     $options = [

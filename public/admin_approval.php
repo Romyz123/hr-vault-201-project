@@ -2,6 +2,86 @@
 require '../config/db.php';
 require '../src/Security.php';
 require '../src/Logger.php';
+require '../src/FileService.php';
+
+$config = require '../config/config.php';
+$vaultPath = $config['VAULT_PATH'] ?? dirname(__DIR__) . DIRECTORY_SEPARATOR . 'vault' . DIRECTORY_SEPARATOR;
+
+function normalizeEmployeePayload(array $data): array {
+    if (empty($data)) {
+        return [];
+    }
+
+    $aliases = [
+        'first_name' => ['first_name', 'fname'],
+        'middle_name' => ['middle_name', 'mname'],
+        'last_name' => ['last_name', 'lname'],
+        'email' => ['email', 'work_email'],
+        'phone' => ['phone', 'contact_number', 'mobile'],
+        'department' => ['department', 'dept'],
+        'job_title' => ['job_title', 'position', 'designation'],
+        'date_hired' => ['date_hired', 'hire_date'],
+        'salary' => ['salary', 'monthly_salary'],
+        'status' => ['status', 'employment_status'],
+        'avatar_path' => ['avatar_path', 'profile_photo'],
+        'system_role' => ['system_role', 'role'],
+        'agency_name' => ['agency_name', 'agency'],
+        'employment_type' => ['employment_type', 'employee_type'],
+        'present_address' => ['present_address', 'address'],
+        'permanent_address' => ['permanent_address', 'permanent_address_1'],
+        'emergency_name' => ['emergency_name', 'emergency_contact_name'],
+        'emergency_contact' => ['emergency_contact', 'emergency_phone'],
+        'emergency_address' => ['emergency_address', 'emergency_address_1'],
+        'sss_no' => ['sss_no', 'sss'],
+        'tin_no' => ['tin_no', 'tin'],
+        'pagibig_no' => ['pagibig_no', 'pagibig'],
+        'philhealth_no' => ['philhealth_no', 'philhealth'],
+        'gender' => ['gender'],
+        'birth_date' => ['birth_date', 'date_of_birth'],
+        'section' => ['section'],
+    ];
+
+    $clean = [];
+    foreach ($aliases as $canonical => $options) {
+        foreach ($options as $key) {
+            if (array_key_exists($key, $data) && $data[$key] !== '' && $data[$key] !== null) {
+                $clean[$canonical] = $data[$key];
+                break;
+            }
+        }
+    }
+
+    foreach (['emp_id', 'id', 'user_id'] as $key) {
+        if (array_key_exists($key, $data) && !empty($data[$key])) {
+            $clean['emp_id'] = $data[$key];
+        }
+    }
+
+    $allowedColumns = ['emp_id', 'first_name', 'middle_name', 'last_name', 'email', 'phone', 'department', 'job_title', 'manager_id', 'date_hired', 'salary', 'status', 'avatar_path', 'system_role', 'agency_name', 'employment_type', 'gender', 'birth_date', 'section', 'present_address', 'permanent_address', 'emergency_name', 'emergency_contact', 'emergency_address', 'sss_no', 'tin_no', 'pagibig_no', 'philhealth_no'];
+    $filtered = array_intersect_key($clean, array_flip($allowedColumns));
+    return $filtered;
+}
+
+function cleanupRejectedUploadPayload(array $payload, string $vaultPath): void {
+    $filePath = $payload['file_path'] ?? '';
+    if ($filePath === '') {
+        return;
+    }
+
+    $candidates = [
+        rtrim($vaultPath, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . ltrim($filePath, DIRECTORY_SEPARATOR),
+        dirname(__DIR__) . DIRECTORY_SEPARATOR . 'uploads' . DIRECTORY_SEPARATOR . ltrim($filePath, DIRECTORY_SEPARATOR),
+        __DIR__ . DIRECTORY_SEPARATOR . 'uploads' . DIRECTORY_SEPARATOR . ltrim($filePath, DIRECTORY_SEPARATOR),
+    ];
+
+    foreach ($candidates as $candidate) {
+        if (is_string($candidate) && $candidate !== '' && file_exists($candidate)) {
+            @unlink($candidate);
+            return;
+        }
+    }
+}
+
 session_start();
 
 // Generate CSRF token if not present
@@ -57,29 +137,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     $req = $stmt->fetch();
 
     if ($req) {
-        $data = json_decode($req['json_payload'], true);
+        $data = json_decode($req['json_payload'] ?? '', true);
+        if (!is_array($data)) {
+            $data = [];
+        }
         $logger = new Logger($pdo);
 
         if ($action === 'approve') {
+            $pdo->beginTransaction();
             try {
                 // 1. ADD EMPLOYEE
                 if ($req['request_type'] === 'ADD_EMPLOYEE') {
-                    // Pre-check for duplicate ID
                     $dupCheck = $pdo->prepare("SELECT status FROM employees WHERE emp_id = ?");
-                    $dupCheck->execute([$data['emp_id']]);
+                    $dupCheck->execute([$data['emp_id'] ?? '']);
                     if ($dupCheck->rowCount() > 0) {
-                        $msg = "⚠️ CANNOT APPROVE: The ID '" . $data['emp_id'] . "' is already in use. Please REJECT this request.";
-                        header("Location: admin_approval.php?msg=$msg&tab=$tab");
-                        exit;
+                        throw new Exception("The employee ID '" . ($data['emp_id'] ?? '') . "' is already in use.");
                     }
 
-                    // SAFETY: Remove the note so it doesn't break the SQL INSERT
                     unset($data['request_note']);
-
-                    // Whitelist allowed columns for employees table
-                    $allowedColumns = ['emp_id', 'first_name', 'last_name', 'email', 'phone', 'department', 'job_title', 'manager_id', 'date_hired', 'salary', 'status', 'avatar_path'];
-                    $filteredData = array_intersect_key($data, array_flip($allowedColumns));
-
+                    $filteredData = normalizeEmployeePayload($data);
                     if (empty($filteredData)) {
                         throw new Exception('No valid data provided for employee insertion');
                     }
@@ -88,12 +164,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                     $vals = implode(", ", array_fill(0, count($filteredData), "?"));
                     $pdo->prepare("INSERT INTO employees ($cols) VALUES ($vals)")->execute(array_values($filteredData));
 
-                    // [NEW] Send Welcome Email (On Approval)
                     if (!empty($data['email'])) {
                         $subject = "Welcome to TES Philippines!";
-                        $body    = "<h3>Hi " . htmlspecialchars($data['first_name']) . ",</h3>";
-                        $body   .= "<p>Welcome to the team! We are excited to have you on board as our new <strong>" . htmlspecialchars($data['job_title']) . "</strong>.</p>";
-                        $body   .= "<p><strong>Employee ID:</strong> " . htmlspecialchars($data['emp_id']) . "</p>";
+                        $body    = "<h3>Hi " . htmlspecialchars($data['first_name'] ?? 'Employee') . ",</h3>";
+                        $body   .= "<p>Welcome to the team! We are excited to have you on board as our new <strong>" . htmlspecialchars($data['job_title'] ?? 'Team Member') . "</strong>.</p>";
+                        $body   .= "<p><strong>Employee ID:</strong> " . htmlspecialchars($data['emp_id'] ?? '') . "</p>";
                         $body   .= "<p>Please coordinate with your department head for your initial schedule.</p>";
                         $body   .= "<br><p>Best Regards,<br>Human Resources</p>";
 
@@ -104,27 +179,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                         @mail($data['email'], $subject, $body, $headers);
                     }
 
-                    // NOTIFY SUCCESS
                     $pdo->prepare("INSERT INTO notifications (user_id, title, message, type) VALUES (?, 'Request Approved', ?, 'success')")
-                        ->execute([$req['user_id'], "Your request to add employee " . $data['first_name'] . " was approved."]);
+                        ->execute([$req['user_id'], "Your request to add employee " . ($data['first_name'] ?? 'the employee') . " was approved."]);
 
-                    $logger->log($adminId, 'APPROVED_HIRE', "Approved New Employee: " . $data['first_name'] . " " . $data['last_name']);
+                    $logger->log($adminId, 'APPROVED_HIRE', "Approved New Employee: " . ($data['first_name'] ?? '') . " " . ($data['last_name'] ?? ''));
                 }
-                // 2. EDIT PROFILE
                 elseif ($req['request_type'] === 'EDIT_PROFILE') {
-                    $targetId = $req['target_id'];
-
-                    // CRITICAL: Fetch the current emp_id before updating
+                    $targetId = (int) $req['target_id'];
                     $oldIdStmt = $pdo->prepare("SELECT emp_id FROM employees WHERE id = ?");
                     $oldIdStmt->execute([$targetId]);
                     $oldEmp = $oldIdStmt->fetch();
 
-                    // SAFETY: Remove the note so it doesn't break the SQL UPDATE
                     unset($data['request_note']);
-
-                    // Whitelist allowed columns for employees table
-                    $allowedColumns = ['emp_id', 'first_name', 'last_name', 'email', 'phone', 'department', 'job_title', 'manager_id', 'date_hired', 'salary', 'status', 'avatar_path'];
-                    $filteredData = array_intersect_key($data, array_flip($allowedColumns));
+                    $filteredData = normalizeEmployeePayload($data);
 
                     if (!empty($filteredData)) {
                         $setParts = [];
@@ -138,53 +205,44 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                         $pdo->prepare($sql)->execute($updateValues);
                     }
 
-                    // CRITICAL: Move files if ID changed
-                    if ($oldEmp && isset($data['emp_id']) && $oldEmp['emp_id'] !== $data['emp_id']) {
+                    if ($oldEmp && !empty($data['emp_id']) && $oldEmp['emp_id'] !== $data['emp_id']) {
                         $pdo->prepare("UPDATE documents SET employee_id = ? WHERE employee_id = ?")->execute([$data['emp_id'], $oldEmp['emp_id']]);
                     }
 
-                    // NOTIFY SUCCESS
                     $pdo->prepare("INSERT INTO notifications (user_id, title, message, type) VALUES (?, 'Update Approved', 'Your profile update request was approved.', 'success')")
                         ->execute([$req['user_id']]);
 
                     $logger->log($adminId, 'APPROVED_EDIT', "Approved Profile Edit for ID: " . $req['target_id']);
                 }
-                // 3. UPLOAD DOCUMENT
                 elseif ($req['request_type'] === 'UPLOAD_DOC') {
-                    $sql = "INSERT INTO documents (file_uuid, employee_id, original_name, file_path, category, expiry_date, description, uploaded_by) 
-                            VALUES (UUID(), ?, ?, ?, ?, ?, ?, ?)";
+                    $sql = "INSERT INTO documents (file_uuid, employee_id, original_name, file_path, category, expiry_date, description, uploaded_by) VALUES (UUID(), ?, ?, ?, ?, ?, ?, ?)";
                     $pdo->prepare($sql)->execute([
-                        $data['employee_id'],
-                        $data['original_name'],
-                        $data['file_path'],
-                        $data['category'],
-                        $data['expiry_date'],
-                        $data['description'],
+                        $data['employee_id'] ?? 0,
+                        $data['original_name'] ?? '',
+                        $data['file_path'] ?? '',
+                        $data['category'] ?? '',
+                        $data['expiry_date'] ?? null,
+                        $data['description'] ?? '',
                         $req['user_id']
                     ]);
 
-                    // NOTIFY SUCCESS
                     $pdo->prepare("INSERT INTO notifications (user_id, title, message, type) VALUES (?, 'Document Approved', ?, 'success')")
-                        ->execute([$req['user_id'], "Document '" . $data['original_name'] . "' has been approved."]);
+                        ->execute([$req['user_id'], "Document '" . ($data['original_name'] ?? 'Document') . "' has been approved."]);
 
-                    $logger->log($adminId, 'APPROVED_DOC', "Approved Document: " . $data['original_name']);
+                    $logger->log($adminId, 'APPROVED_DOC', "Approved Document: " . ($data['original_name'] ?? 'Document'));
                 }
-                // 4. RESOLVE ALERT (TICKET)
                 elseif ($req['request_type'] === 'RESOLVE_ALERT') {
-                    $docId = $data['doc_id'];
-                    $note  = $data['note'];
-                    // This sets the alert to hidden (Resolved)
+                    $docId = $data['doc_id'] ?? 0;
+                    $note  = $data['note'] ?? '';
                     $pdo->prepare("UPDATE documents SET is_resolved = 1, resolution_note = ? WHERE id = ?")->execute([$note, $docId]);
 
-                    // NOTIFY SUCCESS
                     $pdo->prepare("INSERT INTO notifications (user_id, title, message, type) VALUES (?, 'Resolution Approved', 'Your resolution report was approved.', 'success')")
                         ->execute([$req['user_id']]);
 
                     $logger->log($adminId, 'APPROVED_RESOLUTION', "Approved resolution for Doc ID $docId");
                 }
-                // 5. EDIT DOCUMENT
                 elseif ($req['request_type'] === 'EDIT_DOC') {
-                    $docId = $req['target_id'];
+                    $docId = (int) $req['target_id'];
                     $updateCols = [];
                     $updateParams = [];
 
@@ -204,7 +262,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                     if (!empty($updateCols)) {
                         $updateCols[] = "updated_at = NOW()";
                         $updateCols[] = "updated_by = ?";
-                        $updateParams[] = $req['user_id']; // The user who requested the change
+                        $updateParams[] = $req['user_id'];
                         $updateParams[] = $docId;
                         $sql = "UPDATE documents SET " . implode(', ', $updateCols) . " WHERE id = ?";
                         $pdo->prepare($sql)->execute($updateParams);
@@ -216,28 +274,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                     $logger->log($adminId, 'APPROVED_EDIT_DOC', "Approved edit for Doc ID: " . $docId);
                 }
 
-                // DELETE REQUEST (Cleanup)
-                $pdo->prepare("DELETE FROM requests WHERE id = ?")->execute([$req_id]);
+                $adminComment = $_SESSION['username'] ?? 'admin';
+                $pdo->prepare("UPDATE requests SET status = 'APPROVED', admin_comment = ? WHERE id = ?")->execute(["Approved by " . $adminComment, $req_id]);
                 $msg = "Request Approved Successfully";
+                $pdo->commit();
             } catch (Exception $e) {
+                $pdo->rollBack();
+                $pdo->prepare("UPDATE requests SET status = 'REJECTED', admin_comment = ? WHERE id = ?")->execute(["Auto-rejected: " . $e->getMessage(), $req_id]);
                 $msg = "Error: " . $e->getMessage();
             }
         } elseif ($action === 'reject') {
-            // [NEW] REJECTION LOGIC WITH NOTE
             $msgTitle = "Request Rejected";
             $msgBody  = "Your request (" . $req['request_type'] . ") was rejected.";
 
-            // Append the reason if the admin typed one
             if (!empty($reject_reason)) {
-                $msgBody .= "\n\nReason: " . $reject_reason; // Already HTML-escaped above
+                $msgBody .= "\n\nReason: " . $reject_reason;
             }
 
-            // Insert Notification
             $pdo->prepare("INSERT INTO notifications (user_id, title, message, type) VALUES (?, ?, ?, 'danger')")
                 ->execute([$req['user_id'], $msgTitle, $msgBody]);
 
-            // Deleting the request
-            $pdo->prepare("DELETE FROM requests WHERE id = ?")->execute([$req_id]);
+            $pdo->prepare("UPDATE requests SET status = 'REJECTED', admin_comment = ? WHERE id = ?")->execute([$reject_reason ?: 'Rejected by admin', $req_id]);
+
+            if (($req['request_type'] ?? '') === 'UPLOAD_DOC') {
+                cleanupRejectedUploadPayload($data, $vaultPath);
+            }
+
             $logger->log($adminId, 'REJECTED_REQUEST', "Rejected request: " . $req['request_type']);
             $msg = "Request Rejected & User Notified";
         }
@@ -248,11 +310,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 }
 
 /// FETCH REQUESTS
-$newHires = $pdo->query("SELECT r.*, u.username FROM requests r LEFT JOIN users u ON r.user_id = u.id WHERE request_type='ADD_EMPLOYEE'")->fetchAll();
-$edits    = $pdo->query("SELECT r.*, u.username FROM requests r LEFT JOIN users u ON r.user_id = u.id WHERE request_type='EDIT_PROFILE'")->fetchAll();
-$docs     = $pdo->query("SELECT r.*, u.username FROM requests r LEFT JOIN users u ON r.user_id = u.id WHERE request_type='UPLOAD_DOC'")->fetchAll();
-$doc_edits = $pdo->query("SELECT r.*, u.username FROM requests r LEFT JOIN users u ON r.user_id = u.id WHERE request_type='EDIT_DOC'")->fetchAll();
-$tickets  = $pdo->query("SELECT r.*, u.username FROM requests r LEFT JOIN users u ON r.user_id = u.id WHERE request_type='RESOLVE_ALERT'")->fetchAll();
+$newHires = $pdo->query("SELECT r.*, u.username FROM requests r LEFT JOIN users u ON r.user_id = u.id WHERE r.status = 'PENDING' AND request_type='ADD_EMPLOYEE'")->fetchAll();
+$edits    = $pdo->query("SELECT r.*, u.username FROM requests r LEFT JOIN users u ON r.user_id = u.id WHERE r.status = 'PENDING' AND request_type='EDIT_PROFILE'")->fetchAll();
+$docs     = $pdo->query("SELECT r.*, u.username FROM requests r LEFT JOIN users u ON r.user_id = u.id WHERE r.status = 'PENDING' AND request_type='UPLOAD_DOC'")->fetchAll();
+$doc_edits = $pdo->query("SELECT r.*, u.username FROM requests r LEFT JOIN users u ON r.user_id = u.id WHERE r.status = 'PENDING' AND request_type='EDIT_DOC'")->fetchAll();
+$tickets  = $pdo->query("SELECT r.*, u.username FROM requests r LEFT JOIN users u ON r.user_id = u.id WHERE r.status = 'PENDING' AND request_type='RESOLVE_ALERT'")->fetchAll();
 ?>
 
 <!DOCTYPE html>

@@ -3,6 +3,8 @@ require '../config/db.php';
 require '../src/Security.php';
 session_start();
 
+$security = new Security($pdo);
+
 // 1. SECURITY: Only ADMIN and MANAGER can access
 if (!isset($_SESSION['user_id']) || !in_array($_SESSION['role'], ['ADMIN', 'MANAGER'])) {
     header("Location: index.php?error=Access Denied");
@@ -11,6 +13,13 @@ if (!isset($_SESSION['user_id']) || !in_array($_SESSION['role'], ['ADMIN', 'MANA
 
 // [NEW] HANDLE MANUAL LOG ENTRY
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_manual_log'])) {
+    try {
+        $security->checkCSRF($_POST['csrf_token'] ?? '');
+    } catch (Exception $e) {
+        header('Location: activity_logs.php?error=' . urlencode('Security token mismatch. Please refresh and try again.'));
+        exit;
+    }
+
     $action  = strtoupper(trim($_POST['log_action']));
     $details = trim($_POST['log_details']);
     $logDate = $_POST['log_date'];
@@ -25,6 +34,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_manual_log'])) {
 
 // [NEW] HANDLE ARCHIVING (Admin Only)
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['archive_logs']) && $_SESSION['role'] === 'ADMIN') {
+    try {
+        $security->checkCSRF($_POST['csrf_token'] ?? '');
+    } catch (Exception $e) {
+        header('Location: activity_logs.php?error=' . urlencode('Security token mismatch. Please refresh and try again.'));
+        exit;
+    }
     try {
         // 1. Create Archive Table if not exists
         $pdo->exec("CREATE TABLE IF NOT EXISTS activity_logs_archive LIKE activity_logs");
@@ -52,6 +67,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['archive_logs']) && $_
 
 // [NEW] HANDLE CLEAR OLD LOGS (Admin Only)
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['clear_old_logs']) && $_SESSION['role'] === 'ADMIN') {
+    try {
+        $security->checkCSRF($_POST['csrf_token'] ?? '');
+    } catch (Exception $e) {
+        header('Location: activity_logs.php?error=' . urlencode('Security token mismatch. Please refresh and try again.'));
+        exit;
+    }
     try {
         // Define Cutoff (30 Days Ago)
         $cutoff = date('Y-m-d H:i:s', strtotime('-30 days'));
@@ -228,10 +249,12 @@ $logs = $stmt->fetchAll();
                 <?php if ($_SESSION['role'] === 'ADMIN'): ?>
                     <form method="POST" class="d-inline" onsubmit="return confirm('This will move logs older than 1 year to the archive table. Proceed?');">
                         <input type="hidden" name="archive_logs" value="1">
+                        <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token'], ENT_QUOTES, 'UTF-8'); ?>">
                         <button type="submit" class="btn btn-outline-secondary me-2"><i class="bi bi-archive-fill"></i> Archive Old</button>
                     </form>
                     <form method="POST" class="d-inline" onsubmit="return confirm('This will PERMANENTLY DELETE logs older than 30 days. This cannot be undone. Proceed?');">
                         <input type="hidden" name="clear_old_logs" value="1">
+                        <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token'], ENT_QUOTES, 'UTF-8'); ?>">
                         <button type="submit" class="btn btn-outline-danger me-2"><i class="bi bi-trash3-fill"></i> Clear >30 Days</button>
                     </form>
                 <?php endif; ?>
@@ -422,6 +445,7 @@ $logs = $stmt->fetchAll();
                         Use this to document offline actions (e.g., "Restored DB via phpMyAdmin") or system events that weren't captured automatically.
                     </div>
                     <input type="hidden" name="add_manual_log" value="1">
+                    <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token'], ENT_QUOTES, 'UTF-8'); ?>">
 
                     <div class="mb-3">
                         <label class="form-label fw-bold">Action Type</label>

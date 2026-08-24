@@ -5,7 +5,14 @@ require '../src/Logger.php';
 session_start();
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SESSION['user_id'])) {
-    
+    $security = new Security($pdo);
+    try {
+        $security->checkCSRF($_POST['csrf_token'] ?? '');
+    } catch (Exception $e) {
+        header('Location: index.php?error=' . urlencode('Security token mismatch. Please refresh and try again.'));
+        exit;
+    }
+
     $doc_id = $_POST['doc_id'];
     $note   = trim($_POST['resolution_note']);
     $user_id = $_SESSION['user_id'];
