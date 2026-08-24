@@ -6,9 +6,17 @@ require '../../config/db.php';
 session_start();
 header('Content-Type: application/json');
 
+// [SECURITY] This endpoint contains HR metadata and is unavailable to guests.
+if (!isset($_SESSION['user_id'])) {
+    http_response_code(401);
+    echo json_encode(['status' => 'error', 'message' => 'Unauthorized']);
+    exit;
+}
+
 try {
-    $userId = $_SESSION['user_id'] ?? 0;
+    $userId = (int) $_SESSION['user_id'];
     $userRole = $_SESSION['role'] ?? '';
+    $isHrRole = in_array($userRole, ['ADMIN', 'MANAGER', 'HR'], true);
 
     $hideZeros = $_SESSION['hide_chart_zeros'] ?? false;
 
@@ -64,10 +72,17 @@ try {
     if ($hasDeletedAt) {
         $docQuery .= " AND d.deleted_at IS NULL";
     }
+    $notificationParams = [$alertDate];
+    if ($hasUploadedBy && !$isHrRole) {
+        $docQuery .= " AND d.uploaded_by = ?";
+        $notificationParams[] = $userId;
+    } elseif (!$isHrRole) {
+        // Do not expose document metadata when ownership cannot be verified.
+        $docQuery .= " AND 1 = 0";
+    }
     $docQuery .= " ORDER BY d.expiry_date ASC";
-
     $stmt = $pdo->prepare($docQuery);
-    $stmt->execute([$alertDate]);
+    $stmt->execute($notificationParams);
     $notifications = $stmt->fetchAll(PDO::FETCH_ASSOC);
     $alertCount = count($notifications);
 
@@ -75,7 +90,7 @@ try {
     $pendingHtml = '';
     $userRole = $_SESSION['role'] ?? '';
     $pCount = 0;
-    if (in_array($userRole, ['ADMIN', 'MANAGER', 'HR'])) {
+    if ($isHrRole) {
         // [FIX] Only count PENDING requests so approved ones disappear
         $pCount = $pdo->query("SELECT COUNT(*) FROM requests WHERE status = 'PENDING'")->fetchColumn();
         if ($pCount > 0) {
@@ -156,12 +171,16 @@ try {
     // ============================================================
 
     // A. Active Headcount
-    $headStmt = $pdo->query("SELECT COUNT(*) FROM employees WHERE status = 'Active'");
-    $activeHeadcount = $headStmt->fetchColumn();
+    $activeHeadcount = 0;
+    $pendingCases = 0;
+    if ($isHrRole) {
+        $headStmt = $pdo->query("SELECT COUNT(*) FROM employees WHERE status = 'Active'");
+        $activeHeadcount = $headStmt->fetchColumn();
 
-    // B. Pending Disciplinary Cases
-    $caseStmt = $pdo->query("SELECT COUNT(*) FROM disciplinary_cases WHERE status = 'Open'");
-    $pendingCases = $caseStmt->fetchColumn();
+        // B. Pending Disciplinary Cases
+        $caseStmt = $pdo->query("SELECT COUNT(*) FROM disciplinary_cases WHERE status = 'Open'");
+        $pendingCases = $caseStmt->fetchColumn();
+    }
 
     // ============================================================
     // PART 3: OUTPUT EVERYTHING
@@ -199,8 +218,10 @@ try {
                         WHERE 1=1";
     if ($hasEmployeeDeletedAt) $docsForStatsSql .= " AND e.deleted_at IS NULL";
     if ($hasDeletedAt) $docsForStatsSql .= " AND d.deleted_at IS NULL";
-    if ($hasUploadedBy && !in_array($userRole, ['ADMIN', 'MANAGER', 'HR'], true)) {
+    if ($hasUploadedBy && !$isHrRole) {
         $docsForStatsSql .= " AND d.uploaded_by = " . (int)$userId;
+    } elseif (!$isHrRole) {
+        $docsForStatsSql .= " AND 1 = 0";
     }
     $docsForStats = $pdo->query($docsForStatsSql)->fetchAll(PDO::FETCH_ASSOC);
     $chartStats = array_fill_keys(array_keys($REQUIRED_DOCS), 0);

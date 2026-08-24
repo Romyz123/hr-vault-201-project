@@ -10,23 +10,40 @@ session_start();
 $config = require '../config/config.php';
 $vaultPath = $config['VAULT_PATH'] ?? dirname(__DIR__) . DIRECTORY_SEPARATOR . 'vault' . DIRECTORY_SEPARATOR;
 
-// [SECURITY] Ensure ONLY Admins/HR/Managers can access this!
-if (!isset($_SESSION['role']) || !in_array($_SESSION['role'], ['ADMIN', 'MANAGER', 'HR'])) {
-    die("Access Denied");
+// [SECURITY] Require an authenticated user and explicit authorization before exposing pending documents.
+if (!isset($_SESSION['user_id']) || empty($_SESSION['user_id'])) {
+    http_response_code(401);
+    exit('Unauthorized');
+}
+
+$userRole = strtoupper(trim((string)($_SESSION['role'] ?? '')));
+if (!in_array($userRole, ['ADMIN', 'MANAGER', 'HR'], true)) {
+    http_response_code(403);
+    exit('Forbidden');
 }
 
 $req_id = $_GET['id'] ?? '';
-if (!is_numeric($req_id)) die("Invalid Request ID");
+if (!is_numeric($req_id)) {
+    http_response_code(400);
+    exit('Invalid Request ID');
+}
 
 // Fetch the pending request
 $stmt = $pdo->prepare("SELECT json_payload FROM requests WHERE id = ?");
 $stmt->execute([$req_id]);
 $req = $stmt->fetch();
 
-if (!$req) die("Request not found.");
+if (!$req) {
+    http_response_code(404);
+    exit('Request not found.');
+}
 
 // Decode JSON to find the file path
 $data = json_decode($req['json_payload'], true);
+if (!is_array($data) || empty($data['file_path']) || empty($data['original_name'])) {
+    http_response_code(500);
+    exit('Invalid request payload.');
+}
 $filename = $data['file_path'];
 
 // Determine MIME Type

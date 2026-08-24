@@ -2477,3 +2477,27 @@ Stack trace:
 Stack trace:
 #0 {main}
   thrown in C:\xampp\htdocs\hr 201\public\manage_hierarchy.php on line 231
+[22-Aug-2026 16:56:03 Asia/Manila] PHP Fatal error:  Uncaught TypeError: Cannot access offset of type string on string in C:\xampp\htdocs\hr 201\public\manage_hierarchy.php:231
+Stack trace:
+#0 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\manage_hierarchy.php on line 231
+[24-Aug-2026 08:35:40 Asia/Manila] PHP Fatal error:  Uncaught TypeError: Cannot access offset of type string on string in C:\xampp\htdocs\hr 201\public\manage_hierarchy.php:231
+Stack trace:
+#0 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\manage_hierarchy.php on line 231
+[24-Aug-2026 08:36:20 Asia/Manila] PHP Fatal error:  Uncaught TypeError: Cannot access offset of type string on string in C:\xampp\htdocs\hr 201\public\manage_hierarchy.php:231
+Stack trace:
+#0 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\manage_hierarchy.php on line 231
+[24-Aug-2026 08:36:44 Asia/Manila] PHP Fatal error:  Uncaught TypeError: Cannot access offset of type string on string in C:\xampp\htdocs\hr 201\public\manage_hierarchy.php:231
+Stack trace:
+#0 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\manage_hierarchy.php on line 231
+[24-Aug-2026 09:32:02 Asia/Manila] PHP Fatal error:  Uncaught TypeError: Cannot access offset of type string on string in C:\xampp\htdocs\hr 201\public\manage_hierarchy.php:231
+Stack trace:
+#0 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\manage_hierarchy.php on line 231
+[24-Aug-2026 09:32:08 Asia/Manila] PHP Fatal error:  Uncaught TypeError: Cannot access offset of type string on string in C:\xampp\htdocs\hr 201\public\manage_hierarchy.php:231
+Stack trace:
+#0 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\manage_hierarchy.php on line 231
