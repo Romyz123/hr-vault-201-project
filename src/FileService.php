@@ -151,7 +151,21 @@ class FileService
 
             // Support both encrypted vault files and legacy plaintext files.
             $decoded = $this->decrypt($content);
-            return $decoded !== false ? $decoded : $content;
+            if ($decoded !== false) {
+                return $decoded;
+            }
+
+            // Decryption failed. If the bytes still carry the GCM1 vault marker
+            // the file WAS encrypted but could not be unlocked (corrupt data or
+            // key mismatch) - log loudly so it is not served silently as raw
+            // ciphertext. Legacy plaintext files (e.g. generated HTML contracts)
+            // pass through without noise.
+            $binary = base64_decode(trim($content), true);
+            if ($binary !== false && strncmp($binary, 'GCM1', 0, 4) === 0) {
+                error_log('FileService::getFileContent: encrypted vault file failed to decrypt (corrupt data or key mismatch): ' . $filename);
+            }
+
+            return $content;
         }
 
         return false;
