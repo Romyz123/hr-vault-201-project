@@ -15,3 +15,8 @@ public/utils/*
 # OS Files
 .DS_Store
 Thumbs.db
+
+# Runtime logs & local tooling
+php_error.log
+.continue/
+.env/

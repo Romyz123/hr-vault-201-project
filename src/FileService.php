@@ -130,9 +130,8 @@ class FileService
         if (preg_match('/^[a-f0-9-]{36}\.[a-z0-9]{1,10}$/i', $normalized)) {
             $candidates[] = $this->vaultPath . $normalized;
         } else {
+            // [SECURITY] Keep lookups inside the vault directory only (no raw path escape).
             $candidates[] = $this->vaultPath . basename($normalized);
-            $candidates[] = $this->vaultPath . ltrim($normalized, '/\\');
-            $candidates[] = $normalized;
         }
 
         $seen = [];

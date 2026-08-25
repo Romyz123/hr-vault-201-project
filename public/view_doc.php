@@ -94,8 +94,35 @@ if (!file_exists($fullPath)) {
 }
 
 // 5. VERIFY FILE EXISTS
-if (!file_exists($fullPath) && $isVaultFile) {
-    // Give FileService a chance if vault path uses virtual structures, otherwise fail
+// [SECURITY] Directory containment check (re-added): the resolved path must
+// stay inside the vault or an uploads directory, never escape via file_path.
+$allowedRoots = array_values(array_filter([
+    realpath(rtrim((string)$vaultPath, '/\\')),
+    realpath(__DIR__ . '/uploads'),
+    realpath(dirname(__DIR__) . '/uploads'),
+]));
+
+function pathIsContained(string $path, array $allowedRoots): ?string
+{
+    $real = @realpath($path);
+    if ($real === false) {
+        return null;
+    }
+    foreach ($allowedRoots as $root) {
+        if ($root === '' || strlen($real) <= strlen($root)) {
+            continue;
+        }
+        if (strncmp($real, $root, strlen($root)) === 0
+            && ($real[strlen($root)] === DIRECTORY_SEPARATOR || $real[strlen($root)] === '/')
+        ) {
+            return $real;
+        }
+    }
+    return null;
+}
+
+if (file_exists($fullPath) && pathIsContained($fullPath, $allowedRoots) === null) {
+    die("Security Violation: File Access Denied.");
 }
 
 // 6. DETERMINE CONTENT TYPE (MIME)
@@ -259,8 +286,10 @@ if ($content === false) {
 
     foreach (array_unique($possiblePaths) as $p) {
         $debugPaths[] = $p;
-        if ($p && file_exists($p) && !is_dir($p)) {
-            $content = file_get_contents($p);
+        // [SECURITY] Only read candidates that resolve inside an allowed root.
+        $safePath = is_string($p) && $p !== '' ? pathIsContained($p, $allowedRoots) : null;
+        if ($safePath !== null) {
+            $content = file_get_contents($safePath);
             if ($content !== false) {
                 break;
             }
