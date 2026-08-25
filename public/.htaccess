@@ -6,13 +6,22 @@ Options -Indexes
 
 # Block access to .env or hidden files
 
-<FilesMatch "^\.">
+<FilesMatch "^\.\">
 Order allow,deny
 Deny from all
 </FilesMatch>
 
 # Custom Error Pages
-
-ErrorDocument 403 "/hr-vault/public/error.php?code=403"
-ErrorDocument 404 "/hr-vault/public/error.php?code=404"
-ErrorDocument 500 "/hr-vault/public/error.php?code=500"
+# [FIX] The previous paths hard-coded "/hr-vault/public/error.php" which only
+# works when the project folder is literally named "hr-vault". On machines
+# where the folder has a different name (e.g. "hr 201"), Apache could not
+# serve the custom error page and the real PHP error message was hidden
+# behind the generic "HTTP ERROR 500" page.
+#
+# Re-enable the lines below ONLY if your XAMPP folder is named "hr-vault":
+# ErrorDocument 403 "/hr-vault/public/error.php?code=403"
+# ErrorDocument 404 "/hr-vault/public/error.php?code=404"
+# ErrorDocument 500 "/hr-vault/public/error.php?code=500"
+#
+# Otherwise (any other folder name) the built-in Apache error pages are used,
+# and the detailed PHP error is still written to php_error.log in the project root.
