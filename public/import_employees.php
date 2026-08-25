@@ -4,11 +4,45 @@
 // [STATUS] Reverted to User's working version + Custom Import
 // ======================================================
 
+// ---------- 1) SYSTEM IMPORTS & INITIALIZATION ----------
 require '../config/db.php';
 require '../src/Security.php';
 require '../src/Logger.php';
+require 'options.php'; // Fetch dynamic options for agencies
+
+// [FIX] Satisfy Intelephense by providing a safe fallback
+$agencies = $agencies ?? [];
+$deptMap = $deptMap ?? [];
+$system_roles = $system_roles ?? [];
+// [FIX] Ensure college_courses_list is initialized
+$college_courses_list = $college_courses_list ?? [];
+
+// [FIX] Check for college column existence to prevent crashes on older DB schemas
+$hasCollegeDegree = false;
+$hasCollegeCourse = false;
+$hasCollegeYear = false;
+try {
+    $checkCols = $pdo->query("SHOW COLUMNS FROM `employees` LIKE 'college_degree'");
+    if ($checkCols && $checkCols->rowCount() > 0) $hasCollegeDegree = true;
+    $checkCols = $pdo->query("SHOW COLUMNS FROM `employees` LIKE 'college_course'");
+    if ($checkCols && $checkCols->rowCount() > 0) $hasCollegeCourse = true;
+    $checkCols = $pdo->query("SHOW COLUMNS FROM `employees` LIKE 'college_year'");
+    if ($checkCols && $checkCols->rowCount() > 0) $hasCollegeYear = true;
+} catch (PDOException $e) {
+    // Safely assume no columns if table doesn't exist or other error
+}
+
+// [FIX] Ensure checkSessionTimeout is defined before calling it
+if (!function_exists('checkSessionTimeout')) {
+    require_once __DIR__ . '/../config/db.php';
+}
+// [FIX] Include global helper functions
+if (!function_exists('h')) {
+    require_once __DIR__ . '/../src/helpers.php';
+}
 session_start();
 
+// ---------- 2) SECURITY & ACCESS CONTROL ----------
 // 1. SECURITY: Admin, Manager & HR Only
 if (!isset($_SESSION['role']) || !in_array($_SESSION['role'], ['ADMIN', 'MANAGER', 'HR'])) {
     die("ACCESS DENIED");
@@ -19,11 +53,46 @@ $logger   = new Logger($pdo);
 $msg = "";
 $error = "";
 
+// ensure rollback table exists for import undo support
+// NOTE: The best practice, as noted here, is to handle this with a one-time migration script.
+// The code below is a robust auto-repair fallback for development environments.
+/*
+try {
+    // Check if table is accessible
+    $pdo->query("SELECT 1 FROM import_rollbacks LIMIT 1");
+} catch (PDOException $e) {
+    // If table doesn't exist or is corrupted (MySQL error 1932), recreate it.
+    if ($e->getCode() === '42S02') {
+        try {
+            $pdo->exec("DROP TABLE IF EXISTS import_rollbacks");
+            $pdo->exec("
+                CREATE TABLE `import_rollbacks` (
+                  `id` int(11) NOT NULL AUTO_INCREMENT,
+                  `employee_id` int(11) NOT NULL,
+                  `import_batch` varchar(255) NOT NULL,
+                  `old_data` json NOT NULL,
+                  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+                  PRIMARY KEY (`id`),
+                  KEY `idx_import_batch` (`import_batch`),
+                  KEY `idx_employee_id` (`employee_id`)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+            ");
+        } catch (PDOException $createEx) {
+            error_log("Failed to create import_rollbacks table: " . $createEx->getMessage());
+            // Fail gracefully if table creation fails
+        }
+    }
+}
+*/
+
+
+
 // [SECURITY] Generate CSRF Token
 if (empty($_SESSION['csrf_token'])) {
     $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 }
 
+// ---------- 3) DEPARTMENT MAPPING CONFIGURATION ----------
 // ---------------- CONFIGURATION ----------------
 // [IMPORTANT] Order matters! Specific departments (SQP, SIGCOM) come first
 // to prevent generic keywords (like "IT" or "Safety") from being grabbed by Admin.
@@ -92,7 +161,9 @@ $deptMap = [
     "SUBCONS-OTHERS" => ["OTHERS"]
 ];
 
-function findDept($section, $map)
+// ---------- 4) HELPER FUNCTIONS ----------
+// [FIX] Added 'string' and 'array' type hints
+function findDept(string $section, array $map)
 {
     $section = strtoupper(trim($section));
 
@@ -111,22 +182,55 @@ function findDept($section, $map)
     return "SUBCONS-OTHERS";
 }
 
-function parseDate($dateStr)
+// [FIX] Upgraded Date Parser to properly handle MS Forms (M/d/yyyy)
+// [FIX] Added '?string' type hint (allows null or string)
+function parseDate(?string $dateStr)
 {
+    $dateStr = trim($dateStr ?? '');
     if (empty($dateStr)) return NULL;
-    $timestamp = strtotime($dateStr);
-    if ($timestamp === false || $timestamp < 0) {
-        // Excel dd/mm/yyyy fix
-        if (preg_match('/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/', $dateStr, $matches)) {
-            return $matches[3] . '-' . $matches[2] . '-' . $matches[1];
+
+    // Handle formats like M/D/YYYY or MM/DD/YYYY outputted by Forms
+    if (preg_match('/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/', $dateStr, $matches)) {
+        $p1 = (int)$matches[1];
+        $p2 = (int)$matches[2];
+        $y = $matches[3];
+
+        if ($p1 > 12) {
+            return sprintf('%04d-%02d-%02d', $y, $p2, $p1); // Must be DD/MM/YYYY
+        } elseif ($p2 > 12) {
+            return sprintf('%04d-%02d-%02d', $y, $p1, $p2); // Must be MM/DD/YYYY
+        } else {
+            // Ambiguous (e.g. 05/06/2024), favor US MM/DD/YYYY per user request
+            return sprintf('%04d-%02d-%02d', $y, $p1, $p2);
         }
-        return NULL;
     }
-    return date('Y-m-d', $timestamp);
+
+    $timestamp = strtotime($dateStr);
+    if ($timestamp !== false && $timestamp > 0) return date('Y-m-d', $timestamp);
+    return NULL;
 }
 
-// ======================================================
-// 2. HANDLE UNDO ACTION
+// [NEW] Normalizer for College Courses using Keywords
+// This function is defined but not currently used in this file.
+function normalizeCourse(string $input, array $masterList)
+{
+    $input = strtoupper(trim($input));
+    if (empty($input)) return '';
+
+    foreach ($masterList as $item) {
+        // Match 1: Official Name
+        if ($input === strtoupper($item['course_name'])) return $item['course_name'];
+
+        // Match 2: Keywords/Tags
+        $keywords = explode(',', (string)($item['keywords'] ?? '')); // Ensure keywords is a string
+        foreach ($keywords as $k) {
+            if ($input === strtoupper(trim($k))) return $item['course_name'];
+        }
+    }
+    return $input; // No match? Keep raw data
+}
+
+// ---------- 5) HANDLE UNDO ACTION ----------
 // ======================================================
 if (isset($_POST['undo_batch'])) {
     // [SECURITY] Verify CSRF Token
@@ -137,13 +241,14 @@ if (isset($_POST['undo_batch'])) {
     $batch_to_delete = $_POST['undo_batch'];
 
     // [NEW] 1. Check Time Limit (30 Minutes = 1800 Seconds)
+    // [FIX] Comment updated to reflect actual 7-hour limit
     $stmt = $pdo->prepare("SELECT MAX(created_at) FROM employees WHERE import_batch = ?");
     $stmt->execute([$batch_to_delete]);
     $batchTimeStr = $stmt->fetchColumn();
 
-    // If batch exists AND is older than 30 mins
-    if ($batchTimeStr && (time() - strtotime($batchTimeStr) > 1800)) {
-        $error = "❌ Undo Failed: The 30-minute time limit for this batch has expired.";
+    // If batch exists AND is older than 7 hours (25200 seconds)
+    if ($batchTimeStr && (time() - strtotime($batchTimeStr) > 25200)) {
+        $error = "❌ Undo Failed: The 7-hour time limit for this batch has expired.";
     }
     // [EXISTING LOGIC] Proceed if valid
     elseif (strpos($batch_to_delete, 'BATCH_') === 0) {
@@ -221,244 +326,648 @@ if (isset($_POST['undo_batch'])) {
                 }
             }
 
-            $stmt = $pdo->prepare("SELECT COUNT(*) FROM employees WHERE import_batch = ?");
-            $stmt->execute([$batch_to_delete]);
-            $count = $stmt->fetchColumn();
+            // ==============================================
+            // Restore updated rows (if any) using rollbacks
+            // ==============================================
+            $rollStmt = $pdo->prepare("SELECT * FROM import_rollbacks WHERE import_batch = ?");
+            $rollStmt->execute([$batch_to_delete]);
+            $rollbacks = $rollStmt->fetchAll(PDO::FETCH_ASSOC);
+            // prepare allowed column list for safety
+            $allowedCols = [
+                'emp_id',
+                'first_name',
+                'middle_name',
+                'last_name',
+                'dept',
+                'section',
+                'employment_type',
+                'agency_name',
+                'job_title',
+                'status',
+                'gender',
+                'birth_date',
+                'hire_date',
+                'contact_number',
+                'present_address',
+                'permanent_address',
+                'avatar_path',
+                'import_batch',
+                'sss_no',
+                'tin_no',
+                'pagibig_no',
+                'philhealth_no',
+                'email',
+                'emergency_name',
+                'emergency_contact',
+                'emergency_address',
+                'education',
+                'experience',
+                'skills',
+                'system_role',
+                'company_name',
+                'previous_company',
+                'licenses',
+                'exit_date',
+                'exit_reason',
+                'updated_at',
+                'college_degree',
+                'college_course',
+                'college_year'
+            ];
+            $restored_count = 0;
+            foreach ($rollbacks as $rb) {
+                $old = json_decode($rb['old_data'], true);
+                if ($old) {
+                    // build update statement to restore original data (whitelist columns)
+                    $cols = [];
+                    $params = [];
+                    foreach ($old as $col => $val) {
+                        if ($col === 'id' || !in_array($col, $allowedCols, true)) {
+                            if (!in_array($col, $allowedCols, true)) {
+                                error_log("Skipped unknown column during rollback: $col");
+                            }
+                            continue;
+                        }
+                        $cols[] = "`$col` = ?";
+                        $params[] = $val;
+                    }
+                    if (!empty($cols)) {
+                        $params[] = $rb['employee_id'];
+                        $updSql = "UPDATE employees SET " . implode(", ", $cols) . " WHERE id = ?";
+                        $updStmt = $pdo->prepare($updSql);
+                        $updStmt->execute($params);
+                        if ($updStmt->rowCount() > 0) {
+                            $restored_count++;
+                        }
+                    }
+                }
+            }
 
-            $del = $pdo->prepare("DELETE FROM employees WHERE import_batch = ?");
-            $del->execute([$batch_to_delete]);
+            // ==============================================
+            // Delete newly inserted rows (not restored above)
+            // ==============================================
+            $del = $pdo->prepare("DELETE FROM employees WHERE import_batch = ? AND id NOT IN (SELECT employee_id FROM import_rollbacks WHERE import_batch = ?)");
+            $del->execute([$batch_to_delete, $batch_to_delete]);
+            $deleted_count = $del->rowCount();
 
-            $logger->log($_SESSION['user_id'], 'IMPORT_UNDO', "Undid batch $batch_to_delete");
-            $msg = "✅ Undo Successful! Removed $count employees and their files.";
-        } catch (PDOException $e) {
-            $error = "Undo Failed: " . $e->getMessage();
+            // After restoring/cleaning employees, log and report
+            $logger->log($_SESSION['user_id'], 'IMPORT_UNDO', "Reverted import batch $batch_to_delete: restored $restored_count, deleted $deleted_count");
+            $msg = "✅ Undo Completed! Restored $restored_count rows, removed $deleted_count new rows.";
+        } catch (Exception $e) {
+            $error = "Undo Failed: " . htmlspecialchars($e->getMessage());
         }
     }
 }
 
 
+// ---------- 6) HANDLE IMPORT ACTION ----------
 // ======================================================
-// 3. HANDLE IMPORT ACTION
-// ======================================================
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['csv_file'])) {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['undo_batch'])) {
 
     // [SECURITY] Verify CSRF Token
     if (empty($_POST['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'])) {
         die("Invalid CSRF Token");
     }
 
-    $agency = $_POST['agency_select'] ?? '';
+    $format = $_POST['agency_select'] ?? '';
+    $target_agency = $_POST['target_agency'] ?? '';
 
-    if ($agency == "") {
-        $error = "Please select an Agency first.";
-    } elseif ($_FILES['csv_file']['error'] == 0) {
+    if ($format === "") {
+        $error = "Please select an Import Format first.";
+    } elseif (empty($target_agency)) {
+        $error = "Please assign a Target Agency.";
+    } elseif (!isset($_FILES['csv_file']) || $_FILES['csv_file']['error'] !== UPLOAD_ERR_OK) {
+        $error = "File upload error. Please try again.";
+    } else {
+        $file = $_FILES['csv_file']['tmp_name'] ?? '';
+        if (empty($file) || !is_uploaded_file($file)) {
+            $error = "Invalid uploaded file.";
+        } else {
+            // [FIX] Initialize variables BEFORE opening the file so they always exist
+            $success_count = 0;
+            $updated_count = 0;
 
-        $file = $_FILES['csv_file']['tmp_name'];
-        $handle = fopen($file, "r");
+            $handle = @fopen($file, "r");
+            if ($handle === false) {
+                error_log("Import failed: could not open uploaded file $file");
+                $error = "Unable to read uploaded file.";
+            } else { // [FIX] Removed duplicate fread, ensuring first line is read as header
+                // detect delimiter based on first line sample
+                $firstChunk = fread($handle, 4096);
+                rewind($handle);
 
-        // [IMPROVEMENT] Auto-detect line endings and delimiter for robustness
-        ini_set('auto_detect_line_endings', true);
-        $firstLine = fgets($handle);
-        rewind($handle);
-        $delimiter = (substr_count($firstLine, ';') > substr_count($firstLine, ',')) ? ';' : ',';
+                $delimComma = substr_count($firstChunk, ',');
+                $delimSemi  = substr_count($firstChunk, ';');
+                $delimTab   = substr_count($firstChunk, "\t");
 
-        $batch_id = "BATCH_" . date('Ymd_His');
-        $success_count = 0;
+                $delimiter = ',';
+                if ($delimSemi > $delimComma && $delimSemi > $delimTab) $delimiter = ';';
+                if ($delimTab > $delimComma && $delimTab > $delimSemi) $delimiter = "\t";
 
-        // Capture header for Custom mapping
-        $headerRow = fgetcsv($handle, 0, $delimiter);
-        if (isset($headerRow[0])) { // Remove BOM if present
-            $headerRow[0] = preg_replace('/^\xEF\xBB\xBF/', '', $headerRow[0]);
-        }
+                $batch_id = "BATCH_" . date('Ymd_His');
 
-        while (($data = fgetcsv($handle, 0, $delimiter)) !== FALSE) {
-            if (empty($data) || (count($data) === 1 && empty($data[0]))) continue; // Skip empty rows
-
-            // DEFAULT VARIABLES
-            $emp_id = "";
-            $first_name = ".";
-            $last_name = "";
-            $section_raw = "";
-            $contact_raw = "";
-            $birth_raw = "";
-            $hire_raw = "";
-            $sss_raw = "";
-            $tin_raw = "";
-            $pagibig_raw = "";
-            $phil_raw = "";
-            $job_title = "Staff";
-            $email = "";
-
-            // ----------------------------------------------------
-            // SWITCH LOGIC: MAP COLUMNS BASED ON AGENCY
-            // ----------------------------------------------------
-
-            if ($agency === 'JORATECH') {
-                // [JORATECH FORMAT]
-                // 0:NO | 1:SECTION | 2:POSITION | 3:HIRED | 4:NUM(Ignore) | 5:PIC(Ignore) | 6:NAME | 7:CODE | 8:CONTRACT
-
-                $emp_id      = trim($data[7] ?? ''); // CODE (Col H)
-                $section_raw = $data[1] ?? '';       // SECTION (Col B)
-                $job_title   = ucwords(strtolower(trim($data[2] ?? 'Staff'))); // POSITION (Col C)
-                $hire_raw    = $data[3] ?? '';       // DATE HIRED (Col D)
-
-                // NAME (Col 6 / G)
-                $full_name = trim($data[6] ?? '');
-                if (strpos($full_name, ',') !== false) {
-                    $parts = explode(',', $full_name);
-                    $last_name = ucwords(strtolower(trim($parts[0])));
-                    $first_name = ucwords(strtolower(trim($parts[1] ?? '')));
-                } else {
-                    $last_name = ucwords(strtolower($full_name));
-                    $first_name = ".";
-                }
-            } elseif ($agency === 'UNLISOLUTIONS') {
-                // [UNLISOLUTIONS FORMAT]
-                $emp_id = trim($data[1] ?? '');
-
-                $full_name = trim($data[3] ?? '');
-                $parts = explode(',', $full_name);
-                if (count($parts) >= 2) {
-                    $last_name = ucwords(strtolower(trim($parts[0])));
-                    $first_name = ucwords(strtolower(trim($parts[1])));
-                } else {
-                    $last_name = ucwords(strtolower($full_name));
+                // Capture header for Custom mapping
+                $headerRow = fgetcsv($handle, 0, $delimiter);
+                if (isset($headerRow[0])) { // Remove BOM if present
+                    $headerRow[0] = preg_replace('/^\xEF\xBB\xBF/', '', $headerRow[0]);
                 }
 
-                $job_title   = ucwords(strtolower(trim($data[4] ?? 'Staff')));
-                $section_raw = $data[5] ?? '';
-                $contact_raw = $data[6] ?? '';
-                $birth_raw   = $data[7] ?? '';
-                $hire_raw    = $data[8] ?? '';
-                $sss_raw     = $data[9] ?? '';
-                $tin_raw     = $data[10] ?? '';
-                $pagibig_raw = $data[11] ?? '';
-                $phil_raw    = $data[12] ?? '';
-                $email       = strtolower(trim($data[14] ?? ''));
-            } elseif ($agency === 'CUSTOM') {
-                // [NEW] Dynamic Header Mapping
-                $h = array_map('strtoupper', array_map('trim', $headerRow));
-                $idx = function ($keys) use ($h) {
-                    foreach ($keys as $k) {
-                        $i = array_search($k, $h);
-                        if ($i !== false) return $i;
+                while (($data = fgetcsv($handle, 0, $delimiter)) !== FALSE) {
+                    if (empty($data) || (count($data) === 1 && empty($data[0]))) continue; // Skip empty rows
+
+                    // DEFAULT VARIABLES
+                    $emp_id = "";
+                    $first_name = "";
+                    $middle_name = "";
+                    $last_name = "";
+                    $section_raw = "";
+                    $dept_raw = "";
+                    $contact_raw = "";
+                    $birth_raw = "";
+                    $hire_raw = "";
+                    $sss_raw = "";
+                    $tin_raw = "";
+                    $pagibig_raw = "";
+                    $phil_raw = "";
+                    $job_title = "Staff";
+                    $email = "";
+                    $gender = "Male";
+                    $present_addr = "To be updated";
+                    $permanent_addr = "";
+                    $emg_name = "";
+                    $emg_contact = "";
+                    $emg_addr = "";
+                    $college_degree = "";
+                    $college_course = "";
+                    $college_year = "";
+
+                    // ----------------------------------------------------
+                    // SWITCH LOGIC: MAP COLUMNS BASED ON AGENCY
+                    // ----------------------------------------------------
+
+                    if ($format === 'JORATECH') {
+                        // [JORATECH FORMAT]
+                        // 0:NO | 1:SECTION | 2:POSITION | 3:HIRED | 4:NUM(Ignore) | 5:PIC(Ignore) | 6:NAME | 7:CODE | 8:CONTRACT
+
+                        $emp_id      = trim($data[7] ?? ''); // CODE (Col H)
+                        $section_raw = $data[1] ?? '';       // SECTION (Col B)
+                        $job_title   = ucwords(strtolower(trim($data[2] ?? 'Staff'))); // POSITION (Col C)
+                        $hire_raw    = $data[3] ?? '';       // DATE HIRED (Col D)
+
+                        // NAME (Col 6 / G)
+                        $full_name = trim($data[6] ?? '');
+                        if (strpos($full_name, ',') !== false) {
+                            $parts = explode(',', $full_name);
+                            $last_name = ucwords(strtolower(trim($parts[0])));
+                            $first_name = ucwords(strtolower(trim($parts[1] ?? '')));
+                        } else {
+                            // no comma, attempt to split on whitespace
+                            $words = preg_split('/\s+/', trim($full_name));
+                            if (count($words) > 1) {
+                                $first_name = ucwords(strtolower(array_shift($words)));
+                                $last_name = ucwords(strtolower(implode(' ', $words)));
+                            } else {
+                                $last_name = ucwords(strtolower($full_name));
+                                $first_name = '';
+                            }
+                        }
+                    } elseif ($format === 'UNLISOLUTIONS') {
+                        // [UNLISOLUTIONS FORMAT]
+                        $emp_id = trim($data[1] ?? '');
+
+                        $full_name = trim($data[3] ?? '');
+                        $parts = explode(',', $full_name);
+                        if (count($parts) >= 2) {
+                            $last_name = ucwords(strtolower(trim($parts[0])));
+                            $first_name = ucwords(strtolower(trim($parts[1])));
+                        } else {
+                            $words = preg_split('/\s+/', trim($full_name));
+                            if (count($words) > 1) {
+                                $first_name = ucwords(strtolower(array_shift($words)));
+                                $last_name = ucwords(strtolower(implode(' ', $words)));
+                            } else {
+                                $last_name = ucwords(strtolower($full_name));
+                                $first_name = '';
+                            }
+                        }
+
+                        $job_title   = ucwords(strtolower(trim($data[4] ?? 'Staff')));
+                        $section_raw = $data[5] ?? '';
+                        $contact_raw = $data[6] ?? '';
+                        $birth_raw   = $data[7] ?? '';
+                        $hire_raw    = $data[8] ?? '';
+                        $sss_raw     = $data[9] ?? '';
+                        $tin_raw     = $data[10] ?? '';
+                        $pagibig_raw = $data[11] ?? '';
+                        $phil_raw    = $data[12] ?? '';
+                        $email       = strtolower(trim($data[14] ?? ''));
+                    } elseif ($format === 'CUSTOM') {
+                        // [NEW] Dynamic Header Mapping
+                        $h = array_map(function ($val) {
+                            // Clean weird Excel BOM or invisible characters
+                            return strtoupper(trim(preg_replace('/[\x00-\x1F\x7F]/', '', $val)));
+                        }, $headerRow);
+
+                        $getVal = function (array $keys) use ($h, $data) {
+                            $ignoreHeaders = ['ID', 'START TIME', 'COMPLETION TIME', 'EMAIL', 'NAME', 'LAST MODIFIED TIME'];
+
+                            // Pass 1: Strict Exact Match
+                            foreach ($h as $index => $headerName) {
+                                if (in_array($headerName, $ignoreHeaders, true)) continue;
+                                // Automatically strip trailing numbers generated by MS Forms
+                                $cleanHeader = trim(preg_replace('/[0-9]+$/', '', $headerName));
+                                foreach ($keys as $k) {
+                                    if ($cleanHeader === strtoupper($k) && !empty(trim($data[$index] ?? ''))) {
+                                        return trim($data[$index]);
+                                    }
+                                }
+                            }
+
+                            // Pass 2: Fuzzy / Partial Match
+                            foreach ($h as $index => $headerName) {
+                                if (in_array($headerName, $ignoreHeaders, true)) continue;
+                                $cleanHeader = trim(preg_replace('/[0-9]+$/', '', $headerName));
+                                foreach ($keys as $k) {
+                                    // Soft match: Check if the required key is anywhere in the header
+                                    if (strpos($cleanHeader, strtoupper($k)) !== false && !empty(trim($data[$index] ?? ''))) {
+                                        // [FIX] Prevent "EMAIL ADDRESS" from being grabbed when searching for physical "ADDRESS"
+                                        if (strtoupper($k) === 'ADDRESS' && strpos($cleanHeader, 'EMAIL') !== false) {
+                                            continue;
+                                        }
+                                        return trim($data[$index]);
+                                    }
+                                }
+                            }
+                            return '';
+                        };
+
+                        $emp_id         = $getVal(['EMPLOYEE ID NUMBER', 'EMPLOYEE ID', 'EMP_ID', 'CODE']);
+                        $first_name     = $getVal(['FIRST NAME']);
+                        $middle_name    = $getVal(['MIDDLE NAME']);
+                        $last_name      = $getVal(['LAST NAME']);
+                        $full_name      = $getVal(['FULL NAME', 'EMPLOYEE NAME']);
+
+                        $job_title      = $getVal(['POSITION / JOB TITLE', 'POSITION', 'JOB TITLE', 'ROLE']);
+                        if (empty($job_title)) $job_title = 'Staff'; // fallback
+
+                        $dept_raw       = $getVal(['DEPARTMENT', 'DEPT']);
+                        $section_raw    = $getVal(['SECTION']);
+                        $hire_raw       = $getVal(['DATE HIRED', 'HIRED', 'JOIN DATE']);
+                        $birth_raw      = $getVal(['DATE OF BIRTH', 'BIRTH DATE', 'BDAY']);
+                        $gender_raw     = $getVal(['GENDER', 'SEX']);
+                        $contact_raw    = $getVal(['MOBILE NUMBER', 'CONTACT NUMBER', 'PHONE']);
+                        $email          = strtolower($getVal(['PERSONAL EMAIL ADDRESS', 'EMAIL']));
+
+                        $present_addr   = $getVal(['COMPLETE PRESENT ADDRESS', 'PRESENT ADDRESS', 'ADDRESS']);
+                        if (empty($present_addr)) $present_addr = 'To be updated'; // fallback
+
+                        $permanent_addr = $getVal(['COMPLETE PERMANENT ADDRESS', 'PERMANENT ADDRESS']);
+                        $sss_raw        = $getVal(['SSS NUMBER', 'SSS']);
+                        $pagibig_raw    = $getVal(['PAG-IBIG (HDMF) NUMBER', 'PAG-IBIG', 'HDMF']);
+                        $phil_raw       = $getVal(['PHILHEALTH NUMBER', 'PHILHEALTH']);
+                        $tin_raw        = $getVal(['TIN (TAX IDENTIFICATION NUMBER)', 'TIN']);
+                        $emg_name       = ucwords(strtolower($getVal(['EMERGENCY CONTACT NAME', 'EMERGENCY CONTACT'])));
+                        $emg_contact    = $getVal(['EMERGENCY CONTACT NUMBER']);
+                        $emg_addr       = $getVal(['EMERGENCY CONTACT ADDRESS']);
+                        $education      = $getVal(['EDUCATION ATTAINMENT', 'EDUCATION', 'EDUCATIONAL ATTAINMENT', 'DEGREE']);
+                        $experience     = $getVal(['EXPERIENCE', 'WORK EXPERIENCE']);
+                        $licenses       = $getVal(['LICENSES / CERTIFICATIONS', 'LICENSES', 'CERTIFICATIONS']);
+                        $college_degree = $getVal(['COLLEGE DEGREE', 'DEGREE TYPE']);
+                        $college_course = $getVal(['COLLEGE COURSE', 'COURSE', 'MAJOR']);
+                        $college_year   = $getVal(['YEAR FINISHED', 'GRADUATION YEAR', 'COLLEGE YEAR']);
+
+                        // [SYNC] Normalize the Course based on Keywords
+                        $college_course = normalizeCourse($college_course, $college_courses_list);
+
+                        if (!empty($gender_raw)) {
+                            $g = strtolower($gender_raw);
+                            if ($g === 'woman' || $g === 'female') $gender = 'Female';
+                            elseif ($g === 'man' || $g === 'male') $gender = 'Male';
+                        }
+
+                        if (!empty($first_name) || !empty($last_name)) {
+                            $first_name = ucwords(strtolower($first_name));
+                            $last_name = ucwords(strtolower($last_name));
+                            $middle_name = ucwords(strtolower($middle_name));
+                        } else {
+                            $full_name = trim($full_name);
+                            if (strpos($full_name, ',') !== false) {
+                                $parts = explode(',', $full_name);
+                                $last_name = ucwords(strtolower(trim($parts[0] ?? '')));
+                                $first_name = ucwords(strtolower(trim($parts[1] ?? '')));
+                            } else {
+                                $words = preg_split('/\s+/', trim($full_name));
+                                if (count($words) > 1) {
+                                    $first_name = ucwords(strtolower(array_shift($words)));
+                                    $last_name = ucwords(strtolower(implode(' ', $words)));
+                                } else {
+                                    $last_name = ucwords(strtolower($full_name));
+                                    $first_name = '';
+                                }
+                            }
+                        }
+                    } else {
+                        // [TESP / STANDARD FORMAT]
+                        $emp_id = trim($data[1] ?? '');
+
+                        $full_name = trim($data[3] ?? '');
+                        $parts = explode(',', $full_name);
+                        if (count($parts) >= 2) {
+                            $last_name = ucwords(strtolower(trim($parts[0])));
+                            $first_name = ucwords(strtolower(trim($parts[1])));
+                        } else {
+                            $words = preg_split('/\s+/', trim($full_name));
+                            if (count($words) > 1) {
+                                $first_name = ucwords(strtolower(array_shift($words)));
+                                $last_name = ucwords(strtolower(implode(' ', $words)));
+                            } else {
+                                $last_name = ucwords(strtolower($full_name));
+                            }
+                        }
+
+                        $section_raw = $data[4] ?? '';
+                        $contact_raw = $data[5] ?? '';
+                        $birth_raw   = $data[6] ?? '';
+                        $hire_raw    = $data[7] ?? '';
+                        $sss_raw     = $data[8] ?? '';
+                        $tin_raw     = $data[9] ?? '';
+                        $pagibig_raw = $data[10] ?? '';
+                        $phil_raw    = $data[11] ?? '';
                     }
-                    return -1;
-                };
-                $iID = $idx(['ID', 'EMP_ID', 'EMPLOYEE ID', 'CODE']);
-                $iName = $idx(['NAME', 'FULL NAME', 'EMPLOYEE NAME']);
-                $iPos = $idx(['POSITION', 'JOB TITLE', 'ROLE']);
-                $iSec = $idx(['SECTION', 'DEPT', 'DEPARTMENT']);
-                $iHired = $idx(['HIRED', 'DATE HIRED', 'JOIN DATE']);
 
-                $emp_id = ($iID >= 0) ? trim($data[$iID] ?? '') : '';
-                $job_title = ($iPos >= 0) ? ucwords(strtolower(trim($data[$iPos] ?? 'Staff'))) : 'Staff';
-                $section_raw = ($iSec >= 0) ? ($data[$iSec] ?? '') : '';
-                $hire_raw = ($iHired >= 0) ? ($data[$iHired] ?? '') : '';
+                    // --- PROCESSING ---
+                    $section = strtoupper(trim($section_raw));
 
-                if ($iName >= 0) {
-                    $full_name = trim($data[$iName] ?? '');
-                    $parts = explode(',', $full_name);
-                    $last_name = ucwords(strtolower(trim($parts[0] ?? '')));
-                    $first_name = ucwords(strtolower(trim($parts[1] ?? $full_name)));
+                    // [FIX] Favor Form Dept over Section Map if provided
+                    if (!empty($dept_raw)) { // [FIX] Use $dept_raw from CSV if available
+                        $dStr = strtoupper(trim($dept_raw));
+                        if (strpos($dStr, 'OP') !== false) $dept = 'OP';
+                        elseif (strpos($dStr, 'SUBCONS') !== false) $dept = 'SUBCONS-OTHERS';
+                        else $dept = array_key_exists($dStr, $deptMap) ? $dStr : (findDept($section, $deptMap) ?: $dStr);
+                    } else {
+                        $dept = findDept($section, $deptMap);
+                    }
+                    // [FIX] Ensure dept is not empty if section mapping failed
+                    if (empty($dept)) $dept = 'UNASSIGNED';
+
+
+                    $birth_date = parseDate(trim($birth_raw));
+                    $hire_date  = parseDate(trim($hire_raw));
+
+                    // [SECURITY] Enforce Limits & Whitelist (Match Add/Edit Rules)
+                    $emp_id     = substr(preg_replace('/[^a-zA-Z0-9\-_]/', '', $emp_id), 0, 20);
+
+                    // [FIX] Auto-Generate Employee ID for New Hires if left blank in the CSV
+                    if ($emp_id === '') {
+                        $emp_id = "NEW-" . date('ym') . "-" . strtoupper(substr(bin2hex(random_bytes(2)), 0, 4));
+                    }
+
+                    // [FIX] Prevent Database Crashes if names are missing
+                    if (empty($first_name)) $first_name = "-";
+                    if (empty($last_name)) $last_name = "Unknown Applicant";
+
+                    $first_name = substr(preg_replace('/[^a-zA-Z0-9\s\-\.\(\)]/', '', $first_name), 0, 50);
+                    $last_name  = substr(preg_replace('/[^a-zA-Z0-9\s\-\.\(\)]/', '', $last_name), 0, 50);
+                    $job_title  = substr(preg_replace('/[^a-zA-Z0-9\s\-\.\,\(\)]/', '', $job_title), 0, 50);
+
+                    $education  = substr(preg_replace('/[^a-zA-Z0-9\s\.,\-\(\)\/\':]/', '', $education ?? ''), 0, 1000);
+                    $experience = substr(preg_replace('/[^a-zA-Z0-9\s\.,\-\(\)\/\':]/', '', $experience ?? ''), 0, 1000);
+                    $licenses   = substr(preg_replace('/[^a-zA-Z0-9\s\.,\-\(\)\/\':]/', '', $licenses ?? ''), 0, 1000);
+
+                    $college_degree = substr(preg_replace('/[^a-zA-Z0-9\s\-\.\(\)]/', '', $college_degree ?? ''), 0, 100);
+                    $college_course = substr(preg_replace('/[^a-zA-Z0-9\s\-\.\(\)]/', '', $college_course ?? ''), 0, 100);
+                    $college_year   = substr(preg_replace('/[^0-9]/', '', $college_year ?? ''), 0, 10);
+
+                    // Defaults
+                    $photo  = "default.png";
+                    $status = "Active";
+
+                    // Target Agency Assignment
+                    $actual_agency = $target_agency;
+                    $empType = (stripos($actual_agency, 'TESP') !== false) ? 'TESP Direct' : 'Agency';
+
+                    if ($emp_id != '') {
+                        // [NEW] Check if ID exists
+                        $checkStmt = $pdo->prepare("SELECT id FROM employees WHERE emp_id = ?");
+                        $checkStmt->execute([$emp_id]);
+                        $existingId = $checkStmt->fetchColumn();
+
+                        $shouldUpdate = isset($_POST['update_existing']);
+
+                        // [SECURITY] Require Admin/Manager for direct database insertion. HR goes to Approval Center.
+                        $requiresApproval = !in_array($_SESSION['role'], ['ADMIN', 'MANAGER']);
+
+                        try {
+                            if ($existingId && $shouldUpdate) {
+                                if ($requiresApproval) {
+                                    // [WORKFLOW] Create an Edit Request for existing employee
+                                    $updateData = [
+                                        'first_name' => $first_name,
+                                        'middle_name' => $middle_name,
+                                        'last_name' => $last_name,
+                                        'dept' => $dept,
+                                        'section' => $section,
+                                        'employment_type' => $empType,
+                                        'agency_name' => $actual_agency,
+                                        'job_title' => $job_title,
+                                        'gender' => $gender,
+                                        'birth_date' => $birth_date,
+                                        'hire_date' => $hire_date,
+                                        'contact_number' => trim($contact_raw),
+                                        'present_address' => $present_addr,
+                                        'permanent_address' => $permanent_addr,
+                                        'sss_no' => trim($sss_raw),
+                                        'tin_no' => trim($tin_raw),
+                                        'pagibig_no' => trim($pagibig_raw),
+                                        'philhealth_no' => trim($phil_raw),
+                                        'email' => $email,
+                                        'emergency_name' => $emg_name,
+                                        'emergency_contact' => $emg_contact,
+                                        'emergency_address' => $emg_addr,
+                                        'education' => $education,
+                                        'experience' => $experience,
+                                        'licenses' => $licenses,
+                                        'college_degree' => $college_degree,
+                                        'college_course' => $college_course,
+                                        'college_year' => $college_year,
+                                        'request_note' => 'Bulk Import Update'
+                                    ];
+                                    $payload = json_encode($updateData, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
+                                    if ($payload === false) { // Check for json_encode errors
+                                        error_log("Failed to encode request payload for emp_id $emp_id: " . json_last_error_msg());
+                                        continue;
+                                    }
+                                    $pdo->prepare("INSERT INTO requests (user_id, request_type, target_id, json_payload) VALUES (?, 'EDIT_PROFILE', ?, ?)")->execute([$_SESSION['user_id'], $existingId, $payload]);
+                                    $updated_count++;
+                                } else {
+                                    // before updating, capture original state for undo
+                                    $origStmt = $pdo->prepare("SELECT * FROM employees WHERE id = ?");
+                                    $origStmt->execute([$existingId]);
+                                    $originalRow = $origStmt->fetch(PDO::FETCH_ASSOC);
+                                    if ($originalRow) { // $originalRow is an array
+                                        $backupData = null;
+                                        try {
+                                            $backupData = json_encode($originalRow, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE);
+                                        } catch (JsonException $je) {
+                                            array_walk_recursive($originalRow, function (&$value) {
+                                                if (is_string($value) && !mb_check_encoding($value, 'UTF-8')) {
+                                                    $value = mb_convert_encoding($value, 'UTF-8', 'UTF-8');
+                                                }
+                                            });
+                                            $backupData = json_encode($originalRow, JSON_UNESCAPED_UNICODE | JSON_PARTIAL_OUTPUT_ON_ERROR);
+                                            if ($backupData === false) {
+                                                error_log("Failed to encode backup data for emp_id $existingId during import: " . json_last_error_msg());
+                                                $backupData = json_encode(['fallback' => base64_encode(serialize($originalRow))], JSON_UNESCAPED_UNICODE);
+                                            }
+                                        }
+                                        $backupStmt = $pdo->prepare("INSERT INTO import_rollbacks (employee_id, import_batch, old_data) VALUES (?, ?, ?)");
+                                        $backupStmt->execute([$existingId, $batch_id, $backupData]);
+                                    }
+
+                                    // UPDATE EXISTING RECORD, also tag with current batch
+                                    $updateSqlParts = [
+                                        "first_name=?", "middle_name=?", "last_name=?", "dept=?", "section=?",
+                                        "employment_type=?", "agency_name=?", "job_title=?",
+                                        "gender=?", "birth_date=?", "hire_date=?", "contact_number=?",
+                                        "present_address=?", "permanent_address=?", "sss_no=?", "tin_no=?", "pagibig_no=?", "philhealth_no=?", "email=?",
+                                        "emergency_name=?", "emergency_contact=?", "emergency_address=?",
+                                        "education=?", "experience=?", "licenses=?",
+                                        "import_batch=?", "updated_at=NOW()"
+                                    ];
+                                    $updateParams = [
+                                        $first_name, $middle_name, $last_name, $dept, $section,
+                                        $empType, $actual_agency, $job_title,
+                                        $gender, $birth_date, $hire_date, trim($contact_raw),
+                                        $present_addr, $permanent_addr, trim($sss_raw), trim($tin_raw), trim($pagibig_raw), trim($phil_raw), $email,
+                                        $emg_name, $emg_contact, $emg_addr,
+                                        $education, $experience, $licenses,
+                                        $batch_id
+                                    ];
+
+                                    if ($hasCollegeDegree) { $updateSqlParts[] = "college_degree=?"; $updateParams[] = $college_degree; }
+                                    if ($hasCollegeCourse) { $updateSqlParts[] = "college_course=?"; $updateParams[] = $college_course; }
+                                    if ($hasCollegeYear)   { $updateSqlParts[] = "college_year=?";   $updateParams[] = $college_year; }
+
+                                    $sql = "UPDATE employees SET " . implode(', ', $updateSqlParts) . " WHERE id=?";
+                                    $updateParams[] = $existingId;
+
+                                    $stmt = $pdo->prepare($sql);
+                                    $stmt->execute($updateParams);
+                                    $updated_count++;
+                                }
+                            } elseif (!$existingId) {
+                                if ($requiresApproval) {
+                                    // [WORKFLOW] Create an Add Request for a new employee
+                                    $insertData = [
+                                        'emp_id' => $emp_id,
+                                        'first_name' => $first_name,
+                                        'middle_name' => $middle_name,
+                                        'last_name' => $last_name,
+                                        'job_title' => $job_title,
+                                        'system_role' => 'Staff',
+                                        'dept' => $dept,
+                                        'section' => $section,
+                                        'employment_type' => $empType,
+                                        'agency_name' => $actual_agency,
+                                        'company_name' => 'TES Philippines',
+                                        'previous_company' => '',
+                                        'hire_date' => $hire_date,
+                                        'gender' => $gender,
+                                        'birth_date' => $birth_date,
+                                        'contact_number' => trim($contact_raw),
+                                        'email' => $email,
+                                        'present_address' => $present_addr,
+                                        'permanent_address' => $permanent_addr,
+                                        'sss_no' => trim($sss_raw),
+                                        'tin_no' => trim($tin_raw),
+                                        'pagibig_no' => trim($pagibig_raw),
+                                        'philhealth_no' => trim($phil_raw),
+                                        'emergency_name' => $emg_name,
+                                        'emergency_contact' => $emg_contact,
+                                        'emergency_address' => $emg_addr,
+                                        'education' => $education,
+                                        'experience' => $experience,
+                                        'skills' => '',
+                                        'college_degree' => $college_degree,
+                                        'college_course' => $college_course,
+                                        'college_year' => $college_year,
+                                        'licenses' => $licenses,
+                                        'status' => $status,
+                                        'avatar_path' => $photo,
+                                        'request_note' => 'Bulk Import New Hire'
+                                    ];
+                                    $payload = json_encode($insertData, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
+                                    if ($payload === false) {
+                                        error_log("Failed to encode ADD_EMPLOYEE request payload for emp_id $emp_id: " . json_last_error_msg());
+                                        continue;
+                                    }
+                                    $pdo->prepare("INSERT INTO requests (user_id, request_type, target_id, json_payload) VALUES (?, 'ADD_EMPLOYEE', 0, ?)")->execute([$_SESSION['user_id'], $payload]);
+                                    $success_count++;
+                                } else {
+                                    // INSERT NEW RECORD
+                                    $insertCols = [
+                                        'emp_id', 'first_name', 'middle_name', 'last_name', 'dept', 'section',
+                                        'employment_type', 'agency_name', 'job_title', 'status',
+                                        'gender', 'birth_date', 'hire_date', 'contact_number',
+                                        'present_address', 'permanent_address', 'avatar_path', 'import_batch',
+                                        'sss_no', 'tin_no', 'pagibig_no', 'philhealth_no', 'email',
+                                        'emergency_name', 'emergency_contact', 'emergency_address',
+                                        'education', 'experience', 'licenses'
+                                    ];
+                                    $insertParams = [
+                                        $emp_id, $first_name, $middle_name, $last_name, $dept, $section,
+                                        $empType, $actual_agency, $job_title, $status,
+                                        $gender, $birth_date, $hire_date, trim($contact_raw),
+                                        $present_addr, $permanent_addr, $photo, $batch_id,
+                                        trim($sss_raw), trim($tin_raw), trim($pagibig_raw), trim($phil_raw), $email,
+                                        $emg_name, $emg_contact, $emg_addr,
+                                        $education, $experience, $licenses
+                                    ];
+
+                                    if ($hasCollegeDegree) { $insertCols[] = 'college_degree'; $insertParams[] = $college_degree; }
+                                    if ($hasCollegeCourse) { $insertCols[] = 'college_course'; $insertParams[] = $college_course; }
+                                    if ($hasCollegeYear)   { $insertCols[] = 'college_year';   $insertParams[] = $college_year; }
+
+                                    $colsString = '`' . implode('`, `', $insertCols) . '`';
+                                    $placeholders = implode(', ', array_fill(0, count($insertCols), '?'));
+
+                                    $sql = "INSERT INTO employees ($colsString) VALUES ($placeholders)";
+                                    $stmt = $pdo->prepare($sql);
+                                    $stmt->execute($insertParams);
+                                    $success_count++;
+                                }
+                            }
+                        } catch (Exception $e) {
+                            // Log error but continue processing
+                            $errCode = $e instanceof PDOException ? $e->errorInfo[1] ?? 0 : 0;
+                            // 1062 = MySQL duplicate entry
+                            if ($errCode !== 1062) {
+                                error_log("Import error for emp_id $emp_id: " . $e->getMessage());
+                            }
+                        }
+                    }
+                }
+                fclose($handle);
+            }
+
+            if ($success_count > 0 || $updated_count > 0) {
+                if (isset($requiresApproval) && $requiresApproval) {
+                    $logger->log($_SESSION['user_id'], 'IMPORT_REQUEST', "Requested import of $success_count new, $updated_count updates (Format: $format)");
+                    $msg = "📝 Success! $success_count new additions and $updated_count updates were sent to the Admin Approval Center.";
+                } else {
+                    $logger->log($_SESSION['user_id'], 'IMPORT_SUCCESS', "Imported $success_count, Updated $updated_count (Format: $format)");
+                    $msg = "✅ Success! Added $success_count new, Updated $updated_count existing employees.";
                 }
             } else {
-                // [TESP / STANDARD FORMAT]
-                $emp_id = trim($data[1] ?? '');
-
-                $full_name = trim($data[3] ?? '');
-                $parts = explode(',', $full_name);
-                if (count($parts) >= 2) {
-                    $last_name = ucwords(strtolower(trim($parts[0])));
-                    $first_name = ucwords(strtolower(trim($parts[1])));
-                } else {
-                    $last_name = ucwords(strtolower($full_name));
-                }
-
-                $section_raw = $data[4] ?? '';
-                $contact_raw = $data[5] ?? '';
-                $birth_raw   = $data[6] ?? '';
-                $hire_raw    = $data[7] ?? '';
-                $sss_raw     = $data[8] ?? '';
-                $tin_raw     = $data[9] ?? '';
-                $pagibig_raw = $data[10] ?? '';
-                $phil_raw    = $data[11] ?? '';
-            }
-
-            // --- PROCESSING ---
-            $section = strtoupper(trim($section_raw));
-            $dept    = findDept($section, $deptMap);
-
-            $birth_date = parseDate(trim($birth_raw));
-            $hire_date  = parseDate(trim($hire_raw));
-
-            // [SECURITY] Enforce Limits & Whitelist (Match Add/Edit Rules)
-            $emp_id     = substr(preg_replace('/[^a-zA-Z0-9\-_]/', '', $emp_id), 0, 20);
-            $first_name = substr(preg_replace('/[^a-zA-Z0-9\s\-\.\(\)]/', '', $first_name), 0, 50);
-            $last_name  = substr(preg_replace('/[^a-zA-Z0-9\s\-\.\(\)]/', '', $last_name), 0, 50);
-            $job_title  = substr(preg_replace('/[^a-zA-Z0-9\s\-\.\,\(\)]/', '', $job_title), 0, 50);
-
-            // Defaults
-            $gender = "Male";
-            $photo  = "default.png";
-            $status = "Active";
-            $address = "To be updated";
-            $empType = ($agency === 'TESP') ? 'TESP Direct' : 'Agency';
-
-            if ($emp_id != '') {
-                try {
-                    $sql = "INSERT INTO employees 
-                    (emp_id, first_name, last_name, dept, section, 
-                     employment_type, agency_name, job_title, status, 
-                     gender, birth_date, hire_date, contact_number, 
-                     present_address, avatar_path, import_batch,
-                     sss_no, tin_no, pagibig_no, philhealth_no, email) 
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
-
-                    $stmt = $pdo->prepare($sql);
-                    $stmt->execute([
-                        $emp_id,
-                        $first_name,
-                        $last_name,
-                        $dept,
-                        $section,
-                        $empType,
-                        $agency,
-                        $job_title,
-                        $status,
-                        $gender,
-                        $birth_date,
-                        $hire_date,
-                        trim($contact_raw),
-                        $address,
-                        $photo,
-                        $batch_id,
-                        trim($sss_raw),
-                        trim($tin_raw),
-                        trim($pagibig_raw),
-                        trim($phil_raw),
-                        $email
-                    ]);
-                    $success_count++;
-                } catch (Exception $e) {
-                    // Skip duplicates
-                }
+                $error = "No valid records found or all were duplicates.";
             }
         }
-        fclose($handle);
-
-        if ($success_count > 0) {
-            $logger->log($_SESSION['user_id'], 'IMPORT_SUCCESS', "Imported $success_count ($agency)");
-            $msg = "✅ Success! Imported $success_count employees into $agency.";
-        } else {
-            $error = "No valid records found or all were duplicates.";
-        }
-    } else {
-        $error = "File upload failed.";
     }
 }
 
-$history = $pdo->query("SELECT import_batch, agency_name, COUNT(*) as count, MAX(created_at) as time FROM employees WHERE import_batch IS NOT NULL GROUP BY import_batch ORDER BY time DESC LIMIT 5")->fetchAll();
+// ---------- 7) DATA FETCHING ----------
+// Fetch history for the table below
+$history = $pdo->query("SELECT import_batch, MAX(agency_name) as agency_name, COUNT(*) as count, MAX(created_at) as time FROM employees WHERE import_batch IS NOT NULL GROUP BY import_batch ORDER BY time DESC LIMIT 5")->fetchAll(PDO::FETCH_ASSOC);
 ?>
 
 <!DOCTYPE html>
@@ -466,7 +975,14 @@ $history = $pdo->query("SELECT import_batch, agency_name, COUNT(*) as count, MAX
 
 <head>
     <meta charset="UTF-8">
-    <title>Import Employees</title>
+    <title>Import Employees | TESP HR 201 System</title>
+    <?php
+    // [FIX] Ensure the tab logo displays correctly using a reliable path
+    $fav = 'uploads/favicon.png';
+    if (!file_exists($fav)) $fav = 'uploads/tesp-logo.png';
+    ?>
+    <link rel="icon" type="image/png" href="<?php echo htmlspecialchars($fav); ?>?v=<?php echo time(); ?>">
+    <link rel="apple-touch-icon" href="<?php echo htmlspecialchars($fav); ?>">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <link href="assets/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="assets/icons/bootstrap-icons.css">
@@ -475,80 +991,268 @@ $history = $pdo->query("SELECT import_batch, agency_name, COUNT(*) as count, MAX
         .format-box {
             display: none;
         }
+
+        /* Custom scrollbar to make horizontal scrolling obvious and professional */
+        .table-responsive::-webkit-scrollbar {
+            height: 8px;
+        }
+
+        .table-responsive::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.05);
+            border-radius: 4px;
+        }
+
+        .table-responsive::-webkit-scrollbar-thumb {
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 4px;
+        }
+
+        .table-responsive::-webkit-scrollbar-thumb:hover {
+            background: rgba(0, 0, 0, 0.3);
+        }
     </style>
 </head>
 
-<body class="bg-light">
+<body class="bg-body-tertiary">
 
-    <div class="container mt-5">
+    <nav class="navbar navbar-dark bg-dark mb-4">
+        <div class="container">
+            <a class="navbar-brand" href="index.php">Back to Dashboard</a>
+            <button onclick="history.back()" class="btn btn-sm btn-outline-light me-2 no-print" title="Go Back">
+                <i class="bi bi-arrow-left"></i> Back
+            </button>
+            <div class="d-flex align-items-center">
 
-        <div id="instr_tesp" class="alert alert-info shadow-sm mb-4 format-box" style="display:block;">
-            <h6 class="fw-bold">Standard Format (TESP / GUNJIN)</h6>
-            <div class="table-responsive">
-                <table class="table table-sm small table-bordered mb-0 bg-white">
-                    <tr>
-                        <th>NO</th>
-                        <th>ID</th>
-                        <th>PIC</th>
-                        <th>NAME</th>
-                        <th>SECTION</th>
-                        <th>CONTACT</th>
-                        <th>BDAY</th>
-                        <th>HIRED</th>
-                        <th>SSS</th>
-                    </tr>
+            </div>
+            <div class="d-flex align-items-center gap-2">
+                <button id="darkModeToggle" class="btn btn-sm btn-outline-light border-0" title="Toggle Dark Mode">
+                    <i class="bi bi-moon-stars-fill"></i>
+                </button>
+                <span class="navbar-text text-white"><i class="bi bi-file-spreadsheet"></i> Bulk Import</span>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+
+        <?php // ---------- 9) FORMAT INSTRUCTIONS ---------- 
+        ?>
+        <div id="instr_tesp" class="alert alert-info shadow-sm mb-4 format-box">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <h6 class="fw-bold mb-0">Standard Format (TESP / GUNJIN)</h6>
+                <a href="download_template.php?type=TESP" class="btn btn-sm btn-info fw-bold text-dark"><i class="bi bi-download"></i> Download Template</a>
+            </div>
+            <div class="table-responsive scroll-horizontal rounded border shadow-sm">
+                <table class="table table-sm small table-bordered mb-0" style="white-space: nowrap;">
+                    <thead class="table-light">
+                        <tr>
+                            <th>NO.</th>
+                            <th>EMPLOYEE CODE</th>
+                            <th>PICTURE</th>
+                            <th>NAME</th>
+                            <th>SECTION</th>
+                            <th>CONTACT DETAILS:</th>
+                            <th>BIRTHDAY</th>
+                            <th>DATE OF HIRED</th>
+                            <th>SSS</th>
+                            <th>TIN</th>
+                            <th>PAG-IBIG</th>
+                            <th>PHILHEALTH</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr class="text-muted fst-italic">
+                            <td>1</td>
+                            <td>TESP-001</td>
+                            <td></td>
+                            <td>Doe, John</td>
+                            <td>SQP</td>
+                            <td>09123456789</td>
+                            <td>1990-01-01</td>
+                            <td>2023-01-01</td>
+                            <td></td>
+                            <td></td>
+                            <td></td>
+                            <td></td>
+                        </tr>
+                    </tbody>
                 </table>
             </div>
         </div>
 
         <div id="instr_unli" class="alert alert-warning shadow-sm mb-4 format-box">
-            <h6 class="fw-bold">UnliSolutions Format</h6>
-            <div class="table-responsive">
-                <table class="table table-sm small table-bordered mb-0 bg-white">
-                    <tr>
-                        <th>NO</th>
-                        <th>ID</th>
-                        <th>PIC</th>
-                        <th>NAME</th>
-                        <th class="text-danger">POSITION</th>
-                        <th>SECTION</th>
-                        <th>...</th>
-                        <th class="text-danger">EMAIL</th>
-                    </tr>
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <h6 class="fw-bold mb-0">UnliSolutions Format</h6>
+                <a href="download_template.php?type=UNLISOLUTIONS" class="btn btn-sm btn-warning fw-bold text-dark"><i class="bi bi-download"></i> Download Template</a>
+            </div>
+            <div class="table-responsive scroll-horizontal rounded border shadow-sm">
+                <table class="table table-sm small table-bordered mb-0" style="white-space: nowrap;">
+                    <thead class="table-light">
+                        <tr>
+                            <th>NO</th>
+                            <th>ID</th>
+                            <th>PIC</th>
+                            <th>NAME</th>
+                            <th>POSITION</th>
+                            <th>SECTION</th>
+                            <th>CONTACT</th>
+                            <th>BDAY</th>
+                            <th>HIRED</th>
+                            <th>SSS</th>
+                            <th>TIN</th>
+                            <th>PAGIBIG</th>
+                            <th>PHILHEALTH</th>
+                            <th>ADDRESS</th>
+                            <th>EMAIL</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr class="text-muted fst-italic">
+                            <td>1</td>
+                            <td>UNLI-001</td>
+                            <td></td>
+                            <td>Doe, John</td>
+                            <td>Staff</td>
+                            <td>ADMIN</td>
+                            <td>09123456789</td>
+                            <td>1990-01-01</td>
+                            <td>2023-01-01</td>
+                            <td></td>
+                            <td></td>
+                            <td></td>
+                            <td></td>
+                            <td></td>
+                            <td>john@example.com</td>
+                        </tr>
+                    </tbody>
                 </table>
             </div>
         </div>
 
         <div id="instr_jora" class="alert alert-success shadow-sm mb-4 format-box">
-            <h6 class="fw-bold">Joratech Format (Special)</h6>
-            <div class="table-responsive">
-                <table class="table table-sm small table-bordered mb-0 bg-white">
-                    <tr>
-                        <th>NO</th>
-                        <th>SECTION</th>
-                        <th class="text-danger">POSITION</th>
-                        <th>HIRED</th>
-                        <th>NUM</th>
-                        <th>PIC</th>
-                        <th>NAME</th>
-                        <th class="text-danger">CODE</th>
-                    </tr>
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <h6 class="fw-bold mb-0">Joratech Format (Special)</h6>
+                <a href="download_template.php?type=JORATECH" class="btn btn-sm btn-success fw-bold text-white"><i class="bi bi-download"></i> Download Template</a>
+            </div>
+            <div class="table-responsive scroll-horizontal rounded border shadow-sm">
+                <table class="table table-sm small table-bordered mb-0" style="white-space: nowrap;">
+                    <thead class="table-light">
+                        <tr>
+                            <th>NO</th>
+                            <th>SECTION</th>
+                            <th>POSITION</th>
+                            <th>DATE HIRED</th>
+                            <th>NUM</th>
+                            <th>PIC</th>
+                            <th>NAME</th>
+                            <th>CODE</th>
+                            <th>CONTRACT</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr class="text-muted fst-italic">
+                            <td>1</td>
+                            <td>MAINTENANCE</td>
+                            <td>Technician</td>
+                            <td>2023-01-15</td>
+                            <td></td>
+                            <td></td>
+                            <td>Doe, John</td>
+                            <td>JOR-001</td>
+                            <td>Project</td>
+                        </tr>
+                    </tbody>
                 </table>
             </div>
         </div>
 
         <div id="instr_custom" class="alert alert-secondary shadow-sm mb-4 format-box">
-            <h6 class="fw-bold">Custom Format (Auto-Detect)</h6>
-            <p class="small mb-2">The system will look for these headers in your CSV (Row 1):</p>
-            <ul class="small mb-0">
-                <li><strong>ID:</strong> ID, EMP_ID, CODE</li>
-                <li><strong>Name:</strong> NAME, FULL NAME (Format: Last, First)</li>
-                <li><strong>Position:</strong> POSITION, JOB TITLE</li>
-                <li><strong>Section:</strong> SECTION, DEPT</li>
-                <li><strong>Hired:</strong> HIRED, DATE HIRED</li>
-            </ul>
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <h6 class="fw-bold mb-0">Custom Format (Microsoft/Google Forms)</h6>
+                <a href="download_template.php?type=CUSTOM" class="btn btn-sm btn-dark fw-bold text-white"><i class="bi bi-file-earmark-excel"></i> Download Excel Template</a>
+            </div>
+            <p class="small mb-2">The system will perfectly map 25 fields. Ensure these standard headers are present in Row 1:</p>
+            <div class="table-responsive scroll-horizontal rounded border shadow-sm pb-1">
+                <table class="table table-sm small table-bordered mb-0" style="white-space: nowrap;">
+                    <thead class="table-secondary text-center align-middle">
+                        <tr class="table-dark text-white">
+                            <th colspan="4">Employee Name</th>
+                            <th colspan="3">Demographics</th>
+                            <th colspan="4">Contact & Address</th>
+                            <th colspan="4">Government IDs</th>
+                            <th colspan="3">Emergency Contact</th>
+                            <th colspan="4">Job Details</th>
+                            <th colspan="6">Qualifications</th>
+                        </tr>
+                        <tr>
+                            <th>First Name</th>
+                            <th>Middle Name</th>
+                            <th>Last Name</th>
+                            <th>Suffix</th>
+                            <th>Date of Birth</th>
+                            <th>Gender</th>
+                            <th>Civil Status</th>
+                            <th>Mobile Number</th>
+                            <th>Personal Email Address</th>
+                            <th>Complete Present Address</th>
+                            <th>Complete Permanent Address</th>
+                            <th>SSS Number</th>
+                            <th>Pag-IBIG (HDMF) Number</th>
+                            <th>PhilHealth Number</th>
+                            <th>TIN (Tax Identification Number)</th>
+                            <th>Emergency Contact Name</th>
+                            <th>Emergency Contact Number</th>
+                            <th>Emergency Contact Address</th>
+                            <th>Employee ID Number</th>
+                            <th>Department</th>
+                            <th>Position / Job Title</th>
+                            <th>Date Hired</th>
+                            <th>Education Attainment</th>
+                            <th>JobExperience</th>
+                            <th>Licenses / Certifications</th>
+                            <th>College Degree</th>
+                            <th>College Course</th>
+                            <th>Year Finished</th>
+                        </tr>
+                    </thead>
+                    <tbody class="text-center">
+                        <tr class="text-muted fst-italic">
+                            <td>Juan</td>
+                            <td>Dela</td>
+                            <td>Cruz</td>
+                            <td></td>
+                            <td>1/15/1990</td>
+                            <td>Man</td>
+                            <td>Single</td>
+                            <td>09123456789</td>
+                            <td>juan.delacruz@example.com</td>
+                            <td>123 Main St, Quezon City</td>
+                            <td>Same as present</td>
+                            <td>12-3456789-0</td>
+                            <td>1234-5678-9012</td>
+                            <td>12-345678901-2</td>
+                            <td>123-456-789-000</td>
+                            <td>Maria Cruz</td>
+                            <td>09987654321</td>
+                            <td>123 Main St, Quezon City</td>
+                            <td>CUST-001</td>
+                            <td>ADMIN</td>
+                            <td>Staff</td>
+                            <td>5/1/2024</td>
+                            <td>BS Computer Science</td>
+                            <td>Jolibee Crew</td>
+                            <td>Civil Service Professional</td>
+                            <td>Bachelor's Degree</td>
+                            <td>BS Computer Science</td>
+                            <td>2020</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
         </div>
 
+        <?php // ---------- 10) BULK IMPORT FORM ---------- 
+        ?>
         <div class="card shadow mb-4">
             <div class="card-header bg-success text-white">
                 <h5 class="mb-0">Bulk Import</h5>
@@ -559,30 +1263,51 @@ $history = $pdo->query("SELECT import_batch, agency_name, COUNT(*) as count, MAX
                     <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
                     <div class="row g-3">
                         <div class="col-md-6">
-                            <label class="form-label fw-bold">Select Agency</label>
+                            <label class="form-label fw-bold">Select CSV Layout (Format)</label>
                             <select name="agency_select" id="agency_select" class="form-select border-success" onchange="toggleFormat()" required>
-                                <option value="">-- Choose Agency --</option>
-                                <option value="TESP">TESP Direct</option>
-                                <option value="UNLISOLUTIONS">UnliSolutions</option>
-                                <option value="JORATECH">Joratech</option>
-                                <option value="GUNJIN">Gunjin</option>
-                                <option value="OTHERS">Others</option>
-                                <option value="CUSTOM">Custom (Detect Headers)</option>
+                                <option value="">-- Choose Format --</option>
+                                <option value="STANDARD">Standard Format (TESP / Others)</option>
+                                <option value="UNLISOLUTIONS">UnliSolutions Format</option>
+                                <option value="JORATECH">Joratech Format</option>
+                                <option value="CUSTOM">Custom Form (Detect Headers)</option>
                             </select>
                         </div>
+
+                        <div class="col-md-6" id="target_agency_container">
+                            <label class="form-label fw-bold text-primary">Assign to Agency <span class="text-danger">*</span></label>
+                            <select name="target_agency" id="target_agency" class="form-select border-primary" required>
+                                <option value="">-- Select Agency --</option>
+                                <?php foreach ($agencies as $a): ?>
+                                    <option value="<?php echo htmlspecialchars($a); ?>"><?php echo htmlspecialchars($a); ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                            <div class="form-text small">All employees in this import will be assigned to this agency.</div>
+                        </div>
+
                         <div class="col-md-6">
                             <label class="form-label fw-bold">Upload CSV</label>
                             <input type="file" name="csv_file" class="form-control" accept=".csv" required>
                         </div>
+                        <div class="col-12">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="update_existing" id="updateCheck" value="1">
+                                <label class="form-check-label text-primary fw-bold" for="updateCheck">
+                                    <i class="bi bi-arrow-repeat"></i> Update existing employees?
+                                </label>
+                                <div class="form-text small">If checked, employees with matching IDs will be updated with the new info from the CSV. If unchecked, they will be skipped.</div>
+                            </div>
+                        </div>
                     </div>
                     <div class="d-grid gap-2 mt-3">
                         <button type="submit" class="btn btn-success btn-lg">Upload & Import</button>
-                        <a href="index.php" class="btn btn-outline-secondary">Back to Dashboard</a>
+                        <a href="index.php" class="btn btn-secondary">Back to Dashboard</a>
                     </div>
                 </form>
             </div>
         </div>
 
+        <?php // ---------- 11) IMPORT HISTORY & UNDO UI ---------- 
+        ?>
         <?php if (count($history) > 0): ?>
             <div class="card shadow border-danger">
                 <div class="card-header bg-danger text-white">
@@ -603,24 +1328,27 @@ $history = $pdo->query("SELECT import_batch, agency_name, COUNT(*) as count, MAX
                                 // Calculate Time Remaining for Undo
                                 $importTime = strtotime($h['time']);
                                 $elapsed = time() - $importTime;
-                                $limit = 30 * 60; // 30 minutes in seconds
+                                $limit = 7 * 60 * 60; // 7 hours in seconds
                                 $canUndo = $elapsed < $limit;
-                                $minsLeft = ceil(($limit - $elapsed) / 60);
+                                $remMinutes = ceil(($limit - $elapsed) / 60);
+                                $remHours = floor($remMinutes / 60);
+                                $remMins = $remMinutes % 60;
+                                $timeLeftStr = $remHours > 0 ? "{$remHours}h {$remMins}m" : "{$remMins}m";
                             ?>
                                 <tr>
                                     <td><?php echo date('M d, h:i A', $importTime); ?></td>
                                     <td><?php echo htmlspecialchars($h['agency_name']); ?></td>
                                     <td><?php echo $h['count']; ?></td>
                                     <td>
-                                        <?php if ($canUndo): ?>
+                                        <?php if ($canUndo && in_array($_SESSION['role'], ['ADMIN', 'MANAGER'])): ?>
                                             <!-- ACTIVE BUTTON -->
                                             <form method="POST">
                                                 <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
-                                                <input type="hidden" name="undo_batch" value="<?php echo $h['import_batch']; ?>">
+                                                <input type="hidden" name="undo_batch" value="<?php echo htmlspecialchars($h['import_batch'], ENT_QUOTES, 'UTF-8'); ?>">
                                                 <button type="button" class="btn btn-sm btn-outline-danger" onclick="confirmUndo(this)">Undo</button>
                                             </form>
                                             <div class="text-success small fw-bold mt-1">
-                                                <i class="bi bi-clock-history"></i> <?php echo $minsLeft; ?>m left
+                                                <i class="bi bi-clock-history"></i> <?php echo $timeLeftStr; ?> left
                                             </div>
                                         <?php else: ?>
                                             <!-- LOCKED BUTTON -->
@@ -640,18 +1368,23 @@ $history = $pdo->query("SELECT import_batch, agency_name, COUNT(*) as count, MAX
 
     </div>
 
+    <?php // ---------- 12) JAVASCRIPT LOGIC ---------- 
+    ?>
     <script>
         function toggleFormat() {
-            const agency = document.getElementById('agency_select').value;
+            const format = document.getElementById('agency_select').value;
+            const targetAgencyBox = document.getElementById('target_agency_container');
+            const targetAgencySelect = document.getElementById('target_agency');
+
             document.querySelectorAll('.format-box').forEach(el => el.style.display = 'none');
 
-            if (agency === 'JORATECH') {
+            if (format === 'JORATECH') {
                 document.getElementById('instr_jora').style.display = 'block';
-            } else if (agency === 'UNLISOLUTIONS') {
+            } else if (format === 'UNLISOLUTIONS') {
                 document.getElementById('instr_unli').style.display = 'block';
-            } else if (agency === 'CUSTOM') {
+            } else if (format === 'CUSTOM') {
                 document.getElementById('instr_custom').style.display = 'block';
-            } else {
+            } else if (format !== '') {
                 document.getElementById('instr_tesp').style.display = 'block';
             }
         }
@@ -660,7 +1393,8 @@ $history = $pdo->query("SELECT import_batch, agency_name, COUNT(*) as count, MAX
         document.getElementById('importForm').addEventListener('submit', function(e) {
             e.preventDefault();
             const form = this;
-            const agency = document.getElementById('agency_select').value;
+            const selectEl = document.getElementById('agency_select');
+            const formatText = selectEl.options[selectEl.selectedIndex].text;
             const fileInput = document.querySelector('input[name="csv_file"]');
             const file = fileInput.files[0];
 
@@ -669,40 +1403,82 @@ $history = $pdo->query("SELECT import_batch, agency_name, COUNT(*) as count, MAX
                 return;
             }
 
-            // Read first 10KB for preview (avoids freezing on large files)
             const reader = new FileReader();
-            const blob = file.slice(0, 1024 * 10);
+            const blob = file; // Read entire file to show all rows
 
             reader.onload = function(e) {
-                const text = e.target.result;
-                const rows = text.split(/\r\n|\n/).filter(r => r.trim() !== '');
-                const previewRows = rows.slice(0, 6); // Header + 5 Data
+                let text = e.target.result;
 
-                let tableHtml = '<div class="table-responsive" style="max-height:300px; text-align:left;"><table class="table table-sm table-bordered table-striped" style="font-size:0.75rem;">';
+                // [FIX] Neutralize newlines inside quoted strings so the table doesn't break!
+                let inQuote = false;
+                let cleanText = "";
+                for (let i = 0; i < text.length; i++) {
+                    let char = text[i];
+                    if (char === '"') inQuote = !inQuote;
+                    if (inQuote && (char === '\n' || char === '\r')) {
+                        cleanText += ' ';
+                    } else {
+                        cleanText += char;
+                    }
+                }
+
+                const rows = cleanText.split(/\r\n|\n|\r/).filter(r => r.trim() !== '');
+                const previewRows = rows; // Show all rows
+                const employeeCount = Math.max(0, rows.length - 1); // Exclude header row
+
+                let tableHtml = '<div class="scroll-horizontal scroll-vertical" style="text-align:left;"><table class="table table-sm table-bordered table-striped" style="font-size:0.75rem; white-space: nowrap;">';
+
+                const firstLine = rows[0] || '';
+                const delimComma = (firstLine.match(/,/g) || []).length;
+                const delimSemi = (firstLine.match(/;/g) || []).length;
+                const delimTab = (firstLine.match(/\t/g) || []).length;
+
+                let delimiter = ',';
+                if (delimSemi > delimComma && delimSemi > delimTab) delimiter = ';';
+                if (delimTab > delimComma && delimTab > delimSemi) delimiter = '\t';
+
+                const splitRegex = (delimiter === '\t') ? /\t/ : new RegExp(`${delimiter}(?=(?:(?:[^"]*"){2})*[^"]*$)`);
 
                 previewRows.forEach((row, index) => {
-                    // Split CSV by comma (ignoring commas inside quotes)
-                    const cols = row.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/);
+                    const cols = row.split(splitRegex);
                     tableHtml += '<tr>';
                     cols.forEach(col => {
                         let clean = col.trim().replace(/^"|"$/g, ''); // Remove quotes
-                        tableHtml += (index === 0) ? `<th class="bg-light">${clean}</th>` : `<td>${clean}</td>`;
+                        tableHtml += (index === 0) ? `<th class="table-secondary sticky-top" style="z-index: 1;">${clean}</th>` : `<td>${clean}</td>`;
                     });
                     tableHtml += '</tr>';
                 });
                 tableHtml += '</table></div>';
-                if (rows.length > 6) tableHtml += `<div class="text-muted small mt-1 text-center">... and more rows</div>`;
 
                 Swal.fire({
                     title: 'Confirm Import',
-                    html: `<p>Importing into <strong>${agency}</strong>. Check the preview below:</p>${tableHtml}`,
+                    html: `<p>Importing via <strong>${formatText}</strong>. Check the preview below:</p>${tableHtml}<div class="alert alert-success mt-3 py-2 fw-bold text-center border-success"><i class="bi bi-people-fill"></i> Total Employees to Import: ${employeeCount}</div>`,
                     icon: 'info',
                     width: '800px',
                     showCancelButton: true,
                     confirmButtonColor: '#198754',
                     confirmButtonText: 'Yes, Import Data'
                 }).then((result) => {
-                    if (result.isConfirmed) form.submit();
+                    if (result.isConfirmed) {
+                        // Disable button and show spinner
+                        const submitBtn = form.querySelector('button[type="submit"]');
+                        if (submitBtn) {
+                            submitBtn.disabled = true;
+                            submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span> Processing...';
+                        }
+                        // Show un-closable loading alert
+                        Swal.fire({
+                            title: 'Importing Data...',
+                            html: 'Please wait while we process the records.<br><br><span class="text-danger fw-bold small">Do not close or refresh this window!</span>',
+                            allowOutsideClick: false,
+                            allowEscapeKey: false,
+                            showConfirmButton: false,
+                            didOpen: () => {
+                                Swal.showLoading();
+                            }
+                        });
+                        form.submit();
+                    }
                 });
             };
 
@@ -719,6 +1495,16 @@ $history = $pdo->query("SELECT import_batch, agency_name, COUNT(*) as count, MAX
                 confirmButtonText: 'Yes, delete it!'
             }).then((result) => {
                 if (result.isConfirmed) {
+                    Swal.fire({
+                        title: 'Reverting Import...',
+                        html: 'Please wait while we remove the records.<br><br><span class="text-danger fw-bold small">Do not close or refresh this window!</span>',
+                        allowOutsideClick: false,
+                        allowEscapeKey: false,
+                        showConfirmButton: false,
+                        didOpen: () => {
+                            Swal.showLoading();
+                        }
+                    });
                     btn.form.submit();
                 }
             });
@@ -741,6 +1527,7 @@ $history = $pdo->query("SELECT import_batch, agency_name, COUNT(*) as count, MAX
             });
         <?php endif; ?>
     </script>
+    <script src="dark_mode.js"></script>
 </body>
 
 </html>

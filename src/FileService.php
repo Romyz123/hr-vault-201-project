@@ -6,37 +6,72 @@ class FileService
     private $vaultPath;
     private $manifestFile;
     // [SECURITY] Encryption Key (In production, move this to config.php or .env)
-    private $key = 'hr201_vault_secure_key_change_me_immediately';
-    private $cipher = 'aes-256-cbc';
+    private $key;
+    private $cipher = 'aes-256-gcm';
 
     public function __construct($vaultPath)
     {
         // Ensure path ends with slash
         $this->vaultPath = rtrim($vaultPath, '/\\') . DIRECTORY_SEPARATOR;
 
+        // [FIX] Auto-create vault directory if it doesn't exist to prevent silent failures
+        if (!is_dir($this->vaultPath)) {
+            if (!mkdir($this->vaultPath, 0700, true) && !is_dir($this->vaultPath)) {
+                throw new Exception("Failed to create vault directory: " . $this->vaultPath);
+            }
+        }
+        if (!is_writable($this->vaultPath)) {
+            throw new Exception("Vault directory is not writable.");
+        }
+
+        // [SECURITY] Protect vault from direct web access if within web root
+        $htaccess = $this->vaultPath . '.htaccess';
+        if (!file_exists($htaccess)) {
+            @file_put_contents($htaccess, "Deny from all");
+        }
+
         // The Fail-Safe Map (Text file)
         $this->manifestFile = $this->vaultPath . 'manifest_DO_NOT_DELETE.txt';
+
+        // Load the installation secret from protected configuration.
+        $config = require __DIR__ . '/../config/config.php';
+
+        if (!empty($config['VAULT_KEY'])) {
+            $this->key = $config['VAULT_KEY'];
+        } else {
+            // [SECURITY] Fail Secure: Never use a default key in production.
+            throw new Exception("CRITICAL SECURITY ERROR: VAULT_KEY is missing in config.php. System halted to protect data.");
+        }
     }
 
     private function encrypt($data)
     {
         $ivlen = openssl_cipher_iv_length($this->cipher);
-        $iv = openssl_random_pseudo_bytes($ivlen);
-        // [FIX] Use OPENSSL_RAW_DATA for cleaner binary handling
-        $ciphertext = openssl_encrypt($data, $this->cipher, $this->key, OPENSSL_RAW_DATA, $iv);
+        $iv = random_bytes($ivlen);
+        $tag = '';
+        $ciphertext = openssl_encrypt($data, $this->cipher, hash('sha256', $this->key, true), OPENSSL_RAW_DATA, $iv, $tag);
         if ($ciphertext === false) return false;
-        return base64_encode($iv . $ciphertext);
+        return base64_encode("GCM1" . $iv . $tag . $ciphertext);
     }
 
     public function decrypt($data)
     {
-        $data = base64_decode($data);
+        $data = base64_decode($data, true);
+        if ($data === false) return false;
+        $key = hash('sha256', $this->key, true);
         $ivlen = openssl_cipher_iv_length($this->cipher);
-        if (strlen($data) < $ivlen) return false;
-        $iv = substr($data, 0, $ivlen);
-        $ciphertext = substr($data, $ivlen);
-        // [FIX] Use OPENSSL_RAW_DATA to match encrypt
-        return openssl_decrypt($ciphertext, $this->cipher, $this->key, OPENSSL_RAW_DATA, $iv);
+        if (strncmp($data, 'GCM1', 4) === 0) {
+            if (strlen($data) < 4 + $ivlen + 16) return false;
+            $iv = substr($data, 4, $ivlen);
+            $tag = substr($data, 4 + $ivlen, 16);
+            $ciphertext = substr($data, 4 + $ivlen + 16);
+            return openssl_decrypt($ciphertext, $this->cipher, $key, OPENSSL_RAW_DATA, $iv, $tag);
+        }
+
+        // Read pre-GCM vault entries during migration; all new entries are authenticated.
+        $legacyIvlen = openssl_cipher_iv_length('aes-256-cbc');
+        if (strlen($data) < $legacyIvlen) return false;
+        return openssl_decrypt(substr($data, $legacyIvlen), 'aes-256-cbc', $this->key, OPENSSL_RAW_DATA, substr($data, 0, $legacyIvlen));
     }
 
     /**
@@ -48,13 +83,21 @@ class FileService
         // 1. Get Extension safely (e.g. 'pdf')
         $ext = strtolower(pathinfo($originalName, PATHINFO_EXTENSION));
 
-        // 2. Generate Random Filename (e.g. 'a8f9-b2c3.pdf')
-        // We keep the extension so you know it's a PDF if DB fails
-        $randomName = bin2hex(random_bytes(8)) . '.' . $ext;
+        // Validate extension contains only alphanumeric characters
+        if (!preg_match('/^[a-z0-9]{1,10}$/', $ext)) {
+            $ext = 'bin'; // Safe fallback
+        }
+
+        // [SECURITY] Generate a proper UUID v4 string for the filename. 
+        // Never use original filename components for storage to prevent injection and disclosure.
+        $data = random_bytes(16);
+        $data[6] = chr(ord($data[6]) & 0x0f | 0x40);
+        $data[8] = chr(ord($data[8]) & 0x3f | 0x80);
+        $uuid = vsprintf('%s%s-%s-%s-%s-%s%s%s', str_split(bin2hex($data), 4));
+        $randomName = $uuid . '.' . $ext;
 
         // 3. Define Full Target Path
         $targetPath = $this->vaultPath . $randomName;
-
         // 4. Encrypt & Save
         $content = file_get_contents($tempPath);
         if ($content === false) return false;
@@ -77,18 +120,63 @@ class FileService
 
     public function getFileContent($filename)
     {
-        $path = $this->vaultPath . $filename;
-        if (!file_exists($path)) return false;
+        if (!is_string($filename) || trim($filename) === '') {
+            return false;
+        }
 
-        $content = file_get_contents($path);
-        $decrypted = $this->decrypt($content);
+        $candidates = [];
+        $normalized = trim($filename);
 
-        // Fallback: If decryption fails, it might be an old unencrypted file
-        return ($decrypted !== false) ? $decrypted : $content;
+        if (preg_match('/^[a-f0-9-]{36}\.[a-z0-9]{1,10}$/i', $normalized)) {
+            $candidates[] = $this->vaultPath . $normalized;
+        } else {
+            // [SECURITY] Keep lookups inside the vault directory only (no raw path escape).
+            $candidates[] = $this->vaultPath . basename($normalized);
+        }
+
+        $seen = [];
+        foreach ($candidates as $path) {
+            $path = str_replace(['\\', '/'], DIRECTORY_SEPARATOR, $path);
+            if ($path === '' || isset($seen[$path])) continue;
+            $seen[$path] = true;
+
+            if (!file_exists($path) || is_dir($path)) {
+                continue;
+            }
+
+            $content = file_get_contents($path);
+            if ($content === false) {
+                continue;
+            }
+
+            // Support both encrypted vault files and legacy plaintext files.
+            $decoded = $this->decrypt($content);
+            if ($decoded !== false) {
+                return $decoded;
+            }
+
+            // Decryption failed. If the bytes still carry the GCM1 vault marker
+            // the file WAS encrypted but could not be unlocked (corrupt data or
+            // key mismatch) - log loudly so it is not served silently as raw
+            // ciphertext. Legacy plaintext files (e.g. generated HTML contracts)
+            // pass through without noise.
+            $binary = base64_decode(trim($content), true);
+            if ($binary !== false && strncmp($binary, 'GCM1', 0, 4) === 0) {
+                error_log('FileService::getFileContent: encrypted vault file failed to decrypt (corrupt data or key mismatch): ' . $filename);
+            }
+
+            return $content;
+        }
+
+        return false;
     }
 
     private function logToManifest($storedName, $realName)
     {
+        // Sanitize input to prevent log injection
+        $realName = preg_replace('/[\r\n\x00]/', '', $realName);
+        $storedName = preg_replace('/[\r\n\x00]/', '', $storedName);
+
         // Format: [DATE] STORED_NAME | REAL_NAME
         $entry = sprintf("[%s] STORED: %s | REAL: %s" . PHP_EOL, date('Y-m-d H:i:s'), $storedName, $realName);
 
@@ -104,12 +192,11 @@ class FileService
         $decryptedLines = [];
 
         foreach ($lines as $line) {
-            $line = trim($line);
-            if (empty($line)) continue;
-
             $decrypted = $this->decrypt($line);
-            // Fallback for old unencrypted lines
-            $decryptedLines[] = ($decrypted !== false) ? $decrypted : $line;
+            // Strict Mode: Skip lines that fail decryption
+            if ($decrypted !== false) {
+                $decryptedLines[] = $decrypted;
+            }
         }
         return $decryptedLines;
     }

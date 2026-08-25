@@ -2,6 +2,7 @@
 // public/delete_document.php
 require '../config/db.php';
 require '../src/Logger.php';
+require '../src/Security.php';
 session_start();
 
 // [FIX] Load Config to ensure VAULT_PATH is available
@@ -17,6 +18,13 @@ if (!isset($_SESSION['user_id']) || !in_array($_SESSION['role'], ['ADMIN', 'MANA
 
 // 2. INPUT CHECK: We expect POST from the Dashboard button
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+
+    $security = new Security($pdo);
+    if (!isset($_POST['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'])) {
+        $_SESSION['error'] = "Security Token Mismatch. Please try again.";
+        header("Location: index.php");
+        exit;
+    }
 
     $uuid = $_POST['file_uuid'] ?? '';
     $empId = $_POST['emp_id'] ?? '';

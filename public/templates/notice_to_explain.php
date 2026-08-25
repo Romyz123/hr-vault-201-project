@@ -9,16 +9,8 @@ $date_created = (!empty($_GET['notice_date'])) ? date('F d, Y', strtotime($_GET[
 $incident_date = (!empty($_GET['incident_date'])) ? date('F d, Y h:i A', strtotime($_GET['incident_date'])) : '___________________________';
 $incident_place = (!empty($_GET['incident_place'])) ? htmlspecialchars($_GET['incident_place']) : '___________________________';
 $allegation = nl2br(htmlspecialchars($_GET['allegation'] ?? ''));
-$rule_violated = nl2br(htmlspecialchars($_GET['rule_violated'] ?? ''));
-
-// 2. Base64 Logo (Same standard as your other contracts)
-$logo_path = __DIR__ . '/../uploads/tesp logo 1.png';
-$logo_src = 'uploads/' . rawurlencode('tesp logo 1.png'); // Fallback
-
-if (file_exists($logo_path)) {
-    $logo_binary = file_get_contents($logo_path);
-    $logo_src = 'data:image/png;base64,' . base64_encode($logo_binary);
-}
+$rule_violated = nl2br(htmlspecialchars($rule_violated ?? ''));
+$violation = nl2br(htmlspecialchars($violation ?? ''));
 ?>
 
 <!DOCTYPE html>
@@ -110,16 +102,20 @@ if (file_exists($logo_path)) {
     <div class="container">
 
         <div class="header-wrapper">
-            <table class="header-content-table">
+            <table style="width: 100%; margin-bottom: 10px;">
                 <tr>
-                    <td style="padding-right: 15px; vertical-align: middle;">
-                        <img src="<?php echo $logo_src; ?>" class="logo" style="width: 80px; display: block;">
+                    <td style="width: 130px; text-align: right; vertical-align: middle; padding-right: 15px;">
+                        <?php if (!empty($global_logo_src)): ?>
+                            <img src="<?php echo htmlspecialchars($global_logo_src, ENT_QUOTES, 'UTF-8'); ?>" class="logo" style="width: 80px; height: 80px; border-radius: 50%; object-fit: cover;">
+                        <?php endif; ?>
                     </td>
                     <td style="vertical-align: middle; text-align: center;">
-                        <strong style="font-size: 14pt;">TES PHILIPPINES INC.</strong><br>
-                        <span style="font-size: 11pt;"> General Affairs Group (GAG) Human Resources </span><br>
-                        <small>Disciplinary Action Notice</small>
+                        <div style="font-weight: bold; font-size: 15pt !important; line-height: 1.2; white-space: nowrap;">TES PHILIPPINES, INC.</div>
+                        <div style="font-weight: bold; font-size: 11pt !important; line-height: 1.2; white-space: nowrap;">METRO RAIL TRANSIT LINE 3 REHABILITATION PROJECT</div>
+                        <div style="font-size: 11pt !important; line-height: 1.2;">Meriton One Building, 1668 Quezon Avenue, Quezon City</div>
+                        <div style="font-size: 11pt !important; line-height: 1.2;">Telephone Number: 8929-5347 local 4404</div>
                     </td>
+                    <td style="width: 70px;"></td> <!-- Spacer for shifting text right -->
                 </tr>
             </table>
         </div>
@@ -174,10 +170,16 @@ if (file_exists($logo_path)) {
                 <td><?php echo $incident_place; ?></td>
             </tr>
             <tr>
+                <td colspan="4" class="label">Violation / Offense</td>
+            </tr>
+            <tr>
+                <td colspan="4" style="font-weight: bold; color: #dc3545;"><?php echo $violation ?: 'N/A'; ?></td>
+            </tr>
+            <tr>
                 <td colspan="4" class="label">Nature of Allegation</td>
             </tr>
             <tr>
-                <td colspan="4" style="height: 200px; vertical-align: top; text-align: justify; text-justify: inter-word;">
+                <td colspan="4" style="height: 350px; vertical-align: top; text-align: justify; text-justify: inter-word;">
                     <?php echo $allegation ?: '(Please narrate in detail the event or situation that triggers this notice)'; ?>
                 </td>
             </tr>

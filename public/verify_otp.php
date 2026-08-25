@@ -2,10 +2,12 @@
 require '../config/db.php';
 require '../src/Security.php';
 require '../src/Logger.php';
+require '../src/GoogleAuthenticator.php';
 session_start();
 
 // Redirect if no partial login session
-if (!isset($_SESSION['partial_user_id'])) {
+if (!isset($_SESSION['partial_user_id']) || !isset($_SESSION['partial_login_at']) || time() - (int)$_SESSION['partial_login_at'] > 300) {
+    unset($_SESSION['partial_user_id'], $_SESSION['partial_login_at'], $_SESSION['pending_totp_secret']);
     header("Location: login.php");
     exit;
 }
@@ -13,83 +15,166 @@ if (!isset($_SESSION['partial_user_id'])) {
 $error = "";
 $success = "";
 $logger = new Logger($pdo);
+$security = new Security($pdo); // [NEW] Init Security
+$csrf_token = $security->generateCSRF(); // [SECURITY] Generate Token
+
+$userId = $_SESSION['partial_user_id'];
+$stmt = $pdo->prepare("SELECT * FROM users WHERE id = ?");
+$stmt->execute([$userId]);
+$user = $stmt->fetch();
+
+if (!$user) {
+    header("Location: login.php");
+    exit;
+}
+
+$isFirstTimeSetup = false;
+$otpauthUrl = '';
+$manualSecret = '';
+$issuer = 'TESP HR Vault';
+$accountName = (string)($user['username'] ?? 'User');
+
+// Generate a new secret if they don't have one yet (do not persist until verified)
+$secret = $user['totp_secret'] ?? '';
+if (empty($secret)) {
+    $isFirstTimeSetup = true;
+    // Only generate a new secret if we don't already have a pending one in the session
+    if (empty($_SESSION['pending_totp_secret'])) {
+        $_SESSION['pending_totp_secret'] = GoogleAuthenticator::generateSecret();
+    }
+    $secret = $_SESSION['pending_totp_secret'];
+}
+
+if ($isFirstTimeSetup) {
+    $qrData = GoogleAuthenticator::getQRCodeDataUri($accountName, $secret, $issuer);
+    $manualSecret = $qrData['secret'];
+    $otpauthUrl = $qrData['uri'];
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    // [NEW] Handle Resend Request
-    if (isset($_POST['action']) && $_POST['action'] === 'resend') {
-        $userId = $_SESSION['partial_user_id'];
-        // [FIX] Use DB time difference to avoid Timezone issues (PHP time vs MySQL NOW)
-        $stmt = $pdo->prepare("SELECT email, TIMESTAMPDIFF(SECOND, NOW(), otp_expires) as seconds_remaining FROM users WHERE id = ?");
-        $stmt->execute([$userId]);
-        $userRow = $stmt->fetch();
-        $email = $userRow['email'] ?? null;
-        $secondsRemaining = $userRow['seconds_remaining'] ?? 0;
-
-        // 900s (15m) expiry. We block resend for first 60s.
-        // So if remaining > 840, we are in the block window.
-        if ($secondsRemaining > 840) {
-            $wait = $secondsRemaining - 840;
-            $error = "⏳ Please wait $wait seconds before resending.";
-        } elseif ($email) {
-            $otp = rand(100000, 999999);
-            // [FIX] Increased expiry to 15 Minutes (900 seconds)
-            $pdo->prepare("UPDATE users SET otp_code = ?, otp_expires = DATE_ADD(NOW(), INTERVAL 15 MINUTE) WHERE id = ?")->execute([$otp, $userId]);
-
-            // Send Email
-            mail($email, "Login OTP", "Your new code is: $otp");
-            $success = "✅ New code sent to " . htmlspecialchars($email);
-            $logger->log($userId, 'OTP_RESEND', "User requested new OTP");
-        } else {
-            $error = "❌ Error: Email not found.";
-        }
+    // [SECURITY] Rate Limit IP (15 req/min) to slow down automated attacks
+    if (!$security->checkRateLimit($_SERVER['REMOTE_ADDR'], 15, 60)) {
+        $_SESSION['otp_error'] = "⚠️ Too many requests. Please wait a minute.";
+        header("Location: verify_otp.php");
+        exit;
+    }
+    // [SECURITY] CSRF Check
+    elseif (empty($_POST['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'])) {
+        $_SESSION['otp_error'] = "❌ Security Token Mismatch. Please refresh and try again.";
+        header("Location: verify_otp.php");
+        exit;
     } elseif (isset($_POST['otp_code'])) {
-        $code = trim($_POST['otp_code']);
-        $userId = $_SESSION['partial_user_id'];
+        // [SECURITY] Max Attempts Check (Database-Backed Brute Force Protection)
+        if ($user && ($user['failed_attempts'] ?? 0) >= 10) {
+            $logger->log($userId, 'ACCOUNT_LOCKOUT', "Account locked after 10 failed 2FA attempts");
 
-        // Verify OTP
-        $stmt = $pdo->prepare("SELECT * FROM users WHERE id = ? AND otp_code = ? AND otp_expires > NOW()");
-        $stmt->execute([$userId, $code]);
-        $user = $stmt->fetch();
+            // Lock account completely
+            $pdo->prepare("UPDATE users SET locked_until = DATE_ADD(NOW(), INTERVAL 10 YEAR) WHERE id = ?")->execute([$userId]);
 
-        if ($user) {
+            unset($_SESSION['partial_user_id']);
+            header("Location: login.php?error=" . urlencode("❌ Account Locked due to too many failed attempts. Contact Administrator."));
+            exit;
+        }
+
+        $code = strtoupper(trim($_POST['otp_code'] ?? ''));
+        $isValid = false;
+        $isBackupCode = false;
+
+        // 1. Check if it is a 6-digit Authenticator Code
+        if (strlen($code) === 6 && ctype_digit($code)) {
+            $totpSecret = $_SESSION['pending_totp_secret'] ?? $user['totp_secret'];
+            if ($totpSecret && GoogleAuthenticator::verifyCode($totpSecret, $code)) {
+                $isValid = true;
+                // Persist secret only after successful verification
+                if (isset($_SESSION['pending_totp_secret'])) {
+                    $pdo->prepare("UPDATE users SET totp_secret = ? WHERE id = ?")->execute([$_SESSION['pending_totp_secret'], $userId]);
+                    unset($_SESSION['pending_totp_secret']);
+                }
+            }
+        }
+        // 2. Check if it is an 8-character Backup Code
+        elseif (strlen($code) === 8 && ctype_alnum($code)) {
+            $recoveryCodes = json_decode($user['recovery_codes'] ?? '[]', true);
+            if (is_array($recoveryCodes)) {
+                foreach ($recoveryCodes as $index => $hash) {
+                    if (password_verify($code, $hash)) {
+                        $isValid = true;
+                        $isBackupCode = true;
+                        // Remove the used code so it cannot be used again
+                        unset($recoveryCodes[$index]);
+                        $recoveryCodes = array_values($recoveryCodes);
+                        $pdo->prepare("UPDATE users SET recovery_codes = ? WHERE id = ?")->execute([json_encode($recoveryCodes), $userId]);
+                        break;
+                    }
+                }
+            }
+        }
+
+        if (!$isValid) {
+            // Increment DB failed attempts
+            $attempts = ($user['failed_attempts'] ?? 0) + 1;
+            $pdo->prepare("UPDATE users SET failed_attempts = ? WHERE id = ?")->execute([$attempts, $userId]);
+            $user['failed_attempts'] = $attempts; // Update local state
+
+            $remaining = 10 - $attempts;
+            $_SESSION['otp_error'] = "❌ Invalid OTP or Backup Code. ($remaining attempts remaining before lockout)";
+            $logger->log($userId, 'LOGIN_FAIL_2FA', "Failed 2FA attempt");
+            header("Location: verify_otp.php");
+            exit;
+        } else {
+            // [SECURITY] Enforce 45-Day Password Expiry here as well
+            try {
+                $lastChange = new DateTime($user['password_changed_at'] ?? $user['created_at'] ?? 'now');
+            } catch (Exception $e) {
+                $logger->log($userId, '2FA_DATE_ERROR', 'Invalid password_changed_at/created_at: ' . ($user['password_changed_at'] ?? $user['created_at'] ?? 'empty'));
+                unset($_SESSION['partial_user_id']);
+                $_SESSION['temp_user_id'] = $user['id']; // Temp session
+                header("Location: change_password_forced.php?reason=expired");
+                exit;
+            }
+
+            $today = new DateTime();
+            if ($today->diff($lastChange)->days > 45) {
+                unset($_SESSION['partial_user_id']);
+                $_SESSION['temp_user_id'] = $user['id']; // Temp session
+                header("Location: change_password_forced.php?reason=expired");
+                exit;
+            }
+
             // SUCCESS: Log them in fully
+            session_regenerate_id(true);
             $_SESSION['user_id'] = $user['id'];
             $_SESSION['username'] = $user['username'];
             $_SESSION['role'] = $user['role'];
-
-            // Clear OTP
-            $sql = "UPDATE users SET otp_code = NULL, otp_expires = NULL";
+            unset($_SESSION['otp_attempts']); // [SECURITY] Reset counter on success
 
             // [NEW] Handle "Trust Device" (Remember Me)
             if (isset($_POST['trust_device'])) {
                 $token = bin2hex(random_bytes(32));
                 $hash = hash('sha256', $token);
-                $expires = date('Y-m-d H:i:s', time() + (30 * 24 * 60 * 60)); // 30 Days
-                $sql .= ", trusted_device_token = '$hash', trusted_device_expires = '$expires'";
-                setcookie('hr_trust_device', $token, time() + (30 * 24 * 60 * 60), "/", "", false, true);
+
+                // [MHI 5.1.3] Privileged users (ADMIN) limited to 18 hours. Others 30 hours.
+                $duration = ($user['role'] === 'ADMIN') ? (18 * 60 * 60) : (30 * 60 * 60);
+                $expires = date('Y-m-d H:i:s', time() + $duration);
+                $pdo->prepare("UPDATE users SET trusted_device_token = ?, trusted_device_expires = ? WHERE id = ?")
+                    ->execute([$hash, $expires, $userId]);
+                setcookie('hr_trust_device', $token, time() + $duration, "/", "", true, true);
             }
 
-            $pdo->prepare("$sql WHERE id = ?")->execute([$userId]);
-            unset($_SESSION['partial_user_id']);
+            // Reset failed attempts upon successful 2FA
+            $pdo->prepare("UPDATE users SET failed_attempts = 0, locked_until = NULL WHERE id = ?")->execute([$userId]);
 
-            $logger->log($user['id'], 'LOGIN_2FA', "2FA Verified Successfully");
+            unset($_SESSION['partial_user_id'], $_SESSION['partial_login_at']);
+
+            $logMsg = $isBackupCode ? "2FA Verified Successfully using Backup Code" : "2FA Verified Successfully";
+            $logger->log($user['id'], 'LOGIN_2FA', $logMsg);
+
+            enforceSecurityQuestionSetup($pdo, true);
+
             header("Location: index.php");
             exit;
-        } else {
-            $error = "❌ Invalid or Expired OTP Code.";
-            $logger->log($userId, 'LOGIN_FAIL_2FA', "Failed 2FA attempt");
         }
     }
-}
-
-// [NEW] Calculate Throttle Time for JS Timer (DB Based)
-$stmt = $pdo->prepare("SELECT TIMESTAMPDIFF(SECOND, NOW(), otp_expires) as seconds_remaining FROM users WHERE id = ?");
-$stmt->execute([$_SESSION['partial_user_id']]);
-$secondsRemaining = $stmt->fetchColumn();
-
-$timeLeft = 0;
-if ($secondsRemaining > 840) {
-    $timeLeft = $secondsRemaining - 840;
 }
 ?>
 <!DOCTYPE html>
@@ -98,10 +183,33 @@ if ($secondsRemaining > 840) {
 <head>
     <meta charset="UTF-8">
     <title>Verify 2FA</title>
+    <link rel="icon" type="image/png" href="../uploads/tesp-logo.png">
+    <link rel="shortcut icon" type="image/png" href="../uploads/tesp-logo.png">
+    <link rel="apple-touch-icon" href="../uploads/tesp-logo.png">
+    <?php
+    $fav = 'uploads/favicon.png';
+    if (!file_exists($fav)) $fav = 'uploads/tesp-logo.png';
+    ?>
+    <link rel="icon" type="image/png" href="<?= h($fav) ?>">
+    <link rel="shortcut icon" type="image/png" href="<?= h($fav) ?>">
+    <link rel="apple-touch-icon" href="<?= h($fav) ?>">
     <link href="assets/bootstrap.min.css" rel="stylesheet">
     <style>
         body {
+            /* --- BACKGROUND THEMES (Uncomment the one you want to use) --- */
+
+            /* OPTION 1: Original Deep Corporate Blue Gradient (Revert to this if needed) */
+            /* background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%); */
+
+            /* OPTION 2: TESP Corporate Green Gradient */
+            /* background: linear-gradient(135deg, #198754 0%, #146c43 100%); */
+
+            /* OPTION 3: Clean Light Corporate Flat Color */
             background-color: #f4f6f9;
+
+            /* OPTION 4: Background Image with Dark Overlay */
+            /* background: linear-gradient(rgba(30, 60, 114, 0.8), rgba(42, 82, 152, 0.8)), url('uploads/company_bg.jpg') center/cover no-repeat fixed; */
+
             display: flex;
             align-items: center;
             justify-content: center;
@@ -117,11 +225,33 @@ if ($secondsRemaining > 840) {
     </style>
 </head>
 
-<body>
+<body class="bg-body-tertiary">
+    <div class="position-absolute top-0 end-0 p-3">
+        <button id="darkModeToggle" class="btn btn-sm btn-outline-secondary border-0" title="Toggle Dark Mode">
+            <i class="bi bi-moon-stars-fill"></i>
+        </button>
+    </div>
     <div class="card p-4">
         <div class="text-center mb-4">
-            <h4 class="fw-bold text-primary">Two-Factor Authentication</h4>
-            <p class="text-muted small">An OTP code has been sent to your email.</p>
+            <h4 class="fw-bold text-primary"><i class="bi bi-phone"></i> Authenticator App</h4>
+            <?php if ($isFirstTimeSetup): ?>
+                <p class="text-muted small"><strong>First Time Setup:</strong> Scan this QR code using an Authenticator app (Google Authenticator, Authy, or Microsoft Authenticator).</p>
+                <div class="mb-3 d-flex flex-column align-items-center">
+                    <div id="qrcode" class="p-2 bg-white border rounded" style="min-width: 160px; min-height: 160px;">
+                        <noscript>Enable JavaScript to generate the QR code locally, or enter the key below manually.</noscript>
+                    </div>
+                    <div class="mt-2">
+                        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="saveQRCode()"><i class="bi bi-download"></i> Save QR Code</button>
+                    </div>
+                </div>
+                <div class="mb-3 p-2 bg-light border rounded small text-center">
+                    <strong>Can't scan?</strong> Enter this key manually:<br>
+                    <span class="font-monospace fs-5 fw-bold text-primary letter-spacing-2"><?php echo htmlspecialchars($manualSecret); ?></span>
+                </div>
+                <p class="small text-danger fw-bold">Save this in your app before continuing!</p>
+            <?php else: ?>
+                <p class="text-muted small">Open your Authenticator app to get your code.</p>
+            <?php endif; ?>
         </div>
 
         <?php if ($error): ?>
@@ -132,52 +262,65 @@ if ($secondsRemaining > 840) {
         <?php endif; ?>
 
         <form method="POST">
+            <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token); ?>">
             <div class="mb-3">
-                <label class="form-label fw-bold">Enter OTP Code</label>
-                <input type="text" name="otp_code" class="form-control text-center fs-4 letter-spacing-2" maxlength="6" placeholder="123456" required autofocus pattern="[0-9]*" inputmode="numeric" oninput="this.value = this.value.replace(/[^0-9]/g, '')">
+                <label class="form-label fw-bold">Enter 6-Digit Code or Backup Code</label>
+                <input type="text" name="otp_code" class="form-control text-center fs-4 letter-spacing-2" maxlength="8" placeholder="123456 or A1B2C3D4" required autofocus autocomplete="off" style="text-transform: uppercase;">
             </div>
             <div class="mb-3 form-check">
                 <input type="checkbox" class="form-check-input" id="trustDevice" name="trust_device">
-                <label class="form-check-label small text-muted" for="trustDevice">Trust this device for 30 days</label>
+                <label class="form-check-label small text-muted" for="trustDevice">Trust this device for 30 hours</label>
             </div>
             <div class="d-grid">
                 <button type="submit" class="btn btn-primary">Verify & Login</button>
             </div>
         </form>
-        <form method="POST" class="text-center mt-3">
-            <input type="hidden" name="action" value="resend">
-            <button type="submit" id="resendBtn" class="btn btn-link text-decoration-none p-0 small">Resend Code</button>
-        </form>
         <div class="text-center mt-3">
-            <a href="login.php" class="text-decoration-none small text-muted">Back to Login</a>
+            <a href="logout.php" class="text-decoration-none small text-muted"><i class="bi bi-arrow-left"></i> Cancel Login</a>
         </div>
     </div>
-    <script>
-        // Countdown Timer for Resend
-        let timeLeft = <?php echo (int)$timeLeft; ?>;
-        const btn = document.getElementById('resendBtn');
 
-        if (btn && timeLeft > 0) {
-            btn.disabled = true;
-            btn.classList.add('text-muted'); // Visual cue
-            const originalText = btn.innerText;
+    <?php if ($isFirstTimeSetup): ?>
+        <script src="assets/qrcode.min.js"></script>
+        <script>
+            document.addEventListener('DOMContentLoaded', function() {
+                // Generate QR Code Offline
+                var qrCodeDiv = document.getElementById("qrcode");
+                var otpUrl = <?php echo json_encode($otpauthUrl); ?>;
 
-            const timer = setInterval(() => {
-                if (timeLeft <= 0) {
-                    clearInterval(timer);
-                    btn.disabled = false;
-                    btn.classList.remove('text-muted');
-                    btn.innerText = originalText;
-                } else {
-                    btn.innerText = `Resend available in ${timeLeft}s`;
-                    timeLeft--;
+                if (qrCodeDiv && otpUrl && typeof QRCode !== 'undefined') {
+                    try {
+                        // Create a temporary element to render the new QR
+                        var temp = document.createElement('div');
+                        new QRCode(temp, {
+                            text: otpUrl,
+                            width: 160,
+                            height: 160,
+                            colorDark: "#000000",
+                            colorLight: "#ffffff",
+                            correctLevel: QRCode.CorrectLevel.M
+                        });
+                        qrCodeDiv.innerHTML = "";
+                        while (temp.firstChild) qrCodeDiv.appendChild(temp.firstChild);
+                    } catch (e) {
+                        console.error("Local QR Render failed.", e);
+                    }
                 }
-            }, 1000);
+            });
 
-            // Initial set
-            btn.innerText = `Resend available in ${timeLeft}s`;
-        }
-    </script>
+            function saveQRCode() {
+                var canvas = document.querySelector('#qrcode canvas');
+                if (canvas) {
+                    var link = document.createElement('a');
+                    link.download = '2FA_QRCode.png';
+                    link.href = canvas.toDataURL('image/png');
+                    link.click();
+                }
+            }
+        </script>
+    <?php endif; ?>
+    <script src="assets/bootstrap.bundle.min.js"></script>
+    <script src="dark_mode.js"></script>
 </body>
 
 </html>

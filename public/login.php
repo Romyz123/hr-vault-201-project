@@ -6,6 +6,8 @@ session_start();
 
 $alertType = '';
 $alertMsg = '';
+$lockoutSeconds = 0;
+$showAttempts = false;
 
 // Capture success messages (e.g. from Reset Password)
 if (isset($_GET['msg'])) {
@@ -18,96 +20,157 @@ if (isset($_GET['error'])) {
     $alertMsg = htmlspecialchars($_GET['error'], ENT_QUOTES, 'UTF-8');
 }
 
+// [FIX] Capture session alert (Post-Redirect-Get support)
+if (isset($_SESSION['login_error'])) {
+    $alertType = $_SESSION['login_alert_type'] ?? 'error';
+    $alertMsg = $_SESSION['login_error'];
+    unset($_SESSION['login_error'], $_SESSION['login_alert_type']);
+}
+
+// [FIX] Calculate lockout state on every load so timers remain accurate after redirects
+if (isset($_SESSION['login_attempts']) && $_SESSION['login_attempts'] >= 5) {
+    $lockout_time = 15 * 60; // 15 minutes
+    $time_since_last = time() - ($_SESSION['last_login_attempt'] ?? 0);
+    if ($time_since_last < $lockout_time) {
+        $lockoutSeconds = $lockout_time - $time_since_last;
+    } else {
+        // [FIX] Lockout period has expired, reset session attempts
+        $_SESSION['login_attempts'] = 0;
+        unset($_SESSION['last_login_attempt']);
+        $lockoutSeconds = 0;
+        // Also clear any DB-based temporary lock if it's just a session lockout
+        // (Permanent DB lockouts are handled by admin reset)
+    }
+}
+
+// [SECURITY] Init Security & Generate CSRF Token for Login Form
+$security = new Security($pdo);
+$csrf_token = $security->generateCSRF();
+
 // 2. Handle Login Request
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
-    $username = trim($_POST['username']);
+    $username = isset($_POST['username']) ? trim($_POST['username']) : '';
     $password = $_POST['password'] ?? ''; // DON'T trim password - users might have trailing spaces intentionally
 
     // [SECURITY] Input Validation & Character Limits
-    if (strlen($username) > 50) {
-        $alertType = 'error';
-        $alertMsg = "❌ Username exceeds 50 characters.";
+    if ($lockoutSeconds > 0) {
+        $_SESSION['login_error'] = "⛔ <strong>Too Many Attempts</strong><br>Your access is temporarily blocked for security.";
+        header("Location: login.php");
+        exit;
+    } elseif (strlen($username) > 50) {
+        $_SESSION['login_error'] = "❌ Username exceeds 50 characters.";
+        header("Location: login.php");
+        exit;
     } elseif (strlen($password) > 128) {
-        $alertType = 'error';
-        $alertMsg = "❌ Password exceeds 128 characters.";
+        $_SESSION['login_error'] = "❌ Password exceeds 128 characters.";
+        header("Location: login.php");
+        exit;
     } elseif (!isset($_POST['terms_agreed'])) {
-        $alertType = 'warning';
-        $alertMsg = "⚠️ You must agree to the Confidentiality Pledge to login.";
+        $_SESSION['login_alert_type'] = 'warning';
+        $_SESSION['login_error'] = "⚠️ You must agree to the Confidentiality Pledge to login.";
+        header("Location: login.php");
+        exit;
+    } elseif (empty($_POST['csrf_token']) || empty($_SESSION['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'])) {
+        $_SESSION['login_error'] = "❌ Security Token Mismatch. Please refresh and try again.";
+        header("Location: login.php");
+        exit;
     } else {
-        $security = new Security($pdo);
-
         // Check Rate Limit
-        if (!$security->checkRateLimit($_SERVER['REMOTE_ADDR'], 20, 60)) { // [FIX] Increased to 20 for testing
-            $alertType = 'error';
-            $alertMsg = "<strong>⛔ Too Many Requests!</strong><br>You are temporarily locked out. Please try again in a minute.";
+        if (!$security->checkRateLimit($_SERVER['REMOTE_ADDR'], 10, 60)) { // [SECURITY] Strict limit: 10 req/min
+            $_SESSION['login_error'] = "<strong>⛔ Too Many Requests!</strong><br>You are temporarily locked out. Please try again in a minute.";
+            header("Location: login.php");
+            exit;
         } else {
             // Normal Login Logic
             $stmt = $pdo->prepare("SELECT * FROM users WHERE username = ?");
             $stmt->execute([$username]);
             $user = $stmt->fetch();
 
-            if ($user && password_verify($password, $user['password'])) {
+            // [SECURITY FIX] Prevent timing attacks: always call password_verify() even if user doesn't exist
+            // Use a dummy hash if user not found to ensure consistent timing
+            $passwordHash = $user['password'] ?? '$2y$10$dummyhashtopreventtimingattack....';
+            $passwordMatches = password_verify($password, $passwordHash);
 
-                // [NEW] 1. Check Password Expiry (45 Days)
-                $lastChange = new DateTime($user['password_changed_at'] ?? $user['created_at']); // Fallback to created_at
-                $today = new DateTime();
-                $daysDiff = $today->diff($lastChange)->days;
+            // [SECURITY] 1. Check Account Lockout (10 Attempts)
+            if ($user && !empty($user['locked_until']) && new DateTime($user['locked_until']) > new DateTime()) {
+                $alertType = 'error';
+                $alertMsg = "❌ <strong>Account Locked</strong><br>Maximum failed attempts reached. Please contact Administrator.";
+                $logger = new Logger($pdo);
+                $logger->log($user['id'], 'LOGIN_LOCKED', "Attempt on locked account");
+                $skipLogin = true;
+            }
 
-                if ($daysDiff > 45) {
-                    $_SESSION['temp_user_id'] = $user['id']; // Temporary session
-                    header("Location: change_password_forced.php?reason=expired");
-                    exit;
+            if (empty($skipLogin) && $user && $passwordMatches) {
+
+                // [SECURITY] Reset failed attempts on success
+                try {
+                    $pdo->prepare("UPDATE users SET failed_attempts = 0, locked_until = NULL WHERE id = ?")->execute([$user['id']]);
+                } catch (PDOException $e) {
+                    // Ignore if column missing (allows Admin to login and fix DB)
                 }
 
+                $normalizedRole = strtoupper(trim($user['role']));
                 // [CHECK] Maintenance Mode
-                $maintStmt = $pdo->query("SELECT setting_value FROM system_settings WHERE setting_key = 'maintenance_mode'");
-                $isMaint = ($maintStmt->fetchColumn() === '1');
-
-                if ($isMaint && $user['role'] !== 'ADMIN') {
+                $isMaint = false;
+                try {
+                    $maintStmt = $pdo->query("SELECT setting_value FROM system_settings WHERE setting_key = 'maintenance_mode' LIMIT 1");
+                    $isMaint = ($maintStmt && $maintStmt->fetchColumn() === '1');
+                } catch (Exception $e) {
+                    // Table missing? Assume system is active so Admin can login and fix it.
+                }
+                if ($isMaint && $normalizedRole !== 'ADMIN') {
                     $alertType = 'warning';
                     $alertMsg = "🛠️ <strong>System Under Maintenance</strong><br>Only Administrators can log in at this time. Please try again later.";
                 } else {
-                    // [NEW] 2FA Check
-                    if (!empty($user['is_2fa_enabled'])) {
-                        // Check for Trusted Device Cookie
+                    // [NEW] 2FA Check (Enforced for ADMINs per MHI Sec 5.2)
+                    $isLocalRequest = in_array($_SERVER['REMOTE_ADDR'], ['127.0.0.1', '::1']);
+                    $requires2FA = false;
+
+                    // [SECURITY] Force 2FA Setup for ALL users if they haven't configured it yet
+                    if (empty($user['totp_secret'])) {
+                        $requires2FA = true;
+                    } elseif (($normalizedRole === 'ADMIN' && !$isLocalRequest) || !empty($user['is_2fa_enabled'])) {
+                        $requires2FA = true;
                         if (isset($_COOKIE['hr_trust_device'])) {
                             $tokenHash = hash('sha256', $_COOKIE['hr_trust_device']);
                             // Verify against DB
-                            if ($user['trusted_device_token'] === $tokenHash && new DateTime($user['trusted_device_expires']) > new DateTime()) {
-                                // Trust valid - Skip OTP
-                                goto login_success;
+                            if (hash_equals($user['trusted_device_token'], $tokenHash) && new DateTime($user['trusted_device_expires']) > new DateTime()) {                                // Trust valid - Skip OTP
+                                $requires2FA = false;
                             }
-                        }
-
-                        // No trust or expired - Send OTP
-                        $otp = random_int(100000, 999999); // Use cryptographically secure random
-                        $pdo->prepare("UPDATE users SET otp_code = ?, otp_expires = DATE_ADD(NOW(), INTERVAL 15 MINUTE) WHERE id = ?")->execute([$otp, $user['id']]);
-
-                        // Send Email - Check return value
-                        $emailSent = mail($user['email'], "Login OTP", "Your code is: $otp");
-                        if (!$emailSent) {
-                            error_log("OTP_EMAIL_FAILED: Could not send OTP email to " . $user['email']);
-                            $alertType = 'error';
-                            $alertMsg = "❌ Failed to send OTP email. Please contact support.";
-                        } else {
-                            $_SESSION['partial_user_id'] = $user['id'];
-                            header("Location: verify_otp.php");
-                            exit;
                         }
                     }
 
-                    login_success:
+                    if ($requires2FA) {
+                        // [SECURITY] Reset session attempts on credential match
+                        $_SESSION['login_attempts'] = 0;
+                        unset($_SESSION['last_login_attempt']);
+
+                        // Redirect to Authenticator Verification
+                        $_SESSION['partial_user_id'] = $user['id'];
+                        $_SESSION['partial_login_at'] = time();
+                        header("Location: verify_otp.php");
+                        exit;
+                    }
                     // [SECURITY] Regenerate session ID to prevent fixation attacks
                     session_regenerate_id(true);
 
                     $_SESSION['user_id'] = $user['id'];
                     $_SESSION['username'] = $user['username'];
-                    $_SESSION['role'] = $user['role'];
+                    $_SESSION['role'] = $normalizedRole; // [FIX] Normalize to uppercase to prevent Access Denied errors
+
+                    // [SECURITY] Regenerate CSRF Token immediately after login
+                    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 
                     // [LOGGING] Record the login event - Sanitize username in logs
                     $logger = new Logger($pdo);
                     $logUsername = preg_replace('/[^a-zA-Z0-9_\-\.]/', '', $user['username']); // Safety filter
                     $logger->log($user['id'], 'LOGIN', "User '$logUsername' logged in (IP: " . $_SERVER['REMOTE_ADDR'] . ")");
+
+                    // [SECURITY] Force Security Question Setup
+                    if (empty($user['security_question'])) {
+                        header("Location: profile_settings.php?msg=" . urlencode("⚠️ Action Required: Please set up your Security Question for Account Recovery."));
+                        exit;
+                    }
 
                     header("Location: index.php");
                     exit;
@@ -115,13 +178,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
             } else {
                 // [NEW] Log Failed Attempt
                 $logger = new Logger($pdo);
+
+                // [SECURITY] Increment Failed Attempts & Lockout
+                if ($user) {
+                    try {
+                        $attempts = ($user['failed_attempts'] ?? 0) + 1;
+                        $params = [$attempts];
+                        $sql = "UPDATE users SET failed_attempts = ?";
+                        if ($attempts >= 10) {
+                            // Lock account completely (long duration until admin reset)
+                            $sql .= ", locked_until = DATE_ADD(NOW(), INTERVAL 10 YEAR)";
+                            $logger->log($user['id'], 'ACCOUNT_LOCKOUT', "Account locked after 10 failed attempts");
+                        }
+                        $sql .= " WHERE id = ?";
+                        $params[] = $user['id'];
+                        $pdo->prepare($sql)->execute($params);
+                    } catch (PDOException $e) {
+                        // Ignore if column missing
+                    }
+                }
+
+                // [SECURITY] Track failed login attempts in session
+                $_SESSION['login_attempts'] = ($_SESSION['login_attempts'] ?? 0) + 1;
+                $_SESSION['last_login_attempt'] = time();
+
+                $chancesLeft = max(0, 5 - $_SESSION['login_attempts']);
+
                 // If user exists (wrong password), log ID. If not (wrong username), log 0.
                 $failedId = $user ? $user['id'] : 0;
                 $failDetails = $user ? "Failed login (Wrong Password)" : "Failed login (Unknown User: $username)";
                 $logger->log($failedId, 'LOGIN_FAILED', $failDetails);
 
-                $alertType = 'error';
-                $alertMsg = "❌ Invalid Username or Password";
+                $_SESSION['login_error'] = "❌ Invalid Username or Password.<br>You have <strong>$chancesLeft</strong> chances remaining before a 15-minute security lockout.";
+                header("Location: login.php");
+                exit;
             }
         }
     }
@@ -133,38 +223,41 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
 
 <head>
     <meta charset="UTF-8">
-    <title>Login - TES Philippines HR</title>
+    <title>Login | TESP HR 201 System</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <link href="assets/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="assets/icons/bootstrap-icons.css">
-    <script src="assets/sweetalert2.all.min.js"></script>
+    <link href="assets/bootstrap.min.css?v=3" rel="stylesheet">
+    <link rel="stylesheet" href="assets/icons/bootstrap-icons.css?v=3">
+    <script src="assets/sweetalert2.all.min.js?v=3"></script>
+    <?php
+    $fav = '../uploads/favicon.png';
+    if (!file_exists($fav)) $fav = '../uploads/tesp-logo.png';
+    ?>
+    <link rel="icon" type="image/png" href="<?= $fav ?>">
+    <link rel="shortcut icon" type="image/png" href="<?= $fav ?>">
+    <link rel="apple-touch-icon" href="<?= $fav ?>">
     <style>
         body {
-            background: linear-gradient(135deg, #198754 0%, #0d6efd 100%);
-            height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
+            /* --- BACKGROUND THEMES (Uncomment the one you want to use) --- */
+
+            /* OPTION 1: Original Deep Corporate Blue Gradient (Revert to this if needed) */
+            /* background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%); */
+
+            /* OPTION 2: TESP Corporate Green Gradient */
+            /* background: linear-gradient(135deg, #198754 0%, #146c43 100%); */
+
+            /* OPTION 3: Clean Light Corporate Flat Color */
+            background-color: #f4f6f9;
+
+            /* OPTION 4: Background Image with Dark Overlay */
+            /* background: linear-gradient(rgba(30, 60, 114, 0.8), rgba(42, 82, 152, 0.8)), url('uploads/company_bg.jpg') center/cover no-repeat fixed; */
         }
 
         .login-card {
-            width: 100%;
-            max-width: 400px;
-            border-radius: 15px;
+            border: none;
+            border-radius: 16px;
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.4) !important;
             overflow: hidden;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
-        }
-
-        .card-header {
-            background: #fff;
-            padding-top: 2rem;
-            border-bottom: none;
-            text-align: center;
-        }
-
-        .logo-icon {
-            font-size: 3rem;
-            color: #198754;
+            /* Clips the header to the border radius */
         }
 
         /* Disable button style */
@@ -178,32 +271,78 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
             border-top: 5px solid #198754;
             /* Brand Green */
             border-radius: 15px;
+            animation: slideUp 0.4s ease-out !important;
+        }
+
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes fadeInScale {
+            from {
+                opacity: 0;
+                transform: scale(0.95);
+            }
+
+            to {
+                opacity: 1;
+                transform: scale(1);
+            }
+        }
+
+        .swal2-show {
+            animation: fadeInScale 0.3s ease-out !important;
         }
 
         .swal2-confirm {
             background-color: #198754 !important;
             /* Brand Green */
             box-shadow: 0 0 0 3px rgba(25, 135, 84, 0.2) !important;
+            transition: all 0.3s ease;
+        }
+
+        .swal2-confirm:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(25, 135, 84, 0.4) !important;
         }
 
         .swal2-cancel {
             background-color: #6c757d !important;
             /* Grey */
+            transition: all 0.3s ease;
+        }
+
+        .swal2-cancel:hover {
+            background-color: #5a6268 !important;
         }
     </style>
 </head>
 
-<body>
+<body class="bg-body-tertiary d-flex align-items-center justify-content-center vh-100">
+    <div class="position-absolute top-0 end-0 p-3">
+        <button id="darkModeToggle" class="btn btn-sm btn-outline-secondary border-0" title="Toggle Dark Mode">
+            <i class="bi bi-moon-stars-fill"></i>
+        </button>
+    </div>
 
-    <div class="card login-card">
-        <div class="card-header">
-            <i class="bi bi-building-lock logo-icon"></i>
-            <h3 class="mt-2 fw-bold text-dark">HR 201 Vault</h3>
-            <p class="text-muted">TES Philippines, Inc.</p>
+    <div class="card login-card" style="width: 100%; max-width: 400px;">
+        <div class="card-header bg-primary text-white text-center py-4">
+            <img src="../uploads/tesp-logo.png?v=<?= file_exists('../uploads/tesp-logo.png') ? filemtime('../uploads/tesp-logo.png') : time() ?>" alt="TESP Logo" style="height: 100px; width: auto;" class="mb-2">
+            <h3 class="mt-2 fw-bold">HR 201 Vault</h3>
+            <p class="mb-0 opacity-75">TES Philippines, Inc.</p>
         </div>
         <div class="card-body p-4 bg-white">
 
             <form method="POST">
+                <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token); ?>">
                 <div class="mb-3">
                     <label class="form-label text-secondary">Username</label>
                     <div class="input-group">
@@ -217,7 +356,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
                     <label class="form-label text-secondary">Password</label>
                     <div class="input-group">
                         <span class="input-group-text bg-light"><i class="bi bi-key"></i></span>
-                        <input type="password" name="password" id="loginPass" class="form-control" placeholder="Enter password" required minlength="6" maxlength="128">
+                        <input type="password" name="password" id="loginPass" class="form-control" placeholder="Enter password" required minlength="10" maxlength="128" autocomplete="current-password">
                         <button class="btn btn-outline-secondary" type="button" onclick="toggleLoginPass(this)"><i class="bi bi-eye"></i></button>
                     </div>
                     <div id="capsLockWarning" class="form-text text-danger fw-bold mt-1" style="display: none;">
@@ -238,8 +377,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
                 </div>
 
                 <div class="d-grid">
-                    <button type="submit" name="login" id="loginBtn" class="btn btn-success btn-lg shadow-sm" disabled>
-                        Secure Login <i class="bi bi-lock-fill"></i>
+                    <button type="submit" name="login" id="loginBtn" class="btn btn-success btn-lg shadow-sm">
+                        Secure Login <i class="bi bi-arrow-right"></i>
                     </button>
                 </div>
             </form>
@@ -251,21 +390,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
     </div>
 
     <script>
-        // [SCRIPT] Toggle Login Button based on Checkbox
-        const termsCheck = document.getElementById('termsCheck');
-        const loginBtn = document.getElementById('loginBtn');
-        const icon = loginBtn.querySelector('i');
-
-        termsCheck.addEventListener('change', function() {
-            if (this.checked) {
-                loginBtn.disabled = false;
-                loginBtn.innerHTML = 'Secure Login <i class="bi bi-arrow-right"></i>';
-            } else {
-                loginBtn.disabled = true;
-                loginBtn.innerHTML = 'Secure Login <i class="bi bi-lock-fill"></i>';
-            }
-        });
-
         // [SCRIPT] Toggle Password Visibility
         function toggleLoginPass(btn) {
             const input = document.getElementById('loginPass');
@@ -293,15 +417,42 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
 
         // [SCRIPT] SweetAlert2 Trigger
         <?php if ($alertMsg): ?>
-            Swal.fire({
-                icon: '<?php echo $alertType; ?>',
-                title: '<?php echo ucfirst($alertType); ?>',
-                html: <?php echo json_encode($alertMsg); ?>,
-                confirmButtonColor: '#198754'
-            });
+            <?php if ($lockoutSeconds > 0): ?>
+                let timerInterval;
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Access Blocked',
+                    html: <?= json_encode($alertMsg) ?> + '<br><br>Please wait <strong></strong> before trying again.',
+                    timer: <?= $lockoutSeconds * 1000 ?>,
+                    timerProgressBar: true,
+                    allowOutsideClick: false,
+                    showConfirmButton: false,
+                    didOpen: () => {
+                        const b = Swal.getHtmlContainer().querySelector('strong');
+                        timerInterval = setInterval(() => {
+                            const remaining = Math.ceil(Swal.getTimerLeft() / 1000);
+                            const mins = Math.floor(remaining / 60);
+                            const secs = remaining % 60;
+                            b.textContent = `${mins}:${secs < 10 ? '0' : ''}${secs}`;
+                        }, 100);
+                    },
+                    willClose: () => {
+                        clearInterval(timerInterval);
+                    }
+                });
+            <?php else: ?>
+                Swal.fire({
+                    icon: '<?php echo $alertType; ?>',
+                    title: '<?php echo ucfirst($alertType); ?>',
+                    html: <?php echo json_encode($alertMsg); ?>,
+                    confirmButtonColor: '#198754'
+                });
+            <?php endif; ?>
         <?php endif; ?>
     </script>
 
+    <script src="assets/bootstrap.bundle.min.js?v=3"></script>
+    <script src="assets/dark_mode.js"></script>
 </body>
 
 </html>

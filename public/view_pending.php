@@ -4,28 +4,50 @@ ob_start();
 require '../config/db.php';
 require '../src/Security.php';
 require '../src/FileService.php';
+require '../src/Logger.php';
 session_start();
 
 // [FIX] Load Config to ensure VAULT_PATH is available
 $config = require '../config/config.php';
 $vaultPath = $config['VAULT_PATH'] ?? dirname(__DIR__) . DIRECTORY_SEPARATOR . 'vault' . DIRECTORY_SEPARATOR;
 
-// In a real app, ensure ONLY Admins can access this!
-// if ($_SESSION['role'] !== 'ADMIN') die("Access Denied");
+// [SECURITY] Require an authenticated user and explicit authorization before exposing pending documents.
+if (!isset($_SESSION['user_id']) || empty($_SESSION['user_id'])) {
+    http_response_code(401);
+    exit('Unauthorized');
+}
+
+$userRole = strtoupper(trim((string)($_SESSION['role'] ?? '')));
+if (!in_array($userRole, ['ADMIN', 'MANAGER', 'HR'], true)) {
+    http_response_code(403);
+    exit('Forbidden');
+}
 
 $req_id = $_GET['id'] ?? '';
+if (!is_numeric($req_id)) {
+    http_response_code(400);
+    exit('Invalid Request ID');
+}
 
-if (!is_numeric($req_id)) die("Invalid Request ID");
-
-// Fetch the pending request
-$stmt = $pdo->prepare("SELECT json_payload FROM pending_requests WHERE id = ?");
+// Fetch the pending request and validate request type
+$stmt = $pdo->prepare("SELECT json_payload, request_type FROM requests WHERE id = ?");
 $stmt->execute([$req_id]);
 $req = $stmt->fetch();
 
-if (!$req) die("Request not found.");
+if (!$req || $req['request_type'] !== 'UPLOAD_DOC') {
+    http_response_code(404);
+    exit('Request not found or invalid request type.');
+}
+
+$logger = new Logger($pdo);
+$logger->log((int)$_SESSION['user_id'], 'VIEW_PENDING_DOCUMENT', 'Viewed pending request ' . (int)$req_id);
 
 // Decode JSON to find the file path
 $data = json_decode($req['json_payload'], true);
+if (!is_array($data) || empty($data['file_path']) || empty($data['original_name'])) {
+    http_response_code(500);
+    exit('Invalid request payload.');
+}
 $filename = $data['file_path'];
 
 // Determine MIME Type

@@ -16,6 +16,7 @@ class EmployeeService
         if (empty($data['emp_id'])) $errors[] = "Employee ID is required.";
         if (empty($data['first_name']) || empty($data['last_name'])) $errors[] = "First and Last Name are required.";
         if (empty($data['job_title'])) $errors[] = "Job Title is required.";
+        if (empty($data['dept'])) $errors[] = "Department is required.";
 
         if (!empty($data['email']) && !filter_var($data['email'], FILTER_VALIDATE_EMAIL)) {
             $errors[] = "Invalid email format.";
@@ -39,7 +40,10 @@ class EmployeeService
         unset($data['request_note']);
 
         $cols = array_keys($data);
-        $colsStr = implode(", ", $cols);
+
+        // [FIX] Wrap all column names in backticks
+        $colsStr = "`" . implode("`, `", $cols) . "`";
+
         $valsStr = implode(", ", array_fill(0, count($cols), "?"));
 
         $sql = "INSERT INTO employees ($colsStr) VALUES ($valsStr)";

@@ -17,6 +17,9 @@ try {
         $decoded = json_decode($row['setting_value'], true);
         if (json_last_error() === JSON_ERROR_NONE) {
             $sysOpts[$row['setting_key']] = $decoded;
+        } else {
+            // If it's not JSON (like plain text or numbers), store it as a standard string
+            $sysOpts[$row['setting_key']] = $row['setting_value'];
         }
     }
 } catch (Exception $e) {
@@ -68,12 +71,15 @@ if (empty($system_roles)) {
 
 // Departments & Sections Map
 $deptMap = [];
+$groups = [];
 try {
+    // [SYNC] Fetch from dedicated departments and sections tables
     $dStmt = $pdo->query("SELECT id, name FROM departments ORDER BY name ASC");
-    while ($dRow = $dStmt->fetch(PDO::FETCH_ASSOC)) {
-        $deptName = $dRow['name'];
+    $depts_raw = $dStmt->fetchAll(PDO::FETCH_ASSOC);
+    foreach ($depts_raw as $d) {
+        $deptName = $d['name'];
         $sStmt = $pdo->prepare("SELECT name FROM sections WHERE department_id = ? ORDER BY name ASC");
-        $sStmt->execute([$dRow['id']]);
+        $sStmt->execute([$d['id']]);
         $deptMap[$deptName] = $sStmt->fetchAll(PDO::FETCH_COLUMN);
     }
 } catch (Exception $e) {
@@ -101,6 +107,16 @@ if (empty($deptMap)) {
     ];
 }
 
+// [SYNC] Fetch Groups from dedicated groups table
+try {
+    $groups = $pdo->query("SELECT name FROM groups ORDER BY name ASC")->fetchAll(PDO::FETCH_COLUMN);
+} catch (Exception $e) {
+}
+
+if (empty($groups)) {
+    $groups = ['GROUP A', 'GROUP B', 'GROUP C'];
+}
+
 // [FIX] Section Friendly Map (Code => Friendly Name)
 // Populated with defaults to prevent UI issues
 $sectionFriendlyMap = $sysOpts['section_friendly_map'] ?? [
@@ -120,3 +136,51 @@ $sectionFriendlyMap = $sysOpts['section_friendly_map'] ?? [
     'EMT' => 'Emergency Medical Team',
     'SHUNTER' => 'Shunting Group'
 ];
+
+// [NEW] Disciplinary Policy Options
+$violation_options = [];
+try {
+    $vStmt = $pdo->query("SELECT category, name FROM disciplinary_violations ORDER BY category, name");
+    while ($row = $vStmt->fetch(PDO::FETCH_ASSOC)) {
+        $violation_options[$row['category']][] = $row['name'];
+    }
+} catch (Exception $e) {
+}
+
+if (empty($violation_options)) {
+    $violation_options = [
+        "Attendance" => ["Tardiness / Late", "AWOL (Absence Without Leave)", "Abandonment of Work", "Undertime"],
+        "Conduct"    => ["Insubordination", "Disrespect to Superior", "Fighting / Assault", "Gambling on Premises"],
+        "Honesty"    => ["Dishonesty", "Falsification of Records", "Theft", "Fraud"],
+        "Safety"     => ["LSR Violation", "Non-use of PPE", "Unsafe Act", "Safety Negligence"],
+        "Performance" => ["Negligence of Duty", "Sleeping on Duty", "Malingering", "Poor Work Performance"]
+    ];
+}
+
+$rule_options = [];
+try {
+    $rule_options = $pdo->query("SELECT name FROM company_rules ORDER BY name ASC")->fetchAll(PDO::FETCH_COLUMN);
+} catch (Exception $e) {
+}
+
+if (empty($rule_options)) {
+    $rule_options = [
+        "Rule I - Attendance and Punctuality",
+        "Rule II - Conduct and Decorum",
+        "Rule III - Safety and Health",
+        "Rule IV - Company Property",
+        "Rule V - Honesty and Integrity",
+        "Rule VI - General Provisions",
+        "Project-Specific Safety Protocol",
+        "Data Privacy Policy"
+    ];
+}
+
+// [NEW] College Courses for Normalization & Suggestions
+$college_courses_list = [];
+try {
+    $stmt = $pdo->query("SELECT course_name, keywords FROM college_courses ORDER BY course_name ASC");
+    $college_courses_list = $stmt->fetchAll(PDO::FETCH_ASSOC);
+} catch (Exception $e) {
+    // Fallback handled in UI
+}

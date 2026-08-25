@@ -1,0 +1,27 @@
+parameters:
+    # Level 3: catches undefined variables, type mismatches, impossible conditions
+    # Level 0 is loosest, Level 10 is strictest — we'll increase this over time
+    level: 3
+
+    paths:
+        - public
+        - src
+        - config
+        - handle_evaluation.php
+        - handle_history.php
+
+    # Exclude binary/vendor assets and legacy export files from analysis
+    excludePaths:
+        - public/assets
+        - vendor (?)
+
+    # PHPStan does not know about superglobals injected at runtime, so ignore these
+    ignoreErrors:
+        # Suppress "Variable $pdo might not be defined" errors since it is injected via config/db.php
+        - '#Variable \$pdo might not be defined\.#'
+
+    # PHP 8.0 target
+    phpVersion: 80000
+
+    # Treat the zip extension warning as harmless (it is not installed in this XAMPP)
+    reportUnmatchedIgnoredErrors: false

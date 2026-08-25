@@ -1,23 +1,17 @@
 <?php
 // public/templates/notice_of_decision.php
 if (!isset($emp)) {
-    die("Access Denied");
+    die("ACCESS DENIED");
 }
 
 // 1. Prepare Data
 $date_created = (!empty($_GET['notice_date'])) ? date('F d, Y', strtotime($_GET['notice_date'])) : '___________________________';
-$violation = (!empty($_GET['violation'])) ? nl2br(htmlspecialchars($_GET['violation'])) : '__________________________________________________________________';
-$decision = (!empty($_GET['decision'])) ? nl2br(htmlspecialchars($_GET['decision'])) : '<br><br><br>'; // Empty space for handwriting
-$incident_date = (!empty($_GET['incident_date'])) ? date('F d, Y', strtotime($_GET['incident_date'])) : '_________________';
-
-// 2. Base64 Logo
-$logo_path = __DIR__ . '/../uploads/tesp logo 1.png';
-$logo_src = 'uploads/' . rawurlencode('tesp logo 1.png');
-if (file_exists($logo_path)) {
-    $logo_binary = file_get_contents($logo_path);
-    $logo_src = 'data:image/png;base64,' . base64_encode($logo_binary);
-}
+$incident_date = (!empty($_GET['incident_date'])) ? date('F d, Y h:i A', strtotime($_GET['incident_date'])) : '___________________________';
+$violation = nl2br(htmlspecialchars($violation ?? ''));
+$decision = nl2br(htmlspecialchars($_GET['decision'] ?? ''));
+$rule_violated = nl2br(htmlspecialchars($rule_violated ?? ''));
 ?>
+
 <!DOCTYPE html>
 <html lang="en">
 
@@ -34,12 +28,9 @@ if (file_exists($logo_path)) {
         }
 
         .container {
-            width: 90%;
-            max-width: 900px;
-
+            width: 100%;
+            max-width: 700px;
         }
-
-
 
         .header-wrapper {
             width: 100%;
@@ -49,10 +40,12 @@ if (file_exists($logo_path)) {
             text-align: center;
         }
 
-        .header-content-table {
-            width: auto;
-            margin: 0 auto;
-            border-collapse: collapse;
+        .title {
+            text-align: center;
+            font-weight: bold;
+            font-size: 14pt;
+            margin: 20px 0;
+            text-decoration: underline;
         }
 
         table {
@@ -75,20 +68,8 @@ if (file_exists($logo_path)) {
 
         .label {
             font-weight: bold;
-            width: 15%;
+            width: 20%;
             background: #eee;
-        }
-
-        .offense-grid {
-            font-size: 10pt;
-            margin-bottom: 20px;
-        }
-
-        .offense-grid td {
-            width: 33%;
-            border: 1px solid #999;
-            padding: 4px;
-            text-align: center;
         }
 
         .signatory-table {
@@ -107,23 +88,27 @@ if (file_exists($logo_path)) {
     <div class="container">
 
         <div class="header-wrapper">
-            <table class="header-content-table">
+            <table style="width: 100%; margin-bottom: 10px;">
                 <tr>
-                    <td style="padding-right: 15px; vertical-align: middle;">
-                        <img src="<?php echo $logo_src; ?>" class="logo" style="width: 80px; display: block;">
+                    <td style="width: 130px; text-align: right; vertical-align: middle; padding-right: 15px;">
+                        <?php if (isset($global_logo_src) && $global_logo_src !== ''): ?>
+                            <img src="<?php echo htmlspecialchars($global_logo_src); ?>" alt="Company Logo" class="logo" style="width: 80px; height: 80px; border-radius: 50%; object-fit: cover;">
+                        <?php endif; ?>
                     </td>
                     <td style="vertical-align: middle; text-align: center;">
-                        <strong style="font-size: 14pt;">TES PHILIPPINES INC.</strong><br>
-                        <span style="font-size: 11pt;"> General Affairs Group (GAG) Human Resources </span><br>
-                        <small>Disciplinary Action Notice</small>
+                        <div style="font-weight: bold; font-size: 15pt !important; line-height: 1.2; white-space: nowrap;">TES PHILIPPINES, INC.</div>
+                        <div style="font-weight: bold; font-size: 11pt !important; line-height: 1.2; white-space: nowrap;">METRO RAIL TRANSIT LINE 3 REHABILITATION PROJECT</div>
+                        <div style="font-size: 11pt !important; line-height: 1.2;">Meriton One Building, 1668 Quezon Avenue, Quezon City</div>
+                        <div style="font-size: 11pt !important; line-height: 1.2;">Telephone Number: 8929-5347 local 4404</div>
                     </td>
+                    <td style="width: 70px;"></td> <!-- Spacer for shifting text right -->
                 </tr>
             </table>
         </div>
 
         <div class="title">NOTICE OF DECISION</div>
 
-        <table class="bordered-table" style="width: 100%; margin-bottom: 20px;">
+        <table class="bordered-table">
             <tr>
                 <td class="label">Name</td>
                 <td style="width: 45%;"><?php echo strtoupper(htmlspecialchars($emp['last_name'] . ', ' . $emp['first_name'])); ?></td>
@@ -133,28 +118,49 @@ if (file_exists($logo_path)) {
             <tr>
                 <td class="label">Code</td>
                 <td><?php echo htmlspecialchars($emp['emp_id']); ?></td>
+            </tr>
+            <tr>
                 <td class="label">Section</td>
-                <td><?php echo htmlspecialchars($emp['dept'] . ' / ' . $emp['section']); ?></td>
+                <td colspan="3"><?php echo htmlspecialchars($emp['dept'] . ' / ' . $emp['section']); ?></td>
             </tr>
         </table>
 
         <p style="text-align: justify; margin: 20px 0;">
-            This refers to the incident report dated <strong><?php echo $incident_date; ?></strong> regarding your alleged violation:<br><br><strong><?php echo $violation; ?></strong>.
+            After careful review and investigation of the incident, the Management has reached a decision regarding the disciplinary case filed against you.
         </p>
 
-        <p style="text-align: justify; margin: 20px 0;">
-            After a thorough investigation and review of the explanation you provided (or failure to provide one within the prescribed period), the Management has found substantial evidence to support the finding of guilt.
-        </p>
+        <table class="bordered-table">
+            <tr>
+                <td class="label">Date of Incident</td>
+                <td colspan="3"><?php echo $incident_date; ?></td>
+            </tr>
+            <tr>
+                <td colspan="4" class="label">Violation / Offense</td>
+            </tr>
+            <tr>
+                <td colspan="4" style="height: 100px; vertical-align: top; text-align: justify; text-justify: inter-word;">
+                    <?php echo $violation ?: '(No violation recorded)'; ?>
+                </td>
+            </tr>
+            <tr>
+                <td colspan="4" class="label">Specific Company Rule & Regulation Violated</td>
+            </tr>
+            <tr>
+                <td colspan="4" style="height: 80px; vertical-align: top; text-align: justify; text-justify: inter-word;"><?php echo $rule_violated ?: 'N/A'; ?></td>
+            </tr>
+            <tr>
+                <td colspan="4" class="label">Decision / Sanction</td>
+            </tr>
+            <tr>
+                <td colspan="4" style="height: 150px; vertical-align: top; text-align: justify; text-justify: inter-word;">
+                    <?php echo $decision ?: '(No decision recorded)'; ?>
+                </td>
+            </tr>
+        </table>
 
-        <div style="border: 2px solid black; padding: 15px; margin: 20px 0; background: #f9f9f9;">
-            <strong>DECISION / SANCTION:</strong><br><br>
-            <span style="font-size: 14pt; font-weight: bold;"><?php echo $decision; ?></span>
+        <div style="border: 2px solid black; padding: 10px; margin: 20px 0; background: #f9f9f9; text-align: justify;">
+            <strong>WARNING:</strong> You are strictly advised to adhere to the company's rules and regulations. Repetition of the same or similar offense will be dealt with more severe disciplinary action, which may include termination of employment.
         </div>
-
-        <p style="text-align: justify; margin: 20px 0;">
-            This decision is effective immediately. A copy of this notice will be placed in your 201 File.
-            You are expected to strictly comply with Company Rules and Regulations moving forward. Future infractions will be dealt with more severely.
-        </p>
 
         <table class="signatory-table">
             <tr>
@@ -169,6 +175,7 @@ if (file_exists($logo_path)) {
 
         <div style="margin-top: 30px; border-top: 1px dashed black; padding-top: 10px;">
             <strong>Received by:</strong><br><br>
+
             <table style="width: 100%;">
                 <tr>
                     <td style="width: 60%; border-bottom: 1px solid black;">Name & Signature:</td>
@@ -177,7 +184,9 @@ if (file_exists($logo_path)) {
                 </tr>
             </table>
         </div>
+
     </div>
+
 </body>
 
 </html>

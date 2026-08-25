@@ -1,0 +1,13 @@
+{
+  "name": "tesp/hr-vault-201",
+  "description": "HR Vault 201 - TESP HR Management System",
+  "type": "project",
+  "require-dev": {
+    "phpstan/phpstan": "^2.0"
+  },
+  "config": {
+    "optimize-autoloader": true,
+    "preferred-install": "dist",
+    "sort-packages": true
+  }
+}

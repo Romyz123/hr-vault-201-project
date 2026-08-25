@@ -1,4 +1,5 @@
 <?php
+// --- START: UI REPAIR ---
 // public/print_tracker.php
 require '../config/db.php';
 session_start();
@@ -68,10 +69,12 @@ $docsMap = [];
 foreach ($allDocs as $d) {
     $empId = $d['employee_id'];
     foreach ($REQUIRED_DOCS as $reqKey => $keywords) {
-        if (stripos($d['category'], $reqKey) !== false) {
+        if (stripos(trim($d['category'] ?? ''), trim($reqKey)) !== false) {
             $docsMap[$empId][$reqKey] = true;
         } else {
             foreach ($keywords as $k) {
+                $k = trim($k);
+                if ($k === '') continue;
                 if (stripos($d['original_name'], $k) !== false || stripos($d['category'], $k) !== false) {
                     $docsMap[$empId][$reqKey] = true;
                     break;
@@ -109,6 +112,22 @@ if ($compliance !== '') {
     }
     $employees = $filtered;
 }
+
+$logo_paths = [
+    __DIR__ . '/assets/images/tesp-logo-1.png',
+    __DIR__ . '/uploads/tesp-logo.png',
+    __DIR__ . '/uploads/tesp logo 1.png',
+    __DIR__ . '/../uploads/tesp-logo.png',
+    __DIR__ . '/../uploads/tesp logo 1.png'
+];
+$logo_src = '';
+foreach ($logo_paths as $p) {
+    if (file_exists($p)) {
+        $mime = pathinfo($p, PATHINFO_EXTENSION) === 'png' ? 'image/png' : 'image/jpeg';
+        $logo_src = 'data:' . $mime . ';base64,' . base64_encode(file_get_contents($p));
+        break;
+    }
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -116,6 +135,7 @@ if ($compliance !== '') {
 <head>
     <meta charset="UTF-8">
     <title>Compliance Report</title>
+    <link rel="icon" href="assets/tesp-logo.png?v=4" type="image/png">
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -163,9 +183,26 @@ if ($compliance !== '') {
             margin-bottom: 20px;
         }
 
+        .print-header {
+            text-align: center !important;
+            border-bottom: 2px solid #000 !important;
+            margin-bottom: 30px !important;
+            padding-bottom: 15px !important;
+            width: 100%;
+        }
+
+        .print-logo {
+            max-height: 75px !important;
+            width: auto !important;
+            display: block !important;
+            margin: 0 auto 15px auto !important;
+            /* Centering the block image */
+        }
+
         @media print {
             .no-print {
-                display: none;
+                display: none !important;
+
             }
         }
     </style>
@@ -177,21 +214,23 @@ if ($compliance !== '') {
         <button onclick="window.close()" style="padding: 10px 20px; cursor: pointer;">Close</button>
     </div>
 
-    <div class="header">
-        <h2>Document Compliance Report</h2>
-        <p>
-            Date: <?php echo date('F d, Y'); ?><br>
-            Filter: <?php echo $compliance ? ucfirst(str_replace('_', ' ', $compliance)) : 'All'; ?> |
-            Agency: <?php echo $type ? htmlspecialchars($type) : 'All'; ?> |
-            Dept: <?php echo $dept ? htmlspecialchars($dept) : 'All'; ?>
-        </p>
+    <!-- // --- START: PRINT FIX --- -->
+    <div class="print-header">
+        <img src="<?php echo $logo_src; ?>" alt="TESP Logo" class="print-logo">
+        <div class="print-title-area">
+            <div style="font-size: 16pt; font-weight: bold; text-transform: uppercase;">TES Philippines, Inc.</div>
+            <div style="font-size: 14pt; font-weight: bold; text-transform: uppercase;">Document Compliance Report</div>
+        </div>
+        <div style="width: 10px;"></div> <!-- Spacer for balance -->
     </div>
+    <!-- // --- END: PRINT FIX --- -->
 
     <table>
         <thead>
             <tr>
                 <th class="text-left">Employee</th>
                 <th>Dept</th>
+                <th>Status</th>
                 <th>Progress</th>
                 <?php foreach ($REQUIRED_DOCS as $cat => $k): ?>
                     <th><?php echo htmlspecialchars($cat); ?></th>
@@ -223,6 +262,7 @@ if ($compliance !== '') {
                         <small><?php echo htmlspecialchars($emp['emp_id']); ?></small>
                     </td>
                     <td><?php echo htmlspecialchars($emp['dept']); ?></td>
+                    <td><small><?php echo htmlspecialchars($emp['status']); ?></small></td>
                     <td><?php echo htmlspecialchars($percent); ?>%</td>
                     <?php foreach ($rowCells as $cell): ?>
                         <td><?php echo $cell; ?></td>

@@ -3,13 +3,6 @@
 if (!isset($emp)) {
     die("Access Denied");
 }
-
-$logo_path = __DIR__ . '/../uploads/tesp logo 1.png';
-$logo_src = 'uploads/' . rawurlencode('tesp logo 1.png');
-if (file_exists($logo_path)) {
-    $logo_binary = file_get_contents($logo_path);
-    $logo_src = 'data:image/png;base64,' . base64_encode($logo_binary);
-}
 ?>
 <!DOCTYPE html>
 <html>
@@ -66,7 +59,7 @@ if (file_exists($logo_path)) {
     <table class="header-table">
         <tr>
             <td style="padding-right: 15px; vertical-align: middle;">
-                <img src="<?php echo $logo_src; ?>" style="width: 70px; height: auto; display: block;" alt="TESP Logo">
+                <img src="<?php echo htmlspecialchars($global_logo_src ?? '', ENT_QUOTES, 'UTF-8'); ?>" style="width: 70px; height: auto; display: block;" alt="TESP Logo">
             </td>
             <td style="vertical-align: middle;">
                 <div class="header">

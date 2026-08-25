@@ -9,6 +9,9 @@ if (!isset($_SESSION['user_id']) || !in_array($_SESSION['role'], ['ADMIN', 'MANA
     exit;
 }
 
+$security = new Security($pdo);
+$csrf_token = $security->generateCSRF();
+
 // 2. FETCH DELETED FILES (Last 30 Days)
 // We can also implement an auto-cleanup cron job later to actually delete files older than 30 days.
 $sql = "SELECT d.*, e.first_name, e.last_name, e.emp_id AS real_emp_id 
@@ -26,28 +29,39 @@ $deletedDocs = $stmt->fetchAll(PDO::FETCH_ASSOC);
 <head>
     <meta charset="UTF-8">
     <title>Recycle Bin</title>
+    <link rel="icon" href="assets/tesp-logo.png?v=4" type="image/png">
     <link href="assets/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="assets/icons/bootstrap-icons.css">
     <script src="assets/sweetalert2.all.min.js"></script>
 </head>
 
-<body class="bg-light p-4">
+<body class="bg-body-tertiary">
+
+    <nav class="navbar navbar-dark bg-dark mb-4">
+        <div class="container">
+            <a class="navbar-brand" href="index.php">Back to Dashboard</a>
+            <button id="darkModeToggle" class="btn btn-sm btn-outline-light border-0 ms-auto" title="Toggle Dark Mode">
+                <i class="bi bi-moon-stars-fill"></i>
+            </button>
+        </div>
+    </nav>
 
     <div class="container">
-        <div class="d-flex justify-content-between align-items-center mb-4">
+        <div class="d-flex justify-content-between align-items-center mb-3">
             <h3 class="text-danger"><i class="bi bi-trash3-fill"></i> Recycle Bin</h3>
             <div>
                 <?php if (!empty($deletedDocs)): ?>
                     <form action="delete_document.php" method="POST" class="d-inline" onsubmit="confirmForm(event, 'Are you sure you want to restore ALL files to their original locations?')">
+                        <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token); ?>">
                         <input type="hidden" name="action" value="restore_all">
                         <button type="submit" class="btn btn-success me-2"><i class="bi bi-arrow-counterclockwise"></i> Restore All</button>
                     </form>
                     <form action="delete_document.php" method="POST" class="d-inline" onsubmit="confirmForm(event, 'WARNING: This will permanently delete ALL files in the Recycle Bin. This cannot be undone. Proceed?')">
+                        <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token); ?>">
                         <input type="hidden" name="action" value="empty_bin">
                         <button type="submit" class="btn btn-danger me-2"><i class="bi bi-fire"></i> Empty Bin</button>
                     </form>
                 <?php endif; ?>
-                <a href="index.php" class="btn btn-secondary">Back to Dashboard</a>
             </div>
         </div>
 
@@ -86,6 +100,7 @@ $deletedDocs = $stmt->fetchAll(PDO::FETCH_ASSOC);
                                     <td class="text-end">
                                         <!-- RESTORE -->
                                         <form action="delete_document.php" method="POST" class="d-inline">
+                                            <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token); ?>">
                                             <input type="hidden" name="file_uuid" value="<?php echo $doc['file_uuid']; ?>">
                                             <input type="hidden" name="action" value="restore">
                                             <button type="submit" class="btn btn-sm btn-success" title="Restore">
@@ -95,6 +110,7 @@ $deletedDocs = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
                                         <!-- PERMANENT DELETE -->
                                         <form action="delete_document.php" method="POST" class="d-inline" onsubmit="confirmForm(event, 'Permanently delete this file? This cannot be undone.')">
+                                            <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token); ?>">
                                             <input type="hidden" name="file_uuid" value="<?php echo $doc['file_uuid']; ?>">
                                             <input type="hidden" name="action" value="permanent_delete">
                                             <button type="submit" class="btn btn-sm btn-outline-danger ms-1" title="Delete Forever">
@@ -116,36 +132,10 @@ $deletedDocs = $stmt->fetchAll(PDO::FETCH_ASSOC);
     </div>
 
     <script>
-        <?php if (isset($_GET['msg'])): ?>
-            Swal.fire({
-                icon: 'success',
-                title: 'Success',
-                text: '<?php echo htmlspecialchars($_GET['msg']); ?>',
-                timer: 2000,
-                showConfirmButton: false
-            });
-            // [FIX] Clear URL parameters to prevent message from reappearing on refresh
-            if (window.history.replaceState) {
-                window.history.replaceState(null, null, window.location.pathname);
-            }
-        <?php endif; ?>
-
-        function confirmForm(e, msg) {
-            e.preventDefault();
-            const form = e.target;
-            Swal.fire({
-                title: 'Are you sure?',
-                text: msg,
-                icon: 'warning',
-                showCancelButton: true,
-                confirmButtonColor: '#d33',
-                confirmButtonText: 'Yes, delete forever!'
-            }).then((result) => {
-                if (result.isConfirmed) form.submit();
-            });
-        }
     </script>
-
+    <script src="assets/bootstrap.bundle.min.js"></script>
+    <script src="dark_mode.js"></script>
+    <script src="main.js"></script>
 </body>
 
 </html>

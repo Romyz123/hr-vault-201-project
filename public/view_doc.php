@@ -1,5 +1,10 @@
 <?php
-// [FIX] Start buffering immediately to catch any whitespace/BOM from includes
+// ======================================================
+// [FILE] public/view_doc.php
+// [STATUS] Secure Document Viewer & Streamer
+// ======================================================
+
+// ---------- 1) CONFIGURATION & SECURITY ----------
 ob_start();
 
 require '../config/db.php';
@@ -7,7 +12,7 @@ require '../src/Security.php';
 require '../src/FileService.php';
 session_start();
 
-// [FIX] Load Config to ensure VAULT_PATH is available
+// Load Config to ensure VAULT_PATH is available
 $config = require '../config/config.php';
 $vaultPath = $config['VAULT_PATH'] ?? dirname(__DIR__) . DIRECTORY_SEPARATOR . 'vault' . DIRECTORY_SEPARATOR;
 
@@ -16,17 +21,23 @@ if (!isset($_SESSION['user_id'])) {
     die("Access Denied");
 }
 
+// Security Headers: Allow embedding in iframes for the modal viewer
+if (isset($_GET['embed']) && $_GET['embed'] == '1') {
+    header('X-Frame-Options: SAMEORIGIN', true);
+}
+
 // 2. VALIDATE INPUT
 $file_uuid = $_GET['id'] ?? '';
 $embed     = isset($_GET['embed']);     // ?embed=1 (Raw stream for img/iframe)
 $download  = isset($_GET['download']);  // ?download=1 (Force download)
 
-if (!preg_match('/^[a-zA-Z0-9-]+$/', $file_uuid)) {
+if (!preg_match('/^[a-zA-Z0-9-]+$/', $file_uuid) && !is_numeric($file_uuid)) {
     die("Invalid File ID");
 }
 
 // 3. FETCH FILE INFO
-$stmt = $pdo->prepare("SELECT file_path, original_name, deleted_at FROM documents WHERE file_uuid = ?");
+$where = is_numeric($file_uuid) ? "id = ?" : "file_uuid = ?";
+$stmt = $pdo->prepare("SELECT * FROM documents WHERE $where");
 $stmt->execute([$file_uuid]);
 $file = $stmt->fetch();
 
@@ -36,32 +47,94 @@ if ($file['deleted_at'] !== null && !in_array($_SESSION['role'], ['ADMIN', 'HR']
     die("Access Denied: This file has been deleted.");
 }
 
-// 4. LOCATE FILE (Relative to this script)
-$uploadDir = $vaultPath;
-$fullPath = $uploadDir . $file['file_path'];
+// [SECURITY] Enforce Ownership and Role Policy for viewing/downloading documents
+$authorized = false;
+$userRoles = $_SESSION['role'] ?? '';
+$isAdmin = in_array($userRoles, ['ADMIN', 'MANAGER', 'HR']);
 
-// [FIX] Support Disciplinary files stored in public/uploads/
+if ($isAdmin) {
+    $authorized = true;
+} else {
+    $stmtEmp = $pdo->prepare("SELECT emp_id FROM employees WHERE user_id = ?");
+    $stmtEmp->execute([$_SESSION['user_id']]);
+    $userEmp = $stmtEmp->fetch();
+    if ($userEmp && $userEmp['emp_id'] === $file['employee_id']) {
+        $authorized = true;
+    }
+}
+
+if (!$authorized) {
+    http_response_code(403);
+    die("Access Denied: You do not have permission to view or download this document.");
+}
+
+// 4. LOCATE FILE & PATH RESOLUTION
+$uploadDir = $vaultPath;
+$fullPath = $vaultPath . $file['file_path'];
+$isVaultFile = true;
+
+// Check if physical vault file exists; if not, search unencrypted upload paths (e.g. generated HTML contracts)
 if (!file_exists($fullPath)) {
-    $altPath = __DIR__ . '/uploads/' . $file['file_path'];
-    if (file_exists($altPath)) {
-        $fullPath = $altPath;
-        $uploadDir = __DIR__ . '/uploads/'; // Allow access to this dir
+    $possibleAltPaths = [
+        __DIR__ . '/uploads/' . basename($file['file_path']),
+        __DIR__ . '/uploads/' . $file['file_path'],
+        dirname(__DIR__) . '/uploads/' . basename($file['file_path']),
+        dirname(__DIR__) . '/uploads/' . $file['file_path'],
+        $file['file_path']
+    ];
+
+    foreach ($possibleAltPaths as $p) {
+        if ($p && file_exists($p) && !is_dir($p)) {
+            $fullPath = $p;
+            $uploadDir = dirname($p) . DIRECTORY_SEPARATOR;
+            $isVaultFile = false;
+            break;
+        }
     }
 }
 
 // 5. VERIFY FILE EXISTS
-if (!file_exists($fullPath)) {
-    die("Error: Physical file not found on server.");
+// [SECURITY] Directory containment check (re-added): the resolved path must
+// stay inside the vault or an uploads directory, never escape via file_path.
+$allowedRoots = array_values(array_filter([
+    realpath(rtrim((string)$vaultPath, '/\\')),
+    realpath(__DIR__ . '/uploads'),
+    realpath(dirname(__DIR__) . '/uploads'),
+]));
+
+function pathIsContained(string $path, array $allowedRoots): ?string
+{
+    $real = @realpath($path);
+    if ($real === false) {
+        return null;
+    }
+    foreach ($allowedRoots as $root) {
+        if ($root === '' || strlen($real) <= strlen($root)) {
+            continue;
+        }
+        if (strncmp($real, $root, strlen($root)) === 0
+            && ($real[strlen($root)] === DIRECTORY_SEPARATOR || $real[strlen($root)] === '/')
+        ) {
+            return $real;
+        }
+    }
+    return null;
 }
 
-// 6. SECURITY: Directory Traversal Check
-$realPath = realpath($fullPath);
-if ($realPath === false || strpos($realPath, realpath($uploadDir)) !== 0) {
+if (file_exists($fullPath) && pathIsContained($fullPath, $allowedRoots) === null) {
     die("Security Violation: File Access Denied.");
 }
 
-// 7. DETERMINE CONTENT TYPE (MIME)
-$ext = strtolower(pathinfo($fullPath, PATHINFO_EXTENSION));
+// 6. DETERMINE CONTENT TYPE (MIME)
+$originalName = (string)($file['original_name'] ?? '');
+$ext = strtolower(pathinfo($originalName, PATHINFO_EXTENSION));
+if ($ext === '' && is_string($file['file_path'] ?? '')) {
+    $ext = strtolower(pathinfo($file['file_path'], PATHINFO_EXTENSION));
+}
+if ($ext === '' && is_string($fullPath)) {
+    $ext = strtolower(pathinfo($fullPath, PATHINFO_EXTENSION));
+}
+
 $mime_type = 'application/octet-stream'; // Default
 
 switch ($ext) {
@@ -75,9 +148,13 @@ switch ($ext) {
     case 'png':
         $mime_type = 'image/png';
         break;
+    case 'html':
+    case 'htm':
+        $mime_type = 'text/html';
+        break;
 }
 
-// 8. UI WRAPPER (If not embedding or downloading)
+// 7. UI WRAPPER (If not embedding or downloading)
 if (!$embed && !$download) {
 ?>
     <!DOCTYPE html>
@@ -86,6 +163,7 @@ if (!$embed && !$download) {
     <head>
         <meta charset="UTF-8">
         <title><?php echo htmlspecialchars($file['original_name']); ?></title>
+        <link rel="icon" href="assets/tesp-logo.png?v=4" type="image/png">
         <link href="assets/bootstrap.min.css" rel="stylesheet">
         <link rel="stylesheet" href="assets/icons/bootstrap-icons.css">
         <style>
@@ -123,6 +201,7 @@ if (!$embed && !$download) {
                 width: 100%;
                 height: 100%;
                 border: none;
+                background: white;
             }
 
             .img-preview {
@@ -152,10 +231,10 @@ if (!$embed && !$download) {
             </div>
         </div>
         <div class="viewer-container">
-            <?php if ($ext === 'pdf'): ?>
-                <iframe src="?id=<?php echo htmlspecialchars($file_uuid, ENT_QUOTES); ?>&embed=1"></iframe>
+            <?php if ($ext === 'pdf' || $ext === 'html' || $ext === 'htm'): ?>
+                <iframe src="?id=<?php echo htmlspecialchars($file_uuid, ENT_QUOTES); ?>&embed=1" title="Document Preview"></iframe>
             <?php else: ?>
-                <img src="?id=<?php echo htmlspecialchars($file_uuid, ENT_QUOTES); ?>&embed=1" class="img-preview">
+                <img src="?id=<?php echo htmlspecialchars($file_uuid, ENT_QUOTES); ?>&embed=1" class="img-preview" alt="Document Preview">
             <?php endif; ?>
         </div>
     </body>
@@ -165,74 +244,95 @@ if (!$embed && !$download) {
     exit;
 }
 
-// 9. STREAM THE FILE (Download or Embed)
-// [FIX] Increase memory limit for decryption operations
+// 8. STREAM THE FILE (Download or Embed)
 ini_set('memory_limit', '512M');
 
-// [FIX] Disable compression to prevent "Corrupted" errors on download
 if (ini_get('zlib.output_compression')) {
     ini_set('zlib.output_compression', 'Off');
 }
 
-// [FIX] Turn off error reporting to prevent "Notices" from breaking the PDF
 error_reporting(0);
 
-// [FIX] Aggressively clean ALL output buffers (Loop until empty)
 while (ob_get_level()) {
     ob_end_clean();
 }
 
-// [SECURITY] Decrypt file content
-$fileService = new FileService($vaultPath);
-$content = $fileService->getFileContent($file['file_path']);
+session_write_close();
 
-// [FIX] Fallback for unencrypted Disciplinary files in uploads/
+// Retrieve content from vault or direct file read.
+// This supports encrypted vault files, legacy plaintext files, and files moved between vault/upload folders.
+$content = false;
+$debugPaths = [];
+
+if ($isVaultFile) {
+    try {
+        $fileService = new FileService($vaultPath);
+        $content = $fileService->getFileContent($file['file_path']);
+    } catch (Throwable $e) {
+        error_log('view_doc vault error: ' . $e->getMessage());
+    }
+}
+
 if ($content === false) {
-    $altPath = __DIR__ . '/uploads/' . $file['file_path'];
-    if (file_exists($altPath)) {
-        $content = file_get_contents($altPath);
+    $possiblePaths = [
+        $fullPath,
+        $vaultPath . basename($file['file_path']),
+        __DIR__ . '/uploads/' . basename($file['file_path']),
+        __DIR__ . '/uploads/' . $file['file_path'],
+        dirname(__DIR__) . '/uploads/' . basename($file['file_path']),
+        dirname(__DIR__) . '/uploads/' . $file['file_path'],
+        $file['file_path']
+    ];
+
+    foreach (array_unique($possiblePaths) as $p) {
+        $debugPaths[] = $p;
+        // [SECURITY] Only read candidates that resolve inside an allowed root.
+        $safePath = is_string($p) && $p !== '' ? pathIsContained($p, $allowedRoots) : null;
+        if ($safePath !== null) {
+            $content = file_get_contents($safePath);
+            if ($content !== false) {
+                break;
+            }
+        }
     }
 }
 
 if ($content === false) {
     http_response_code(404);
-    die("Error: Could not read file content.");
+    $pathList = implode("<br>", array_filter(array_map('htmlspecialchars', $debugPaths)));
+    die("Error: Could not read file content.<br><small>Checked paths:<br>$pathList</small>");
 }
 
-// [FIX] Decryption Check
-// If the file is supposed to be a PDF but doesn't start with %PDF, decryption failed.
-// We stop here and show an HTML error instead of sending a corrupted download.
 if ($ext === 'pdf' && substr($content, 0, 4) !== '%PDF') {
-    // Clear headers so it doesn't try to download
     header_remove('Content-Disposition');
     header('Content-Type: text/html');
     http_response_code(500);
-    die("<h1>❌ Decryption Failed</h1><p>The system could not unlock this file. It may be corrupted or the encryption key does not match.</p><p><strong>Action:</strong> Please try re-uploading the document.</p>");
+    die("<h1>❌ Decryption Failed</h1><p>The system could not unlock this file. It may be corrupted or the encryption key does not match.</p>");
+}
+
+if (($ext === 'html' || $ext === 'htm') && stripos((string)$content, '<html') === false && stripos((string)$content, '<body') === false) {
+    header_remove('Content-Disposition');
+    header('Content-Type: text/html');
+    http_response_code(500);
+    die("<h1>❌ Invalid HTML Document</h1><p>This file was not readable as a valid HTML document.</p>");
 }
 
 // Prepare Headers
-$fileSize = strlen($content);
 $realName = basename($file['original_name']);
-
-// [FIX] Sanitize filename for headers (Remove quotes to prevent header injection)
 $safeName = str_replace('"', '', $realName);
 
 header('Content-Description: File Transfer');
 header('Content-Type: ' . $mime_type);
-// [FIX] Remove Content-Length to prevent mismatch if server compresses output
-// header('Content-Length: ' . $fileSize);
 header('Content-Encoding: none');
 header('Cache-Control: private, max-age=0, must-revalidate');
 header('Pragma: public');
 
 if ($download) {
-    // Force Download
     header('Content-Disposition: attachment; filename="' . $safeName . '"');
 } else {
-    // Inline View
     header('Content-Disposition: inline; filename="' . $safeName . '"');
 }
 
-// Send the Clean Data
 echo $content;
 exit;
+?>

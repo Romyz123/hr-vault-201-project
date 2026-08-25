@@ -485,6 +485,7 @@ CREATE TABLE `employees` (
   `status` varchar(20) DEFAULT 'Active',
   `exit_date` date DEFAULT NULL,
   `exit_reason` varchar(255) DEFAULT NULL,
+  `resignation_label` varchar(50) DEFAULT NULL,
   `avatar_path` varchar(255) DEFAULT 'default.png',
   `import_batch` varchar(50) DEFAULT NULL,
   `last_reminded` datetime DEFAULT NULL,

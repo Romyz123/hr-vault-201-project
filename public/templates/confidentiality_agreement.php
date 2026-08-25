@@ -12,15 +12,6 @@ $position = strtoupper($emp['job_title']);
 
 // Current Date
 $year_now = date('Y');
-
-// [FIX] Encode Logo to Base64 for Word Export
-$logo_path = __DIR__ . '/../uploads/tesp logo 1.png';
-$logo_src = 'uploads/' . rawurlencode('tesp logo 1.png'); // Fallback
-
-if (file_exists($logo_path)) {
-    $logo_binary = file_get_contents($logo_path);
-    $logo_src = 'data:image/png;base64,' . base64_encode($logo_binary);
-}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -49,7 +40,7 @@ if (file_exists($logo_path)) {
 
         /* 2. HEADER LAYOUT (CENTERED BLOCK) */
         table.report-container {
-            width: 90%;
+            width: 80%;
             border-collapse: collapse;
         }
 
@@ -162,18 +153,19 @@ if (file_exists($logo_path)) {
             <tr>
                 <td>
                     <div class="header-wrapper">
-                        <table class="header-content-table">
+                        <table style="width: 100%; margin-bottom: 10px;">
                             <tr>
-                                <td style="padding-right: 15px;">
-                                    <img src="<?php echo $logo_src; ?>" style="width: 80px; height: auto; display: block; margin: 0 auto;" alt="TESP">
+                                <td style="width: 130px; text-align: right; vertical-align: middle; padding-right: 15px;">
+                                    <img src="<?php echo htmlspecialchars($global_logo_src, ENT_QUOTES, 'UTF-8'); ?>" style="width: 80px; height: 80px; border-radius: 50%; object-fit: cover;" alt="TESP">
                                 </td>
 
-                                <td style="text-align: center;">
-                                    <div class="co-name">TES PHILIPPINES, INC.</div>
-                                    <div class="co-sub">METRO RAIL TRANSIT LINE 3 REHABILITATION PROJECT</div>
-                                    <div class="co-addr">Meriton One Building, 1668 Quezon Avenue, Quezon City</div>
-                                    <div class="co-addr">Telephone Number: 8929-5347 local 4404</div>
+                                <td style="text-align: center; vertical-align: middle;">
+                                    <div style="font-weight: bold; font-size: 15pt !important; line-height: 1.2; white-space: nowrap;">TES PHILIPPINES, INC.</div>
+                                    <div style="font-weight: bold; font-size: 11pt !important; line-height: 1.2; white-space: nowrap;">METRO RAIL TRANSIT LINE 3 REHABILITATION PROJECT</div>
+                                    <div style="font-size: 11pt !important; line-height: 1.2;">Meriton One Building, 1668 Quezon Avenue, Quezon City</div>
+                                    <div style="font-size: 11pt !important; line-height: 1.2;">Telephone Number: 8929-5347 local 4404</div>
                                 </td>
+                                <td style="width: 70px;"></td> <!-- Spacer for shifting text right -->
                             </tr>
                         </table>
                     </div>
@@ -252,7 +244,7 @@ if (file_exists($logo_path)) {
                             <div>President</div>
 
                             <div class="sig-line" style="margin-top: 50px;"></div>
-                            <div class="bold">GAKU KONDO</div>
+                            <div class="bold">JUNJI FURUYA</div>
                             <div style="margin-top: 5px;">Date: ______________________</div>
                         </div>
                     </div>

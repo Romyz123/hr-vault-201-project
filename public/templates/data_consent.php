@@ -1,8 +1,5 @@
 <?php
 // public/templates/data_consent.php
-$logo_path = __DIR__ . '/../uploads/tesp logo 1.png';
-$logo_data = base64_encode(file_get_contents($logo_path));
-$logo_src = 'data:image/png;base64,' . $logo_data;
 ?>
 <!DOCTYPE html>
 <html lang="en">

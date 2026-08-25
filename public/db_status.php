@@ -14,6 +14,24 @@ if (!isset($_SESSION['user_id']) || ($_SESSION['role'] ?? '') !== 'ADMIN') {
     exit;
 }
 
+if (function_exists('checkSessionTimeout')) {
+    checkSessionTimeout($pdo);
+}
+
+if (empty($_SESSION['csrf_token'])) {
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $security = new Security($pdo);
+    try {
+        $security->checkCSRF($_POST['csrf_token'] ?? '');
+    } catch (Exception $e) {
+        http_response_code(403);
+        exit('Forbidden');
+    }
+}
+
 $msg = "";
 $masterVersion = "2.1.0"; // Master Schema Version
 
@@ -43,7 +61,10 @@ $columnSchema = [
         'deleted_at' => "DATETIME NULL",
         'import_batch' => "VARCHAR(50) NULL",
         'agency_name' => "VARCHAR(100) NULL",
-        'employment_type' => "VARCHAR(50) NULL"
+        'employment_type' => "VARCHAR(50) NULL",
+        'college_degree' => "VARCHAR(100) NULL DEFAULT NULL",
+        'college_course' => "VARCHAR(100) NULL DEFAULT NULL",
+        'college_year' => "VARCHAR(10) NULL DEFAULT NULL"
     ],
     'documents' => [
         'deleted_at' => "DATETIME NULL",
@@ -51,6 +72,12 @@ $columnSchema = [
         'updated_by' => "INT NULL",
         'is_resolved' => "TINYINT(1) DEFAULT 0",
         'resolution_note' => "TEXT NULL"
+    ],
+    'candidates' => [
+        'phone_number' => "VARCHAR(25) NULL",
+        'rejection_reason' => "VARCHAR(255) NULL",
+        'is_blacklisted' => "TINYINT(1) DEFAULT 0",
+        'interview_date' => "DATETIME NULL"
     ]
 ];
 
@@ -149,6 +176,66 @@ $tableSchema = [
         `type` VARCHAR(20) DEFAULT 'info',
         `is_read` TINYINT(1) DEFAULT 0,
         `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;",
+
+    'employee_training' => "CREATE TABLE IF NOT EXISTS `employee_training` (
+        `id` INT AUTO_INCREMENT PRIMARY KEY,
+        `employee_id` INT NOT NULL,
+        `course_id` INT NOT NULL,
+        `completion_date` DATE NOT NULL,
+        `expiry_date` DATE NULL,
+        `certificate_path` VARCHAR(255) NULL,
+        `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        KEY `idx_emp_training` (`employee_id`),
+        KEY `idx_course_training` (`course_id`)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;",
+
+    'courses_catalog' => "CREATE TABLE IF NOT EXISTS `courses_catalog` (
+        `id` INT AUTO_INCREMENT PRIMARY KEY,
+        `name` VARCHAR(255) NOT NULL,
+        `category` VARCHAR(100) NULL,
+        `provider` VARCHAR(100) NULL,
+        `validity_months` INT NULL,
+        `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;",
+
+    'hr_performance_reviews' => "CREATE TABLE IF NOT EXISTS `hr_performance_reviews` (
+      `id` int(11) NOT NULL AUTO_INCREMENT,
+      `employee_id` int(11) NOT NULL,
+      `review_date` date NOT NULL,
+      `rating` int(11) NOT NULL,
+      `strengths` text,
+      `weaknesses` text,
+      `goals` text,
+      `reviewer_id` int(11) DEFAULT NULL,
+      `custom_reviewer` varchar(100) DEFAULT NULL,
+      `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (`id`),
+      KEY `employee_id` (`employee_id`)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;",
+
+    'employment_history' => "CREATE TABLE IF NOT EXISTS `employment_history` (
+        `id` INT AUTO_INCREMENT PRIMARY KEY,
+        `employee_id` INT NOT NULL,
+        `event_title` VARCHAR(100) NOT NULL,
+        `event_date` DATE NOT NULL,
+        `department` VARCHAR(100) NULL,
+        `notes` TEXT NULL,
+        `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        KEY `idx_emp_history` (`employee_id`)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;",
+
+    'password_history' => "CREATE TABLE IF NOT EXISTS `password_history` (
+        `id` INT AUTO_INCREMENT PRIMARY KEY,
+        `user_id` INT NOT NULL,
+        `password_hash` VARCHAR(255) NOT NULL,
+        `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        KEY `idx_user_pass_hist` (`user_id`)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;",
+
+    'system_roles' => "CREATE TABLE IF NOT EXISTS `system_roles` (
+        `id` INT AUTO_INCREMENT PRIMARY KEY,
+        `name` VARCHAR(100) NOT NULL UNIQUE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;"
 ];
 
@@ -156,23 +243,39 @@ $tableSchema = [
 // HANDLE AUTO-FIX
 // ------------------------------------------------------
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['auto_fix'])) {
+    if (!hash_equals($_SESSION['csrf_token'] ?? '', $_POST['csrf_token'] ?? '')) {
+        http_response_code(403);
+        exit('Invalid CSRF token');
+    }
     $updates = 0;
     $errors = [];
 
-    // 1. Create Missing Tables
+    // 1. Create/Fix Missing Tables
     foreach ($tableSchema as $tableName => $sql) {
         try {
-            // Check if table exists
-            $check = $pdo->query("SHOW TABLES LIKE '$tableName'");
-            if ($check->rowCount() == 0) {
-                $pdo->exec($sql);
-                $updates++;
+            // A simple check to see if the table is accessible.
+            // This will throw a PDOException for both missing and corrupted tables.
+            $pdo->query("SELECT 1 FROM `$tableName` LIMIT 1");
+        } catch (PDOException $e) {
+            // Error 1146 (table doesn't exist) or 1932 (table doesn't exist in engine) both map to SQLSTATE 42S02
+            if ($e->getCode() == '42S02') {
+                try {
+                    // Only an orphaned table (driver error 1932) needs a DROP before CREATE.
+                    if (($e->errorInfo[1] ?? null) === 1932) {
+                        error_log("db_status auto-fix: dropping orphaned table `$tableName`");
+                        $pdo->exec("DROP TABLE IF EXISTS `$tableName`");
+                    }
+                    // Now execute the original CREATE statement from the schema.
+                    $pdo->exec($sql);
+                    $updates++;
+                } catch (Exception $createEx) {
+                    $errors[] = "Failed to create/repair table `$tableName`: " . $createEx->getMessage();
+                }
+            } else {
+                $errors[] = "Error checking table `$tableName`: " . $e->getMessage();
             }
-        } catch (Exception $e) {
-            $errors[] = "Failed to create $tableName: " . $e->getMessage();
         }
     }
-
     // 2. Add Missing Columns
     foreach ($columnSchema as $table => $cols) {
         foreach ($cols as $col => $def) {
@@ -195,7 +298,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['auto_fix'])) {
     if (empty($errors)) {
         $msg = "✅ Database updated! ($updates changes applied)";
     } else {
-        $msg = "⚠️ Update completed with errors:<br>" . implode("<br>", $errors);
+        $msg = "⚠️ Update completed with errors:<br>" . implode("<br>", array_map('htmlspecialchars', $errors));
     }
 }
 
@@ -257,6 +360,7 @@ foreach ($columnSchema as $table => $cols) {
                     <a href="db_status.php" class="btn btn-sm btn-outline-light"><i class="bi bi-arrow-repeat"></i> Check for Updates</a>
                     <?php if ($issuesCount > 0): ?>
                         <form method="POST" class="d-inline">
+                            <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
                             <button type="submit" name="auto_fix" class="btn btn-sm btn-success fw-bold">
                                 <i class="bi bi-magic"></i> Auto-Fix All Issues
                             </button>

@@ -1,16 +1,22 @@
 <?php
+// --- START: UI REPAIR ---
 require '../config/db.php';
 require '../src/Security.php';
 require '../src/Logger.php';
 require '../src/FileService.php';
+// [FIX] Include global helper functions
+if (!function_exists('h')) {
+    require_once __DIR__ . '/../src/helpers.php';
+}
 session_start();
 
 // [FIX] Load Config to ensure VAULT_PATH is available
 $config = require '../config/config.php';
 $vaultPath = $config['VAULT_PATH'] ?? dirname(__DIR__) . DIRECTORY_SEPARATOR . 'vault' . DIRECTORY_SEPARATOR;
+$maxUploadBytes = (int)($config['MAX_UPLOAD_BYTES'] ?? 52428800);
 
 // Helper to return JSON if AJAX
-function sendResponse($status, $message, $emp_id = null)
+function sendResponse($status, $message, $emp_id = null) // [FIX] h() is not used here, but it's good practice to have it available
 {
     $param = $status === 'success' ? 'msg' : 'error';
     $url = "upload_form.php?$param=" . urlencode($message);
@@ -25,21 +31,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if (!isset($_SESSION['user_id'])) die("ACCESS DENIED");
 
-    if (empty($_POST)) {
-        sendResponse('error', "Upload failed: File is too large (Server Limit: " . ini_get('post_max_size') . ") or request was empty.");
-    }
-
-    // CSRF Token Validation (Check AFTER size check)
-    if (empty($_POST['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'])) {
-        // Debugging: Log the mismatch to help troubleshoot
-        $postedToken = $_POST['csrf_token'] ?? 'MISSING';
-        $sessionToken = $_SESSION['csrf_token'] ?? 'MISSING';
-        error_log("CSRF Mismatch in process_upload.php. POST: $postedToken, SESSION: $sessionToken");
-
+    // [SECURITY] 1. CSRF Token Validation (MUST be first)
+    if (empty($_POST['csrf_token']) || !hash_equals($_SESSION['csrf_token'] ?? '', $_POST['csrf_token'])) {
+        // If POST is empty, it's likely a file size issue, not CSRF. Give a better error.
+        if (empty($_POST) && isset($_SERVER['CONTENT_LENGTH']) && $_SERVER['CONTENT_LENGTH'] > 0) {
+            sendResponse('error', "Upload failed: File is too large (Server Limit: " . ini_get('post_max_size') . "). Please upload smaller files.");
+        }
         sendResponse('error', "Security token expired or invalid. Please refresh and try again.");
     }
 
-    // 1. GATHER INPUTS
+    // [SECURITY] 2. Check for upload errors after CSRF
+    if (!isset($_FILES['document']) || (is_array($_FILES['document']['name']) && empty($_FILES['document']['name'][0])) || (!is_array($_FILES['document']['name']) && empty($_FILES['document']['name']))) {
+        sendResponse('error', "No file was selected for upload. Please choose a file.");
+    }
+
+    // 3. GATHER INPUTS
     // Validate and sanitize emp_id
     $emp_id = isset($_POST['emp_id']) ? trim($_POST['emp_id']) : '';
     if (!preg_match('/^[a-zA-Z0-9-]+$/', $emp_id) || empty($emp_id)) {
@@ -59,18 +65,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     $customName = trim($_POST['custom_filename'] ?? ''); // Get custom name
+    if (!empty($customName)) {
+        if (strlen($customName) > 50) sendResponse('error', "Custom filename is too long (Max 50 chars).", $emp_id);
+        if (!preg_match('/^[a-zA-Z0-9\-_ \.]+$/', $customName)) {
+            sendResponse('error', "Custom filename contains invalid characters.", $emp_id);
+        }
+        if (strpos($customName, '..') !== false) {
+            sendResponse('error', "Custom filename cannot contain consecutive dots.", $emp_id);
+        }
+    }
 
     // --- "OTHERS" CATEGORY LOGIC (NEW) ---
-    $category = $_POST['category'];
+    $category = $_POST['category'] ?? '';
     if (empty($category)) {
         sendResponse('error', "Error: You must select a document category.", $emp_id);
     }
 
     if ($category === 'Others') {
         // Use the specific text they typed instead
-        $other_cat = trim($_POST['other_category']);
-
+        $other_cat = trim($_POST['other_category'] ?? '');
         if (!empty($other_cat)) {
+            // [SECURITY] Validation for Custom Category
+            if (strlen($other_cat) > 50) sendResponse('error', "Custom category is too long (Max 50 chars).", $emp_id);
+            if (!preg_match('/^[a-zA-Z0-9\-_ ]+$/', $other_cat)) sendResponse('error', "Custom category contains invalid characters.", $emp_id);
+
             // Capitalize nicely (e.g., "gym membership" -> "Gym Membership")
             $category = ucwords(strtolower($other_cat));
         } else {
@@ -78,6 +96,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
     // -------------------------------------
+
+    // [NEW] Fetch employee status for naming convention (Resigned, Terminated, AWOL)
+    $stmtStatus = $pdo->prepare("SELECT status FROM employees WHERE emp_id = ? AND deleted_at IS NULL");
+    $stmtStatus->execute([$emp_id]);
+    $rowStatus = $stmtStatus->fetch();
+    $empStatus = $rowStatus ? $rowStatus['status'] : 'Active';
+    $statusLabel = ($empStatus !== 'Active') ? " ($empStatus)" : "";
 
     // 2. HANDLE FILE UPLOAD
     // Normalize $_FILES structure for multiple uploads
@@ -105,6 +130,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Initialize FileService once
     $fileService = new FileService($vaultPath);
 
+    // [SECURITY] Vault Size Quota Check
+    $vaultLimitGB = 1; // Default 1GB
+    try {
+        $stmt = $pdo->query("SELECT setting_value FROM system_settings WHERE setting_key = 'vault_size_limit_gb'");
+        $val = $stmt->fetchColumn();
+        if ($val !== false) $vaultLimitGB = (float)$val;
+    } catch (Exception $e) {
+        error_log("Failed to fetch vault_size_limit_gb setting: " . $e->getMessage());
+    }
+    if ($vaultLimitGB > 0) {
+        $currentVaultSize = 0;
+        if (is_dir($vaultPath)) {
+            $iterator = new FileSystemIterator($vaultPath, FileSystemIterator::SKIP_DOTS);
+            foreach ($iterator as $f) {
+                if ($f->isFile()) $currentVaultSize += $f->getSize();
+            }
+        }
+        $incomingSize = 0;
+        foreach ($uploadedFiles as $f) {
+            if ($f['error'] === UPLOAD_ERR_OK) $incomingSize += $f['size'];
+        }
+        $vaultLimitBytes = $vaultLimitGB * 1024 * 1024 * 1024;
+        if (($currentVaultSize + $incomingSize) > $vaultLimitBytes) {
+            sendResponse('error', "Upload rejected: Vault size limit exceeded. (Limit: {$vaultLimitGB} GB)", $emp_id);
+        }
+    }
+
     foreach ($uploadedFiles as $idx => $file) {
         if ($file['error'] !== UPLOAD_ERR_OK) {
             $errorCode = $file['error'];
@@ -114,20 +166,67 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             continue;
         }
 
-        $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+        // [SECURITY] Verify the file was uploaded via HTTP POST
+        if (!is_uploaded_file($file['tmp_name'])) {
+            $errors[] = "File " . ($idx + 1) . ": Invalid upload. The file was not uploaded via a legitimate HTTP POST.";
+            continue;
+        }
+
+        $rawName = basename($file['name']);
+        $ext = strtolower(pathinfo($rawName, PATHINFO_EXTENSION));
         $allowed = ['pdf', 'jpg', 'jpeg', 'png'];
         $allowedMime = ['application/pdf', 'image/jpeg', 'image/png'];
 
         if (!in_array($ext, $allowed)) {
-            $errors[] = "File " . ($idx + 1) . ": Invalid file type ($ext)";
+            $errors[] = "File " . ($idx + 1) . ": Invalid file extension ($ext). Strictly allow only PDF, JPG, and PNG.";
             continue;
         }
 
-        $finfo = new finfo(FILEINFO_MIME_TYPE);
-        $mimeType = $finfo->file($file['tmp_name']);
+        // [SECURITY] Use finfo_open and finfo_file to check the actual mathematical MIME type signature
+        $finfo = finfo_open(FILEINFO_MIME_TYPE);
+        $mimeType = finfo_file($finfo, $file['tmp_name']);
+        finfo_close($finfo);
+
         if (!in_array($mimeType, $allowedMime)) {
             $errors[] = "File " . ($idx + 1) . ": Invalid MIME type ($mimeType)";
             continue;
+        }
+
+        // [SECURITY] Deep Signature Scan (Anti-Polyglot & Executable Check)
+        $handle = @fopen($file['tmp_name'], 'rb');
+        if ($handle === false) {
+            $errors[] = "File " . ($idx + 1) . ": Unable to read file for security scanning.";
+            continue;
+        }
+
+        $fileSize = $file['size'];
+        if ($fileSize <= 0 || $fileSize > $maxUploadBytes) {
+            $errors[] = "File " . ($idx + 1) . ": File size must not exceed " . floor($maxUploadBytes / 1024 / 1024) . " MB.";
+            fclose($handle);
+            continue;
+        }
+        $header = fread($handle, min(2048, $fileSize));
+
+        // 1. Block Disguised Executables & Scripts (Windows PE, Linux ELF, PHP)
+        if (strpos($header, 'MZ') === 0 || strpos($header, "\x7FELF") === 0 || stripos($header, '<?php') !== false) {
+            fclose($handle);
+            $errors[] = "File " . ($idx + 1) . ": Rejected. Suspicious executable or script signature detected.";
+            continue;
+        }
+
+        // 2. PDF Specific Strict Checks
+        if ($ext === 'pdf') {
+            fseek($handle, -min(1024, $fileSize), SEEK_END);
+            $footer = fread($handle, min(1024, $fileSize));
+            fclose($handle);
+
+            // Strictly enforce that %PDF- is at index 0 (prevents embedded headers)
+            if (strpos($header, '%PDF-') !== 0 || strpos($footer, '%%EOF') === false) {
+                $errors[] = "File " . ($idx + 1) . ": The PDF file appears to be corrupted or incomplete.";
+                continue;
+            }
+        } else {
+            fclose($handle);
         }
 
         // --- SAVE TO VAULT (Operation Vault Security) ---
@@ -144,6 +243,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         } else {
             $displayName = $file['name'];
+        }
+
+        // [NEW] Auto-increment filename logic (-001, -002, etc.)
+        // This prevents naming collisions and helps distinguish multiple versions of the same file. [FIX] Use empStatus for naming
+        $baseNameOnly = pathinfo($displayName, PATHINFO_FILENAME);
+        $extOnly = pathinfo($displayName, PATHINFO_EXTENSION);
+
+        // Inject Status into the filename if employee is not Active
+        if ($empStatus !== 'Active') {
+            $baseNameOnly .= $statusLabel;
+        }
+
+        // [FIX] Sanitize base name before collision check to ensure we match what's actually in the DB
+        $baseNameOnly = preg_replace('/[^a-zA-Z0-9\s\-\.\(\)_]/', '', $baseNameOnly);
+
+        // Fetch all existing names for this employee to check for collisions
+        $checkStmt = $pdo->prepare("SELECT original_name FROM documents WHERE employee_id = ? AND deleted_at IS NULL");
+        $checkStmt->execute([$emp_id]);
+        $existingInDB = $checkStmt->fetchAll(PDO::FETCH_COLUMN);
+
+        $counter = 1;
+        $displayName = $baseNameOnly . '.' . $extOnly;
+        while (true) {
+            if (!in_array($displayName, $existingInDB)) {
+                break;
+            }
+            $displayName = $baseNameOnly . '-' . str_pad($counter, 3, '0', STR_PAD_LEFT) . '.' . $extOnly;
+            $counter++;
         }
 
         $storedName = $fileService->saveFile($file['tmp_name'], $displayName);
@@ -179,7 +306,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
                 $successCount++;
             } catch (Exception $e) {
-                $errors[] = "System Error: " . $e->getMessage();
+                error_log("Upload DB error: " . $e->getMessage());
+                // Cleanup uploaded file if database insert fails
+                $vaultFile = $vaultPath . $storedName;
+                if (!empty($storedName) && file_exists($vaultFile)) {
+                    if (!@unlink($vaultFile)) {
+                        error_log("Failed to delete orphaned vault file: " . $vaultFile);
+                    }
+                }
+                $errors[] = "System Error: Unable to save document. Please try again.";
             }
         } else {
             $errors[] = "Failed to save file to vault. Check permissions.";

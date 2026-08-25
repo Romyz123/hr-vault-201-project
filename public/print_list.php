@@ -1,4 +1,5 @@
 <?php
+// --- START: UI REPAIR ---
 // ======================================================
 // [FILE] public/print_list.php
 // [STATUS] DESIGN: Original (Restored) | LOGIC: Fixed
@@ -6,6 +7,7 @@
 
 require '../config/db.php';
 require '../src/Security.php';
+require '../src/Validator.php';
 session_start();
 
 if (!isset($_SESSION['user_id'])) {
@@ -16,7 +18,7 @@ if (!isset($_SESSION['user_id'])) {
 $filter_status = isset($_GET['status']) ? trim($_GET['status']) : '';
 $filter_type   = isset($_GET['type'])   ? trim($_GET['type'])   : '';
 $filter_dept   = isset($_GET['dept'])   ? trim($_GET['dept'])   : '';
-$search_query  = isset($_GET['search']) ? trim($_GET['search']) : '';
+$search_query  = Validator::sanitizeSearch($_GET['search'] ?? '');
 
 // 2. BUILD QUERY
 // [FIX 1] Added 'agency_name' to the SELECT list so we can display it.
@@ -46,25 +48,68 @@ if (!empty($search_query)) {
     $terms = preg_split('/[\s,]+/', $search_query, -1, PREG_SPLIT_NO_EMPTY);
     foreach ($terms as $term) {
         $sql .= " AND (emp_id LIKE ? OR first_name LIKE ? OR last_name LIKE ?)";
-        $t = "%$term%";
+        $t = "%{$term}%";
         array_push($params, $t, $t, $t);
     }
 }
-
 $sql .= " ORDER BY last_name ASC";
 
 $stmt = $pdo->prepare($sql);
 $stmt->execute($params);
 $employees = $stmt->fetchAll();
+
+$logo_paths = [
+    __DIR__ . '/assets/images/tesp-logo-1.png',
+    __DIR__ . '/uploads/tesp-logo.png',
+    __DIR__ . '/uploads/tesp logo 1.png',
+    __DIR__ . '/../uploads/tesp-logo.png',
+    __DIR__ . '/../uploads/tesp logo 1.png'
+];
+$logo_src = '';
+$logo_mime = 'image/png';
+foreach ($logo_paths as $p) {
+    if (file_exists($p)) {
+        $size = filesize($p);
+        if ($size === false || $size > 512 * 1024) { // Skip files > 512KB
+            continue;
+        }
+        if (class_exists('finfo')) {
+            $finfo = new finfo(FILEINFO_MIME_TYPE);
+            $logo_mime = $finfo->file($p) ?: 'image/png';
+        } elseif (function_exists('mime_content_type')) {
+            $logo_mime = mime_content_type($p) ?: 'image/png';
+        } else {
+            $ext = strtolower(pathinfo($p, PATHINFO_EXTENSION));
+            $logo_mime = ($ext === 'png' ? 'image/png' : ($ext === 'jpg' || $ext === 'jpeg' ? 'image/jpeg' : ($ext === 'gif' ? 'image/gif' : 'image/png')));
+        }
+        // Validate MIME is an image type
+        if (strpos($logo_mime, 'image/') !== 0) {
+            continue;
+        }
+        $content = file_get_contents($p);
+        if ($content !== false) {
+            $logo_src = 'data:' . $logo_mime . ';base64,' . base64_encode($content);
+            break;
+        }
+    }
+}
+if (empty($logo_src)) {
+    $logo_src = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mO8WQ8AAn0BbYpM8nsAAAAASUVORK5CYII=';
+    $logo_mime = 'image/png';
+}
 ?>
 
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-bs-theme="light">
 
 <head>
     <meta charset="UTF-8">
     <title>Employee Master List</title>
+    <link rel="icon" href="assets/tesp-logo.png?v=4" type="image/png">
     <link href="assets/bootstrap.min.css" rel="stylesheet">
+    <link rel="icon" type="image/png" href="../uploads/tesp-logo.png">
+    <link rel="shortcut icon" type="image/png" href="../uploads/tesp-logo.png">
+    <link rel="apple-touch-icon" href="../uploads/tesp-logo.png">
     <style>
         /* 1. Force A4 Landscape */
         @page {
@@ -98,6 +143,31 @@ $employees = $stmt->fetchAll();
             }
         }
 
+        /* // --- START: PRINT FIX --- */
+        .print-logo {
+            max-height: 70px;
+        }
+
+        @media print {
+            .print-logo {
+                max-height: 70px !important;
+                width: auto !important;
+                display: block !important;
+                margin: 0 auto 10px auto !important;
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+            }
+
+            .print-header {
+                text-align: center !important;
+                border-bottom: 2px solid #000 !important;
+                margin-bottom: 20px !important;
+                padding-bottom: 10px !important;
+            }
+        }
+
+        /* // --- END: PRINT FIX --- */
+
         body {
             background: #eee;
         }
@@ -116,6 +186,22 @@ $employees = $stmt->fetchAll();
             font-size: 0.8rem;
         }
 
+        .print-header {
+            text-align: center !important;
+            border-bottom: 2px solid #000 !important;
+            margin-bottom: 30px !important;
+            padding-bottom: 15px !important;
+            width: 100%;
+        }
+
+        .print-logo {
+            max-height: 75px !important;
+            width: auto !important;
+            display: block !important;
+            margin: 0 auto 15px auto !important;
+            /* Centering the block image */
+        }
+
         /* Slightly smaller text to fit everything */
     </style>
 </head>
@@ -128,16 +214,13 @@ $employees = $stmt->fetchAll();
     </div>
 
     <div class="page">
-        <div class="d-flex justify-content-between align-items-end mb-4 border-bottom pb-2">
-            <div>
-                <h2 class="fw-bold mb-0">TES PHILIPPINES</h2>
-                <h5 class="text-muted">Master Employee List</h5>
-            </div>
-            <div class="text-end">
-                <small class="text-muted">Generated on: <?php echo date('M d, Y'); ?></small><br>
-                <small class="text-muted">Total Records: <strong><?php echo count($employees); ?></strong></small>
-            </div>
+        <!-- // --- START: PRINT FIX --- -->
+        <div class="print-header">
+            <img src="<?php echo $logo_src; ?>" alt="TESP Logo" class="print-logo">
+            <div style="font-size: 16pt; font-weight: bold; text-transform: uppercase;">TES Philippines, Inc.</div>
+            <div style="font-size: 14pt; font-weight: bold; text-transform: uppercase;">Master Employee List</div>
         </div>
+        <!-- // --- END: PRINT FIX --- -->
 
         <table class="table table-bordered table-striped table-sm">
             <thead class="table-dark">
@@ -178,3 +261,5 @@ $employees = $stmt->fetchAll();
 </body>
 
 </html>
+<?php // --- END: UI REPAIR --- 
+?>
