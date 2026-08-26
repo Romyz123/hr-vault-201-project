@@ -9,7 +9,31 @@ require '../config/db.php';
 require '../src/Security.php';
 require '../src/Logger.php';
 require 'options.php'; // Fetch dynamic options for agencies
-
+// ======================================================
+// [SAFEGUARD] Automatically add missing columns to 'employees' table
+// ======================================================
+try {
+    $colsRaw = $pdo->query("SHOW COLUMNS FROM employees")->fetchAll(PDO::FETCH_ASSOC);
+    $cols = [];
+    foreach ($colsRaw as $c) {
+        if (is_array($c) && isset($c['Field'])) {
+            $cols[] = $c['Field'];
+        }
+    }
+    if (!empty($cols)) {
+        if (!in_array('created_at', $cols)) {
+            $pdo->exec("ALTER TABLE employees ADD COLUMN created_at DATETIME NULL DEFAULT CURRENT_TIMESTAMP");
+        }
+        if (!in_array('updated_at', $cols)) {
+            $pdo->exec("ALTER TABLE employees ADD COLUMN updated_at DATETIME NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP");
+        }
+        if (!in_array('import_batch', $cols)) {
+            $pdo->exec("ALTER TABLE employees ADD COLUMN import_batch VARCHAR(100) NULL DEFAULT NULL");
+        }
+    }
+} catch (Exception $e) {
+    // Silently catch if table structure check fails
+}
 // [FIX] Satisfy Intelephense by providing a safe fallback
 $agencies = $agencies ?? [];
 $deptMap = $deptMap ?? [];
@@ -446,7 +470,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['undo_batch'])) {
             // [FIX] Initialize variables BEFORE opening the file so they always exist
             $success_count = 0;
             $updated_count = 0;
-
+            $duplicate_count = 0; // <--- ADD THIS LINE 
             $handle = @fopen($file, "r");
             if ($handle === false) {
                 error_log("Import failed: could not open uploaded file $file");
@@ -751,7 +775,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['undo_batch'])) {
                         $checkStmt = $pdo->prepare("SELECT id FROM employees WHERE emp_id = ?");
                         $checkStmt->execute([$emp_id]);
                         $existingId = $checkStmt->fetchColumn();
-
                         $shouldUpdate = isset($_POST['update_existing']);
 
                         // [SECURITY] Require Admin/Manager for direct database insertion. HR goes to Approval Center.
@@ -826,27 +849,75 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['undo_batch'])) {
 
                                     // UPDATE EXISTING RECORD, also tag with current batch
                                     $updateSqlParts = [
-                                        "first_name=?", "middle_name=?", "last_name=?", "dept=?", "section=?",
-                                        "employment_type=?", "agency_name=?", "job_title=?",
-                                        "gender=?", "birth_date=?", "hire_date=?", "contact_number=?",
-                                        "present_address=?", "permanent_address=?", "sss_no=?", "tin_no=?", "pagibig_no=?", "philhealth_no=?", "email=?",
-                                        "emergency_name=?", "emergency_contact=?", "emergency_address=?",
-                                        "education=?", "experience=?", "licenses=?",
-                                        "import_batch=?", "updated_at=NOW()"
+                                        "first_name=?",
+                                        "middle_name=?",
+                                        "last_name=?",
+                                        "dept=?",
+                                        "section=?",
+                                        "employment_type=?",
+                                        "agency_name=?",
+                                        "job_title=?",
+                                        "gender=?",
+                                        "birth_date=?",
+                                        "hire_date=?",
+                                        "contact_number=?",
+                                        "present_address=?",
+                                        "permanent_address=?",
+                                        "sss_no=?",
+                                        "tin_no=?",
+                                        "pagibig_no=?",
+                                        "philhealth_no=?",
+                                        "email=?",
+                                        "emergency_name=?",
+                                        "emergency_contact=?",
+                                        "emergency_address=?",
+                                        "education=?",
+                                        "experience=?",
+                                        "licenses=?",
+                                        "import_batch=?",
+                                        "updated_at=NOW()"
                                     ];
                                     $updateParams = [
-                                        $first_name, $middle_name, $last_name, $dept, $section,
-                                        $empType, $actual_agency, $job_title,
-                                        $gender, $birth_date, $hire_date, trim($contact_raw),
-                                        $present_addr, $permanent_addr, trim($sss_raw), trim($tin_raw), trim($pagibig_raw), trim($phil_raw), $email,
-                                        $emg_name, $emg_contact, $emg_addr,
-                                        $education, $experience, $licenses,
+                                        $first_name,
+                                        $middle_name,
+                                        $last_name,
+                                        $dept,
+                                        $section,
+                                        $empType,
+                                        $actual_agency,
+                                        $job_title,
+                                        $gender,
+                                        $birth_date,
+                                        $hire_date,
+                                        trim($contact_raw),
+                                        $present_addr,
+                                        $permanent_addr,
+                                        trim($sss_raw),
+                                        trim($tin_raw),
+                                        trim($pagibig_raw),
+                                        trim($phil_raw),
+                                        $email,
+                                        $emg_name,
+                                        $emg_contact,
+                                        $emg_addr,
+                                        $education,
+                                        $experience,
+                                        $licenses,
                                         $batch_id
                                     ];
 
-                                    if ($hasCollegeDegree) { $updateSqlParts[] = "college_degree=?"; $updateParams[] = $college_degree; }
-                                    if ($hasCollegeCourse) { $updateSqlParts[] = "college_course=?"; $updateParams[] = $college_course; }
-                                    if ($hasCollegeYear)   { $updateSqlParts[] = "college_year=?";   $updateParams[] = $college_year; }
+                                    if ($hasCollegeDegree) {
+                                        $updateSqlParts[] = "college_degree=?";
+                                        $updateParams[] = $college_degree;
+                                    }
+                                    if ($hasCollegeCourse) {
+                                        $updateSqlParts[] = "college_course=?";
+                                        $updateParams[] = $college_course;
+                                    }
+                                    if ($hasCollegeYear) {
+                                        $updateSqlParts[] = "college_year=?";
+                                        $updateParams[] = $college_year;
+                                    }
 
                                     $sql = "UPDATE employees SET " . implode(', ', $updateSqlParts) . " WHERE id=?";
                                     $updateParams[] = $existingId;
@@ -906,27 +977,80 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['undo_batch'])) {
                                 } else {
                                     // INSERT NEW RECORD
                                     $insertCols = [
-                                        'emp_id', 'first_name', 'middle_name', 'last_name', 'dept', 'section',
-                                        'employment_type', 'agency_name', 'job_title', 'status',
-                                        'gender', 'birth_date', 'hire_date', 'contact_number',
-                                        'present_address', 'permanent_address', 'avatar_path', 'import_batch',
-                                        'sss_no', 'tin_no', 'pagibig_no', 'philhealth_no', 'email',
-                                        'emergency_name', 'emergency_contact', 'emergency_address',
-                                        'education', 'experience', 'licenses'
+                                        'emp_id',
+                                        'first_name',
+                                        'middle_name',
+                                        'last_name',
+                                        'dept',
+                                        'section',
+                                        'employment_type',
+                                        'agency_name',
+                                        'job_title',
+                                        'status',
+                                        'gender',
+                                        'birth_date',
+                                        'hire_date',
+                                        'contact_number',
+                                        'present_address',
+                                        'permanent_address',
+                                        'avatar_path',
+                                        'import_batch',
+                                        'sss_no',
+                                        'tin_no',
+                                        'pagibig_no',
+                                        'philhealth_no',
+                                        'email',
+                                        'emergency_name',
+                                        'emergency_contact',
+                                        'emergency_address',
+                                        'education',
+                                        'experience',
+                                        'licenses'
                                     ];
                                     $insertParams = [
-                                        $emp_id, $first_name, $middle_name, $last_name, $dept, $section,
-                                        $empType, $actual_agency, $job_title, $status,
-                                        $gender, $birth_date, $hire_date, trim($contact_raw),
-                                        $present_addr, $permanent_addr, $photo, $batch_id,
-                                        trim($sss_raw), trim($tin_raw), trim($pagibig_raw), trim($phil_raw), $email,
-                                        $emg_name, $emg_contact, $emg_addr,
-                                        $education, $experience, $licenses
+                                        $emp_id,
+                                        $first_name,
+                                        $middle_name,
+                                        $last_name,
+                                        $dept,
+                                        $section,
+                                        $empType,
+                                        $actual_agency,
+                                        $job_title,
+                                        $status,
+                                        $gender,
+                                        $birth_date,
+                                        $hire_date,
+                                        trim($contact_raw),
+                                        $present_addr,
+                                        $permanent_addr,
+                                        $photo,
+                                        $batch_id,
+                                        trim($sss_raw),
+                                        trim($tin_raw),
+                                        trim($pagibig_raw),
+                                        trim($phil_raw),
+                                        $email,
+                                        $emg_name,
+                                        $emg_contact,
+                                        $emg_addr,
+                                        $education,
+                                        $experience,
+                                        $licenses
                                     ];
 
-                                    if ($hasCollegeDegree) { $insertCols[] = 'college_degree'; $insertParams[] = $college_degree; }
-                                    if ($hasCollegeCourse) { $insertCols[] = 'college_course'; $insertParams[] = $college_course; }
-                                    if ($hasCollegeYear)   { $insertCols[] = 'college_year';   $insertParams[] = $college_year; }
+                                    if ($hasCollegeDegree) {
+                                        $insertCols[] = 'college_degree';
+                                        $insertParams[] = $college_degree;
+                                    }
+                                    if ($hasCollegeCourse) {
+                                        $insertCols[] = 'college_course';
+                                        $insertParams[] = $college_course;
+                                    }
+                                    if ($hasCollegeYear) {
+                                        $insertCols[] = 'college_year';
+                                        $insertParams[] = $college_year;
+                                    }
 
                                     $colsString = '`' . implode('`, `', $insertCols) . '`';
                                     $placeholders = implode(', ', array_fill(0, count($insertCols), '?'));
@@ -938,9 +1062,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['undo_batch'])) {
                                 }
                             }
                         } catch (Exception $e) {
-                            // Log error but continue processing
                             $errCode = $e instanceof PDOException ? $e->errorInfo[1] ?? 0 : 0;
-                            // 1062 = MySQL duplicate entry
                             if ($errCode !== 1062) {
                                 error_log("Import error for emp_id $emp_id: " . $e->getMessage());
                             }
@@ -958,8 +1080,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['undo_batch'])) {
                     $logger->log($_SESSION['user_id'], 'IMPORT_SUCCESS', "Imported $success_count, Updated $updated_count (Format: $format)");
                     $msg = "✅ Success! Added $success_count new, Updated $updated_count existing employees.";
                 }
+            } elseif ($duplicate_count > 0) {
+                // <--- THIS GIVES YOU A CLEAR EXPLANATION INSTEAD OF A VAGUE ERROR
+                $error = "⚠️ Import Skipped: Found $duplicate_count duplicate record(s) already in the database. Please check 'Update existing employees?' if you want to overwrite them.";
             } else {
-                $error = "No valid records found or all were duplicates.";
+                $error = "❌ No valid records found or all rows were malformed. Please verify your CSV format and template.";
             }
         }
     }
@@ -974,61 +1099,71 @@ $history = $pdo->query("SELECT import_batch, MAX(agency_name) as agency_name, CO
 <html lang="en">
 
 <head>
-    <meta charset="UTF-8">
-    <title>Import Employees | TESP HR 201 System</title>
-    <?php
-    // [FIX] Ensure the tab logo displays correctly using a reliable path
-    $fav = 'uploads/favicon.png';
-    if (!file_exists($fav)) $fav = 'uploads/tesp-logo.png';
-    ?>
-    <link rel="icon" type="image/png" href="<?php echo htmlspecialchars($fav); ?>?v=<?php echo time(); ?>">
-    <link rel="apple-touch-icon" href="<?php echo htmlspecialchars($fav); ?>">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <link href="assets/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="assets/icons/bootstrap-icons.css">
-    <script src="assets/sweetalert2.all.min.js"></script>
-    <style>
-        .format-box {
-            display: none;
-        }
 
-        /* Custom scrollbar to make horizontal scrolling obvious and professional */
-        .table-responsive::-webkit-scrollbar {
-            height: 8px;
+    <head>
+        <meta charset="UTF-8">
+        <title>Import Employees | TESP HR 201 System</title>
+        <?php
+        // Check root-level uploads folder since this script is inside public/
+        $fav = '../uploads/favicon.png';
+        if (!file_exists(__DIR__ . '/../uploads/favicon.png')) {
+            $fav = '../uploads/tesp-logo.png';
         }
+        ?>
+        <link rel="icon" type="image/png" href="<?php echo htmlspecialchars($fav); ?>?v=<?php echo time(); ?>">
+        <link rel="apple-touch-icon" href="<?php echo htmlspecialchars($fav); ?>">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <link href="assets/bootstrap.min.css" rel="stylesheet">
+        <link rel="stylesheet" href="assets/icons/bootstrap-icons.css">
+        <script src="assets/sweetalert2.all.min.js"></script>
+        <style>
+            .format-box {
+                display: none;
+            }
 
-        .table-responsive::-webkit-scrollbar-track {
-            background: rgba(0, 0, 0, 0.05);
-            border-radius: 4px;
-        }
+            /* Custom scrollbar to make horizontal scrolling obvious and professional */
+            .table-responsive::-webkit-scrollbar {
+                height: 8px;
+            }
 
-        .table-responsive::-webkit-scrollbar-thumb {
-            background: rgba(0, 0, 0, 0.2);
-            border-radius: 4px;
-        }
+            .table-responsive::-webkit-scrollbar-track {
+                background: rgba(0, 0, 0, 0.05);
+                border-radius: 4px;
+            }
 
-        .table-responsive::-webkit-scrollbar-thumb:hover {
-            background: rgba(0, 0, 0, 0.3);
-        }
-    </style>
-</head>
+            .table-responsive::-webkit-scrollbar-thumb {
+                background: rgba(0, 0, 0, 0.2);
+                border-radius: 4px;
+            }
+
+            .table-responsive::-webkit-scrollbar-thumb:hover {
+                background: rgba(0, 0, 0, 0.3);
+            }
+        </style>
+    </head>
 
 <body class="bg-body-tertiary">
 
-    <nav class="navbar navbar-dark bg-dark mb-4">
-        <div class="container">
-            <a class="navbar-brand" href="index.php">Back to Dashboard</a>
-            <button onclick="history.back()" class="btn btn-sm btn-outline-light me-2 no-print" title="Go Back">
-                <i class="bi bi-arrow-left"></i> Back
-            </button>
-            <div class="d-flex align-items-center">
-
+    <!-- Unified Navigation Bar -->
+    <nav class="navbar navbar-dark bg-dark mb-4 shadow-sm">
+        <div class="container d-flex justify-content-between align-items-center">
+            <div class="d-flex align-items-center gap-2">
+                <a href="index.php" class="btn btn-sm btn-outline-light" title="Back to Dashboard">
+                    <i class="bi bi-house-door-fill"></i> Dashboard
+                </a>
+                <button onclick="history.back()" class="btn btn-sm btn-outline-light no-print" title="Go Back">
+                    <i class="bi bi-arrow-left"></i> Back
+                </button>
             </div>
+
+            <span class="navbar-brand mb-0 h6 text-center">
+                <i class="bi bi-file-spreadsheet text-success"></i> TESP HR 201 - Bulk Import Module
+            </span>
+
             <div class="d-flex align-items-center gap-2">
                 <button id="darkModeToggle" class="btn btn-sm btn-outline-light border-0" title="Toggle Dark Mode">
                     <i class="bi bi-moon-stars-fill"></i>
                 </button>
-                <span class="navbar-text text-white"><i class="bi bi-file-spreadsheet"></i> Bulk Import</span>
             </div>
         </div>
     </nav>

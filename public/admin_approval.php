@@ -260,7 +260,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 // 3. UPLOAD DOCUMENT
                 elseif ($req['request_type'] === 'UPLOAD_DOC') {
                     $sql = "INSERT INTO documents (file_uuid, employee_id, original_name, file_path, category, expiry_date, description, uploaded_by) 
-                            VALUES (UUID(), ?, ?, ?, ?, ?, ?, ?)";
+        VALUES (UUID(), ?, ?, ?, ?, ?, ?, ?)";
                     $pdo->prepare($sql)->execute([
                         $data['employee_id'],
                         $data['original_name'],

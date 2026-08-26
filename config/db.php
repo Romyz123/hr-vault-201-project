@@ -4,11 +4,14 @@
 $configPath = __DIR__ . '/config.php';
 $_ENV = file_exists($configPath) ? require $configPath : [];
 $debugEnabled = filter_var($_ENV['APP_DEBUG'] ?? false, FILTER_VALIDATE_BOOLEAN);
-ini_set('display_errors', $debugEnabled ? '1' : '0');
-ini_set('display_startup_errors', $debugEnabled ? '1' : '0');
+ini_set('display_errors', $debugEnabled ? '1' : '1');
+ini_set('display_startup_errors', $debugEnabled ? '1' : '1');
 ini_set('log_errors', '1');
 ini_set('error_log', __DIR__ . '/../php_error.log');
 error_reporting(E_ALL);
+
+$debugEnabled = filter_var($_ENV['APP_DEBUG'] ?? false, FILTER_VALIDATE_BOOLEAN);
+ini_set('display_errors', $debugEnabled ? '1' : '1');
 
 // [FIX] Set default timezone to Philippines to ensure backup filenames and logs have the correct local time
 date_default_timezone_set('Asia/Manila');
@@ -95,7 +98,7 @@ try {
     $dbHost  = ($envHost === 'localhost') ? '127.0.0.1' : $envHost;
 
     $port    = (int)($_ENV['DB_PORT'] ?? 3306);
-    $dbName  = (string)($_ENV['DB_NAME'] ?? 'hr201_local');
+    $dbName = (string)($_ENV['DB_NAME'] ?? 'hr201_local');
     $charset = (string)($_ENV['DB_CHARSET'] ?? 'utf8mb4');
     $dbUser  = (string)($_ENV['DB_USER'] ?? 'root');
     $dbPass  = (string)($_ENV['DB_PASS'] ?? '');
@@ -106,7 +109,7 @@ try {
     // [NEW] Fetch server-side session timeout from DB
     $server_timeout = 1800; // Default 30 minutes
     try {
-        $stmt = $pdo->query("SELECT setting_value FROM system_settings WHERE setting_key = 'session_timeout_server'");
+        $stmt = $pdo->query("SELECT setting_value FROM system_configs WHERE setting_key = 'session_timeout_server'");
         $val = $stmt->fetchColumn();
         if ($val !== false && (int)$val > 0) {
             $server_timeout = (int)$val;
@@ -116,6 +119,7 @@ try {
     }
 
     if (session_status() === PHP_SESSION_NONE) {
+
         ini_set('session.gc_maxlifetime', (string)$server_timeout);
     }
 } catch (PDOException $e) {
@@ -143,7 +147,7 @@ function checkSessionTimeout(PDO $pdo, ?int $serverTimeout = null): void
         $timeout = $serverTimeout;
     } else {
         try {
-            $val = $pdo->query("SELECT setting_value FROM system_settings WHERE setting_key = 'session_timeout_server'")
+            $val = $pdo->query("SELECT setting_value FROM system_configs WHERE setting_key = 'session_timeout_server'")
                 ->fetchColumn();
             if ($val) {
                 $timeout = (int)$val;

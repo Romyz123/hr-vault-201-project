@@ -111,11 +111,11 @@ try {
         $deptStmt = $pdo->prepare("INSERT INTO departments (name) VALUES (?)");
         $sectStmt = $pdo->prepare("INSERT INTO sections (department_id, name) VALUES (?, ?)");
 
-        foreach ($seedMap as $dept => $sections) {
+        foreach ($seedMap as $dept => $sectionsList) {
             try {
                 $deptStmt->execute([$dept]);
                 $deptId = $pdo->lastInsertId();
-                foreach ($sections as $sect) {
+                foreach ($sectionsList as $sect) {
                     try {
                         $sectStmt->execute([$deptId, $sect]);
                     } catch (Exception $e) {
@@ -138,7 +138,6 @@ try {
             try {
                 $stmt->execute([$g]);
             } catch (PDOException $e) {
-                // Ignore duplicate inserts and continue seeding
             }
         }
     }
@@ -211,9 +210,6 @@ try {
     if ($chkKeys->rowCount() == 0) {
         $pdo->exec("ALTER TABLE college_courses ADD COLUMN keywords TEXT DEFAULT NULL AFTER course_name");
     }
-
-    // [AUTO-UPGRADE] Database Integrity Check
-    // This ensures all tables have the columns required for the new TESP structure
 
     // A. Employees Table structural updates
     $chkEmpSect = $pdo->query("SHOW COLUMNS FROM employees LIKE 'section'");
@@ -313,7 +309,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $error = "❌ Error: Name already taken.";
             }
         } elseif ($action === 'delete_agency' && $id > 0) {
-
             $chk = $pdo->prepare("SELECT COUNT(*) FROM employees WHERE agency_name = (SELECT name FROM agencies WHERE id = ?)");
             $chk->execute([$id]);
             if ($chk->fetchColumn() > 0) {
@@ -327,7 +322,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         // --- ROLES ---
         elseif (empty($error) && $action === 'add_role' && !empty($name)) {
-            // Allow Mixed Case for roles but sanitize
             try {
                 if (strlen($name) > 100) $error = "❌ Role name is too long (Max 100 chars).";
                 elseif (!preg_match('/^[A-Za-z0-9\s\-\.\&]+$/', $name)) $error = "❌ Role name contains invalid characters.";
@@ -375,7 +369,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $prov = trim($_POST['provider'] ?? '');
             $val  = (int)($_POST['validity'] ?? 0);
 
-            // [SECURITY] Input Validation & Character Limits
             if (strlen($name) > 100 || !preg_match('/^[A-Z0-9\s\-\.\(\)\/]+$/', $name)) {
                 $error = "❌ Invalid Course Name (Max 100 chars, Alphanumeric, dots, parens only).";
             } elseif (strlen($prov) > 100 || (!empty($prov) && !preg_match('/^[a-zA-Z0-9\s\-\.\,]+$/', $prov))) {
@@ -412,11 +405,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $prov = trim($_POST['provider'] ?? '');
             $val  = (int)($_POST['validity'] ?? 0);
 
-            // [SECURITY] Input Validation & Character Limits (Sync with add_course)
             if (strlen($name) > 100 || !preg_match('/^[A-Z0-9\s\-\.\(\)\/]+$/', $name)) {
-                $error = "❌ Invalid Course Name (Max 100 chars, Alphanumeric, dots, parens only).";
+                $error = "❌ Invalid Course Name (Max 100 chars).";
             } elseif (strlen($prov) > 100 || (!empty($prov) && !preg_match('/^[a-zA-Z0-9\s\-\.\,]+$/', $prov))) {
-                $error = "❌ Invalid Provider (Max 100 chars, Alphanumeric and standard punctuation only).";
+                $error = "❌ Invalid Provider (Max 100 chars).";
             } elseif (!in_array($cat, ['TECHNICAL', 'SAFETY', 'SOFT SKILLS', 'COMPLIANCE'])) {
                 $error = "❌ Invalid Category selected.";
             } elseif ($val < 0 || $val > 120) {
@@ -458,7 +450,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if (!$gName) {
                     $error = "❌ Group not found.";
                 } else {
-                    // Check if name exists as a standalone word or in a comma list
                     $chk = $pdo->prepare("SELECT COUNT(*) FROM employees WHERE `group` = ? OR `group` LIKE ? OR `group` LIKE ? OR `group` LIKE ?");
                     $chk->execute([$gName, "$gName, %", "%, $gName", "%, $gName, %"]);
 
@@ -471,8 +462,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
                 }
             } catch (PDOException $e) {
-                // If it crashes here, your `employees` table probably doesn't have a column exactly named `group`
-                $error = "❌ DB Error during delete. Ensure the column is named exactly `group`. Details: " . $e->getMessage();
+                $error = "❌ DB Error during delete: " . $e->getMessage();
             }
         } elseif (empty($error) && $action === 'edit_group' && !empty($name) && $id > 0) {
             $name = strtoupper($name);
@@ -488,7 +478,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $pdo->prepare("UPDATE groups SET name = ? WHERE id = ?")->execute([$name, $id]);
 
                     if ($oldName && $oldName !== $name) {
-                        // Update existing employees who are part of this group (handles comma-separated lists)
                         $pdo->prepare(
                             "UPDATE employees SET `group` = TRIM(BOTH ', ' FROM REPLACE(CONCAT(', ', `group`, ', '), CONCAT(', ', ?, ', '), CONCAT(', ', ?, ', '))) WHERE CONCAT(', ', `group`, ', ') LIKE ?"
                         )->execute([$oldName, $name, "%, $oldName, %"]);
@@ -526,7 +515,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmtName->execute([$id]);
             $dName = $stmtName->fetchColumn();
 
-            // [FIX] Handle comma-separated dependency check
             $chk = $pdo->prepare("SELECT COUNT(*) FROM employees WHERE dept = ? OR dept LIKE ? OR dept LIKE ? OR dept LIKE ?");
             $chk->execute([$dName, "$dName, %", "%, $dName", "%, $dName, %"]);
 
@@ -553,7 +541,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $oldName = $old->fetchColumn();
                     $pdo->prepare("UPDATE departments SET name = ? WHERE id = ?")->execute([$name, $id]);
                     if ($oldName && $oldName !== $name) {
-                        // [FIX] Handle multi-select string rename
                         $pdo->prepare("UPDATE employees SET dept = TRIM(BOTH ', ' FROM REPLACE(CONCAT(', ', dept, ', '), CONCAT(', ', ?, ', '), CONCAT(', ', ?, ', '))) WHERE dept LIKE ?")
                             ->execute([$oldName, $name, "%$oldName%"]);
                     }
@@ -633,7 +620,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         // --- VIOLATIONS ---
         elseif ($action === 'add_violation' && !empty($name)) {
-            $name = trim($name); // Violations can be mixed case
+            $name = trim($name);
             $cat  = strtoupper(trim($_POST['category'] ?? 'GENERAL'));
             $desc = trim($_POST['description'] ?? '');
 
@@ -779,7 +766,6 @@ $vList = $stmtVl ? $stmtVl->fetchAll() : [];
 $stmtRl = $pdo->query("SELECT * FROM company_rules ORDER BY name");
 $rList = $stmtRl ? $stmtRl->fetchAll() : [];
 
-// [FIX] Use safe query results to prevent 500 errors if tables were just created
 $stmtCourses = $pdo->query("SELECT * FROM courses_catalog ORDER BY category, name");
 $cList = $stmtCourses ? $stmtCourses->fetchAll() : [];
 $stmtCollege = $pdo->query("SELECT * FROM college_courses ORDER BY course_name ASC");
@@ -853,6 +839,13 @@ if (isset($_GET['tab'])) $activeTab = $_GET['tab'];
             min-width: 100px;
             font-size: 0.9rem;
             padding: 2px;
+        }
+
+        /* Expanded type boxes / textareas for improved usability */
+        .expanded-textarea {
+            min-height: 140px;
+            font-size: 0.95rem;
+            line-height: 1.5;
         }
     </style>
 </head>
@@ -1257,8 +1250,8 @@ if (isset($_GET['tab'])) $activeTab = $_GET['tab'];
                                 <input type="text" name="name" class="form-control form-control-sm" placeholder="e.g. Excessive Tardiness" required maxlength="100" pattern="[a-zA-Z0-9\s\-\.\,\(\)]+" title="Alphanumeric, spaces, dots, parens, dashes, commas">
                             </div>
                             <div class="col-md-3">
-                                <label class="form-label fw-bold">Policy Description</label>
-                                <input type="text" name="description" class="form-control form-control-sm" placeholder="Optional details..." maxlength="1000">
+                                <label class="form-label fw-bold">Policy Description (Larger box)</label>
+                                <textarea name="description" class="form-control form-control-sm" rows="3" placeholder="Optional details (max 1000 chars)..." maxlength="1000"></textarea>
                             </div>
                             <div class="col-md-2">
                                 <button type="submit" class="btn btn-danger btn-sm w-100 fw-bold">Add Violation</button>
@@ -1305,13 +1298,13 @@ if (isset($_GET['tab'])) $activeTab = $_GET['tab'];
                         <form method="POST" class="row g-2 mb-4 align-items-end p-3 bg-light border rounded">
                             <input type="hidden" name="csrf_token" value="<?php echo $_SESSION['csrf_token']; ?>">
                             <input type="hidden" name="action" value="add_rule">
-                            <div class="col-md-5">
+                            <div class="col-md-4">
                                 <label class="form-label fw-bold">Rule Name / Header <span class="text-danger">*</span></label>
                                 <input type="text" name="name" class="form-control form-control-sm" placeholder="e.g. Rule I - Section 1" required maxlength="100" pattern="[a-zA-Z0-9\s\-\.\,\(\)]+" title="Alphanumeric, spaces, dots, parens, dashes, commas">
                             </div>
-                            <div class="col-md-5">
-                                <label class="form-label fw-bold">Full Rule Description</label>
-                                <input type="text" name="description" class="form-control form-control-sm" placeholder="Reference text from handbook..." maxlength="2000">
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold">Full Rule Description (Larger box)</label>
+                                <textarea name="description" class="form-control form-control-sm" rows="3" placeholder="Reference text from handbook (max 2000 chars)..." maxlength="2000"></textarea>
                             </div>
                             <div class="col-md-2">
                                 <button type="submit" class="btn btn-danger btn-sm w-100 fw-bold">Add Rule</button>
@@ -1351,6 +1344,8 @@ if (isset($_GET['tab'])) $activeTab = $_GET['tab'];
 
         </div>
     </div>
+
+    <!-- DUTIES MODAL (Expanded Box & Counter) -->
     <div class="modal fade" id="dutiesModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-lg">
             <div class="modal-content">
@@ -1367,8 +1362,13 @@ if (isset($_GET['tab'])) $activeTab = $_GET['tab'];
                         <div class="alert alert-info small">
                             <i class="bi bi-info-circle"></i> Enter each duty on a <strong>new line</strong>. These will appear as bullet points in the contract.
                         </div>
-                        <textarea name="duties" id="modalDuties" class="form-control" rows="10" placeholder="e.g.&#10;Perform daily checks.&#10;Submit reports on time." maxlength="3000"></textarea>
-                        <div class="form-text text-end">Max 3000 characters.</div>
+                        <div class="mb-2">
+                            <textarea name="duties" id="modalDuties" class="form-control expanded-textarea" rows="12" placeholder="e.g.&#10;Perform daily checks.&#10;Submit reports on time." maxlength="3000" oninput="updateDutyCharCount(this)"></textarea>
+                        </div>
+                        <div class="d-flex justify-content-between text-muted small">
+                            <span>Type or paste duties cleanly.</span>
+                            <span id="dutyCharCounter">0 / 3000 characters</span>
+                        </div>
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-info text-white" onclick="previewDuties()"><i class="bi bi-eye"></i> Preview</button>
@@ -1435,8 +1435,9 @@ if (isset($_GET['tab'])) $activeTab = $_GET['tab'];
         </div>
     </div>
 
+    <!-- EDIT VIOLATION MODAL (Expanded Description Box) -->
     <div class="modal fade" id="editViolationModal" tabindex="-1">
-        <div class="modal-dialog">
+        <div class="modal-dialog modal-lg">
             <form method="POST" class="modal-content">
                 <div class="modal-header bg-primary text-white">
                     <h5 class="modal-title">Edit Violation</h5>
@@ -1455,8 +1456,9 @@ if (isset($_GET['tab'])) $activeTab = $_GET['tab'];
                         <input type="text" name="name" id="editViolName" class="form-control" required maxlength="100" pattern="[a-zA-Z0-9\s\-\.\,\(\)]+" title="Alphanumeric, spaces, dots, parens, dashes, commas">
                     </div>
                     <div class="mb-3">
-                        <label class="form-label fw-bold">Policy Description</label>
-                        <textarea name="description" id="editViolDesc" class="form-control" rows="4" maxlength="1000"></textarea>
+                        <label class="form-label fw-bold">Policy Description (Larger box)</label>
+                        <textarea name="description" id="editViolDesc" class="form-control expanded-textarea" rows="6" maxlength="1000"></textarea>
+                        <div class="form-text">Max 1000 characters.</div>
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -1467,8 +1469,9 @@ if (isset($_GET['tab'])) $activeTab = $_GET['tab'];
         </div>
     </div>
 
+    <!-- EDIT RULE MODAL (Expanded Description Box) -->
     <div class="modal fade" id="editRuleModal" tabindex="-1">
-        <div class="modal-dialog">
+        <div class="modal-dialog modal-lg">
             <form method="POST" class="modal-content">
                 <div class="modal-header bg-primary text-white">
                     <h5 class="modal-title">Edit Company Rule</h5>
@@ -1483,8 +1486,9 @@ if (isset($_GET['tab'])) $activeTab = $_GET['tab'];
                         <input type="text" name="name" id="editRuleName" class="form-control" required maxlength="100" pattern="[a-zA-Z0-9\s\-\.\,\(\)]+" title="Alphanumeric, spaces, dots, parens, dashes, commas">
                     </div>
                     <div class="mb-3">
-                        <label class="form-label fw-bold">Full Rule Description</label>
-                        <textarea name="description" id="editRuleDesc" class="form-control" rows="6" maxlength="2000"></textarea>
+                        <label class="form-label fw-bold">Full Rule Description (Larger box)</label>
+                        <textarea name="description" id="editRuleDesc" class="form-control expanded-textarea" rows="8" maxlength="2000"></textarea>
+                        <div class="form-text">Max 2000 characters.</div>
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -1548,8 +1552,17 @@ if (isset($_GET['tab'])) $activeTab = $_GET['tab'];
         function editDuties(id, name, currentDuties) {
             document.getElementById('modalRoleId').value = id;
             document.getElementById('modalRoleName').innerText = name;
-            document.getElementById('modalDuties').value = currentDuties;
+            const dutyTextarea = document.getElementById('modalDuties');
+            dutyTextarea.value = currentDuties;
+            updateDutyCharCount(dutyTextarea);
             dutiesModal.show();
+        }
+
+        function updateDutyCharCount(el) {
+            const counter = document.getElementById('dutyCharCounter');
+            if (counter) {
+                counter.textContent = `${el.value.length} / 3000 characters`;
+            }
         }
 
         function editViolation(id, cat, name, desc) {
@@ -1579,7 +1592,7 @@ if (isset($_GET['tab'])) $activeTab = $_GET['tab'];
         function editCollegeCourse(id, name, keywords) {
             document.getElementById('editCollegeId').value = id;
             document.getElementById('editCollegeName').value = name;
-            document.getElementById('editCollegeKeys').value = keywords; // [FIX] Ensure keywords are passed
+            document.getElementById('editCollegeKeys').value = keywords;
             initTags('edit_college_tags', 'editCollegeKeys');
             new bootstrap.Modal(document.getElementById('editCollegeCourseModal')).show();
         }
@@ -1592,7 +1605,7 @@ if (isset($_GET['tab'])) $activeTab = $_GET['tab'];
             new bootstrap.Modal(document.getElementById('genericEditModal')).show();
         }
 
-        // --- TAG SYSTEM LOGIC (Mirrored from tracker.php) ---
+        // --- TAG SYSTEM LOGIC ---
         function initTags(containerId, hiddenInputId) {
             const container = document.getElementById(containerId);
             const hiddenInput = document.getElementById(hiddenInputId);
@@ -1603,7 +1616,7 @@ if (isset($_GET['tab'])) $activeTab = $_GET['tab'];
             if (initialVal) {
                 initialVal.split(',').map(s => s.trim()).filter(s => s).forEach(tag => {
                     addChip(container, tag);
-                }); // [FIX] Add chip to container
+                });
             }
         }
 
@@ -1619,7 +1632,7 @@ if (isset($_GET['tab'])) $activeTab = $_GET['tab'];
                 chip.remove();
                 updateHiddenInput(container);
             };
-            chip.appendChild(label); // [FIX] Append label to chip
+            chip.appendChild(label);
             chip.appendChild(closeIcon);
             container.insertBefore(chip, input);
         }
@@ -1628,7 +1641,7 @@ if (isset($_GET['tab'])) $activeTab = $_GET['tab'];
             if (e.key === 'Enter' || e.key === ',') {
                 e.preventDefault();
                 const val = input.value.trim().toUpperCase().replace(/,/g, '');
-                if (val && val.length <= 255) { // [FIX] Add length check for individual tags
+                if (val && val.length <= 255) {
                     addChip(input.parentElement, val);
                     input.value = '';
                     updateHiddenInput(input.parentElement);
@@ -1708,13 +1721,13 @@ if (isset($_GET['tab'])) $activeTab = $_GET['tab'];
                 deptSections.forEach(s => {
                     const li = document.createElement('li');
                     li.className = 'list-group-item d-flex justify-content-between align-items-center';
-                    // [FIX] Safe attribute escaping for dynamic JS strings
                     const safeName = s.name.replace(/'/g, "\\'").replace(/"/g, '&quot;');
                     const safeHtml = s.name.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
                     li.innerHTML = `
                         <span class="fw-bold">${safeHtml}</span>
                         <div class="d-flex gap-1">
-                            <button type="button" class="btn btn-sm btn-outline-primary border-0" onclick="editGeneric('section', ${s.id}, '${safeName}')">                                <i class="bi bi-pencil-square"></i>
+                            <button type="button" class="btn btn-sm btn-outline-primary border-0" onclick="editGeneric('section', ${s.id}, '${safeName}')">
+                                <i class="bi bi-pencil-square"></i>
                             </button>
                             <form method="POST" onsubmit="return confirm('Delete this section?');" class="m-0">
                                 <input type="hidden" name="csrf_token" value="<?php echo $_SESSION['csrf_token']; ?>">
@@ -1740,7 +1753,6 @@ if (isset($_GET['tab'])) $activeTab = $_GET['tab'];
             window.history.replaceState(null, null, window.location.href);
         }
 
-        // [NEW] Scroll Memory Logic
         const scrollKey = 'hr201_scroll_pos_' + window.location.pathname;
         window.addEventListener('beforeunload', () => {
             sessionStorage.setItem(scrollKey, window.scrollY);
