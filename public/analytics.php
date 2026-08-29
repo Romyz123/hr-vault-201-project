@@ -3,8 +3,7 @@
 // ======================================================
 // [FILE] public/analytics.php
 // [STATUS] Matrix fixed (< 1 Yr shows), Column Totals at TOP,
-//          As-of year logic, Safe labels, Print layout, Debug mode,
-//          Selective Print Modal & Summary Export added.
+//          As-of year logic, Safe labels, Print layout, Debug mode
 // ======================================================
 
 require '../config/db.php';
@@ -119,7 +118,6 @@ if ($genderFilter !== '') {
     $params[] = $genderFilter;
 }
 
-
 // [NEW] Handle Overdue Export
 if (isset($_GET['export_overdue'])) {
     header('Content-Type: text/csv; charset=utf-8');
@@ -175,15 +173,20 @@ if (isset($_GET['export_overdue'])) {
 // --- 3. AS-OF DATE for tenure bucketing ---
 $today       = new DateTime('today');
 $currentYear = (int)$today->format('Y');
+// If viewing a past year, compute tenure as of Dec 31 of that year.
+// If current/future, compute as of today.
 if (!empty($dateTo)) {
     $asOf = new DateTime($dateTo);
     if ($asOf > $today) $asOf = $today;
 } else {
     $asOf = ($yearFilter < $currentYear) ? new DateTime($yearFilter . '-12-31') : $today;
 }
-$asOfDateStr = $asOf->format('Y-m-d');
+// ============================================================
+// DATA FETCHING
+// ============================================================
 
-// DATA FETCHING FOR METRICS (Headcounts, etc. needed for summary export)
+// 1) HEADCOUNTS (Active)
+// [PERFORMANCE] Combine headcount and education queries into one
 $totalHeadcount = 0;
 $gradCount = 0;
 $hasCollegeDegree = false;
@@ -195,7 +198,6 @@ try {
     $hasCollegeCourse = $checkCols && $checkCols->rowCount() > 0;
 } catch (PDOException $e) {
 }
-
 try {
     $headcountSQL = $hasCollegeDegree
         ? "SELECT COUNT(*) as total, SUM(CASE WHEN college_degree IS NOT NULL AND college_degree != '' THEN 1 ELSE 0 END) as graduates FROM employees $activeSQL"
@@ -208,10 +210,14 @@ try {
         $gradCount = $hasCollegeDegree ? (int)$counts['graduates'] : 0;
     }
 } catch (Exception $e) {
+    // Silently fail, counts will remain 0
 }
 $undergradCount = max(0, $totalHeadcount - $gradCount);
 
-// AGENCY BREAKDOWN
+$eduLabels = json_encode(['College Graduate', 'No Degree Info / Undergrad']);
+$eduCounts = json_encode([$gradCount, $undergradCount]);
+
+// 2) AGENCY BREAKDOWN (Active)
 $agencyStmt = $pdo->prepare("
     SELECT COALESCE(NULLIF(agency_name, ''), 'TESP Direct') AS entity, COUNT(*) AS count
     FROM employees
@@ -222,7 +228,7 @@ $agencyStmt = $pdo->prepare("
 $agencyStmt->execute($params);
 $agencyData = $agencyStmt->fetchAll(PDO::FETCH_KEY_PAIR);
 
-// DEPARTMENT BREAKDOWN
+// 3) DEPARTMENT BREAKDOWN (Active)
 $deptStmt = $pdo->prepare("
     SELECT dept, COUNT(*) AS count
     FROM employees
@@ -233,12 +239,12 @@ $deptStmt = $pdo->prepare("
 $deptStmt->execute($params);
 $deptData = $deptStmt->fetchAll(PDO::FETCH_KEY_PAIR);
 
-// TURNOVER STATUS BREAKDOWN
+// 4) TURNOVER STATUS BREAKDOWN (Inactive in selected year)
 $turnStmt = $pdo->prepare("SELECT status, COUNT(*) as count FROM employees $inactiveSQL GROUP BY status");
 $turnStmt->execute($inactiveParams);
 $turnoverData = $turnStmt->fetchAll(PDO::FETCH_KEY_PAIR);
 
-// EXIT REASONS
+// 5) EXIT REASONS (Top 5; Inactive in selected year)
 $reasonStmt = $pdo->prepare("
     SELECT exit_reason, COUNT(*) as count
     FROM employees
@@ -252,7 +258,7 @@ $reasonStmt = $pdo->prepare("
 $reasonStmt->execute($inactiveParams);
 $reasonData = $reasonStmt->fetchAll(PDO::FETCH_ASSOC);
 
-// ATTRITION TREND
+// 5b) ATTRITION TREND (Monthly exits in selected year)
 $attrTrendSQL = "
     SELECT DATE_FORMAT(COALESCE(NULLIF(exit_date, '0000-00-00'), updated_at, NOW()), '%Y-%m') AS ym, COUNT(*) AS count
     FROM employees
@@ -260,11 +266,12 @@ $attrTrendSQL = "
     GROUP BY ym
     ORDER BY ym ASC
 ";
+// Re-use inactiveParams which already has the year bound
 $attrTrendStmt = $pdo->prepare($attrTrendSQL);
 $attrTrendStmt->execute($inactiveParams);
 $attrTrendRaw = $attrTrendStmt->fetchAll(PDO::FETCH_KEY_PAIR);
 
-// TURNOVER BY DEPT
+// 5c) TURNOVER BY DEPT (Inactive in selected year)
 $deptTurnStmt = $pdo->prepare("
     SELECT COALESCE(NULLIF(dept, ''), 'UNASSIGNED') as dept, COUNT(*) as count
     FROM employees
@@ -277,7 +284,9 @@ $deptTurnData = $deptTurnStmt->fetchAll(PDO::FETCH_KEY_PAIR);
 $deptTurnLabels = json_encode(array_keys($deptTurnData));
 $deptTurnCounts = json_encode(array_values($deptTurnData));
 
-// HIRING TREND
+// 6) HIRING TREND (All hires in selected year)
+// [FIX] Replace 'status = Active' with '1=1' so we correctly count employees 
+// who were hired this year but may have also resigned this year.
 $hireSQL = str_replace("status = 'Active'", "1=1", $activeSQL);
 $trendSQL = "
     SELECT DATE_FORMAT(hire_date, '%Y-%m') AS ym, COUNT(*) AS count
@@ -292,19 +301,21 @@ $trendStmt = $pdo->prepare($trendSQL);
 $trendStmt->execute($trendParams);
 $trendRaw = $trendStmt->fetchAll(PDO::FETCH_KEY_PAIR);
 
-$trendLabelsArr = [];
-$trendDataArr   = [];
-$attrDataArr    = [];
-$netGrowthArr   = [];
+// [NEW] Generate Dynamic Labels for Trend Charts
+$trendLabelsArr = []; // [FIX] Initialize arrays to prevent PHP notices
+$trendDataArr   = []; // [FIX] Initialize arrays to prevent PHP notices
+$attrDataArr    = []; // [FIX] Initialize arrays to prevent PHP notices
+$netGrowthArr   = []; // [FIX] Initialize arrays to prevent PHP notices
 
 $start    = new DateTime($startDate);
 $endObj   = new DateTime($endDate);
 $interval = DateInterval::createFromDateString('1 month');
-$period   = new DatePeriod($start, $interval, $endObj->modify('+1 day'));
+$period   = new DatePeriod($start, $interval, $endObj->modify('+1 day')); // Inclusive
 
 foreach ($period as $dt) {
     $key = $dt->format('Y-m');
-    $label = $dt->format('M Y');
+    $label = $dt->format('M Y'); // e.g. "Jan 2024"
+
     $trendLabelsArr[] = $label;
     $hires = isset($trendRaw[$key]) ? (int)$trendRaw[$key] : 0;
     $exits = isset($attrTrendRaw[$key]) ? (int)$attrTrendRaw[$key] : 0;
@@ -319,14 +330,17 @@ $trendCounts     = json_encode($trendDataArr);
 $attrTrendCounts = json_encode($attrDataArr);
 $netGrowthCounts = json_encode($netGrowthArr);
 
+// [NEW] Pre-calculate colors for Net Growth on the server to prevent JS syntax errors
 $netGrowthColorsArr = [];
 foreach ($netGrowthArr as $val) {
-    $netGrowthColorsArr[] = $val >= 0 ? '#198754' : '#dc3545';
+    $netGrowthColorsArr[] = $val >= 0 ? '#198754' : '#dc3545'; // Green for positive/zero, Red for negative
 }
 $netGrowthColors = json_encode($netGrowthColorsArr);
 
-// PROBATIONARY VS REGULAR
+// 7) PROBATIONARY VS REGULAR (New Logic)
+// Threshold: Dynamic months prior to the "As Of" date
 $probThresholdDate = (clone $asOf)->modify("-$probMonths months")->format('Y-m-d');
+
 $probSQL = "SELECT emp_id, first_name, last_name, dept, job_title, hire_date 
             FROM employees $activeSQL AND hire_date > ? ORDER BY hire_date DESC";
 $probParams = array_merge($params, [$probThresholdDate]);
@@ -336,26 +350,37 @@ $probList = $probStmt->fetchAll(PDO::FETCH_ASSOC);
 $probCount = count($probList);
 $regCount = max(0, $totalHeadcount - $probCount);
 
-// TURNOVER RATE CALCULATION
+// 8) TURNOVER RATE CALCULATION (Phase 2 Feature)
+// Formula: (Total Exits / Average Headcount) * 100
+// Average Headcount = (Start of Year Headcount + End of Year Headcount) / 2
+
+// A. Total Exits in Selected Year
 $totalExits = array_sum($attrDataArr);
+
+// B. Headcount at Start of Year (Approximate: Current Active + Exits this year - Hires this year)
+// This is a simplified estimation. For exact precision, we'd need a daily snapshot table.
 $hiresThisYear = array_sum($trendDataArr);
 $startHeadcount = $totalHeadcount + $totalExits - $hiresThisYear;
-$endHeadcount   = $totalHeadcount;
+$endHeadcount   = $totalHeadcount; // Assuming current state is end state for calculation
 $avgHeadcount   = ($startHeadcount + $endHeadcount) / 2;
+
 $turnoverRate = ($avgHeadcount > 0) ? round(($totalExits / $avgHeadcount) * 100, 2) : 0;
 
-// AVERAGE TENURE
+// 9) AVERAGE TENURE (Active)
+$asOfDateStr = $asOf->format('Y-m-d');
 $avgTenureStmt = $pdo->prepare("SELECT AVG(DATEDIFF(?, hire_date)) FROM employees $activeSQL AND hire_date IS NOT NULL AND hire_date != '0000-00-00'");
 $avgTenureStmt->execute(array_merge([$asOfDateStr], $params));
 $avgTenureResult = $avgTenureStmt->fetchColumn();
 $avgTenureDays = ($avgTenureResult !== false && $avgTenureResult !== null) ? (float)$avgTenureResult : 0;
 $avgTenureYears = $avgTenureDays > 0 ? round($avgTenureDays / 365.25, 1) : 0;
 
-// PERFORMANCE RATINGS
+// 10) PERFORMANCE RATINGS (Latest per employee)
 $perfLabels = '[]';
 $perfCounts = '[]';
 try {
+    // Check if table exists
     $pdo->query("SELECT 1 FROM hr_performance_reviews LIMIT 1");
+
     $perfStmt = $pdo->prepare("
         SELECT rating, COUNT(*) as count
         FROM hr_performance_reviews r
@@ -382,7 +407,7 @@ try {
         1 => '1 - Unsatisfactory'
     ];
     $mappedPerfData = [];
-    krsort($perfData);
+    krsort($perfData); // Sort from 5 down to 1
     foreach ($perfData as $rating => $count) {
         $mappedLabel = isset($ratingMap[$rating]) ? $ratingMap[$rating] : "Rating $rating";
         $mappedPerfData[$mappedLabel] = $count;
@@ -392,6 +417,9 @@ try {
 } catch (Exception $e) {
 }
 
+// 7) DEMOGRAPHICS & TENURE MATRIX (Slug Strategy + Column Totals)
+
+// Stable computation IDs
 $bandLabels = [
     'b0' => '< 1 Yr',
     'b1' => '1-3 Yrs',
@@ -402,14 +430,17 @@ $bandLabels = [
 $bandOrder = array_keys($bandLabels);
 
 $selectCols = "emp_id, dept, birth_date, hire_date, gender";
-if ($hasCollegeDegree) $selectCols .= ", college_degree";
-if ($hasCollegeCourse) $selectCols .= ", college_course";
-
+if ($hasCollegeDegree) {
+    $selectCols .= ", college_degree";
+}
+if ($hasCollegeCourse) {
+    $selectCols .= ", college_course";
+}
 $rawStmt = $pdo->prepare("SELECT $selectCols FROM employees $activeSQL");
 $rawStmt->execute($params);
 $rows = $rawStmt->fetchAll(PDO::FETCH_ASSOC);
 
-// VAULT COMPLIANCE SCORE
+// 11) VAULT COMPLIANCE SCORE
 $complianceData = [
     'overall' => 0,
     'by_dept_labels' => '[]',
@@ -417,6 +448,7 @@ $complianceData = [
 ];
 try {
     $REQUIRED_DOCS = [];
+    // [SYNC] Fetch dynamic requirements from database ordered by ID
     $reqStmt = $pdo->query("SELECT name, keywords FROM document_requirements ORDER BY id ASC");
     while ($row = $reqStmt->fetch(PDO::FETCH_ASSOC)) {
         $REQUIRED_DOCS[$row['name']] = array_map('trim', explode(',', $row['keywords']));
@@ -424,6 +456,7 @@ try {
     $totalRequirements = count($REQUIRED_DOCS);
 
     if ($totalRequirements > 0 && !empty($rows)) {
+        // B. Fetch all documents for the filtered active employees
         $empIdsForCompliance = array_column($rows, 'emp_id');
         $placeholders = implode(',', array_fill(0, count($empIdsForCompliance), '?'));
         $docSql = "SELECT d.employee_id, d.category, d.original_name 
@@ -452,6 +485,7 @@ try {
             }
         }
 
+        // C. Fetch all exemptions for the filtered active employees
         $exemptSql = "SELECT ex.employee_id, ex.requirement_name FROM document_exemptions ex WHERE ex.employee_id IN ($placeholders)";
         $exemptStmt = $pdo->prepare($exemptSql);
         $exemptStmt->execute($empIdsForCompliance);
@@ -460,6 +494,7 @@ try {
             $exemptMap[$row['employee_id']][$row['requirement_name']] = true;
         }
 
+        // D. Calculate Compliance
         $complianceByDept = [];
         $totalScores = 0;
         foreach ($rows as $emp) {
@@ -482,10 +517,30 @@ try {
 } catch (Exception $e) {
 }
 
-// TRAINING & EXPIRY FORECAST
+// 14) TRAINING COMPLIANCE
+$trainingStmt = $pdo->prepare("SELECT 
+    (SELECT COUNT(DISTINCT employee_id) FROM employee_training) as trained,
+    (SELECT COUNT(*) FROM employees WHERE status = 'Active') as total");
+$trainingStmt->execute();
+$tStats = $trainingStmt->fetch();
+$trainedCount = 0;
+$totalEmployeesForTraining = 0;
+if ($tStats !== false) { // [FIX] Check if fetch returned a row
+    $trainedCount = (int)$tStats['trained'];
+    $totalEmployeesForTraining = (int)$tStats['total'];
+}
+$untrainedCount = max(0, $totalEmployeesForTraining - $trainedCount);
+
+// 15) TRAINING TREND (Monthly)
+$tTrendStmt = $pdo->prepare("SELECT DATE_FORMAT(completion_date, '%Y-%m') as ym, COUNT(*) as count FROM employee_training WHERE completion_date >= DATE_SUB(NOW(), INTERVAL 12 MONTH) GROUP BY ym ORDER BY ym ASC");
+$tTrendStmt->execute();
+$tTrendData = $tTrendStmt->fetchAll(PDO::FETCH_KEY_PAIR);
+
+// 12) EXPIRY FORECAST (Next 6 Months)
 $formattedExpLabels = [];
 $expiryDatasets = [];
 try {
+    // [FIX] Pre-generate the next 6 months to ensure chart continuity (No missing months)
     $expiryLabels = [];
     for ($i = 0; $i <= 6; $i++) {
         $expiryLabels[] = date('Y-m', strtotime("+$i months"));
@@ -501,7 +556,9 @@ try {
                     AND d.is_resolved = 0
                     AND e.status = 'Active'";
 
-    if (!$includeDeleted) $expSQL .= " AND d.deleted_at IS NULL ";
+    if (!$includeDeleted) {
+        $expSQL .= " AND d.deleted_at IS NULL ";
+    }
 
     $expParams = [];
     if ($jobSearch !== '') {
@@ -532,14 +589,18 @@ try {
         $expSQL .= " AND e.gender = ? ";
         $expParams[] = $genderFilter;
     }
-    $expSQL .= " GROUP BY ym, d.category ";
+    $expSQL .= "
+        GROUP BY ym, d.category
+    ";
     $expStmt = $pdo->prepare($expSQL);
     $expStmt->execute($expParams);
     $rawExp = $expStmt->fetchAll(PDO::FETCH_ASSOC);
     $monthsMap = [];
     $categoriesFound = [];
 
+    // Initialize Map with empty arrays for all 6 months to ensure continuity
     foreach ($expiryLabels as $ym) $monthsMap[$ym] = [];
+
     foreach ($rawExp as $row) {
         $ym = $row['ym'];
         $cat = $row['category'] ?: 'Uncategorized';
@@ -551,11 +612,42 @@ try {
         return date('M Y', strtotime($ym . '-01'));
     }, $expiryLabels);
 
+    // Determine if we have overdue documents to trigger the red border (Respecting current filters)
     $overdueCheckSQL = "SELECT COUNT(*) FROM documents d JOIN employees e ON d.employee_id = e.emp_id 
                         WHERE d.expiry_date < CURDATE() AND d.is_resolved = 0 AND e.status = 'Active'";
-    if (!$includeDeleted) $overdueCheckSQL .= " AND d.deleted_at IS NULL ";
+    if (!$includeDeleted) {
+        $overdueCheckSQL .= " AND d.deleted_at IS NULL ";
+    }
+    $checkParams = [];
+    if ($jobSearch !== '') {
+        $overdueCheckSQL .= " AND e.job_title LIKE ? ";
+        $checkParams[] = "%$jobSearch%";
+    }
+    if ($deptFilter !== '') {
+        $overdueCheckSQL .= " AND e.dept = ? ";
+        $checkParams[] = $deptFilter;
+    }
+    if ($sectionFilter !== '') {
+        $overdueCheckSQL .= " AND e.section = ? ";
+        $checkParams[] = $sectionFilter;
+    }
+    if ($groupFilter !== '') {
+        $overdueCheckSQL .= " AND e.`group` = ? ";
+        $checkParams[] = $groupFilter;
+    }
+    if ($agencyFilter !== '') {
+        if ($agencyFilter === 'TESP_DIRECT') $overdueCheckSQL .= " AND (e.agency_name IS NULL OR e.agency_name = '' OR e.agency_name LIKE 'TESP%') ";
+        else {
+            $overdueCheckSQL .= " AND e.agency_name = ? ";
+            $checkParams[] = $agencyFilter;
+        }
+    }
+    if ($genderFilter !== '') {
+        $overdueCheckSQL .= " AND e.gender = ? ";
+        $checkParams[] = $genderFilter;
+    }
     $chkStmt = $pdo->prepare($overdueCheckSQL);
-    $chkStmt->execute($params);
+    $chkStmt->execute($checkParams);
     $hasOverdue = $chkStmt->fetchColumn() > 0;
 
     $cats = array_keys($categoriesFound);
@@ -570,7 +662,7 @@ try {
             $val = $monthsMap[$ym][$cat] ?? 0;
             $data[] = $val;
             if ($i === 0 && $hasOverdue && $val > 0) {
-                $borderColors[] = '#ff0000';
+                $borderColors[] = '#ff0000'; // High-contrast Red
                 $borderWidths[] = 3;
             } else {
                 $borderColors[] = 'rgba(0,0,0,0)';
@@ -586,7 +678,7 @@ try {
 $expLabelsJson = json_encode($formattedExpLabels);
 $expDatasetsJson = json_encode($expiryDatasets);
 
-// RECRUITMENT PIPELINE
+// 13) RECRUITMENT PIPELINE
 $recruitLabels = '[]';
 $recruitCounts = '[]';
 try {
@@ -598,7 +690,7 @@ try {
 } catch (Exception $e) {
 }
 
-// LOGO PREPARATION
+// [FIX] Locate the company logo and convert to Base64 for reliable display and printing
 $logo_paths = [
     __DIR__ . '/uploads/tesp-logo.png',
     __DIR__ . '/uploads/tesp logo 1.png',
@@ -614,35 +706,48 @@ foreach ($logo_paths as $p) {
         break;
     }
 }
+
+// Fallback if no logo file is found in the paths above
 if (empty($logo_src)) {
     $logo_src = 'data:image/svg+xml;base64,' . base64_encode('<svg xmlns="http://www.w3.org/2000/svg" width="100" height="40"><text y="30" font-size="14" fill="#333">TES</text></svg>');
 }
-
+// Aggregates
 $ageBands          = ['18-25' => 0, '26-35' => 0, '36-45' => 0, '46-55' => 0, '56+' => 0];
 $genderCounts      = ['Male' => 0, 'Female' => 0];
 $tenureBandsCounts = array_fill_keys($bandOrder, 0);
-$tenureMatrix      = [];
-$eduProgress       = [];
-$complianceChartData = [];
+$tenureMatrix      = []; // dept => [b0..b4]
+$eduProgress       = []; // dept => ['total' => 0, 'graduates' => 0]
+$complianceChartData = []; // [FIX] Initialize array
 $columnTotals      = array_fill_keys($bandOrder, 0);
-$courseAgg         = [];
+$courseAgg         = []; // [NEW] Aggregate course counts
 
+// [NEW] Track total graduates for percentage calculation
+$totalGraduates = 0;
+
+// [OPTIMIZATION] Re-use $asOf date to ensure historical accuracy across Age Demographics
 $evalDateObj = $asOf;
 
+/**
+ * Determine tenure band by months as of $asOf.
+ * For past-year snapshots, rows with hire_date after $asOf are excluded (return null).
+ */
 function get_tenure_band_slug(string $hireDate, DateTime $asOf): ?string
 {
     if (empty($hireDate) || $hireDate === '0000-00-00') return null;
     try {
         $start = new DateTime($hireDate);
+        // For a snapshot, exclude hires after the as-of date.
         if ($start > $asOf) return null;
+
         $diff   = $start->diff($asOf);
+        // Mild rounding: if >= 15 days, count as another month to reduce boundary disputes.
         $months = ($diff->y * 12) + $diff->m + ($diff->d >= 15 ? 1 : 0);
 
-        if ($months < 12)   return 'b0';
-        if ($months < 36)   return 'b1';
-        if ($months < 60)   return 'b2';
-        if ($months < 120)  return 'b3';
-        return 'b4';
+        if ($months < 12)   return 'b0'; // < 1 year
+        if ($months < 36)   return 'b1'; // 1–3
+        if ($months < 60)   return 'b2'; // 3–5
+        if ($months < 120)  return 'b3'; // 5–10
+        return 'b4';                      // 10+
     } catch (Exception $e) {
         return null;
     }
@@ -652,6 +757,7 @@ foreach ($rows as $r) {
     $empId = $r['emp_id'];
     $dept = strtoupper(trim((string)$r['dept'])) ?: 'UNASSIGNED';
 
+    // 1. Demographics (Gender/Age) - Always process for all filtered employees
     $g = ucfirst(strtolower(trim((string)$r['gender'])));
     if (isset($genderCounts[$g])) $genderCounts[$g]++;
 
@@ -667,6 +773,7 @@ foreach ($rows as $r) {
         }
     }
 
+    // 2. Education & Course Distribution - Always process for all filtered employees
     if (!isset($eduProgress[$dept])) $eduProgress[$dept] = ['total' => 0, 'graduates' => 0];
     $eduProgress[$dept]['total']++;
     if (!empty($r['college_degree'])) $eduProgress[$dept]['graduates']++;
@@ -674,6 +781,7 @@ foreach ($rows as $r) {
     $cName = strtoupper(trim((string)$r['college_course']));
     if ($cName !== '') $courseAgg[$cName] = ($courseAgg[$cName] ?? 0) + 1;
 
+    // 3. Tenure Matrix - Conditional on Hire Date validity for current snapshot
     $slug = get_tenure_band_slug((string)$r['hire_date'], $asOf);
     if ($slug !== null) {
         $tenureBandsCounts[$slug]++;
@@ -686,6 +794,7 @@ foreach ($rows as $r) {
 ksort($tenureMatrix, SORT_STRING);
 ksort($eduProgress, SORT_STRING);
 
+// --- JSON Encode for Charts (safe for <script> embedding) ---
 $eduProgLabelsArr = [];
 $eduProgPercentsArr = [];
 foreach ($eduProgress as $d => $counts) {
@@ -695,9 +804,11 @@ foreach ($eduProgress as $d => $counts) {
 $eduProgLabels   = json_encode($eduProgLabelsArr);
 $eduProgPercents = json_encode($eduProgPercentsArr);
 
+// [NEW] Sort and Encode Course Stats
 arsort($courseAgg);
 $courseLabelsArr = array_keys($courseAgg);
 $courseCountsArr = array_values($courseAgg);
+$totalGradsWithCourse = array_sum($courseCountsArr);
 
 $courseLabels = json_encode($courseLabelsArr);
 $courseCounts = json_encode($courseCountsArr);
@@ -717,6 +828,7 @@ $ageCounts    = json_encode(array_values($ageBands));
 $genderLabels = json_encode(array_keys($genderCounts));
 $genderData   = json_encode(array_values($genderCounts));
 
+// Tenure labels/counts in band order; escape special chars for script embedding
 $tenureChartLabelsArr = [];
 $tenureChartCountsArr = [];
 foreach ($bandOrder as $b) {
@@ -726,12 +838,13 @@ foreach ($bandOrder as $b) {
 $tenureLabels = json_encode($tenureChartLabelsArr, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
 $tenureCounts = json_encode($tenureChartCountsArr);
 
+// Calculate Grand Total early for Export/Display
 $grandTotal = 0;
 foreach ($bandOrder as $b) {
     $grandTotal += (int)$columnTotals[$b];
 }
 
-// BIRTHDAYS QUERY
+// [NEW] BIRTHDAYS QUERY
 $bdayQuery = "SELECT emp_id, first_name, last_name, dept, job_title, birth_date
               FROM employees
               $activeSQL AND birth_date IS NOT NULL AND birth_date != '0000-00-00' AND MONTH(birth_date) = ?
@@ -742,7 +855,7 @@ $bdayStmt->execute($bdayParams);
 $birthdayCelebrants = $bdayStmt->fetchAll(PDO::FETCH_ASSOC);
 $monthName = date('F', mktime(0, 0, 0, $bdayMonth, 10));
 
-// WORK ANNIVERSARIES QUERY
+// [NEW] WORK ANNIVERSARIES QUERY (Fixed missing data fetch)
 $annivQuery = "SELECT emp_id, first_name, last_name, dept, job_title, hire_date, 
                TIMESTAMPDIFF(YEAR, hire_date, ?) AS years_of_service
                FROM employees
@@ -752,7 +865,7 @@ $annivStmt = $pdo->prepare($annivQuery);
 $annivStmt->execute(array_merge([$asOfDateStr], $params, [$bdayMonth]));
 $workAnniversaries = $annivStmt->fetchAll(PDO::FETCH_ASSOC);
 
-// BIRTHDAY DISTRIBUTION
+// [NEW] BIRTHDAY DISTRIBUTION (Annual Forecast by Month)
 $bdayDistData = array_fill(1, 12, 0);
 $bdayDistStmt = $pdo->prepare("SELECT MONTH(birth_date) as m, COUNT(*) as count FROM employees $activeSQL AND birth_date IS NOT NULL AND birth_date != '0000-00-00' GROUP BY MONTH(birth_date)");
 $bdayDistStmt->execute($params);
@@ -761,50 +874,6 @@ while ($row = $bdayDistStmt->fetch(PDO::FETCH_ASSOC)) {
 }
 $bdayDistLabels = json_encode(['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']);
 $bdayDistCounts = json_encode(array_values($bdayDistData));
-
-// --- EXPORT HANDLERS ---
-
-// [NEW] Handle Comprehensive Summary Export to Excel
-if (isset($_GET['export_summary'])) {
-    header('Content-Type: text/csv; charset=utf-8');
-    header('Content-Disposition: attachment; filename="Workforce_Analytics_Summary_' . date('Y-m-d') . '.csv"');
-    $output = fopen('php://output', 'w');
-    fwrite($output, "\xEF\xBB\xBF"); // BOM for Excel encoding
-
-    fputcsv($output, ['TES Philippines, Inc. - Workforce Analytics Summary']);
-    fputcsv($output, ['Generated As Of:', $asOf->format('F j, Y')]);
-    fputcsv($output, ['Period:', $startDate . ' to ' . $endDate]);
-    fputcsv($output, []);
-
-    // Key Metrics Table
-    fputcsv($output, ['EXECUTIVE METRICS', '']);
-    fputcsv($output, ['Metric', 'Value']);
-    fputcsv($output, ['Active Headcount', $totalHeadcount]);
-    fputcsv($output, ['Probationary Count', $probCount]);
-    fputcsv($output, ['Regular Count', $regCount]);
-    fputcsv($output, ['Turnover Rate (%)', $turnoverRate . '%']);
-    fputcsv($output, ['Average Tenure (Years)', $avgTenureYears]);
-    fputcsv($output, ['Overall Vault Compliance (%)', $complianceData['overall'] . '%']);
-    fputcsv($output, []);
-
-    // Department Breakdown
-    fputcsv($output, ['DEPARTMENT HEADCOUNT BREAKDOWN', '']);
-    fputcsv($output, ['Department', 'Count']);
-    foreach ($deptData as $deptName => $cnt) {
-        fputcsv($output, [$deptName, $cnt]);
-    }
-    fputcsv($output, []);
-
-    // Agency Breakdown
-    fputcsv($output, ['AGENCY BREAKDOWN', '']);
-    fputcsv($output, ['Agency', 'Count']);
-    foreach ($agencyData as $agencyName => $cnt) {
-        fputcsv($output, [$agencyName, $cnt]);
-    }
-
-    fclose($output);
-    exit;
-}
 
 // Handle Anniversary Export
 if (isset($_GET['export_anniversaries'])) {
@@ -841,20 +910,23 @@ if (isset($_GET['export_matrix'])) {
     header('Content-Type: text/csv; charset=utf-8');
     header('Content-Disposition: attachment; filename="Tenure_Matrix_' . date('Y-m-d') . '.csv"');
     $output = fopen('php://output', 'w');
-    fwrite($output, "\xEF\xBB\xBF");
+    fwrite($output, "\xEF\xBB\xBF"); // BOM for Excel
 
+    // Header
     $headers = ['Dept'];
     foreach ($bandOrder as $b) $headers[] = $bandLabels[$b];
     $headers[] = 'Total';
     $headers[] = '% Share';
     fputcsv($output, $headers);
 
+    // Totals Row (Top)
     $totalsRow = ['TOTAL'];
     foreach ($bandOrder as $b) $totalsRow[] = $columnTotals[$b];
     $totalsRow[] = $grandTotal;
     $totalsRow[] = '100%';
     fputcsv($output, $totalsRow);
 
+    // Data Rows
     foreach ($tenureMatrix as $dept => $bands) {
         $row = [$dept];
         $rowTotal = array_sum($bands);
@@ -867,8 +939,9 @@ if (isset($_GET['export_matrix'])) {
     exit;
 }
 
-// Optional debug block
+// Optional debug block (visit analytics.php?debug=1)
 if ($debug) {
+    // [SECURITY] Restrict debug output to Admins only
     if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'ADMIN') die("Access Denied: Debug mode is restricted.");
 
     header('Content-Type: text/plain');
@@ -882,20 +955,251 @@ if ($debug) {
     echo "\nColumn totals: " . json_encode($columnTotals) . "\n";
     exit;
 }
-
-// Include the global system header
+?>
+<?php
+$currentPage = 'analytics.php'; // Tells header.php which page is active
 include 'header.php';
 ?>
-
-<!DOCTYPE html>
-<html lang="en">
-
 <style>
+    .card-header {
+        font-size: 0.85rem;
+        text-transform: uppercase;
+        font-weight: bold;
+        letter-spacing: 0.5px;
+    }
+
+    .matrix-table th {
+        font-size: 0.75rem;
+        text-align: center;
+        background-color: #f8f9fa;
+    }
+
+    .matrix-table td {
+        font-size: 0.8rem;
+        text-align: center;
+        vertical-align: middle;
+    }
+
+    .matrix-dept {
+        text-align: left !important;
+        font-weight: bold;
+        color: #495057;
+    }
+
+    .table thead th {
+        white-space: nowrap;
+    }
+
+    /* (Optional) Sticky header + sticky totals row in header */
+    .matrix-table thead tr:first-child th {
+        position: sticky;
+        top: 0;
+        z-index: 2;
+        background: #f8f9fa;
+    }
+
+    .matrix-table thead tr.thead-totals th {
+        position: sticky;
+        top: 38px;
+        z-index: 1;
+        background: #e9ecef;
+    }
+
+    /* // --- START: PROFESSIONAL PRINT FIX --- */
+    @media print {
+        @page {
+            size: A4 landscape;
+            margin: 10mm;
+        }
+
+        body {
+            background: #fff !important;
+            font-family: "Helvetica Neue", Helvetica, Arial, sans-serif !important;
+            font-size: 10pt !important;
+            color: #000 !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+        }
+
+        /* Hide all interface elements, buttons, forms, modals, and backdrops */
+        .no-print,
+        .navbar,
+        .btn,
+        form,
+        header,
+        footer,
+        .modal,
+        .modal-backdrop {
+            /* [FIX] Hides the Bootstrap modal backdrop overlay during print */
+            display: none !important;
+        }
+
+        .container-fluid {
+            width: 100% !important;
+            max-width: 100% !important;
+            padding: 0 !important;
+            margin: 0 !important;
+        }
+
+        /* Rest of your print styles... */
+        /* Break the Bootstrap flex grid to make it a standard document flow */
+        .container-fluid {
+            padding: 0 !important;
+        }
+
+        .row {
+            display: block !important;
+            margin: 0 !important;
+        }
+
+        /* Force all columns to take full width so charts stack neatly top-to-bottom */
+        [class*="col-"] {
+            width: 100% !important;
+            max-width: 100% !important;
+            display: block !important;
+            margin-bottom: 25px !important;
+            padding: 0 !important;
+        }
+
+        /* Style cards to look like formal document sections */
+        .card {
+            border: none !important;
+            box-shadow: none !important;
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
+            margin-bottom: 30px !important;
+        }
+
+        .card-header {
+            background-color: transparent !important;
+            color: #000 !important;
+            border-bottom: 2px solid #000 !important;
+            padding: 0 0 8px 0 !important;
+            font-size: 14pt !important;
+            font-weight: bold !important;
+            text-transform: uppercase;
+        }
+
+        /* Hide specific badges and icons in the headers for a cleaner report */
+        .card-header .badge,
+        .card-header i,
+        .card-header button {
+            display: none !important;
+        }
+
+        .card-body {
+            padding: 15px 0 0 0 !important;
+        }
+
+        /* Control chart sizes so they don't blow up to full page height */
+        canvas {
+            max-height: 350px !important;
+            width: auto !important;
+            max-width: 100% !important;
+            margin: 0 auto !important;
+            display: block !important;
+        }
+
+        /* Format Matrix and Data Tables */
+        .table {
+            width: 100% !important;
+            border-collapse: collapse !important;
+            margin-bottom: 0 !important;
+        }
+
+        .table th,
+        .table td {
+            border: 1px solid #999 !important;
+            padding: 6px !important;
+            font-size: 10pt !important;
+            background-color: transparent !important;
+        }
+
+        .table-responsive {
+            overflow: visible !important;
+        }
+
+        /* Formal Document Cover/Header */
+        .print-header {
+            text-align: center !important;
+            border-bottom: 3px double #000 !important;
+            margin-bottom: 30px !important;
+            padding-bottom: 15px !important;
+            display: block !important;
+        }
+
+        .print-logo {
+            max-height: 60px !important;
+            display: block !important;
+            margin: 0 auto 15px auto !important;
+        }
+    }
+
+
     .print-logo {
-        max-height: 60px;
-        width: auto;
+        max-height: 70px;
+    }
+
+    .print-header {
+        text-align: center;
+        border-bottom: 2px solid #000;
+        margin-bottom: 20px;
+        padding-bottom: 10px;
+        display: none;
+    }
+
+    .bg-total {
+        background-color: #ced4da !important;
+    }
+
+    .bg-black {
+        background-color: #000000 !important;
+        color: #ffffff !important;
+    }
+
+    @media print {
+        body.print-matrix-only * {
+            visibility: hidden;
+        }
+
+        body.print-matrix-only .print-header,
+        body.print-matrix-only .print-header *,
+        body.print-matrix-only #matrixCard,
+        body.print-matrix-only #matrixCard * {
+            visibility: visible;
+        }
+
+        body.print-matrix-only #matrixCard {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 100%;
+            margin: 0;
+            border: none;
+        }
     }
 </style>
+</head>
+<div class="modal fade no-print" id="printModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-dark text-white py-2">
+                <h6 class="modal-title">Select Sections to Print</h6>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="form-check mb-2"><input class="form-check-input" type="checkbox" id="p-status" checked><label class="form-check-label" for="p-status">Status & Turnover</label></div>
+                <div class="form-check mb-2"><input class="form-check-input" type="checkbox" id="p-comp" checked><label class="form-check-label" for="p-comp">Vault Compliance</label></div>
+                <div class="form-check mb-2"><input class="form-check-input" type="checkbox" id="p-demo" checked><label class="form-check-label" for="p-demo">Demographics (Age, Gender, Dept)</label></div>
+                <div class="form-check mb-2"><input class="form-check-input" type="checkbox" id="p-matrix" checked><label class="form-check-label" for="p-matrix">Tenure Matrix</label></div>
+            </div>
+            <div class="modal-footer py-1">
+                <button type="button" class="btn btn-primary btn-sm" onclick="executeCustomPrint()"><i class="bi bi-printer"></i> Generate Report</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 
 <div class="container-fluid px-4">
 
@@ -921,7 +1225,7 @@ include 'header.php';
                         <option value="">All Agencies</option>
                         <option value="TESP_DIRECT" <?php if ($agencyFilter === 'TESP_DIRECT') echo 'selected'; ?>>TESP Direct</option>
                         <?php foreach ($agencies as $a):
-                            if (stripos($a, 'TESP') !== false) continue;
+                            if (stripos($a, 'TESP') !== false) continue; // Skip TESP Direct as it is handled above
                         ?>
                             <option value="<?php echo htmlspecialchars($a); ?>" <?php if ($agencyFilter === $a) echo 'selected'; ?>><?php echo htmlspecialchars($a); ?></option>
                         <?php endforeach; ?>
@@ -1008,16 +1312,16 @@ include 'header.php';
 
                 <div class="col-auto ms-auto d-flex gap-2">
                     <button type="submit" class="btn btn-sm btn-primary"><i class="bi bi-arrow-repeat"></i> Apply</button>
-                    <button type="button" class="btn btn-sm btn-success" onclick="window.location.href='?<?php echo http_build_query(array_merge($_GET, ['export_summary' => 1])); ?>'"><i class="bi bi-file-earmark-spreadsheet"></i> Export Summary</button>
-                    <button type="button" class="btn btn-sm btn-dark" data-bs-toggle="modal" data-bs-target="#printOptionsModal"><i class="bi bi-printer"></i> Print Report</button>
+                    <button type="button" data-bs-toggle="modal" data-bs-target="#printModal" class="btn btn-sm btn-dark"><i class="bi bi-printer"></i> Custom Print</button>
+
                     <a href="analytics.php" class="btn btn-sm btn-outline-secondary">Reset</a>
                 </div>
             </form>
         </div>
     </div>
 
-    <!-- // --- START: PRINT HEADER --- -->
-    <div class="print-header d-none d-print-block">
+    <!-- // --- START: PRINT FIX --- -->
+    <div class="print-header d-print-block">
         <img src="<?php echo $logo_src; ?>" alt="TESP Logo" class="print-logo">
         <div style="font-size: 16pt; font-weight: bold; text-transform: uppercase;">TES Philippines, Inc.</div>
         <div style="font-size: 14pt; font-weight: bold; text-transform: uppercase;">Workforce Analytics Report</div>
@@ -1025,10 +1329,9 @@ include 'header.php';
             Tenure as of: <?php echo htmlspecialchars($asOf->format('F j, Y')); ?> | Period: <?php echo htmlspecialchars($startDate . ' to ' . $endDate); ?> | Generated: <?php echo date('M d, Y'); ?>
         </p>
     </div>
-    <!-- // --- END: PRINT HEADER --- -->
+    <!-- // --- END: PRINT FIX --- -->
 
-    <!-- SECTION: KPIs -->
-    <div class="row mb-4 print-section-kpis">
+    <div class="row mb-4">
         <div class="col-md-3 mb-3">
             <div class="card shadow-sm h-100 text-center border-0 bg-primary text-white">
                 <div class="card-body d-flex flex-column justify-content-center">
@@ -1079,8 +1382,7 @@ include 'header.php';
         </div>
     </div>
 
-    <!-- SECTION: COMPLIANCE & EXPIRY -->
-    <div class="row mb-4 print-section-compliance">
+    <div class="row mb-4">
         <div class="col-md-3 mb-3">
             <div class="card shadow-sm h-100 border-info">
                 <div class="card-header bg-info text-dark border-bottom-0">
@@ -1096,17 +1398,15 @@ include 'header.php';
             <div class="card shadow-sm h-100">
                 <div class="card-header border-bottom-0 d-flex justify-content-between align-items-center">
                     <span>Compliance by Department</span>
-                    <div>
-                        <button class="btn btn-sm btn-link text-secondary p-0 me-1" onclick="downloadSpecificChart('complianceChart', 'Vault_Compliance_By_Dept')" title="Download Image"><i class="bi bi-download"></i></button>
-                        <button class="btn btn-sm btn-link text-secondary p-0" onclick="openFullScreen('complianceChart', 'Compliance by Department')"><i class="bi bi-arrows-fullscreen"></i></button>
-                    </div>
+                    <button class="btn btn-sm btn-link text-secondary p-0 me-1" onclick="downloadSpecificChart('complianceChart', 'Vault_Compliance_By_Dept')" title="Download Image"><i class="bi bi-download"></i></button>
+                    <button class="btn btn-sm btn-link text-secondary p-0" onclick="openFullScreen('complianceChart', 'Compliance by Department')"><i class="bi bi-arrows-fullscreen"></i></button>
                 </div>
                 <div class="card-body position-relative" style="min-height: 250px;"><canvas id="complianceChart"></canvas></div>
             </div>
         </div>
     </div>
 
-    <div class="row mb-4 print-section-compliance">
+    <div class="row mb-4">
         <div class="col-md-8 mb-3">
             <div class="card shadow-sm h-100 border-warning">
                 <div class="card-header border-bottom-0 d-flex justify-content-between align-items-center bg-warning text-dark">
@@ -1136,8 +1436,7 @@ include 'header.php';
         </div>
     </div>
 
-    <!-- SECTION: DEMOGRAPHICS & CHARTS -->
-    <div class="row mb-4 print-section-demographics">
+    <div class="row mb-4">
         <div class="col-12">
             <div class="card shadow-sm h-100">
                 <div class="card-header border-bottom-0 d-flex justify-content-between align-items-center">
@@ -1149,7 +1448,7 @@ include 'header.php';
         </div>
     </div>
 
-    <div class="row mb-4 print-section-demographics">
+    <div class="row mb-4">
         <div class="col-12">
             <div class="card shadow-sm h-100">
                 <div class="card-header border-bottom-0 d-flex justify-content-between align-items-center">
@@ -1161,15 +1460,13 @@ include 'header.php';
         </div>
     </div>
 
-    <div class="row mb-4 print-section-demographics">
+    <div class="row mb-4">
         <div class="col-md-6 mb-3">
             <div class="card shadow-sm h-100">
                 <div class="card-header border-bottom-0 d-flex justify-content-between align-items-center">
                     <span>Agency Breakdown</span>
-                    <div>
-                        <button class="btn btn-sm btn-link text-secondary p-0 me-1" onclick="downloadSpecificChart('agencyChart', 'Agency_Breakdown')" title="Download Image"><i class="bi bi-download"></i></button>
-                        <button class="btn btn-sm btn-link text-secondary p-0" onclick="openFullScreen('agencyChart', 'Agency Breakdown')"><i class="bi bi-arrows-fullscreen"></i></button>
-                    </div>
+                    <button class="btn btn-sm btn-link text-secondary p-0 me-1" onclick="downloadSpecificChart('agencyChart', 'Agency_Breakdown')" title="Download Image"><i class="bi bi-download"></i></button>
+                    <button class="btn btn-sm btn-link text-secondary p-0" onclick="openFullScreen('agencyChart', 'Agency Breakdown')"><i class="bi bi-arrows-fullscreen"></i></button>
                 </div>
                 <div class="card-body position-relative" style="min-height: 250px;"><canvas id="agencyChart"></canvas></div>
             </div>
@@ -1178,84 +1475,72 @@ include 'header.php';
             <div class="card shadow-sm h-100">
                 <div class="card-header border-bottom-0 d-flex justify-content-between align-items-center">
                     <span>Headcount by Dept</span>
-                    <div>
-                        <button class="btn btn-sm btn-link text-secondary p-0 me-1" onclick="downloadSpecificChart('deptChart', 'Headcount_By_Dept')" title="Download Image"><i class="bi bi-download"></i></button>
-                        <button class="btn btn-sm btn-link text-secondary p-0" onclick="openFullScreen('deptChart', 'Headcount by Department')"><i class="bi bi-arrows-fullscreen"></i></button>
-                    </div>
+                    <button class="btn btn-sm btn-link text-secondary p-0 me-1" onclick="downloadSpecificChart('deptChart', 'Headcount_By_Dept')" title="Download Image"><i class="bi bi-download"></i></button>
+                    <button class="btn btn-sm btn-link text-secondary p-0" onclick="openFullScreen('deptChart', 'Headcount by Department')"><i class="bi bi-arrows-fullscreen"></i></button>
                 </div>
                 <div class="card-body position-relative" style="min-height: 250px;"><canvas id="deptChart"></canvas></div>
             </div>
         </div>
     </div>
 
-    <div class="row mb-4 print-section-demographics">
-        <div class="col-md-8 mb-3">
+    <div class="row mb-4">
+        <div class="col-md-8">
             <div class="card shadow-sm h-100">
                 <div class="card-header border-bottom-0 text-info d-flex justify-content-between align-items-center">
                     <span>Net Workforce Growth</span>
-                    <div>
-                        <button class="btn btn-sm btn-link text-info p-0 me-1" onclick="downloadSpecificChart('trendChart', 'Workforce_Growth_Trend')" title="Download Image"><i class="bi bi-download"></i></button>
-                        <button class="btn btn-sm btn-link text-info p-0" onclick="openFullScreen('trendChart', 'Net Workforce Growth')"><i class="bi bi-arrows-fullscreen"></i></button>
-                    </div>
+                    <button class="btn btn-sm btn-link text-info p-0 me-1" onclick="downloadSpecificChart('trendChart', 'Workforce_Growth_Trend')" title="Download Image"><i class="bi bi-download"></i></button>
+                    <button class="btn btn-sm btn-link text-info p-0" onclick="openFullScreen('trendChart', 'Net Workforce Growth')"><i class="bi bi-arrows-fullscreen"></i></button>
                 </div>
                 <div class="card-body position-relative" style="min-height: 250px;"><canvas id="trendChart"></canvas></div>
             </div>
         </div>
-        <div class="col-md-4 mb-3">
+        <div class="col-md-4">
             <div class="card shadow-sm h-100">
                 <div class="card-header border-bottom-0 d-flex justify-content-between align-items-center">
                     <span>Gender Split</span>
-                    <div>
-                        <button class="btn btn-sm btn-link text-secondary p-0 me-1" onclick="downloadSpecificChart('genderChart', 'Gender_Distribution')" title="Download Image"><i class="bi bi-download"></i></button>
-                        <button class="btn btn-sm btn-link text-secondary p-0" onclick="openFullScreen('genderChart', 'Gender Distribution')"><i class="bi bi-arrows-fullscreen"></i></button>
-                    </div>
+                    <button class="btn btn-sm btn-link text-secondary p-0 me-1" onclick="downloadSpecificChart('genderChart', 'Gender_Distribution')" title="Download Image"><i class="bi bi-download"></i></button>
+                    <button class="btn btn-sm btn-link text-secondary p-0" onclick="openFullScreen('genderChart', 'Gender Distribution')"><i class="bi bi-arrows-fullscreen"></i></button>
                 </div>
                 <div class="card-body position-relative" style="min-height: 250px;"><canvas id="genderChart"></canvas></div>
             </div>
         </div>
     </div>
 
-    <div class="row mb-4 print-section-demographics">
-        <div class="col-md-4 mb-3">
+    <div class="row mb-4">
+        <div class="col-md-4">
             <div class="card shadow-sm h-100">
                 <div class="card-header border-bottom-0 d-flex justify-content-between align-items-center">
                     <span>Performance Ratings</span>
-                    <div>
-                        <button class="btn btn-sm btn-link text-secondary p-0 me-1" onclick="downloadSpecificChart('perfChart', 'Performance_Ratings')" title="Download Image"><i class="bi bi-download"></i></button>
-                        <button class="btn btn-sm btn-link text-secondary p-0" onclick="openFullScreen('perfChart', 'Performance Ratings')"><i class="bi bi-arrows-fullscreen"></i></button>
-                    </div>
+                    <button class="btn btn-sm btn-link text-secondary p-0 me-1" onclick="downloadSpecificChart('perfChart', 'Performance_Ratings')" title="Download Image"><i class="bi bi-download"></i></button>
+                    <button class="btn btn-sm btn-link text-secondary p-0" onclick="openFullScreen('perfChart', 'Performance Ratings')"><i class="bi bi-arrows-fullscreen"></i></button>
                 </div>
                 <div class="card-body position-relative" style="min-height: 250px;"><canvas id="perfChart"></canvas></div>
             </div>
         </div>
-        <div class="col-md-6 mb-3">
+        <div class="col-md-6">
             <div class="card shadow-sm h-100">
                 <div class="card-header border-bottom-0 d-flex justify-content-between align-items-center">
                     <span>Age Demographics</span>
-                    <div>
-                        <button class="btn btn-sm btn-link text-secondary p-0 me-1" onclick="downloadSpecificChart('ageChart', 'Age_Demographics')" title="Download Image"><i class="bi bi-download"></i></button>
-                        <button class="btn btn-sm btn-link text-secondary p-0" onclick="openFullScreen('ageChart', 'Age Demographics')"><i class="bi bi-arrows-fullscreen"></i></button>
-                    </div>
+                    <button class="btn btn-sm btn-link text-secondary p-0 me-1" onclick="downloadSpecificChart('ageChart', 'Age_Demographics')" title="Download Image"><i class="bi bi-download"></i></button>
+                    <button class="btn btn-sm btn-link text-secondary p-0" onclick="openFullScreen('ageChart', 'Age Demographics')"><i class="bi bi-arrows-fullscreen"></i></button>
                 </div>
                 <div class="card-body position-relative" style="min-height: 250px;"><canvas id="ageChart"></canvas></div>
             </div>
         </div>
-        <div class="col-md-2 mb-3">
+        <div class="col-md-2">
             <div class="card shadow-sm h-100">
                 <div class="card-header border-bottom-0 d-flex justify-content-between align-items-center">
                     <span>Tenure Overview</span>
-                    <div>
-                        <button class="btn btn-sm btn-link text-secondary p-0 me-1" onclick="downloadSpecificChart('tenureChart', 'Tenure_Overview')" title="Download Image"><i class="bi bi-download"></i></button>
-                        <button class="btn btn-sm btn-link text-secondary p-0" onclick="openFullScreen('tenureChart', 'Tenure Overview')"><i class="bi bi-arrows-fullscreen"></i></button>
-                    </div>
+                    <button class="btn btn-sm btn-link text-secondary p-0 me-1" onclick="downloadSpecificChart('tenureChart', 'Tenure_Overview')" title="Download Image"><i class="bi bi-download"></i></button>
+                    <button class="btn btn-sm btn-link text-secondary p-0" onclick="openFullScreen('tenureChart', 'Tenure Overview')"><i class="bi bi-arrows-fullscreen"></i></button>
                 </div>
                 <div class="card-body position-relative" style="min-height: 250px;"><canvas id="tenureChart"></canvas></div>
             </div>
         </div>
     </div>
 
-    <div class="row mb-4 print-section-demographics">
-        <div class="col-md-3 mb-3">
+    <div class="row mb-4">
+        <div class="col-md-3">
             <div class="card shadow-sm h-100 border-danger">
                 <div class="card-header bg-danger text-white border-bottom-0 d-flex justify-content-between align-items-center">
                     <span><i class="bi bi-pie-chart-fill me-1"></i> Attrition Status</span>
@@ -1269,7 +1554,7 @@ include 'header.php';
                 </div>
             </div>
         </div>
-        <div class="col-md-3 mb-3">
+        <div class="col-md-3">
             <div class="card shadow-sm h-100 border-danger">
                 <div class="card-header bg-danger text-white border-bottom-0 d-flex justify-content-between align-items-center">
                     <span><i class="bi bi-bar-chart-fill me-1"></i> Exits by Dept</span>
@@ -1283,7 +1568,7 @@ include 'header.php';
                 </div>
             </div>
         </div>
-        <div class="col-md-3 mb-3">
+        <div class="col-md-3">
             <div class="card shadow-sm h-100 border-danger">
                 <div class="card-header bg-danger text-white border-bottom-0 d-flex justify-content-between align-items-center">
                     <span><i class="bi bi-graph-down-arrow me-1"></i> Monthly Trend</span>
@@ -1297,7 +1582,7 @@ include 'header.php';
                 </div>
             </div>
         </div>
-        <div class="col-md-3 mb-3">
+        <div class="col-md-3">
             <div class="card shadow-sm h-100 border-danger">
                 <div class="card-header bg-danger text-white border-bottom-0">
                     <i class="bi bi-chat-quote-fill me-1"></i> Top Exit Reasons
@@ -1320,8 +1605,7 @@ include 'header.php';
         </div>
     </div>
 
-    <!-- SECTION: BIRTHDAYS & ANNIVERSARIES -->
-    <div class="row mb-5 print-section-birthdays">
+    <div class="row mb-4">
         <div class="col-lg-4 mb-4 mb-lg-0">
             <div class="card shadow-sm border-info h-100" id="birthdayCard">
                 <div class="card-header bg-info text-dark d-flex justify-content-between align-items-center">
@@ -1415,10 +1699,8 @@ include 'header.php';
             <div class="card shadow-sm border-info h-100">
                 <div class="card-header bg-info text-dark d-flex justify-content-between align-items-center">
                     <span class="fw-bold"><i class="bi bi-bar-chart-fill"></i> Birthdays per Month</span>
-                    <div>
-                        <button class="btn btn-sm btn-link text-dark p-0 me-1" onclick="downloadSpecificChart('bdayMonthChart', 'Birthday_Distribution_Annual')" title="Download Image"><i class="bi bi-download"></i></button>
-                        <button class="btn btn-sm btn-link text-dark p-0" onclick="openFullScreen('bdayChart', 'Birthdays per Month')"><i class="bi bi-arrows-fullscreen"></i></button>
-                    </div>
+                    <button class="btn btn-sm btn-link text-dark p-0 me-1" onclick="downloadSpecificChart('bdayMonthChart', 'Birthday_Distribution_Annual')" title="Download Image"><i class="bi bi-download"></i></button>
+                    <button class="btn btn-sm btn-link text-dark p-0" onclick="openFullScreen('bdayChart', 'Birthdays per Month')"><i class="bi bi-arrows-fullscreen"></i></button>
                 </div>
                 <div class="card-body position-relative" style="min-height: 250px;">
                     <canvas id="bdayMonthChart"></canvas>
@@ -1427,8 +1709,7 @@ include 'header.php';
         </div>
     </div>
 
-    <!-- SECTION: TENURE MATRIX -->
-    <div class="row mb-5 print-section-matrix">
+    <div class="row mb-5">
         <div class="col-12">
             <div class="card shadow-sm" id="matrixCard">
                 <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
@@ -1483,7 +1764,6 @@ include 'header.php';
         </div>
     </div>
 
-    <!-- MODALS -->
     <div class="modal fade" id="probationModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-lg modal-dialog-scrollable">
             <div class="modal-content">
@@ -1571,46 +1851,6 @@ include 'header.php';
         </div>
     </div>
 
-    <!-- Print Options Modal -->
-    <div class="modal fade" id="printOptionsModal" tabindex="-1" aria-hidden="true">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header bg-dark text-white">
-                    <h5 class="modal-title"><i class="bi bi-printer-fill me-2"></i> Select Sections to Print</h5>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body">
-                    <form id="printSelectionForm">
-                        <div class="form-check mb-2">
-                            <input class="form-check-input print-section-checkbox" type="checkbox" value="kpis" id="chkKpis" checked>
-                            <label class="form-check-label fw-bold" for="chkKpis">Executive KPIs & Summary Cards</label>
-                        </div>
-                        <div class="form-check mb-2">
-                            <input class="form-check-input print-section-checkbox" type="checkbox" value="compliance" id="chkCompliance" checked>
-                            <label class="form-check-label fw-bold" for="chkCompliance">Vault Compliance & Expiry Forecast</label>
-                        </div>
-                        <div class="form-check mb-2">
-                            <input class="form-check-input print-section-checkbox" type="checkbox" value="demographics" id="chkDemographics" checked>
-                            <label class="form-check-label fw-bold" for="chkDemographics">Demographics & Charts (Gender, Age, Dept, etc.)</label>
-                        </div>
-                        <div class="form-check mb-2">
-                            <input class="form-check-input print-section-checkbox" type="checkbox" value="birthdays" id="chkBirthdays" checked>
-                            <label class="form-check-label fw-bold" for="chkBirthdays">Birthdays & Work Anniversaries</label>
-                        </div>
-                        <div class="form-check mb-2">
-                            <input class="form-check-input print-section-checkbox" type="checkbox" value="matrix" id="chkMatrix" checked>
-                            <label class="form-check-label fw-bold" for="chkMatrix">Tenure Matrix Table</label>
-                        </div>
-                    </form>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
-                    <button type="button" class="btn btn-primary btn-sm" onclick="executeSelectivePrint()"><i class="bi bi-printer me-1"></i> Generate Print Report</button>
-                </div>
-            </div>
-        </div>
-    </div>
-
 </div>
 
 <script src="assets/bootstrap.bundle.min.js"></script>
@@ -1618,8 +1858,9 @@ include 'header.php';
 
 <script>
     const colors = ['#0d6efd', '#198754', '#ffc107', '#dc3545', '#6610f2', '#fd7e14'];
-    const charts = {};
+    const charts = {}; // Store chart instances for theme updates
 
+    // [NEW] 100% Offline Custom DataLabels Plugin (No Internet Required)
     const offlineDataLabels = {
         id: 'offlineDataLabels',
         afterDatasetsDraw(chart, args, options) {
@@ -1638,7 +1879,7 @@ include 'header.php';
                 meta.data.forEach((element, index) => {
                     let dataVal = dataset.data[index];
                     let totalSum = dataset.data.reduce((a, b) => Number(a) + Number(b), 0);
-                    if (dataVal === undefined || dataVal === null || Number(dataVal) === 0) return;
+                    if (dataVal === undefined || dataVal === null || Number(dataVal) === 0) return; // Hide zeros
 
                     let text = dataVal.toString();
                     if (dataset.label === 'Compliance %' || chart.canvas.id === 'complianceChart' || chart.canvas.id === 'eduProgChart') text += '%';
@@ -1647,26 +1888,30 @@ include 'header.php';
                     if (chart.config.type === 'pie' || chart.config.type === 'doughnut') {
                         let total = dataset.data.reduce((a, b) => Number(a) + Number(b), 0);
                         let percent = Math.round((dataVal / total) * 100);
-                        if (percent < 5) return;
+                        if (percent < 5) return; // Hide small slices
                         text = `${dataVal} (${percent}%)`;
                     }
 
                     if (typeof element.tooltipPosition !== 'function') return;
                     let pos = element.tooltipPosition();
+
                     let x = pos.x;
                     let y = pos.y;
 
+                    // [FIX] Detect Horizontal Bars for accurate internal labeling
                     if ((chart.config.type === 'bar' || meta.type === 'bar') && element.base !== undefined) {
                         if (chart.options.indexAxis === 'y') {
-                            x = (element.base + pos.x) / 2;
+                            x = (element.base + pos.x) / 2; // Center horizontally inside bars
                         } else {
-                            y = (element.base + pos.y) / 2;
+                            y = (element.base + pos.y) / 2; // Center vertically inside bars
                         }
                     }
 
+                    // Text Stroke (Outline)
                     ctx.strokeStyle = 'rgba(0, 0, 0, 0.75)';
                     ctx.lineWidth = 3;
                     ctx.strokeText(text, x, y);
+                    // Text Fill
                     ctx.fillStyle = '#ffffff';
                     ctx.fillText(text, x, y);
                 });
@@ -1674,8 +1919,10 @@ include 'header.php';
             ctx.restore();
         }
     };
+    // Register the offline plugin globally
     Chart.register(offlineDataLabels);
 
+    // Data Store for Full Screen Mode
     const chartData = {
         'statusChart': {
             labels: ['Regular', 'Probationary'],
@@ -1817,6 +2064,7 @@ include 'header.php';
 
         document.getElementById('fsModalTitle').innerText = title;
 
+        // 1. Render Table Header (Dynamic for multiple datasets)
         const theadTr = document.querySelector('#fsDataTable thead tr');
         theadTr.innerHTML = '';
 
@@ -1844,11 +2092,13 @@ include 'header.php';
             theadTr.appendChild(countTh);
         }
 
+        // 2. Render Table Body
         const tbody = document.querySelector('#fsDataTable tbody');
         tbody.innerHTML = '';
         let total = 0;
 
         if (info.datasets && !info.data) {
+            // Multi-dataset chart (e.g., Net Workforce Growth, Expiry Forecast)
             let colTotals = new Array(info.datasets.length).fill(0);
 
             info.labels.forEach((lbl, i) => {
@@ -1873,6 +2123,7 @@ include 'header.php';
                     } else {
                         td.classList.add('fw-bold');
                     }
+
                     tr.appendChild(td);
                 });
 
@@ -1889,6 +2140,7 @@ include 'header.php';
 
             const trTotal = document.createElement('tr');
             trTotal.className = 'table-secondary fw-bold';
+
             const totalLabelTd = document.createElement('td');
             totalLabelTd.textContent = 'TOTAL';
             trTotal.appendChild(totalLabelTd);
@@ -1927,8 +2179,10 @@ include 'header.php';
                 tbody.appendChild(tr);
             });
 
+            // Single Total Row (for standard single data charts)
             const trTotal = document.createElement('tr');
             trTotal.className = 'table-secondary fw-bold';
+
             const totalLabelTd = document.createElement('td');
             totalLabelTd.textContent = 'TOTAL';
             trTotal.appendChild(totalLabelTd);
@@ -1941,10 +2195,12 @@ include 'header.php';
             tbody.appendChild(trTotal);
         }
 
+        // 3. Render Chart
         const ctx = document.getElementById('fsChartCanvas').getContext('2d');
         if (fsChartInstance) fsChartInstance.destroy();
 
         const isLine = info.type === 'line';
+
         let datasets = [];
         if (info.type === 'stacked_bar' && Array.isArray(info.datasets)) {
             datasets = info.datasets.map((ds) => ({
@@ -2024,6 +2280,7 @@ include 'header.php';
 
         if (canvas) {
             try {
+                // Force white background for clean documentation exports
                 const destinationCanvas = document.createElement("canvas");
                 destinationCanvas.width = canvas.width;
                 destinationCanvas.height = canvas.height;
@@ -2061,6 +2318,7 @@ include 'header.php';
         const canvas = document.getElementById(canvasId);
         if (canvas) {
             try {
+                // Force white background for clean documentation exports
                 const destinationCanvas = document.createElement("canvas");
                 destinationCanvas.width = canvas.width;
                 destinationCanvas.height = canvas.height;
@@ -2094,7 +2352,7 @@ include 'header.php';
         }
     }
 
-    // Chart initializations
+    // Status (Probationary vs Regular)
     charts.statusChart = new Chart(document.getElementById('statusChart'), {
         type: 'doughnut',
         data: {
@@ -2111,10 +2369,11 @@ include 'header.php';
                 legend: {
                     display: false
                 }
-            }
+            } // Hide legend to save space
         }
     });
 
+    // Agency
     charts.agencyChart = new Chart(document.getElementById('agencyChart'), {
         type: 'doughnut',
         data: {
@@ -2135,6 +2394,7 @@ include 'header.php';
         }
     });
 
+    // Departments
     charts.deptChart = new Chart(document.getElementById('deptChart'), {
         type: 'bar',
         data: {
@@ -2157,6 +2417,7 @@ include 'header.php';
         }
     });
 
+    // Turnover (Inactive breakdown)
     charts.turnoverChart = new Chart(document.getElementById('turnoverChart'), {
         type: 'pie',
         data: {
@@ -2177,6 +2438,7 @@ include 'header.php';
         }
     });
 
+    // Attrition Trend (Monthly)
     charts.attritionTrendChart = new Chart(document.getElementById('attritionTrendChart'), {
         type: 'bar',
         data: {
@@ -2193,15 +2455,18 @@ include 'header.php';
             maintainAspectRatio: false,
             scales: {
                 y: {
+                    type: 'linear', // [FIX] Forces linear scaling
                     beginAtZero: true,
                     ticks: {
-                        stepSize: 1
+                        stepSize: 1,
+                        precision: 0
                     }
                 }
             }
         }
     });
 
+    // Turnover by Dept
     charts.deptTurnoverChart = new Chart(document.getElementById('deptTurnoverChart'), {
         type: 'bar',
         data: {
@@ -2223,15 +2488,18 @@ include 'header.php';
             },
             scales: {
                 y: {
+                    type: 'linear', // [FIX] Forces linear scaling so stepSize is strictly enforced
                     beginAtZero: true,
                     ticks: {
-                        stepSize: 1
+                        stepSize: 1,
+                        precision: 0 // [FIX] Prevents fractional counts like 0.5 or 1.5 employees/exits
                     }
                 }
             }
         }
     });
 
+    // Net Workforce Growth
     charts.trendChart = new Chart(document.getElementById('trendChart'), {
         type: 'line',
         data: {
@@ -2239,8 +2507,8 @@ include 'header.php';
             datasets: [{
                     label: 'New Hires',
                     data: <?php echo $trendCounts; ?>,
-                    borderColor: '#0d6efd',
-                    backgroundColor: 'rgba(13, 110, 253, 0.2)',
+                    borderColor: '#0d6efd', // Blue
+                    backgroundColor: 'rgba(13, 110, 253, 0.2)', // Light blue fill
                     borderWidth: 2,
                     fill: true,
                     tension: 0.3,
@@ -2250,8 +2518,8 @@ include 'header.php';
                 {
                     label: 'Net Growth',
                     data: <?php echo $netGrowthCounts; ?>,
-                    borderColor: '#198754',
-                    backgroundColor: 'rgba(25, 135, 84, 0.2)',
+                    borderColor: '#198754', // Green
+                    backgroundColor: 'rgba(25, 135, 84, 0.2)', // Light green fill
                     borderWidth: 2,
                     fill: true,
                     tension: 0.3,
@@ -2261,8 +2529,8 @@ include 'header.php';
                 {
                     label: 'Exits',
                     data: <?php echo $attrTrendCounts; ?>,
-                    borderColor: '#dc3545',
-                    backgroundColor: 'rgba(220, 53, 69, 0.2)',
+                    borderColor: '#dc3545', // Red
+                    backgroundColor: 'rgba(220, 53, 69, 0.2)', // Light red fill
                     borderWidth: 2,
                     fill: true,
                     tension: 0.3,
@@ -2276,7 +2544,7 @@ include 'header.php';
             maintainAspectRatio: false,
             plugins: {
                 legend: {
-                    display: true
+                    display: true // Show legend for multiple datasets
                 }
             },
             scales: {
@@ -2290,6 +2558,7 @@ include 'header.php';
         }
     });
 
+    // Education Progress (Graduates % by Dept)
     charts.eduProgChart = new Chart(document.getElementById('eduProgChart'), {
         type: 'bar',
         data: {
@@ -2304,7 +2573,7 @@ include 'header.php';
         options: {
             responsive: true,
             maintainAspectRatio: false,
-            indexAxis: 'y',
+            indexAxis: 'y', // Horizontal bars are easier to read for many depts
             scales: {
                 x: {
                     beginAtZero: true,
@@ -2322,6 +2591,7 @@ include 'header.php';
         }
     });
 
+    // [NEW] College Course Distribution
     charts.courseDistChart = new Chart(document.getElementById('courseDistChart'), {
         type: 'bar',
         data: {
@@ -2336,7 +2606,7 @@ include 'header.php';
         options: {
             responsive: true,
             maintainAspectRatio: false,
-            indexAxis: 'y',
+            indexAxis: 'y', // Horizontal is better for long course names
             plugins: {
                 legend: {
                     display: false
@@ -2353,6 +2623,7 @@ include 'header.php';
         }
     });
 
+    // NEW: Compliance Chart
     charts.complianceChart = new Chart(document.getElementById('complianceChart'), {
         type: 'bar',
         data: {
@@ -2384,6 +2655,7 @@ include 'header.php';
         }
     });
 
+    // Expiry Forecast (Stacked Bar)
     charts.expiryChart = new Chart(document.getElementById('expiryChart'), {
         type: 'bar',
         data: {
@@ -2403,16 +2675,19 @@ include 'header.php';
                     stacked: true
                 },
                 y: {
+                    type: 'linear', // [FIX] Forces linear scaling
                     stacked: true,
                     beginAtZero: true,
                     ticks: {
-                        stepSize: 1
+                        stepSize: 1,
+                        precision: 0
                     }
                 }
             }
         }
     });
 
+    // Recruitment ATS (Doughnut)
     charts.recruitChart = new Chart(document.getElementById('recruitChart'), {
         type: 'doughnut',
         data: {
@@ -2433,6 +2708,7 @@ include 'header.php';
         }
     });
 
+    // Performance
     charts.perfChart = new Chart(document.getElementById('perfChart'), {
         type: 'bar',
         data: {
@@ -2450,6 +2726,7 @@ include 'header.php';
         }
     });
 
+    // Gender
     charts.genderChart = new Chart(document.getElementById('genderChart'), {
         type: 'doughnut',
         data: {
@@ -2465,6 +2742,7 @@ include 'header.php';
         }
     });
 
+    // Age
     charts.ageChart = new Chart(document.getElementById('ageChart'), {
         type: 'bar',
         data: {
@@ -2482,6 +2760,7 @@ include 'header.php';
         }
     });
 
+    // Tenure
     charts.tenureChart = new Chart(document.getElementById('tenureChart'), {
         type: 'bar',
         data: {
@@ -2504,6 +2783,7 @@ include 'header.php';
         }
     });
 
+    // Birthday Distribution (Annual)
     charts.bdayChart = new Chart(document.getElementById('bdayMonthChart'), {
         type: 'bar',
         data: {
@@ -2540,33 +2820,14 @@ include 'header.php';
         document.body.classList.remove('print-matrix-only');
     }
 
-    function executeSelectivePrint() {
-        const modalEl = document.getElementById('printOptionsModal');
-        const modal = bootstrap.Modal.getInstance(modalEl);
-        if (modal) modal.hide();
-
-        document.querySelectorAll('.print-section-checkbox').forEach(chk => {
-            const sectionClass = '.print-section-' + chk.value;
-            document.querySelectorAll(sectionClass).forEach(el => {
-                if (chk.checked) {
-                    el.classList.remove('force-hide-print');
-                } else {
-                    el.classList.add('force-hide-print');
-                }
-            });
-        });
-
-        setTimeout(() => {
-            window.print();
-        }, 300);
-    }
-
+    // [NEW] Dark Mode Adapter for Charts
     function updateChartsTheme() {
         const isDark = document.documentElement.getAttribute('data-bs-theme') === 'dark';
         const textColor = isDark ? '#adb5bd' : '#6c757d';
         const gridColor = isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)';
 
         Object.values(charts).forEach(chart => {
+            // Update Scales (x/y)
             if (chart.options.scales) {
                 ['x', 'y'].forEach(axis => {
                     if (chart.options.scales[axis]) {
@@ -2578,6 +2839,7 @@ include 'header.php';
                 });
             }
 
+            // Update Legend Labels (for pie/doughnut charts)
             if (chart.options.plugins && chart.options.plugins.legend) {
                 chart.options.plugins.legend.labels = chart.options.plugins.legend.labels || {};
                 chart.options.plugins.legend.labels.color = textColor;
@@ -2585,6 +2847,7 @@ include 'header.php';
             chart.update();
         });
 
+        // Also update the full screen chart if it's active
         if (typeof fsChartInstance !== 'undefined' && fsChartInstance) {
             if (fsChartInstance.options.scales) {
                 ['x', 'y'].forEach(axis => {
@@ -2611,95 +2874,116 @@ include 'header.php';
         attributes: true,
         attributeFilter: ['data-bs-theme']
     });
-    updateChartsTheme();
-</script>
+    updateChartsTheme(); // Initial check
 
-<!-- Professional Print CSS Styling -->
-<style>
-    @media print {
-        @page {
-            size: landscape;
-            margin: 10mm;
+    function executeCustomPrint() {
+        // 1. Clear previous temporary print-hidden classes
+        document.querySelectorAll('.temp-hide-print').forEach(el => el.classList.remove('d-print-none', 'temp-hide-print'));
+
+        // 2. Map checkboxes to the exact Canvas IDs or Card IDs in your HTML
+        const printMap = {
+            'p-status': ['statusChart', 'turnoverChart'],
+            'p-comp': ['complianceChart'],
+            'p-demo': ['agencyChart', 'deptChart', 'genderChart', 'ageChart'],
+            'p-matrix': ['matrixCard'] // Card ID instead of Canvas ID
+        };
+
+        // 3. Hide unselected items by targeting their parent Bootstrap column
+        for (const [chkId, targets] of Object.entries(printMap)) {
+            if (!document.getElementById(chkId).checked) {
+                targets.forEach(targetId => {
+                    const el = document.getElementById(targetId);
+                    if (el) {
+                        const container = el.closest('[class*="col-"]') || el;
+                        container.classList.add('d-print-none', 'temp-hide-print');
+                    }
+                });
+            }
         }
 
-        body {
-            background: white !important;
-            color: #000 !important;
-            font-size: 10pt;
-            -webkit-print-color-adjust: exact !important;
-            print-color-adjust: exact !important;
-        }
-
-        .no-print,
-        .navbar,
-        .btn,
-        form,
-        .modal {
-            display: none !important;
-        }
-
-        .force-hide-print {
-            display: none !important;
-        }
-
-        .container-fluid {
-            padding: 0 !important;
-            max-width: 100% !important;
-        }
-
-        .print-header {
-            text-align: center !important;
-            border-bottom: 2px solid #000 !important;
-            margin-bottom: 15px !important;
-            padding-bottom: 8px !important;
-            display: block !important;
-        }
-
-        .print-logo {
-            max-height: 55px !important;
-            width: auto !important;
-            display: block !important;
-            margin: 0 auto 8px auto !important;
-        }
-
-        .card {
-            border: 1px solid #bbb !important;
-            box-shadow: none !important;
-            page-break-inside: avoid !important;
-            break-inside: avoid !important;
-            margin-bottom: 12px !important;
-        }
-
-        .card-header {
-            background-color: #e9ecef !important;
-            color: #000 !important;
-            font-size: 9pt;
-            padding: 6px 10px !important;
-            border-bottom: 1px solid #bbb !important;
-        }
-
-        .card-body {
-            padding: 8px !important;
-        }
-
-        canvas {
-            max-height: 180px !important;
-            width: 100% !important;
-        }
-
-        .matrix-table {
-            font-size: 8.5pt;
-            width: 100%;
-            border-collapse: collapse;
-        }
-
-        .matrix-table th,
-        .matrix-table td {
-            border: 1px solid #777 !important;
-            padding: 3px 5px !important;
-        }
+        // 4. Trigger print (Bootstrap hides the modal from print automatically via your .no-print class)
+        window.print();
     }
-</style>
+
+    function executeCustomPrint() {
+        // 1. Reset any previously hidden items
+        document.querySelectorAll('.temp-hide-print').forEach(el => {
+            el.classList.remove('d-print-none', 'temp-hide-print');
+        });
+
+        // 2. Map exact unique identifiers (Canvas IDs or text headers) to each checkbox
+        const printConfig = {
+            'p-status': [
+                'Active Headcount', 'statusChart', 'Turnover Rate', 'Avg Tenure',
+                'turnoverChart', 'deptTurnoverChart', 'attritionTrendChart',
+                'Top Exit Reasons', 'recruitChart'
+            ],
+            'p-comp': [
+                'Vault Compliance', 'complianceChart', 'expiryChart'
+            ],
+            'p-matrix': [
+                'matrixCard' // Catches the ID of the matrix table card
+            ],
+            'p-demo': [
+                'eduProgChart', 'courseDistChart', 'agencyChart', 'deptChart',
+                'trendChart', 'genderChart', 'perfChart', 'ageChart', 'tenureChart',
+                'birthdayCard', 'anniversaryCard', 'bdayMonthChart'
+            ]
+        };
+
+        // 3. Get the true/false value of each checkbox
+        const selections = {};
+        Object.keys(printConfig).forEach(key => {
+            const chk = document.getElementById(key);
+            selections[key] = chk ? chk.checked : true;
+        });
+
+        // 4. Scan every card on the page
+        document.querySelectorAll('.card').forEach(card => {
+            // Ignore the print modal itself and the top filter bar
+            if (card.id === 'printModal' || card.classList.contains('no-print')) return;
+
+            const cardHTML = card.innerHTML; // Look at the raw HTML to catch Canvas IDs
+            let matchedCategory = 'p-demo'; // Default fallback
+
+            // Find which category this card belongs to
+            for (const [category, identifiers] of Object.entries(printConfig)) {
+                if (identifiers.some(id => cardHTML.includes(id) || card.id === id)) {
+                    matchedCategory = category;
+                    break;
+                }
+            }
+
+            // 5. If the category is unchecked, hide the entire column wrapper
+            if (!selections[matchedCategory]) {
+                const colWrapper = card.closest('[class*="col-"]');
+                if (colWrapper) {
+                    colWrapper.classList.add('d-print-none', 'temp-hide-print');
+                } else {
+                    card.classList.add('d-print-none', 'temp-hide-print');
+                }
+            }
+        });
+
+        // 6. Hide empty rows to ensure there are no massive blank spaces on the paper
+        document.querySelectorAll('.row').forEach(row => {
+            const visibleCols = Array.from(row.children).filter(col => !col.classList.contains('d-print-none'));
+            if (visibleCols.length === 0) {
+                row.classList.add('d-print-none', 'temp-hide-print');
+            }
+        });
+
+        // 7. Open the print window
+        window.print();
+    }
+
+    // 8. Restore everything back to normal immediately after printing is done or cancelled
+    window.addEventListener('afterprint', () => {
+        document.querySelectorAll('.temp-hide-print').forEach(el => {
+            el.classList.remove('d-print-none', 'temp-hide-print');
+        });
+    });
+</script>
 
 </body>
 

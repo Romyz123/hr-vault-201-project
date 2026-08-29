@@ -22,6 +22,7 @@ if (!isset($_SESSION['user_id']) || !in_array($userRole, ['ADMIN', 'MANAGER', 'H
 }
 
 $logger = new Logger($pdo);
+require 'header.php';
 
 // [FIX] Defensive initialization
 $agencies = [];
@@ -783,6 +784,6 @@ $allDepts = $pdo->query("SELECT DISTINCT dept FROM employees WHERE dept != '' OR
         });
     </script>
     <script src="dark_mode.js"></script>
-</body>
+    <?php require 'footer.php'; ?>
 
 </html>

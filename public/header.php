@@ -177,16 +177,9 @@ $displayTitle = $pageTitles[$currentPage] ?? 'TESP HR 201 System';
     <title><?php echo $displayTitle; ?> | TESP HR 201 System</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <?php
-
-    $faviconUrl = 'uploads/favicon.png';
-    if (file_exists(__DIR__ . '/../uploads/favicon.png')) {
-        $faviconUrl = '../uploads/favicon.png';
-    } elseif (file_exists(__DIR__ . '/assets/images/favicon.png')) {
-        $faviconUrl = 'assets/images/favicon.png';
-    } elseif (file_exists(__DIR__ . '/../assets/images/favicon.png')) {
-        $faviconUrl = '../assets/images/favicon.png';
-    }
-    $faviconUrl .= '?v=' . time();
+    $faviconPath = '../uploads/favicon.png';
+    if (!file_exists(__DIR__ . '/../uploads/favicon.png')) $faviconPath = '../uploads/tesp-logo.png';
+    $faviconUrl = $faviconPath . '?v=' . (file_exists(__DIR__ . '/' . $faviconPath) ? filemtime(__DIR__ . '/' . $faviconPath) : time());
     ?>
     <link rel="icon" type="image/png" href="<?= $faviconUrl ?>">
     <link rel="shortcut icon" type="image/png" href="<?= $faviconUrl ?>">
@@ -196,9 +189,6 @@ $displayTitle = $pageTitles[$currentPage] ?? 'TESP HR 201 System';
     <script src="assets/chart.min.js"></script>
     <script src="assets/sweetalert2.all.min.js"></script>
     <script src="assets/dark_mode.js"></script>
-
-
-
     <style>
         :root {
             --bg: #f4f6f9;
@@ -430,7 +420,7 @@ $displayTitle = $pageTitles[$currentPage] ?? 'TESP HR 201 System';
                                 Modules
                             </a>
                             <ul class="dropdown-menu">
-                                <li><a class="dropdown-item" href="analytics.php"><i class="bi bi-graph-up text-primary me-2"></i> HR Analytics</a></li>
+                                <li><a class="dropdown-item" href="analytics.php"><i class="bi bi-graph-up me-2"></i> Analytics</a></li>
                                 <li><a class="dropdown-item" href="recruitment.php"><i class="bi bi-person-lines-fill me-2"></i> Recruitment</a></li>
                                 <li><a class="dropdown-item" href="performance_review.php"><i class="bi bi-clipboard2-data me-2"></i> Performance</a></li>
                                 <li><a class="dropdown-item" href="disciplinary.php"><i class="bi bi-exclamation-triangle me-2"></i> Disciplinary</a></li>

@@ -20,54 +20,6 @@ if (empty($_SESSION['csrf_token'])) {
 }
 $msg = "";
 
-// ======================================================
-// [SAFEGUARD] Automatically add missing columns to the tables
-// ======================================================
-try {
-    // 1. Check 'documents' table
-    $colsRaw = $pdo->query("SHOW COLUMNS FROM documents")->fetchAll(PDO::FETCH_ASSOC);
-    $cols = [];
-    foreach ($colsRaw as $c) {
-        if (is_array($c) && isset($c['Field'])) {
-            $cols[] = $c['Field'];
-        }
-    }
-
-    if (!empty($cols)) {
-        if (!in_array('expiry_date', $cols)) {
-            if (in_array('expiration_date', $cols)) {
-                $pdo->exec("ALTER TABLE documents CHANGE COLUMN expiration_date expiry_date DATE NULL DEFAULT NULL");
-            } else {
-                $pdo->exec("ALTER TABLE documents ADD COLUMN expiry_date DATE NULL DEFAULT NULL");
-            }
-        }
-        if (!in_array('is_resolved', $cols)) {
-            $pdo->exec("ALTER TABLE documents ADD COLUMN is_resolved TINYINT(1) NOT NULL DEFAULT 0");
-        }
-        if (!in_array('resolution_note', $cols)) {
-            $pdo->exec("ALTER TABLE documents ADD COLUMN resolution_note TEXT NULL DEFAULT NULL");
-        }
-        if (!in_array('deleted_at', $cols)) {
-            $pdo->exec("ALTER TABLE documents ADD COLUMN deleted_at DATETIME NULL DEFAULT NULL");
-        }
-    }
-
-    // 2. Check 'employees' table
-    $empColsRaw = $pdo->query("SHOW COLUMNS FROM employees")->fetchAll(PDO::FETCH_ASSOC);
-    $empCols = [];
-    foreach ($empColsRaw as $c) {
-        if (is_array($c) && isset($c['Field'])) {
-            $empCols[] = $c['Field'];
-        }
-    }
-    if (!empty($empCols) && !in_array('deleted_at', $empCols)) {
-        $pdo->exec("ALTER TABLE employees ADD COLUMN deleted_at DATETIME NULL DEFAULT NULL");
-    }
-} catch (Exception $e) {
-    // Silently catch if table structure check fails
-}
-// ======================================================
-
 // [NEW] Handle Quick Date Adjustment
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'update_date') {
     if (!isset($_POST['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'])) {
@@ -79,6 +31,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     $stmt = $pdo->prepare("UPDATE documents SET expiry_date = ?, is_resolved = 0, updated_at = NOW() WHERE id = ?");
     if ($stmt->execute([$newDate, $docId])) {
         $msg = "✅ Expiry date updated successfully.";
+        // [FIX] Instantiate logger properly to record the action
         require_once '../src/Logger.php';
         $logger = new Logger($pdo);
         $logger->log($_SESSION['user_id'], 'UPDATE_DOC_EXPIRY', "Updated expiry date for Doc ID: $docId to $newDate");
@@ -108,6 +61,7 @@ $dateTo = $_REQUEST['date_to'] ?? '';
 
 // [NEW] Handle Bulk Resolve Action
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'bulk_resolve') {
+    // CSRF check
     if (!isset($_POST['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'])) {
         die("CSRF Failed");
     }
@@ -125,6 +79,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         $msg = "❌ Resolution note is too long (Max 1000 chars).";
         $msgType = 'danger';
     } else {
+        // Sanitize doc IDs
         $docIds = array_filter($docIds, 'is_numeric');
         $docIds = array_map('intval', $docIds);
 
@@ -147,6 +102,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 }
 
 // 3. DATABASE QUERY
+// "Show me files that expire between TODAY and (Today + X Days)"
 $targetDate = date('Y-m-d', strtotime("+$days days"));
 $today = date('Y-m-d');
 
@@ -182,119 +138,18 @@ $sql .= " ORDER BY d.expiry_date ASC";
 $stmt = $pdo->prepare($sql);
 $stmt->execute($params);
 $docs = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-// LOGO PREPARATION FOR PRINT HEADER
-$logo_paths = [
-    __DIR__ . '/uploads/tesp-logo.png',
-    __DIR__ . '/uploads/tesp logo 1.png',
-    __DIR__ . '/assets/images/tesp-logo-1.png',
-    __DIR__ . '/../uploads/tesp-logo.png',
-    __DIR__ . '/../uploads/tesp logo 1.png'
-];
-$logo_src = '';
-foreach ($logo_paths as $p) {
-    if (file_exists($p)) {
-        $mime = pathinfo($p, PATHINFO_EXTENSION) === 'png' ? 'image/png' : 'image/jpeg';
-        $logo_src = 'data:' . $mime . ';base64,' . base64_encode(file_get_contents($p));
-        break;
-    }
-}
-if (empty($logo_src)) {
-    $logo_src = 'data:image/svg+xml;base64,' . base64_encode('<svg xmlns="http://www.w3.org/2000/svg" width="100" height="40"><text y="30" font-size="14" fill="#333">TES</text></svg>');
-}
-
 require 'header.php';
 ?>
 <style>
-    /* PROFESSIONAL PRINT CSS */
+    /* Yellow for coming soon */
     @media print {
-        @page {
-            size: portrait;
-            margin: 15mm 10mm;
-        }
-
-        body {
-            background: white !important;
-            color: #000 !important;
-            font-size: 10pt;
-            -webkit-print-color-adjust: exact !important;
-            print-color-adjust: exact !important;
-        }
-
-        .no-print,
-        .navbar,
-        .sidebar,
-        .btn,
-        .alert,
-        form:not(#bulkResolveForm) {
+        .no-print {
             display: none !important;
-        }
-
-        .container-fluid {
-            padding: 0 !important;
-            max-width: 100% !important;
-        }
-
-        /* Official Print Header Formatting */
-        .print-header {
-            display: block !important;
-            text-align: center;
-            margin-bottom: 20px;
-            border-bottom: 2px solid #000;
-            padding-bottom: 12px;
-        }
-
-        .print-header img {
-            max-height: 55px;
-            width: auto;
-            margin-bottom: 8px;
         }
 
         .card {
             border: none !important;
             box-shadow: none !important;
-            margin: 0 !important;
-            padding: 0 !important;
-        }
-
-        /* Table Formatting for Print */
-        .table {
-            width: 100% !important;
-            border-collapse: collapse !important;
-            margin-bottom: 0 !important;
-        }
-
-        .table th,
-        .table td {
-            border: 1px solid #777 !important;
-            padding: 6px 8px !important;
-            font-size: 9.5pt !important;
-            vertical-align: middle !important;
-            background-color: transparent !important;
-        }
-
-        .table-dark th {
-            background-color: #e9ecef !important;
-            color: #000 !important;
-            font-weight: bold !important;
-            border: 1px solid #000 !important;
-        }
-
-        /* Highlight expired rows subtly in print */
-        .table-danger td {
-            background-color: #fdf2f2 !important;
-        }
-
-        .badge {
-            border: 1px solid #333 !important;
-            color: #000 !important;
-            background-color: transparent !important;
-            padding: 4px 6px !important;
-        }
-
-        .text-success {
-            color: #000 !important;
-            font-style: italic;
         }
     }
 </style>
@@ -303,20 +158,6 @@ require 'header.php';
     <?php if ($msg): ?>
         <div class="alert alert-success shadow-sm mb-4 no-print"><?php echo htmlspecialchars($msg); ?></div>
     <?php endif; ?>
-
-    <!-- --- START: PRINT HEADER (Hidden on Screen) --- -->
-    <div class="print-header d-none d-print-block">
-        <img src="<?php echo $logo_src; ?>" alt="Company Logo">
-        <div style="font-size: 16pt; font-weight: bold; text-transform: uppercase; margin: 0;">TES Philippines, Inc.</div>
-        <div style="font-size: 14pt; font-weight: bold; text-transform: uppercase; margin: 0; padding-top: 5px;">Document Expiry & Compliance Report</div>
-        <p class="text-muted small mt-2 mb-0">
-            <strong>Period:</strong> <?php echo (!empty($dateFrom) && !empty($dateTo)) ? h(date('M d, Y', strtotime($dateFrom))) . ' to ' . h(date('M d, Y', strtotime($dateTo))) : 'Next ' . h($days) . ' Days'; ?> |
-            <strong>Department:</strong> <?php echo $dept ? h($dept) : 'All Departments'; ?> |
-            <strong>Status:</strong> <?php echo ucfirst(h($statusFilter)); ?> |
-            <strong>Generated:</strong> <?php echo date('F j, Y'); ?>
-        </p>
-    </div>
-    <!-- --- END: PRINT HEADER --- -->
 
     <div class="d-flex justify-content-between align-items-center mb-4 no-print">
         <div>
@@ -365,7 +206,7 @@ require 'header.php';
                     <option value="90" <?php if ($days == 90) echo 'selected'; ?>>Next 90 Days</option>
                 </select>
             </form>
-            <button onclick="window.print()" class="btn btn-dark shadow-sm"><i class="bi bi-printer-fill"></i> Print Report</button>
+            <button onclick="window.print()" class="btn btn-dark shadow-sm"><i class="bi bi-printer-fill"></i> Print List</button>
         </div>
     </div>
 
@@ -383,7 +224,7 @@ require 'header.php';
                 <table class="table table-hover mb-0 align-middle">
                     <thead class="table-dark">
                         <tr>
-                            <th class="no-print" style="width: 40px;"><input type="checkbox" class="form-check-input" id="selectAllDocs"></th>
+                            <th style="width: 40px;"><input type="checkbox" class="form-check-input" id="selectAllDocs"></th>
                             <th>Expiry Date</th>
                             <th>Status</th>
                             <th>Employee</th>
@@ -409,8 +250,8 @@ require 'header.php';
                                 $badgeColor = ($timeLeft < 0) ? 'bg-danger' : 'bg-warning text-dark';
                             ?>
                                 <tr class="<?php echo $rowClass; ?>">
-                                    <td class="no-print"><input type="checkbox" name="doc_ids[]" value="<?php echo $doc['id']; ?>" class="form-check-input doc-checkbox" onchange="updateSelectionCount()"></td>
-                                    <td class="fw-bold text-danger" style="white-space: nowrap;"><?php echo date('M d, Y', strtotime($doc['expiry_date'])); ?></td>
+                                    <td><input type="checkbox" name="doc_ids[]" value="<?php echo $doc['id']; ?>" class="form-check-input doc-checkbox" onchange="updateSelectionCount()"></td>
+                                    <td class="fw-bold text-danger"><?php echo htmlspecialchars($doc['expiry_date']); ?></td>
                                     <td><span class="badge <?php echo $badgeColor; ?>"><?php echo $statusLabel; ?></span></td>
                                     <td>
                                         <div class="fw-bold"><?php echo htmlspecialchars($doc['last_name'] . ', ' . $doc['first_name']); ?></div>
@@ -418,10 +259,10 @@ require 'header.php';
                                     </td>
                                     <td><?php echo htmlspecialchars($doc['dept']); ?></td>
                                     <td>
-                                        <i class="bi bi-file-earmark-text me-1 no-print"></i>
-                                        <strong><?php echo htmlspecialchars($doc['original_name']); ?></strong>
+                                        <i class="bi bi-file-earmark-text me-1"></i>
+                                        <?php echo htmlspecialchars($doc['original_name']); ?>
                                         <?php if ($doc['is_resolved'] == 1 && !empty($doc['resolution_note'])): ?>
-                                            <div class="text-success small mt-1 fw-bold"><i class="bi bi-check-circle-fill no-print"></i> Resolved: <?php echo htmlspecialchars($doc['resolution_note']); ?></div>
+                                            <div class="text-success small mt-1 fw-bold"><i class="bi bi-check-circle-fill"></i> Resolved: <?php echo htmlspecialchars($doc['resolution_note']); ?></div>
                                         <?php endif; ?>
                                     </td>
                                     <td class="no-print">

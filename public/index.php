@@ -10,9 +10,6 @@ require '../src/Logger.php';
 require '../src/Validator.php';
 require '../src/SearchHelper.php';
 
-ini_set('display_errors', 1);
-ini_set('display_startup_errors', 1);
-error_reporting(E_ALL);
 // [FIX] Locate the company logo and convert to Base64 for reliable display and printing
 $logo_paths = [
     __DIR__ . '/uploads/tesp-logo.png',

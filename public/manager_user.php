@@ -342,8 +342,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $transactionActive = false;
                 }
                 $alertType = 'error';
-                // [DEBUG] Show the exact error instead of hiding it
-                $alertMsg = "❌ Error: " . $e->getMessage();
+                $alertMsg = "❌ Update Failed due to a concurrency exception. Please try again.";
                 $logger->log($_SESSION['user_id'], 'USER_EDIT_ERROR', "Transaction error when updating user ID $id: " . $e->getMessage());
             }
         }
