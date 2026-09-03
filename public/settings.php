@@ -37,7 +37,6 @@ if ($diskTotalGB < 1) $diskTotalGB = 1; // Fallback minimum
 $forbidden = [
     'C:\\Windows',
     'C:\\Program Files',
-    'C:\\Users',
     'C:\\inetpub',
     '/etc',
     '/var',
@@ -368,7 +367,7 @@ include 'header.php';
     <?php if ($error): ?>
         <div class="alert alert-danger shadow-sm border-danger border-2">
             <strong><i class="bi bi-exclamation-triangle-fill"></i> Settings could not be saved:</strong><br>
-            <?= $error ?>
+            <?= htmlspecialchars($error, ENT_QUOTES, 'UTF-8') ?>
         </div>
         <script>
             document.addEventListener("DOMContentLoaded", function() {
@@ -957,19 +956,55 @@ include 'header.php';
             .catch(err => {
                 Swal.close();
                 console.error(err);
-                Swal.fire({
-                    icon: 'warning',
-                    title: 'Backup Task Continuing...',
-                    html: `
-                    <p>The connection timed out, but the server is still packing your backup in the background.</p>
-                    <p class="small text-muted">Please check the <b>Disaster Recovery</b> table in Manage Users in 5-10 minutes to verify the new files.</p>
-                `,
-                    confirmButtonText: 'Understood'
-                });
+                monitorBackupStatus();
             })
             .finally(() => {
                 btn.innerHTML = ogText;
                 btn.disabled = false;
+            });
+    }
+
+    function monitorBackupStatus(attempt = 0) {
+        const maxAttempts = 30;
+        Swal.fire({
+            icon: 'info',
+            title: 'Checking backup status...',
+            html: '<p>The server may still be creating the backup. This page will confirm the final result automatically.</p><div class="spinner-border text-primary" role="status" aria-label="Checking backup status"></div>',
+            allowOutsideClick: false,
+            allowEscapeKey: false,
+            showConfirmButton: false
+        });
+
+        fetch('backup_status.php', {
+                credentials: 'same-origin'
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success' && data.backup_status === 'OK') {
+                    Swal.fire('Backup complete', 'The server confirmed that the backup was created successfully.', 'success')
+                        .then(() => window.location.reload());
+                    return;
+                }
+
+                if (data.status === 'success' && data.backup_status === 'FAILED') {
+                    Swal.fire('Backup failed', 'The server reported that the backup could not be completed. Check the backup path and PHP error log.', 'error');
+                    return;
+                }
+
+                if (attempt < maxAttempts) {
+                    window.setTimeout(() => monitorBackupStatus(attempt + 1), 5000);
+                    return;
+                }
+
+                Swal.fire('Backup still running', 'The server has not reported a final result yet. Check the backup folder and notifications after a few minutes.', 'warning');
+            })
+            .catch(error => {
+                console.error(error);
+                if (attempt < maxAttempts) {
+                    window.setTimeout(() => monitorBackupStatus(attempt + 1), 5000);
+                    return;
+                }
+                Swal.fire('Status unavailable', 'The backup may still be running, but its final status could not be read.', 'warning');
             });
     }
 

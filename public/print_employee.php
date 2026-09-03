@@ -153,6 +153,10 @@ if (empty($logo_src)) {
             /* // --- START: PRINT FIX --- */
             @media print {
                 .print-header {
+                    display: flex !important;
+                    flex-direction: column !important;
+                    align-items: center !important;
+                    justify-content: center !important;
                     text-align: center !important;
                     border-bottom: 2px solid #000 !important;
                     margin-bottom: 30px !important;
@@ -164,8 +168,12 @@ if (empty($logo_src)) {
                     max-height: 75px !important;
                     width: auto !important;
                     display: block !important;
-                    margin: 0 auto 15px auto !important;
-                    /* Centering the block image */
+                    margin: 0 auto 12px auto !important;
+                }
+
+                .print-title-area {
+                    width: 100%;
+                    text-align: center;
                 }
             }
 
@@ -174,6 +182,7 @@ if (empty($logo_src)) {
             .print-title-area {
                 text-align: center;
                 flex-grow: 1;
+                width: 100%;
             }
 
             .page {
@@ -223,12 +232,20 @@ if (empty($logo_src)) {
         }
 
         /* // --- START: PRINT FIX --- */
+        .print-header {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            width: 100%;
+        }
+
         .print-logo {
             max-height: 75px !important;
             width: auto !important;
             display: block !important;
-            margin: 0 auto 15px auto !important;
-            /* Centering the block image */
+            margin: 0 auto 12px auto !important;
         }
 
         /* // --- END: PRINT FIX --- */
@@ -356,14 +373,12 @@ if (empty($logo_src)) {
             <img src="<?php echo $logo_src; ?>" alt="TESP Logo" class="print-logo">
 
             <div class="print-title-area">
-                <center>
-                    <div style="font-size: 16pt; font-weight: bold; text-transform: uppercase; margin-bottom: 2px;">
-                        TES Philippines, Inc.
-                    </div>
-                    <div style="font-size: 14pt; font-weight: bold; text-transform: uppercase;">
-                        Employee 201 File
-                    </div>
-                </center>
+                <div style="font-size: 16pt; font-weight: bold; text-transform: uppercase; margin-bottom: 2px;">
+                    TES Philippines, Inc.
+                </div>
+                <div style="font-size: 14pt; font-weight: bold; text-transform: uppercase;">
+                    Employee 201 File
+                </div>
             </div>
         </div>
         <!-- // --- END: PRINT FIX --- -->

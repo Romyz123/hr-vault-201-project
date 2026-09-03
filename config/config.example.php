@@ -10,5 +10,6 @@ return [
     'VAULT_PATH' => getenv('VAULT_PATH') ?: __DIR__ . '/../vault/',
     'BACKUP_PATH' => getenv('BACKUP_PATH') ?: __DIR__ . '/../backups/',
     'MAX_UPLOAD_BYTES' => (int)(getenv('MAX_UPLOAD_BYTES') ?: 52428800),
-    'VAULT_KEY' => getenv('VAULT_KEY') ?: ''
+    'VAULT_KEY' => getenv('VAULT_KEY') ?: '',
+    'LEGACY_VAULT_KEY' => getenv('LEGACY_VAULT_KEY') ?: ''
 ];

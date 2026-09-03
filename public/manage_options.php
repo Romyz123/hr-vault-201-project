@@ -212,40 +212,9 @@ try {
         $pdo->exec("ALTER TABLE college_courses ADD COLUMN keywords TEXT DEFAULT NULL AFTER course_name");
     }
 
-    // [AUTO-UPGRADE] Database Integrity Check
-    // This ensures all tables have the columns required for the new TESP structure
-
-    // A. Employees Table structural updates
-    $chkEmpSect = $pdo->query("SHOW COLUMNS FROM employees LIKE 'section'");
-    if ($chkEmpSect->rowCount() == 0) $pdo->exec("ALTER TABLE employees ADD COLUMN section VARCHAR(100) DEFAULT NULL AFTER dept");
-
-    $chkEmpGrp = $pdo->query("SHOW COLUMNS FROM employees LIKE 'group'");
-    if ($chkEmpGrp->rowCount() == 0) $pdo->exec("ALTER TABLE employees ADD COLUMN `group` VARCHAR(100) DEFAULT NULL AFTER section");
-
-    $chkEmpExit = $pdo->query("SHOW COLUMNS FROM employees LIKE 'exit_reason'");
-    if ($chkEmpExit->rowCount() == 0) $pdo->exec("ALTER TABLE employees ADD COLUMN exit_reason VARCHAR(100) DEFAULT NULL AFTER exit_date");
-
-    $chkEmpUpd = $pdo->query("SHOW COLUMNS FROM employees LIKE 'updated_at'");
-    if ($chkEmpUpd->rowCount() == 0) $pdo->exec("ALTER TABLE employees ADD COLUMN updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP");
-
-    $chkEmpDel = $pdo->query("SHOW COLUMNS FROM employees LIKE 'deleted_at'");
-    if ($chkEmpDel->rowCount() == 0) $pdo->exec("ALTER TABLE employees ADD COLUMN deleted_at DATETIME DEFAULT NULL");
-
-    // B. Documents Table structural updates
-    $chkDocDel = $pdo->query("SHOW COLUMNS FROM documents LIKE 'deleted_at'");
-    if ($chkDocDel && $chkDocDel->rowCount() == 0) {
-        $pdo->exec("ALTER TABLE documents ADD COLUMN deleted_at DATETIME DEFAULT NULL");
-    }
-
-    $chkDocRes = $pdo->query("SHOW COLUMNS FROM documents LIKE 'is_resolved'");
-    if ($chkDocRes && $chkDocRes->rowCount() == 0) {
-        $pdo->exec("ALTER TABLE documents ADD COLUMN is_resolved TINYINT(1) DEFAULT 0, ADD COLUMN resolution_note TEXT DEFAULT NULL");
-    }
-
-    $chkDocUpd = $pdo->query("SHOW COLUMNS FROM documents LIKE 'updated_by'");
-    if ($chkDocUpd && $chkDocUpd->rowCount() == 0) {
-        $pdo->exec("ALTER TABLE documents ADD COLUMN updated_by INT DEFAULT NULL, ADD COLUMN updated_at DATETIME DEFAULT NULL");
-    }
+    // [SECURITY] Runtime schema alterations are intentionally not performed here.
+    // These pages should not issue DDL on every request; use explicit migrations
+    // or admin maintenance scripts instead so restricted DB users are not blocked.
 } catch (PDOException $e) {
     die("Database Initialization Error: " . $e->getMessage());
 }
@@ -471,8 +440,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
                 }
             } catch (PDOException $e) {
-                // If it crashes here, your `employees` table probably doesn't have a column exactly named `group`
-                $error = "❌ DB Error during delete. Ensure the column is named exactly `group`. Details: " . $e->getMessage();
+                error_log('Group deletion failed for group ID ' . $id . ': ' . $e->getMessage());
+                $error = "❌ Unable to delete the group right now. Please try again or contact an administrator.";
             }
         } elseif (empty($error) && $action === 'edit_group' && !empty($name) && $id > 0) {
             $name = strtoupper($name);

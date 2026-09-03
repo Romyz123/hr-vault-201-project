@@ -24,22 +24,26 @@ header('Referrer-Policy: strict-origin-when-cross-origin');
 // Load settings directly from PHP file instead of .env to avoid permission errors
 // ---------- 3) GLOBAL INPUT SANITIZATION ----------
 // ✅ FIX for Intelephense P1132: add param type + return type
-function sanitize_global_input(array &$array): void
-{
-    foreach ($array as $key => &$value) {
-        // ALWAYS skip password fields to avoid altering intended hashes
-        if (stripos((string)$key, 'password') !== false) {
-            continue;
-        }
+// ---------- 3) GLOBAL INPUT SANITIZATION ----------
+// ✅ FIX for Intelephense P1132: add param type + return type
+if (!function_exists('sanitize_global_input')) {
+    function sanitize_global_input(array &$array): void
+    {
+        foreach ($array as $key => &$value) {
+            // ALWAYS skip password fields to avoid altering intended hashes
+            if (stripos((string)$key, 'password') !== false) {
+                continue;
+            }
 
-        if (is_array($value)) {
-            sanitize_global_input($value);
-        } elseif (is_string($value)) {
-            $value = str_replace(chr(0), '', $value); // Strip null bytes
-            $value = trim($value); // Store raw data to DB to prevent double-escaping
+            if (is_array($value)) {
+                sanitize_global_input($value);
+            } elseif (is_string($value)) {
+                $value = str_replace(chr(0), '', $value); // Strip null bytes
+                $value = trim($value); // Store raw data to DB to prevent double-escaping
+            }
         }
+        unset($value); // break reference
     }
-    unset($value); // break reference
 }
 sanitize_global_input($_POST);
 sanitize_global_input($_GET);
@@ -76,7 +80,14 @@ try {
         PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
         PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
         PDO::ATTR_EMULATE_PREPARES   => false,
+        PDO::ATTR_TIMEOUT            => 20,
     ];
+
+    // Keep the connection healthy for long-running admin/report pages and
+    // prevent MySQL from closing idle sessions too aggressively.
+    if (defined('PDO::MYSQL_ATTR_INIT_COMMAND')) {
+        $options[PDO::MYSQL_ATTR_INIT_COMMAND] = "SET NAMES utf8mb4; SET SESSION wait_timeout = 28800; SET SESSION interactive_timeout = 28800;";
+    }
 
     // Optionally enable SSL/TLS if a CA path is configured in config.php
     if (!empty($_ENV['DB_SSL_CA'])) {

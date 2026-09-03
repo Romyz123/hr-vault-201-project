@@ -193,7 +193,6 @@ end_post:
         }
     </script>
     <script src="assets/bootstrap.bundle.min.js"></script>
-    <script src="dark_mode.js"></script>
 </body>
 
 </html>

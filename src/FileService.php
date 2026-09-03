@@ -7,6 +7,7 @@ class FileService
     private $manifestFile;
     // [SECURITY] Encryption Key (In production, move this to config.php or .env)
     private $key;
+    private $legacyKeys = [];
     private $cipher = 'aes-256-gcm';
 
     public function __construct($vaultPath)
@@ -36,12 +37,21 @@ class FileService
         // Load the installation secret from protected configuration.
         $config = require __DIR__ . '/../config/config.php';
 
-        if (!empty($config['VAULT_KEY'])) {
-            $this->key = $config['VAULT_KEY'];
-        } else {
+        $keyCandidates = [];
+        foreach (['VAULT_KEY', 'LEGACY_VAULT_KEY'] as $keyName) {
+            $candidate = $config[$keyName] ?? null;
+            if (is_string($candidate) && trim($candidate) !== '') {
+                $keyCandidates[] = trim($candidate);
+            }
+        }
+
+        if (empty($keyCandidates)) {
             // [SECURITY] Fail Secure: Never use a default key in production.
             throw new Exception("CRITICAL SECURITY ERROR: VAULT_KEY is missing in config.php. System halted to protect data.");
         }
+
+        $this->key = $keyCandidates[0];
+        $this->legacyKeys = array_values(array_unique(array_slice($keyCandidates, 1)));
     }
 
     private function encrypt($data)
@@ -58,20 +68,35 @@ class FileService
     {
         $data = base64_decode($data, true);
         if ($data === false) return false;
-        $key = hash('sha256', $this->key, true);
-        $ivlen = openssl_cipher_iv_length($this->cipher);
-        if (strncmp($data, 'GCM1', 4) === 0) {
-            if (strlen($data) < 4 + $ivlen + 16) return false;
-            $iv = substr($data, 4, $ivlen);
-            $tag = substr($data, 4 + $ivlen, 16);
-            $ciphertext = substr($data, 4 + $ivlen + 16);
-            return openssl_decrypt($ciphertext, $this->cipher, $key, OPENSSL_RAW_DATA, $iv, $tag);
+
+        $keys = array_merge([$this->key], $this->legacyKeys);
+        $keys = array_values(array_unique(array_filter($keys, fn($key) => is_string($key) && trim($key) !== '')));
+
+        foreach ($keys as $keyString) {
+            $key = hash('sha256', $keyString, true);
+            $ivlen = openssl_cipher_iv_length($this->cipher);
+            if (strncmp($data, 'GCM1', 4) === 0) {
+                if (strlen($data) < 4 + $ivlen + 16) continue;
+                $iv = substr($data, 4, $ivlen);
+                $tag = substr($data, 4 + $ivlen, 16);
+                $ciphertext = substr($data, 4 + $ivlen + 16);
+                $result = openssl_decrypt($ciphertext, $this->cipher, $key, OPENSSL_RAW_DATA, $iv, $tag);
+                if ($result !== false) {
+                    return $result;
+                }
+                continue;
+            }
+
+            // Read pre-GCM vault entries during migration; all new entries are authenticated.
+            $legacyIvlen = openssl_cipher_iv_length('aes-256-cbc');
+            if (strlen($data) < $legacyIvlen) continue;
+            $result = openssl_decrypt(substr($data, $legacyIvlen), 'aes-256-cbc', $keyString, OPENSSL_RAW_DATA, substr($data, 0, $legacyIvlen));
+            if ($result !== false) {
+                return $result;
+            }
         }
 
-        // Read pre-GCM vault entries during migration; all new entries are authenticated.
-        $legacyIvlen = openssl_cipher_iv_length('aes-256-cbc');
-        if (strlen($data) < $legacyIvlen) return false;
-        return openssl_decrypt(substr($data, $legacyIvlen), 'aes-256-cbc', $this->key, OPENSSL_RAW_DATA, substr($data, 0, $legacyIvlen));
+        return false;
     }
 
     /**

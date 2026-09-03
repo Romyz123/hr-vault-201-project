@@ -210,7 +210,8 @@ try {
         $gradCount = $hasCollegeDegree ? (int)$counts['graduates'] : 0;
     }
 } catch (Exception $e) {
-    // Silently fail, counts will remain 0
+    // Counts remain 0, but record the cause for diagnosis.
+    error_log('analytics.php headcount query failed: ' . $e->getMessage());
 }
 $undergradCount = max(0, $totalHeadcount - $gradCount);
 
@@ -961,6 +962,49 @@ $currentPage = 'analytics.php'; // Tells header.php which page is active
 include 'header.php';
 ?>
 <style>
+    body {
+        background: var(--bs-body-bg);
+        color: var(--bs-body-color);
+    }
+
+    .card {
+        background: var(--bs-body-bg);
+        color: var(--bs-body-color);
+        border-color: var(--bs-border-color);
+    }
+
+    /* Scope table stripe variables ONLY to dark mode to prevent breaking light mode */
+    [data-bs-theme="dark"] .table {
+        --bs-table-bg: transparent;
+        --bs-table-striped-bg: rgba(255, 255, 255, 0.02);
+        --bs-table-hover-bg: rgba(255, 255, 255, 0.05);
+        color: var(--bs-body-color);
+    }
+
+    /* Force the matrix table sticky headers to turn dark */
+    [data-bs-theme="dark"] .matrix-table thead tr:first-child th {
+        background-color: var(--bs-tertiary-bg) !important;
+        border-color: var(--bs-border-color) !important;
+    }
+
+    [data-bs-theme="dark"] .matrix-table thead tr.thead-totals th {
+        background-color: #343a40 !important;
+        border-color: var(--bs-border-color) !important;
+    }
+
+    /* Force the "Total" column to turn dark (overrides the existing !important flag) */
+    [data-bs-theme="dark"] .bg-total {
+        background-color: rgba(255, 255, 255, 0.1) !important;
+        color: var(--bs-body-color) !important;
+    }
+
+    /* Force the 'Range' input group label to turn dark */
+    [data-bs-theme="dark"] .input-group-text.bg-light {
+        background-color: var(--bs-tertiary-bg) !important;
+        border-color: var(--bs-border-color) !important;
+        color: var(--bs-body-color) !important;
+    }
+
     .card-header {
         font-size: 0.85rem;
         text-transform: uppercase;
@@ -971,23 +1015,71 @@ include 'header.php';
     .matrix-table th {
         font-size: 0.75rem;
         text-align: center;
-        background-color: #f8f9fa;
+        background-color: var(--bs-tertiary-bg);
+        color: var(--bs-body-color);
     }
 
     .matrix-table td {
         font-size: 0.8rem;
         text-align: center;
         vertical-align: middle;
+        color: var(--bs-body-color);
     }
 
     .matrix-dept {
         text-align: left !important;
         font-weight: bold;
-        color: #495057;
+        color: var(--bs-emphasis-color);
+    }
+
+    .table {
+        color: var(--bs-body-color);
+        --bs-table-bg: transparent;
+        --bs-table-striped-bg: rgba(255, 255, 255, 0.02);
+        --bs-table-hover-bg: rgba(255, 255, 255, 0.05);
     }
 
     .table thead th {
         white-space: nowrap;
+    }
+
+    [data-bs-theme="dark"] .bg-white,
+    [data-bs-theme="dark"] .bg-light,
+    [data-bs-theme="dark"] .bg-body-tertiary,
+    [data-bs-theme="dark"] .table-light,
+    [data-bs-theme="dark"] .table-secondary,
+    [data-bs-theme="dark"] .modal-header.bg-light,
+    [data-bs-theme="dark"] .modal-body.bg-light,
+    [data-bs-theme="dark"] .card-header.bg-light {
+        background-color: var(--bs-tertiary-bg) !important;
+        color: var(--bs-body-color) !important;
+    }
+
+    [data-bs-theme="dark"] .text-dark,
+    [data-bs-theme="dark"] .text-secondary {
+        color: var(--bs-body-color) !important;
+    }
+
+    [data-bs-theme="dark"] .border-end {
+        border-color: var(--bs-border-color) !important;
+    }
+
+    [data-bs-theme="dark"] .modal-content {
+        background: var(--bs-body-bg);
+        color: var(--bs-body-color);
+    }
+
+    [data-bs-theme="dark"] .card-header.bg-warning,
+    [data-bs-theme="dark"] .card-header.bg-info {
+        color: #212529 !important;
+    }
+
+    [data-bs-theme="dark"] .form-control,
+    [data-bs-theme="dark"] .form-select,
+    [data-bs-theme="dark"] .input-group-text {
+        background-color: var(--bs-body-bg);
+        color: var(--bs-body-color);
+        border-color: var(--bs-border-color);
     }
 
     /* (Optional) Sticky header + sticky totals row in header */
@@ -1003,6 +1095,26 @@ include 'header.php';
         top: 38px;
         z-index: 1;
         background: #e9ecef;
+    }
+
+    [data-bs-theme="dark"] .matrix-table thead tr:first-child th {
+        background: var(--bs-tertiary-bg) !important;
+        color: var(--bs-body-color) !important;
+    }
+
+    [data-bs-theme="dark"] .matrix-table thead tr.thead-totals th,
+    [data-bs-theme="dark"] .table-light,
+    [data-bs-theme="dark"] .table-light>th,
+    [data-bs-theme="dark"] .table-light>td {
+        background-color: var(--bs-tertiary-bg) !important;
+        color: var(--bs-body-color) !important;
+        border-color: var(--bs-border-color) !important;
+    }
+
+    [data-bs-theme="dark"] .list-group-item {
+        background-color: var(--bs-body-bg);
+        color: var(--bs-body-color);
+        border-color: var(--bs-border-color);
     }
 
     /* // --- START: PROFESSIONAL PRINT FIX --- */
@@ -1128,10 +1240,40 @@ include 'header.php';
             display: block !important;
         }
 
+        .print-header::after {
+            content: "CONFIDENTIAL - INTERNAL MANAGEMENT REPORT";
+            display: block;
+            margin-top: 8px;
+            font-size: 8pt;
+            letter-spacing: 1px;
+            color: #555;
+        }
+
         .print-logo {
             max-height: 60px !important;
             display: block !important;
             margin: 0 auto 15px auto !important;
+        }
+
+        .card-body {
+            min-height: 0 !important;
+        }
+
+        .row {
+            page-break-after: auto !important;
+        }
+
+        h1,
+        h2,
+        h3,
+        h4,
+        h5,
+        h6 {
+            color: #111 !important;
+        }
+
+        body .analytics-print-hidden {
+            display: none !important;
         }
     }
 
@@ -1188,6 +1330,10 @@ include 'header.php';
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
+                <div class="d-flex justify-content-end gap-2 mb-3">
+                    <button type="button" class="btn btn-sm btn-outline-primary" onclick="setPrintSections(true)">Select All</button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" onclick="setPrintSections(false)">Deselect All</button>
+                </div>
                 <div class="form-check mb-2"><input class="form-check-input" type="checkbox" id="p-status" checked><label class="form-check-label" for="p-status">Status & Turnover</label></div>
                 <div class="form-check mb-2"><input class="form-check-input" type="checkbox" id="p-comp" checked><label class="form-check-label" for="p-comp">Vault Compliance</label></div>
                 <div class="form-check mb-2"><input class="form-check-input" type="checkbox" id="p-demo" checked><label class="form-check-label" for="p-demo">Demographics (Age, Gender, Dept)</label></div>
@@ -1333,7 +1479,7 @@ include 'header.php';
 
     <div class="row mb-4">
         <div class="col-md-3 mb-3">
-            <div class="card shadow-sm h-100 text-center border-0 bg-primary text-white">
+            <div class="card shadow-sm h-100 text-center border-0 bg-primary text-white" id="activeHeadcountCard">
                 <div class="card-body d-flex flex-column justify-content-center">
                     <h6 class="opacity-75">Active Headcount</h6>
                     <h1 class="display-3 fw-bold mb-0"><?php echo htmlspecialchars(number_format($totalHeadcount)); ?></h1>
@@ -1359,7 +1505,7 @@ include 'header.php';
             </div>
         </div>
         <div class="col-md-3 mb-3">
-            <div class="card shadow-sm h-100 border-danger">
+            <div class="card shadow-sm h-100 border-danger" id="turnoverRateCard">
                 <div class="card-header bg-danger text-white border-bottom-0 d-flex justify-content-between align-items-center">
                     <span><i class="bi bi-graph-down-arrow me-2"></i> Turnover Rate</span>
                 </div>
@@ -1370,7 +1516,7 @@ include 'header.php';
             </div>
         </div>
         <div class="col-md-3 mb-3">
-            <div class="card shadow-sm h-100 border-info">
+            <div class="card shadow-sm h-100 border-info" id="avgTenureCard">
                 <div class="card-header bg-info text-dark border-bottom-0 d-flex justify-content-between align-items-center">
                     <span><i class="bi bi-clock-history me-2"></i> Avg Tenure</span>
                 </div>
@@ -1384,7 +1530,7 @@ include 'header.php';
 
     <div class="row mb-4">
         <div class="col-md-3 mb-3">
-            <div class="card shadow-sm h-100 border-info">
+            <div class="card shadow-sm h-100 border-info" id="vaultComplianceCard">
                 <div class="card-header bg-info text-dark border-bottom-0">
                     <i class="bi bi-shield-check me-2"></i> Vault Compliance
                 </div>
@@ -1541,7 +1687,7 @@ include 'header.php';
 
     <div class="row mb-4">
         <div class="col-md-3">
-            <div class="card shadow-sm h-100 border-danger">
+            <div class="card shadow-sm h-100 border-danger" id="topExitReasonsCard">
                 <div class="card-header bg-danger text-white border-bottom-0 d-flex justify-content-between align-items-center">
                     <span><i class="bi bi-pie-chart-fill me-1"></i> Attrition Status</span>
                     <div>
@@ -1823,12 +1969,12 @@ include 'header.php';
                 </div>
                 <div class="modal-body">
                     <div class="row h-100">
-                        <div class="col-lg-8 d-flex align-items-center justify-content-center bg-white border-end">
+                        <div class="col-lg-8 d-flex align-items-center justify-content-center border-end" style="background: var(--bs-tertiary-bg);">
                             <div style="width: 95%; height: 90%;">
                                 <canvas id="fsChartCanvas"></canvas>
                             </div>
                         </div>
-                        <div class="col-lg-4 overflow-auto bg-light p-4">
+                        <div class="col-lg-4 overflow-auto p-4" style="background: var(--bs-body-bg); color: var(--bs-body-color);">
                             <h5 class="mb-3 border-bottom pb-2"><i class="bi bi-table"></i> Data Breakdown</h5>
                             <div class="card shadow-sm">
                                 <div class="card-body p-0">
@@ -1854,7 +2000,6 @@ include 'header.php';
 </div>
 
 <script src="assets/bootstrap.bundle.min.js"></script>
-<script src="assets/dark_mode.js"></script>
 
 <script>
     const colors = ['#0d6efd', '#198754', '#ffc107', '#dc3545', '#6610f2', '#fd7e14'];
@@ -2280,12 +2425,15 @@ include 'header.php';
 
         if (canvas) {
             try {
-                // Force white background for clean documentation exports
                 const destinationCanvas = document.createElement("canvas");
                 destinationCanvas.width = canvas.width;
                 destinationCanvas.height = canvas.height;
                 const destCtx = destinationCanvas.getContext('2d');
-                destCtx.fillStyle = '#FFFFFF';
+
+                // Correctly injected inside the function
+                const isDark = document.documentElement.getAttribute('data-bs-theme') === 'dark';
+                destCtx.fillStyle = isDark ? '#212529' : '#FFFFFF';
+
                 destCtx.fillRect(0, 0, canvas.width, canvas.height);
                 destCtx.drawImage(canvas, 0, 0);
 
@@ -2318,12 +2466,15 @@ include 'header.php';
         const canvas = document.getElementById(canvasId);
         if (canvas) {
             try {
-                // Force white background for clean documentation exports
                 const destinationCanvas = document.createElement("canvas");
                 destinationCanvas.width = canvas.width;
                 destinationCanvas.height = canvas.height;
                 const destCtx = destinationCanvas.getContext('2d');
-                destCtx.fillStyle = '#FFFFFF';
+
+                // Correctly injected inside the function
+                const isDark = document.documentElement.getAttribute('data-bs-theme') === 'dark';
+                destCtx.fillStyle = isDark ? '#212529' : '#FFFFFF';
+
                 destCtx.fillRect(0, 0, canvas.width, canvas.height);
                 destCtx.drawImage(canvas, 0, 0);
 
@@ -2351,7 +2502,6 @@ include 'header.php';
             }
         }
     }
-
     // Status (Probationary vs Regular)
     charts.statusChart = new Chart(document.getElementById('statusChart'), {
         type: 'doughnut',
@@ -2821,54 +2971,74 @@ include 'header.php';
     }
 
     // [NEW] Dark Mode Adapter for Charts
+    // [NEW] Dark Mode Rebuilder for Charts
     function updateChartsTheme() {
+        if (typeof charts === 'undefined') return;
+
         const isDark = document.documentElement.getAttribute('data-bs-theme') === 'dark';
         const textColor = isDark ? '#adb5bd' : '#6c757d';
         const gridColor = isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)';
 
-        Object.values(charts).forEach(chart => {
-            // Update Scales (x/y)
-            if (chart.options.scales) {
+        // Iterate through known active charts and rebuild them with updated theme colors
+        for (let key in charts) {
+            if (!charts.hasOwnProperty(key)) continue;
+            let currentChart = charts[key];
+            if (!currentChart) continue;
+
+            // Capture current data and chart type before destroying
+            let chartData = currentChart.data;
+            let chartType = currentChart.config.type;
+            let canvasElement = currentChart.canvas;
+            let originalConfig = currentChart.config;
+
+            // Destroy the old instance safely
+            currentChart.destroy();
+
+            // Update colors inside the options config template
+            if (originalConfig.options && originalConfig.options.scales) {
                 ['x', 'y'].forEach(axis => {
-                    if (chart.options.scales[axis]) {
-                        chart.options.scales[axis].ticks = chart.options.scales[axis].ticks || {};
-                        chart.options.scales[axis].ticks.color = textColor;
-                        chart.options.scales[axis].grid = chart.options.scales[axis].grid || {};
-                        chart.options.scales[axis].grid.color = gridColor;
+                    if (originalConfig.options.scales[axis]) {
+                        originalConfig.options.scales[axis].ticks = originalConfig.options.scales[axis].ticks || {};
+                        originalConfig.options.scales[axis].ticks.color = textColor;
+                        originalConfig.options.scales[axis].grid = originalConfig.options.scales[axis].grid || {};
+                        originalConfig.options.scales[axis].grid.color = gridColor;
                     }
                 });
             }
+            if (originalConfig.options && originalConfig.options.plugins && originalConfig.options.plugins.legend) {
+                originalConfig.options.plugins.legend.labels.color = textColor;
+            }
 
-            // Update Legend Labels (for pie/doughnut charts)
-            if (chart.options.plugins && chart.options.plugins.legend) {
-                chart.options.plugins.legend.labels = chart.options.plugins.legend.labels || {};
-                chart.options.plugins.legend.labels.color = textColor;
-            }
-            chart.update();
-        });
-
-        // Also update the full screen chart if it's active
-        if (typeof fsChartInstance !== 'undefined' && fsChartInstance) {
-            if (fsChartInstance.options.scales) {
-                ['x', 'y'].forEach(axis => {
-                    if (fsChartInstance.options.scales[axis]) {
-                        fsChartInstance.options.scales[axis].ticks = fsChartInstance.options.scales[axis].ticks || {};
-                        fsChartInstance.options.scales[axis].ticks.color = textColor;
-                        fsChartInstance.options.scales[axis].grid = fsChartInstance.options.scales[axis].grid || {};
-                        fsChartInstance.options.scales[axis].grid.color = gridColor;
-                    }
-                });
-            }
-            if (fsChartInstance.options.plugins && fsChartInstance.options.plugins.legend) {
-                fsChartInstance.options.plugins.legend.labels = fsChartInstance.options.plugins.legend.labels || {};
-                fsChartInstance.options.plugins.legend.labels.color = textColor;
-            }
-            if (fsChartInstance.options.plugins && fsChartInstance.options.plugins.title) {
-                fsChartInstance.options.plugins.title.color = textColor;
-            }
-            fsChartInstance.update();
+            // Re-instantiate the chart on the same canvas element
+            charts[key] = new Chart(canvasElement, originalConfig);
         }
     }
+
+    // Also update the full-screen chart if it is active.
+    if (typeof fsChartInstance !== 'undefined' && fsChartInstance) {
+        const fsIsDark = document.documentElement.getAttribute('data-bs-theme') === 'dark';
+        const fsTextColor = fsIsDark ? '#adb5bd' : '#6c757d';
+        const fsGridColor = fsIsDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)';
+        if (fsChartInstance.options.scales) {
+            ['x', 'y'].forEach(axis => {
+                if (fsChartInstance.options.scales[axis]) {
+                    fsChartInstance.options.scales[axis].ticks = fsChartInstance.options.scales[axis].ticks || {};
+                    fsChartInstance.options.scales[axis].ticks.color = fsTextColor;
+                    fsChartInstance.options.scales[axis].grid = fsChartInstance.options.scales[axis].grid || {};
+                    fsChartInstance.options.scales[axis].grid.color = fsGridColor;
+                }
+            });
+        }
+        if (fsChartInstance.options.plugins && fsChartInstance.options.plugins.legend) {
+            fsChartInstance.options.plugins.legend.labels = fsChartInstance.options.plugins.legend.labels || {};
+            fsChartInstance.options.plugins.legend.labels.color = fsTextColor;
+        }
+        if (fsChartInstance.options.plugins && fsChartInstance.options.plugins.title) {
+            fsChartInstance.options.plugins.title.color = fsTextColor;
+        }
+        fsChartInstance.update();
+    }
+
 
     new MutationObserver(updateChartsTheme).observe(document.documentElement, {
         attributes: true,
@@ -2877,52 +3047,23 @@ include 'header.php';
     updateChartsTheme(); // Initial check
 
     function executeCustomPrint() {
-        // 1. Clear previous temporary print-hidden classes
-        document.querySelectorAll('.temp-hide-print').forEach(el => el.classList.remove('d-print-none', 'temp-hide-print'));
-
-        // 2. Map checkboxes to the exact Canvas IDs or Card IDs in your HTML
-        const printMap = {
-            'p-status': ['statusChart', 'turnoverChart'],
-            'p-comp': ['complianceChart'],
-            'p-demo': ['agencyChart', 'deptChart', 'genderChart', 'ageChart'],
-            'p-matrix': ['matrixCard'] // Card ID instead of Canvas ID
-        };
-
-        // 3. Hide unselected items by targeting their parent Bootstrap column
-        for (const [chkId, targets] of Object.entries(printMap)) {
-            if (!document.getElementById(chkId).checked) {
-                targets.forEach(targetId => {
-                    const el = document.getElementById(targetId);
-                    if (el) {
-                        const container = el.closest('[class*="col-"]') || el;
-                        container.classList.add('d-print-none', 'temp-hide-print');
-                    }
-                });
-            }
-        }
-
-        // 4. Trigger print (Bootstrap hides the modal from print automatically via your .no-print class)
-        window.print();
-    }
-
-    function executeCustomPrint() {
         // 1. Reset any previously hidden items
-        document.querySelectorAll('.temp-hide-print').forEach(el => {
-            el.classList.remove('d-print-none', 'temp-hide-print');
+        document.querySelectorAll('.analytics-print-hidden').forEach(el => {
+            el.classList.remove('analytics-print-hidden');
         });
 
-        // 2. Map exact unique identifiers (Canvas IDs or text headers) to each checkbox
+        // 2. Map each print choice to explicit chart/card identifiers.
         const printConfig = {
             'p-status': [
-                'Active Headcount', 'statusChart', 'Turnover Rate', 'Avg Tenure',
-                'turnoverChart', 'deptTurnoverChart', 'attritionTrendChart',
-                'Top Exit Reasons', 'recruitChart'
+                'activeHeadcountCard', 'turnoverRateCard', 'avgTenureCard',
+                'statusChart', 'turnoverChart', 'deptTurnoverChart', 'attritionTrendChart',
+                'recruitChart', 'topExitReasonsCard'
             ],
             'p-comp': [
-                'Vault Compliance', 'complianceChart', 'expiryChart'
+                'vaultComplianceCard', 'complianceChart', 'expiryChart'
             ],
             'p-matrix': [
-                'matrixCard' // Catches the ID of the matrix table card
+                'matrixCard'
             ],
             'p-demo': [
                 'eduProgChart', 'courseDistChart', 'agencyChart', 'deptChart',
@@ -2938,49 +3079,52 @@ include 'header.php';
             selections[key] = chk ? chk.checked : true;
         });
 
-        // 4. Scan every card on the page
+        // 4. Hide the complete column containing each unselected chart/card.
         document.querySelectorAll('.card').forEach(card => {
-            // Ignore the print modal itself and the top filter bar
             if (card.id === 'printModal' || card.classList.contains('no-print')) return;
 
-            const cardHTML = card.innerHTML; // Look at the raw HTML to catch Canvas IDs
-            let matchedCategory = 'p-demo'; // Default fallback
+            let matchedCategory = 'p-demo';
 
-            // Find which category this card belongs to
             for (const [category, identifiers] of Object.entries(printConfig)) {
-                if (identifiers.some(id => cardHTML.includes(id) || card.id === id)) {
+                if (identifiers.some(id => card.id === id || card.querySelector('#' + id))) {
                     matchedCategory = category;
                     break;
                 }
             }
 
-            // 5. If the category is unchecked, hide the entire column wrapper
             if (!selections[matchedCategory]) {
                 const colWrapper = card.closest('[class*="col-"]');
                 if (colWrapper) {
-                    colWrapper.classList.add('d-print-none', 'temp-hide-print');
+                    colWrapper.classList.add('analytics-print-hidden');
                 } else {
-                    card.classList.add('d-print-none', 'temp-hide-print');
+                    card.classList.add('analytics-print-hidden');
                 }
             }
         });
 
-        // 6. Hide empty rows to ensure there are no massive blank spaces on the paper
+        // 5. Hide empty rows to avoid blank areas in the report.
         document.querySelectorAll('.row').forEach(row => {
-            const visibleCols = Array.from(row.children).filter(col => !col.classList.contains('d-print-none'));
+            const visibleCols = Array.from(row.children).filter(col => !col.classList.contains('analytics-print-hidden'));
             if (visibleCols.length === 0) {
-                row.classList.add('d-print-none', 'temp-hide-print');
+                row.classList.add('analytics-print-hidden');
             }
         });
 
-        // 7. Open the print window
-        window.print();
+        // Let the browser apply the print-only classes before opening the dialog.
+        window.requestAnimationFrame(() => window.requestAnimationFrame(() => window.print()));
+    }
+
+    function setPrintSections(checked) {
+        ['p-status', 'p-comp', 'p-demo', 'p-matrix'].forEach(id => {
+            const checkbox = document.getElementById(id);
+            if (checkbox) checkbox.checked = checked;
+        });
     }
 
     // 8. Restore everything back to normal immediately after printing is done or cancelled
     window.addEventListener('afterprint', () => {
-        document.querySelectorAll('.temp-hide-print').forEach(el => {
-            el.classList.remove('d-print-none', 'temp-hide-print');
+        document.querySelectorAll('.analytics-print-hidden').forEach(el => {
+            el.classList.remove('analytics-print-hidden');
         });
     });
 </script>

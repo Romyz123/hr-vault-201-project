@@ -15,6 +15,11 @@ ini_set('memory_limit', '1024M');
 $isAjax = isset($_GET['ajax']) && $_GET['ajax'] == '1';
 
 define('CLI_MODE', php_sapi_name() === 'cli');
+
+// Load DB and settings FIRST so ini_set() executes before session_start()
+require '../config/db.php';
+require '../src/Logger.php';
+
 if (!CLI_MODE) {
     // If accessed via browser, require Admin login
     session_start();
@@ -52,6 +57,14 @@ try {
     }
 }
 
+// Mark the backup as actively running before work begins so the UI can distinguish
+// a true failure from a client-side timeout while the server continues processing.
+try {
+    $pdo->exec("INSERT INTO system_settings (setting_key, setting_value) VALUES ('backup_last_status', 'RUNNING') ON DUPLICATE KEY UPDATE setting_value = 'RUNNING'");
+} catch (Exception $e) {
+    // Ignore DB status updates when the status table is unavailable; the backup itself still runs.
+}
+
 $customPath  = $settings['backup_path'] ?? '';
 $zipPass     = $settings['backup_password'] ?? '';
 $incVault    = ($settings['backup_include_vault'] ?? '0') === '1';
@@ -75,7 +88,12 @@ if (!$backupDir) {
 }
 
 if ($backupDir && !is_dir($backupDir)) @mkdir($backupDir, 0700, true);
-if ($backupDir) $backupDir = realpath($backupDir);
+
+if ($backupDir) {
+    $real = realpath($backupDir);
+    $backupDir = $real !== false ? $real : $backupDir;
+}
+
 if (!$backupDir || !is_writable($backupDir)) {
     $success = false;
     $errorMessage = 'Backup directory is unavailable or not writable.';
@@ -112,13 +130,16 @@ $success = true;
 $errorMessage = '';
 $zip = new ZipArchive();
 if (!$zip instanceof ZipArchive || $zip->open($zipFile, ZipArchive::CREATE) !== TRUE) {
+    $zip = null;
     $success = false;
     $errorMessage = "Could not create ZIP file ($zipFile).";
     if ($alertEmail) mail($alertEmail, "⚠️ HR System Backup Failed", "Manual/Cron backup failed: $errorMessage\n\nTime: " . date('Y-m-d H:i:s'));
 }
-if ($success) {
-    // [OPTIMIZATION] Stream directly to a temporary file to save RAM
-    $tmpSqlFile = tempnam(sys_get_temp_dir(), 'hr201_backup_');
+if ($success && $zip instanceof ZipArchive) {
+    // [OPTIMIZATION] Stream directly to a local temporary folder to bypass C:\Users restrictions
+    $localTempDir = __DIR__ . '/../backups/temp';
+    if (!is_dir($localTempDir)) @mkdir($localTempDir, 0700, true);
+    $tmpSqlFile = tempnam($localTempDir, 'hr201_backup_');
     $pendingUnlink[] = $tmpSqlFile;
     $handle = fopen($tmpSqlFile, 'w');
     if (!$handle) {
@@ -178,7 +199,9 @@ if ($success) {
                 $currentBytes = 0;
                 $zipFile = rtrim($backupDir, '/\\') . DIRECTORY_SEPARATOR . $baseName . "_Part{$partNumber}.zip";
                 $generatedZips[] = $zipFile;
-                if (!$zip instanceof ZipArchive || $zip->open($zipFile, ZipArchive::CREATE) !== TRUE) {
+                $zip = new ZipArchive();
+                if (!$zip instanceof ZipArchive || $zip->open($zipFile, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== TRUE) {
+                    $zip = null;
                     $success = false;
                     $errorMessage = "Could not create ZIP file ($zipFile).";
                     if ($alertEmail) mail($alertEmail, "⚠️ HR System Backup Failed", "Manual/Cron backup failed: $errorMessage\n\nTime: " . date('Y-m-d H:i:s'));
@@ -245,7 +268,9 @@ if ($success) {
                 $currentBytes = 0;
                 $zipFile = rtrim($backupDir, '/\\') . DIRECTORY_SEPARATOR . $baseName . "_Part{$partNumber}.zip";
                 $generatedZips[] = $zipFile;
-                if (!$zip instanceof ZipArchive || $zip->open($zipFile, ZipArchive::CREATE) !== TRUE) {
+                $zip = new ZipArchive();
+                if (!$zip instanceof ZipArchive || $zip->open($zipFile, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== TRUE) {
+                    $zip = null;
                     $success = false;
                     $errorMessage = "Could not create ZIP file ($zipFile).";
                     if ($alertEmail) mail($alertEmail, "⚠️ HR System Backup Failed", "Manual/Cron backup failed: $errorMessage\n\nTime: " . date('Y-m-d H:i:s'));
@@ -299,7 +324,9 @@ if ($success) {
                         $currentBytes = 0;
                         $zipFile = rtrim($backupDir, '/\\') . DIRECTORY_SEPARATOR . $baseName . "_Part{$partNumber}.zip";
                         $generatedZips[] = $zipFile;
-                        if (!$zip instanceof ZipArchive || $zip->open($zipFile, ZipArchive::CREATE) !== TRUE) {
+                        $zip = new ZipArchive();
+                        if (!$zip instanceof ZipArchive || $zip->open($zipFile, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== TRUE) {
+                            $zip = null;
                             $success = false;
                             $errorMessage = "Could not create ZIP file ($zipFile).";
                             if ($alertEmail) mail($alertEmail, "⚠️ HR System Backup Failed", "Manual/Cron backup failed: $errorMessage\n\nTime: " . date('Y-m-d H:i:s'));

@@ -157,6 +157,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                         'dept',
                         'section',
                         'group',
+                        'manager_id',
                         'employment_type',
                         'agency_name',
                         'company_name',
@@ -229,7 +230,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                     // SAFETY: Remove the note so it doesn't break the SQL UPDATE
                     unset($profileData['request_note']);
 
-                    $allowedColumns = ['emp_id', 'first_name', 'middle_name', 'last_name', 'job_title', 'system_role', 'dept', 'section', 'group', 'employment_type', 'agency_name', 'company_name', 'previous_company', 'hire_date', 'gender', 'birth_date', 'contact_number', 'email', 'present_address', 'permanent_address', 'sss_no', 'tin_no', 'pagibig_no', 'philhealth_no', 'emergency_name', 'emergency_contact', 'emergency_address', 'education', 'experience', 'skills', 'licenses', 'college_degree', 'college_course', 'college_year', 'status', 'exit_date', 'exit_reason', 'avatar_path'];
+                    $allowedColumns = ['emp_id', 'first_name', 'middle_name', 'last_name', 'job_title', 'system_role', 'dept', 'section', 'group', 'manager_id', 'employment_type', 'agency_name', 'company_name', 'previous_company', 'hire_date', 'gender', 'birth_date', 'contact_number', 'email', 'present_address', 'permanent_address', 'sss_no', 'tin_no', 'pagibig_no', 'philhealth_no', 'emergency_name', 'emergency_contact', 'emergency_address', 'education', 'experience', 'skills', 'licenses', 'college_degree', 'college_course', 'college_year', 'status', 'exit_date', 'exit_reason', 'avatar_path'];
                     $filteredData = array_intersect_key($profileData, array_flip($allowedColumns));
                     if (!empty($filteredData)) {
                         $setParts = [];

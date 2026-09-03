@@ -12,7 +12,8 @@ return [
     'BACKUP_PATH' => getenv('BACKUP_PATH') ?: __DIR__ . '/../backups/',
     'MAX_UPLOAD_BYTES' => (int)(getenv('MAX_UPLOAD_BYTES') ?: 52428800),
 
-    // Local development fallback only. In production, set VAULT_KEY in the protected server environment.
-    // Keep this value unique per installation and never commit a real secret.
-    'VAULT_KEY' => getenv('VAULT_KEY') ?: 'hr201-demo-local-only-key-change-me'
+    // Current secret for new data. If you rotated the key, set LEGACY_VAULT_KEY
+    // to the previous value so old files can still be decrypted during migration.
+    'VAULT_KEY' => getenv('VAULT_KEY') ?: 'hr201-demo-local-only-key-change-me',
+    'LEGACY_VAULT_KEY' => getenv('LEGACY_VAULT_KEY') ?: ''
 ];

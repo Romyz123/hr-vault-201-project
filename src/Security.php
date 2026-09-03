@@ -12,51 +12,48 @@ class Security
         $this->pdo = $pdo;
     }
 
+    private function ensureRateLimitTable(): bool
+    {
+        try {
+            $this->pdo->exec("CREATE TABLE IF NOT EXISTS `rate_limits` (
+                `ip_address` VARCHAR(45) NOT NULL,
+                `request_count` INT UNSIGNED NOT NULL DEFAULT 1,
+                `last_request` DATETIME NOT NULL,
+                PRIMARY KEY (`ip_address`)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+            $columns = $this->pdo->query("SHOW COLUMNS FROM `rate_limits`")->fetchAll(PDO::FETCH_COLUMN);
+            if (!in_array('ip_address', $columns, true) || !in_array('request_count', $columns, true) || !in_array('last_request', $columns, true)) {
+                $this->pdo->exec("ALTER TABLE `rate_limits` ADD COLUMN `request_count` INT UNSIGNED NOT NULL DEFAULT 1 AFTER `ip_address`");
+                $this->pdo->exec("ALTER TABLE `rate_limits` ADD COLUMN `last_request` DATETIME NOT NULL AFTER `request_count`");
+            }
+
+            return true;
+        } catch (PDOException $e) {
+            error_log("Rate limit table repair failed: " . $e->getMessage());
+            return false;
+        }
+    }
+
     public function checkRateLimit($ip, $limit = 60, $seconds = 60)
     {
         try {
-            $stmt = $this->pdo->prepare("SELECT request_count, last_request FROM rate_limits WHERE ip_address = ?");
+            $stmt = $this->pdo->prepare("SELECT `request_count`, `last_request` FROM `rate_limits` WHERE `ip_address` = ?");
             $stmt->execute([$ip]);
             $row = $stmt->fetch();
         } catch (PDOException $e) {
-            // [SECURITY FIX] Auto-create table if missing, otherwise fail closed
             $errorCode = $e->getCode();
-            // SQLSTATE 42S02 = Table doesn't exist (MySQL/MariaDB)
-            // SQLSTATE 42P01 = Undefined table (PostgreSQL)
             if ($errorCode === '42S02' || $errorCode === '42P01' || stripos($e->getMessage(), 'doesn\'t exist') !== false) {
-                $lockAcquired = false;
-                try {
-                    $lockStmt = $this->pdo->prepare("SELECT GET_LOCK(?, 10)");
-                    $lockStmt->execute(['hr201_rate_limits_repair']);
-                    $lockAcquired = (int)$lockStmt->fetchColumn() === 1;
-                    if (!$lockAcquired) {
-                        return false;
-                    }
-
-                    try {
-                        $retry = $this->pdo->prepare("SELECT request_count, last_request FROM rate_limits WHERE ip_address = ?");
-                        $retry->execute([$ip]);
-                        $row = $retry->fetch();
-                    } catch (PDOException $retryEx) {
-                        $this->pdo->exec("DROP TABLE IF EXISTS rate_limits");
-                        $this->pdo->exec("CREATE TABLE rate_limits (
-                            ip_address VARCHAR(45) PRIMARY KEY,
-                            request_count INT DEFAULT 1,
-                            last_request DATETIME
-                        )");
-                        $row = false;
-                    }
-                } catch (PDOException $createEx) {
-                    error_log("Rate limit table creation failed: " . $createEx->getMessage());
-                    return false; // Fail closed if we can't create the table
-                } finally {
-                    if ($lockAcquired) {
-                        $this->pdo->query("SELECT RELEASE_LOCK('hr201_rate_limits_repair')");
-                    }
+                if (!$this->ensureRateLimitTable()) {
+                    return false;
                 }
+
+                $stmt = $this->pdo->prepare("SELECT `request_count`, `last_request` FROM `rate_limits` WHERE `ip_address` = ?");
+                $stmt->execute([$ip]);
+                $row = $stmt->fetch();
             } else {
                 error_log("Rate limit check failed: " . $e->getMessage());
-                return false; // Fail closed on unexpected database errors
+                return false;
             }
         }
         $currentTime = time();
@@ -68,17 +65,17 @@ class Security
                 if ($row['request_count'] >= $limit) {
                     return false; // Return false instead of dying immediately to let the caller handle the message
                 }
-                $upd = $this->pdo->prepare("UPDATE rate_limits SET request_count = request_count + 1 WHERE ip_address = ?");
+                $upd = $this->pdo->prepare("UPDATE `rate_limits` SET `request_count` = `request_count` + 1 WHERE `ip_address` = ?");
                 $upd->execute([$ip]);
             } else {
                 // [FIX] Use PHP time to avoid DB timezone mismatches
                 $now = date('Y-m-d H:i:s');
-                $upd = $this->pdo->prepare("UPDATE rate_limits SET request_count = 1, last_request = ? WHERE ip_address = ?");
+                $upd = $this->pdo->prepare("UPDATE `rate_limits` SET `request_count` = 1, `last_request` = ? WHERE `ip_address` = ?");
                 $upd->execute([$now, $ip]);
             }
         } else {
             $now = date('Y-m-d H:i:s');
-            $ins = $this->pdo->prepare("INSERT INTO rate_limits (ip_address, request_count, last_request) VALUES (?, 1, ?)");
+            $ins = $this->pdo->prepare("INSERT INTO `rate_limits` (`ip_address`, `request_count`, `last_request`) VALUES (?, 1, ?)");
             $ins->execute([$ip, $now]);
         }
 

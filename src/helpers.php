@@ -19,10 +19,10 @@ if (!function_exists('post')) {
      * Fetch a POST value safely as string.
      *
      * @param string $key The key to retrieve from $_POST.
-     * @param string $default The default value if the key is not set or invalid.
-     * @return string
+     * @param string|null $default The default value if the key is not set or invalid.
+     * @return string|null
      */
-    function post(string $key, ?string $default = ''): ?string
+    function post(string $key, ?string $default = null): ?string
     {
         if (!isset($_POST[$key])) {
             return $default;

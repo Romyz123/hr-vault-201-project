@@ -194,17 +194,35 @@ $displayTitle = $pageTitles[$currentPage] ?? 'TESP HR 201 System';
             --bg: #f4f6f9;
             --card-border: #e9ecef;
             --accent: #2a5298;
+            --header-bg: #1f2937;
+            --header-text: #ffffff;
         }
 
         [data-bs-theme=dark] {
             --bg: #212529;
             --card-border: #495057;
             --accent: #6ea8fe;
+            --header-bg: #111827;
+            --header-text: #f8f9fa;
         }
 
         body {
             background: var(--bg);
             transition: background-color 0.3s ease, color 0.3s ease;
+        }
+
+        .navbar {
+            background: var(--header-bg) !important;
+            color: var(--header-text) !important;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            transition: background-color 0.3s ease, color 0.3s ease;
+        }
+
+        .navbar .nav-link,
+        .navbar .navbar-brand,
+        .navbar .dropdown-toggle,
+        .navbar .text-white {
+            color: var(--header-text) !important;
         }
 
         /* Global Animations */
@@ -399,7 +417,7 @@ $displayTitle = $pageTitles[$currentPage] ?? 'TESP HR 201 System';
 
 <body>
 
-    <nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4 px-3">
+    <nav class="navbar navbar-expand-lg mb-4 px-3">
         <div class="container-fluid">
             <a class="navbar-brand" href="index.php"><i class="bi bi-house-door-fill me-2"></i> Dashboard</a>
 

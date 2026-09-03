@@ -5,8 +5,19 @@ require '../src/Logger.php';
 require '../src/GoogleAuthenticator.php';
 session_start();
 
-// Redirect if no partial login session
+// OTP verification is disabled by default. Only allow access when an explicit 2FA flow was started.
 if (!isset($_SESSION['partial_user_id']) || !isset($_SESSION['partial_login_at']) || time() - (int)$_SESSION['partial_login_at'] > 300) {
+    unset($_SESSION['partial_user_id'], $_SESSION['partial_login_at'], $_SESSION['pending_totp_secret']);
+    header("Location: login.php");
+    exit;
+}
+
+// If the user account did not explicitly opt in to 2FA, do not allow this page to be used.
+$userId = $_SESSION['partial_user_id'];
+$stmt = $pdo->prepare("SELECT id, totp_secret, is_2fa_enabled FROM users WHERE id = ?");
+$stmt->execute([$userId]);
+$userState = $stmt->fetch();
+if (!$userState || (empty($userState['totp_secret']) && empty($userState['is_2fa_enabled']))) {
     unset($_SESSION['partial_user_id'], $_SESSION['partial_login_at'], $_SESSION['pending_totp_secret']);
     header("Location: login.php");
     exit;
@@ -18,7 +29,6 @@ $logger = new Logger($pdo);
 $security = new Security($pdo); // [NEW] Init Security
 $csrf_token = $security->generateCSRF(); // [SECURITY] Generate Token
 
-$userId = $_SESSION['partial_user_id'];
 $stmt = $pdo->prepare("SELECT * FROM users WHERE id = ?");
 $stmt->execute([$userId]);
 $user = $stmt->fetch();
@@ -320,7 +330,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         </script>
     <?php endif; ?>
     <script src="assets/bootstrap.bundle.min.js"></script>
-    <script src="dark_mode.js"></script>
 </body>
 
 </html>

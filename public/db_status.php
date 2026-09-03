@@ -344,7 +344,7 @@ foreach ($columnSchema as $table => $cols) {
         </div>
 
         <?php if ($msg): ?>
-            <div class="alert alert-info"><?php echo $msg; ?></div>
+            <div class="alert alert-info"><?php echo htmlspecialchars($msg, ENT_QUOTES, 'UTF-8'); ?></div>
         <?php endif; ?>
 
         <?php if ($issuesCount === 0): ?>

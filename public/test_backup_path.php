@@ -34,7 +34,6 @@ if (strpos($path, '..') !== false || preg_match('/[<>"|?*]/', $path) || strpos($
 $forbidden = [
     'C:\\Windows',
     'C:\\Program Files',
-    'C:\\Users',
     'C:\\inetpub',
     '/etc',
     '/var',

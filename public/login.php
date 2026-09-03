@@ -122,19 +122,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
                     $alertType = 'warning';
                     $alertMsg = "🛠️ <strong>System Under Maintenance</strong><br>Only Administrators can log in at this time. Please try again later.";
                 } else {
-                    // [NEW] 2FA Check (Enforced for ADMINs per MHI Sec 5.2)
+                    // [FIX] OTP verification is disabled by default. It only triggers when
+                    // a user explicitly enables 2FA in their account settings.
                     $isLocalRequest = in_array($_SERVER['REMOTE_ADDR'], ['127.0.0.1', '::1']);
                     $requires2FA = false;
 
-                    // [SECURITY] Force 2FA Setup for ALL users if they haven't configured it yet
-                    if (empty($user['totp_secret'])) {
-                        $requires2FA = true;
-                    } elseif (($normalizedRole === 'ADMIN' && !$isLocalRequest) || !empty($user['is_2fa_enabled'])) {
+                    $hasExplicit2FA = !empty($user['is_2fa_enabled']) || (!empty($user['totp_secret']) && !empty($user['is_2fa_enabled']));
+
+                    if ($hasExplicit2FA) {
                         $requires2FA = true;
                         if (isset($_COOKIE['hr_trust_device'])) {
                             $tokenHash = hash('sha256', $_COOKIE['hr_trust_device']);
-                            // Verify against DB
-                            if (hash_equals($user['trusted_device_token'], $tokenHash) && new DateTime($user['trusted_device_expires']) > new DateTime()) {                                // Trust valid - Skip OTP
+                            if (hash_equals($user['trusted_device_token'] ?? '', $tokenHash) && !empty($user['trusted_device_expires']) && new DateTime($user['trusted_device_expires']) > new DateTime()) {
                                 $requires2FA = false;
                             }
                         }

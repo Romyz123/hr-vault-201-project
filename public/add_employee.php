@@ -87,6 +87,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $dept             = post('dept');
     $section          = post('section');
     $group            = post('group');
+    $manager_id       = isset($_POST['manager_id']) && $_POST['manager_id'] !== '' ? (int)$_POST['manager_id'] : null;
     $input_selection  = post('employment_type');
     $company_name     = post('company_name', 'TES Philippines');
     $previous_company = post('previous_company');
@@ -223,6 +224,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'dept' => $dept,
         'section' => $section,
         'group' => $group,
+        'manager_id' => $manager_id,
         'employment_type' => $employment_type,
         'agency_name' => $agency_name,
         'company_name' => $company_name,
@@ -1445,7 +1447,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }, 'image/jpeg', 0.85);
         }
     </script>
-    <script src="dark_mode.js"></script>
 </body>
 
 </html>

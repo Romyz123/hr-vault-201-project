@@ -409,18 +409,6 @@ $allDepts = $pdo->query("SELECT DISTINCT dept FROM employees WHERE dept != '' OR
 
 <body class="bg-body-tertiary">
 
-    <nav class="navbar navbar-dark bg-dark mb-4">
-        <div class="container">
-            <a class="navbar-brand" href="index.php">Back to Dashboard</a>
-            <div class="d-flex align-items-center gap-2">
-                <button id="darkModeToggle" class="btn btn-sm btn-outline-light border-0" title="Toggle Dark Mode">
-                    <i class="bi bi-moon-stars-fill"></i>
-                </button>
-                <span class="navbar-text text-white fw-bold"><i class="bi bi-printer-fill"></i> Bulk Contract Generator</span>
-            </div>
-        </div>
-    </nav>
-
     <div class="container">
 
         <!-- FILTERS -->
@@ -783,7 +771,6 @@ $allDepts = $pdo->query("SELECT DISTINCT dept FROM employees WHERE dept != '' OR
             cb.addEventListener('change', updateCount);
         });
     </script>
-    <script src="dark_mode.js"></script>
     <?php require 'footer.php'; ?>
 
 </html>

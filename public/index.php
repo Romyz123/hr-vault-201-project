@@ -90,9 +90,10 @@ try {
 } catch (Exception $e) {
 }
 
-// ---------- 2) AUTOMATED BACKUP SYSTEM (ADMIN only) ----------
-// Fetches settings from DB and runs if today matches the scheduled day
-if ($userRole === 'ADMIN') {
+// ---------- 2) AUTOMATED BACKUP SYSTEM ----------
+// Scheduled backups are handled exclusively by cron_backup.php. Keeping the
+// dashboard request free of backup work prevents page-load timeouts and duplicate runs.
+if (false && $userRole === 'ADMIN') {
     // Fetch Backup Settings
     $bkSettings = [];
     try {

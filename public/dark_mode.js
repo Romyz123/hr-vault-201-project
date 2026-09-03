@@ -1,17 +1,18 @@
 (function () {
-  // 1. Apply theme immediately to avoid flash of unstyled content
   const getStoredTheme = () => localStorage.getItem("theme");
   const getPreferredTheme = () => {
     const stored = getStoredTheme();
-    if (stored) return stored;
+    if (stored === "dark" || stored === "light") return stored;
     return window.matchMedia("(prefers-color-scheme: dark)").matches
       ? "dark"
       : "light";
   };
 
   const setTheme = (theme) => {
-    document.documentElement.setAttribute("data-bs-theme", theme);
-    // Add a smooth transition class to the body and all interactive elements
+    const finalTheme = theme === "dark" ? "dark" : "light";
+    document.documentElement.setAttribute("data-bs-theme", finalTheme);
+    document.documentElement.style.colorScheme = finalTheme;
+
     const transitionElements = [
       document.body,
       ...document.querySelectorAll(
@@ -20,14 +21,28 @@
     ];
 
     transitionElements.forEach((el) => {
-      el.style.transition =
-        "background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease";
+      if (el) {
+        el.style.transition =
+          "background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease";
+      }
+    });
+
+    const navbars = document.querySelectorAll(".navbar");
+    navbars.forEach((nav) => {
+      if (finalTheme === "dark") {
+        nav.classList.add("navbar-dark");
+        nav.classList.remove("navbar-light");
+        nav.style.backgroundColor = "#212529";
+      } else {
+        nav.classList.add("navbar-light");
+        nav.classList.remove("navbar-dark");
+        nav.style.backgroundColor = "#f8f9fa";
+      }
     });
   };
 
   setTheme(getPreferredTheme());
 
-  // 2. Setup Toggle Button (after DOM load)
   document.addEventListener("DOMContentLoaded", () => {
     const btn = document.getElementById("darkModeToggle");
     if (!btn) return;
@@ -46,7 +61,15 @@
         btn.title = "Switch to Dark Mode";
       }
     };
-    updateIcon(document.documentElement.getAttribute("data-bs-theme"));
+
+    const syncTheme = () => {
+      const current =
+        document.documentElement.getAttribute("data-bs-theme") || "light";
+      setTheme(current);
+      updateIcon(current);
+    };
+
+    syncTheme();
 
     btn.addEventListener("click", () => {
       const current = document.documentElement.getAttribute("data-bs-theme");
@@ -54,15 +77,12 @@
       setTheme(next);
       localStorage.setItem("theme", next);
       updateIcon(next);
-
-      // Add a subtle animation to the button
       btn.style.transform = "rotate(180deg)";
       setTimeout(() => {
         btn.style.transform = "rotate(0deg)";
       }, 300);
     });
 
-    // Add transition to button
     btn.style.transition = "transform 0.4s ease";
   });
 })();

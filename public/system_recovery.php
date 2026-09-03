@@ -43,6 +43,11 @@ if ($realVault) {
 $msg = "";
 $security = new Security($pdo);
 $logger = new Logger($pdo);
+$validRecoveryTabs = ['orphans', 'deleted', 'broken', 'ghosts', 'duplicates', 'compress'];
+$activeRecoveryTab = $_POST['active_tab'] ?? $_GET['tab'] ?? 'orphans';
+if (!in_array($activeRecoveryTab, $validRecoveryTabs, true)) {
+    $activeRecoveryTab = 'orphans';
+}
 
 // [SECURITY] Generate CSRF token for form submissions
 if (empty($_SESSION['csrf_token'])) {
@@ -54,6 +59,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // [SECURITY] CSRF Token Validation on all POST handlers
     if (empty($_POST['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'])) {
         die("CSRF validation failed");
+    }
+
+    if (isset($_POST['active_tab']) && !in_array($_POST['active_tab'], $validRecoveryTabs, true)) {
+        $activeRecoveryTab = 'orphans';
     }
 
     // --- RECOVER ORPHANED FILE ---
@@ -503,6 +512,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $logger->log($_SESSION['user_id'], 'RESTORE_EMPLOYEE', "Restored employee ID $empId");
     }
 
+    // --- RESTORE SELECTED EMPLOYEES ---
+    if (isset($_POST['restore_selected_employees'])) {
+        $employeeIds = json_decode($_POST['deleted_employee_ids'] ?? '', true);
+        $employeeIds = is_array($employeeIds) ? array_values(array_filter(array_map('intval', $employeeIds), fn($id) => $id > 0)) : [];
+
+        if (empty($employeeIds)) {
+            $msg = "❌ Select at least one deleted employee to restore.";
+        } else {
+            $placeholders = implode(',', array_fill(0, count($employeeIds), '?'));
+            $stmt = $pdo->prepare("UPDATE employees SET deleted_at = NULL WHERE id IN ($placeholders) AND deleted_at IS NOT NULL");
+            $stmt->execute($employeeIds);
+            $count = $stmt->rowCount();
+            $msg = "✅ Restored $count selected employee(s).";
+            $logger->log($_SESSION['user_id'], 'RESTORE_SELECTED_EMPLOYEES', "Restored $count selected employees.");
+        }
+    }
+
     // --- PERMANENT DELETE EMPLOYEE ---
     if (isset($_POST['permanent_delete_employee'])) {
         $empId = $_POST['emp_id'];
@@ -901,18 +927,18 @@ $bkMaxSize = $pdo->query("SELECT setting_value FROM system_settings WHERE settin
     <?php endif; ?>
 
     <ul class="nav nav-tabs mb-4" id="recoveryTabs">
-        <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#orphans">👻 Orphaned Files (<?php echo count($orphans); ?>)</button></li>
-        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#deleted">🗑️ Deleted Employees (<?php echo count($deletedEmployees); ?>)</button></li>
-        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#broken">⚠️ Broken Links (<?php echo count($brokenLinks); ?>)</button></li>
-        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#ghosts">🧟 Ghost Records (<?php echo count($ghostRecords); ?>)</button></li>
-        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#duplicates">👯 Duplicates (<?php echo count($duplicates); ?>)</button></li>
-        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#compress">🗜️ Storage Optimization</button></li>
+        <li class="nav-item"><button class="nav-link <?php echo $activeRecoveryTab === 'orphans' ? 'active' : ''; ?>" data-bs-toggle="tab" data-bs-target="#orphans">👻 Orphaned Files (<?php echo count($orphans); ?>)</button></li>
+        <li class="nav-item"><button class="nav-link <?php echo $activeRecoveryTab === 'deleted' ? 'active' : ''; ?>" data-bs-toggle="tab" data-bs-target="#deleted">🗑️ Deleted Employees (<?php echo count($deletedEmployees); ?>)</button></li>
+        <li class="nav-item"><button class="nav-link <?php echo $activeRecoveryTab === 'broken' ? 'active' : ''; ?>" data-bs-toggle="tab" data-bs-target="#broken">⚠️ Broken Links (<?php echo count($brokenLinks); ?>)</button></li>
+        <li class="nav-item"><button class="nav-link <?php echo $activeRecoveryTab === 'ghosts' ? 'active' : ''; ?>" data-bs-toggle="tab" data-bs-target="#ghosts">🧟 Ghost Records (<?php echo count($ghostRecords); ?>)</button></li>
+        <li class="nav-item"><button class="nav-link <?php echo $activeRecoveryTab === 'duplicates' ? 'active' : ''; ?>" data-bs-toggle="tab" data-bs-target="#duplicates">👯 Duplicates (<?php echo count($duplicates); ?>)</button></li>
+        <li class="nav-item"><button class="nav-link <?php echo $activeRecoveryTab === 'compress' ? 'active' : ''; ?>" data-bs-toggle="tab" data-bs-target="#compress">🗜️ Storage Optimization</button></li>
     </ul>
 
     <div class="tab-content">
 
         <!-- ORPHANED FILES TAB -->
-        <div class="tab-pane fade show active" id="orphans">
+        <div class="tab-pane fade <?php echo $activeRecoveryTab === 'orphans' ? 'show active' : ''; ?>" id="orphans">
             <h4 class="mb-4">Orphaned Files</h4>
             <div class="alert alert-info d-flex justify-content-between align-items-center">
                 <span><i class="bi bi-info-circle-fill"></i> <strong>Master Sync:</strong> Run this to fix dashboard counts and clean the vault in one go.</span>
@@ -928,6 +954,8 @@ $bkMaxSize = $pdo->query("SELECT setting_value FROM system_settings WHERE settin
                     <small class="d-block text-muted">Files on server but missing from database.</small>
                     <?php if (!empty($orphans)): ?>
                         <div class="mt-2">
+                            <button type="button" onclick="selectAllItems('orphan-checkbox', true)" class="btn btn-sm btn-outline-dark me-1">Select All</button>
+                            <button type="button" onclick="selectAllItems('orphan-checkbox', false)" class="btn btn-sm btn-outline-secondary me-2">Deselect All</button>
                             <button type="button" onclick="submitBulkOrphans()" class="btn btn-sm btn-danger fw-bold me-2">🗑️ Delete Selected</button>
                             <form method="POST" class="d-inline" onsubmit="return confirm('WARNING: This will permanently delete ALL listed orphaned files. This cannot be undone. Proceed?');">
                                 <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
@@ -984,13 +1012,18 @@ $bkMaxSize = $pdo->query("SELECT setting_value FROM system_settings WHERE settin
         </div>
 
         <!-- DELETED EMPLOYEES TAB -->
-        <div class="tab-pane fade" id="deleted">
+        <div class="tab-pane fade <?php echo $activeRecoveryTab === 'deleted' ? 'show active' : ''; ?>" id="deleted">
             <h4 class="mb-4">Deleted Employees</h4>
             <div class="card shadow-sm">
                 <div class="card-header bg-secondary text-white d-flex justify-content-between align-items-center">
                     <div>
                         <i class="bi bi-person-x"></i> <strong>Recycle Bin: Employees</strong>
                         <small class="d-block text-light">Restore employees or permanently delete them (including files).</small>
+                    </div>
+                    <div class="d-flex gap-1">
+                        <button type="button" onclick="selectAllItems('deleted-employee-checkbox', true)" class="btn btn-sm btn-outline-light">Select All</button>
+                        <button type="button" onclick="selectAllItems('deleted-employee-checkbox', false)" class="btn btn-sm btn-light text-dark">Deselect All</button>
+                        <button type="button" onclick="submitRestoreEmployees()" class="btn btn-sm btn-success fw-bold">Restore Selected</button>
                     </div>
                     <form method="POST" class="m-0">
                         <input type="hidden" name="csrf_token" value="<?php echo h($_SESSION['csrf_token']); ?>">
@@ -1001,6 +1034,7 @@ $bkMaxSize = $pdo->query("SELECT setting_value FROM system_settings WHERE settin
                     <table class="table table-hover mb-0 align-middle">
                         <thead>
                             <tr>
+                                <th><input type="checkbox" class="form-check-input" id="selectAllDeletedEmployees" aria-label="Select all deleted employees"></th>
                                 <th>Date Deleted</th>
                                 <th>Name</th>
                                 <th>ID</th>
@@ -1012,6 +1046,7 @@ $bkMaxSize = $pdo->query("SELECT setting_value FROM system_settings WHERE settin
                         <tbody>
                             <?php foreach ($deletedEmployees as $emp): ?>
                                 <tr>
+                                    <td><input type="checkbox" value="<?php echo (int)$emp['id']; ?>" class="form-check-input deleted-employee-checkbox" aria-label="Select <?php echo htmlspecialchars($emp['emp_id']); ?>"></td>
                                     <td><?php echo date('M d, Y h:i A', strtotime($emp['deleted_at'])); ?></td>
                                     <td class="fw-bold"><?php echo htmlspecialchars($emp['last_name'] . ', ' . $emp['first_name']); ?></td>
                                     <td><?php echo htmlspecialchars($emp['emp_id']); ?></td>
@@ -1034,7 +1069,7 @@ $bkMaxSize = $pdo->query("SELECT setting_value FROM system_settings WHERE settin
                             <?php endforeach; ?>
                             <?php if (empty($deletedEmployees)): ?>
                                 <tr>
-                                    <td colspan="5" class="text-center p-4 text-muted">No deleted employees found.</td>
+                                    <td colspan="7" class="text-center p-4 text-muted">No deleted employees found.</td>
                                 </tr>
                             <?php endif; ?>
                         </tbody>
@@ -1044,7 +1079,7 @@ $bkMaxSize = $pdo->query("SELECT setting_value FROM system_settings WHERE settin
         </div>
 
         <!-- BROKEN LINKS TAB -->
-        <div class="tab-pane fade" id="broken">
+        <div class="tab-pane fade <?php echo $activeRecoveryTab === 'broken' ? 'show active' : ''; ?>" id="broken">
             <h4 class="mb-4">Broken Links</h4>
             <div class="card shadow-sm">
                 <div class="card-header bg-danger text-white">
@@ -1096,7 +1131,7 @@ $bkMaxSize = $pdo->query("SELECT setting_value FROM system_settings WHERE settin
         </div>
 
         <!-- GHOST RECORDS TAB -->
-        <div class="tab-pane fade" id="ghosts">
+        <div class="tab-pane fade <?php echo $activeRecoveryTab === 'ghosts' ? 'show active' : ''; ?>" id="ghosts">
             <h4 class="mb-4">Ghost Records</h4>
             <div class="card shadow-sm">
                 <div class="card-header bg-danger text-white fw-bold">
@@ -1158,7 +1193,7 @@ $bkMaxSize = $pdo->query("SELECT setting_value FROM system_settings WHERE settin
         </div>
 
         <!-- DUPLICATES TAB -->
-        <div class="tab-pane fade" id="duplicates">
+        <div class="tab-pane fade <?php echo $activeRecoveryTab === 'duplicates' ? 'show active' : ''; ?>" id="duplicates">
             <h4 class="mb-4">Duplicates</h4>
             <div class="card shadow-sm">
                 <div class="card-header bg-info text-white">
@@ -1208,7 +1243,7 @@ $bkMaxSize = $pdo->query("SELECT setting_value FROM system_settings WHERE settin
         </div>
 
         <!-- COMPRESS VAULT TAB -->
-        <div class="tab-pane fade" id="compress">
+        <div class="tab-pane fade <?php echo $activeRecoveryTab === 'compress' ? 'show active' : ''; ?>" id="compress">
             <h4 class="mb-4">Storage Optimization</h4>
             <div class="card shadow-sm border-warning">
                 <div class="card-header bg-warning text-dark">
@@ -1256,6 +1291,12 @@ $bkMaxSize = $pdo->query("SELECT setting_value FROM system_settings WHERE settin
     <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
     <input type="hidden" name="bulk_delete_orphans" value="1">
     <input type="hidden" name="orphan_list_json" id="hidden_orphan_list">
+</form>
+
+<form id="restoreEmployeesForm" method="POST" style="display:none;">
+    <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
+    <input type="hidden" name="restore_selected_employees" value="1">
+    <input type="hidden" name="deleted_employee_ids" id="hidden_deleted_employee_ids">
 </form>
 
 <!-- MODALS FOR BACKUP -->
@@ -1312,15 +1353,22 @@ $bkMaxSize = $pdo->query("SELECT setting_value FROM system_settings WHERE settin
 </div>
 
 <script src="assets/bootstrap.bundle.min.js"></script>
-<script src="dark_mode.js"></script>
 <script>
     // Select-all checkbox for ghost records
     document.addEventListener('DOMContentLoaded', function() {
+        document.querySelectorAll('form[method="POST"]').forEach(form => {
+            form.addEventListener('submit', function() {
+                addActiveTab(form);
+            });
+        });
+
         const selectAllCheckbox = document.getElementById('selectAllGhosts');
         const ghostCheckboxes = document.querySelectorAll('.ghost-checkbox');
 
         const selectAllOrphans = document.getElementById('selectAllOrphans');
         const orphanCheckboxes = document.querySelectorAll('.orphan-checkbox');
+        const selectAllDeletedEmployees = document.getElementById('selectAllDeletedEmployees');
+        const deletedEmployeeCheckboxes = document.querySelectorAll('.deleted-employee-checkbox');
 
         if (selectAllCheckbox) {
             selectAllCheckbox.addEventListener('change', function() {
@@ -1337,7 +1385,21 @@ $bkMaxSize = $pdo->query("SELECT setting_value FROM system_settings WHERE settin
                 });
             });
         }
+
+        if (selectAllDeletedEmployees) {
+            selectAllDeletedEmployees.addEventListener('change', function() {
+                deletedEmployeeCheckboxes.forEach(cb => {
+                    cb.checked = this.checked;
+                });
+            });
+        }
     });
+
+    function selectAllItems(className, checked) {
+        document.querySelectorAll('.' + className).forEach(checkbox => {
+            checkbox.checked = checked;
+        });
+    }
 
     function submitPruneGhosts() {
         const checked = document.querySelectorAll('.ghost-checkbox:checked');
@@ -1351,6 +1413,7 @@ $bkMaxSize = $pdo->query("SELECT setting_value FROM system_settings WHERE settin
 
         const ids = Array.from(checked).map(cb => parseInt(cb.value));
         document.getElementById('hidden_ghost_ids').value = JSON.stringify(ids);
+        addActiveTab(document.getElementById('pruneGhostsForm'));
         document.getElementById('pruneGhostsForm').submit();
     }
 
@@ -1366,7 +1429,35 @@ $bkMaxSize = $pdo->query("SELECT setting_value FROM system_settings WHERE settin
 
         const files = Array.from(checked).map(cb => cb.value);
         document.getElementById('hidden_orphan_list').value = JSON.stringify(files);
+        addActiveTab(document.getElementById('bulkOrphansForm'));
         document.getElementById('bulkOrphansForm').submit();
+    }
+
+    function submitRestoreEmployees() {
+        const checked = document.querySelectorAll('.deleted-employee-checkbox:checked');
+        if (checked.length === 0) {
+            alert('Please select at least one deleted employee to restore.');
+            return;
+        }
+        if (!confirm(`Restore ${checked.length} selected employee(s)?`)) {
+            return;
+        }
+
+        const ids = Array.from(checked).map(cb => parseInt(cb.value, 10));
+        document.getElementById('hidden_deleted_employee_ids').value = JSON.stringify(ids);
+        addActiveTab(document.getElementById('restoreEmployeesForm'));
+        document.getElementById('restoreEmployeesForm').submit();
+    }
+
+    function addActiveTab(form) {
+        let input = form.querySelector('input[name="active_tab"]');
+        if (!input) {
+            input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = 'active_tab';
+            form.appendChild(input);
+        }
+        input.value = document.querySelector('#recoveryTabs .nav-link.active')?.dataset.bsTarget?.replace('#', '') || 'orphans';
     }
 
     // [SECURITY] Auto-Logout Timer
@@ -1454,6 +1545,7 @@ $bkMaxSize = $pdo->query("SELECT setting_value FROM system_settings WHERE settin
             if (result.isConfirmed) {
                 document.getElementById('reassignDocId').value = docId;
                 document.getElementById('reassignTargetId').value = result.value;
+                addActiveTab(document.getElementById('reassignGhostForm'));
                 document.getElementById('reassignGhostForm').submit();
             }
         });
@@ -1462,6 +1554,7 @@ $bkMaxSize = $pdo->query("SELECT setting_value FROM system_settings WHERE settin
     function archiveGhost(docId) {
         if (confirm('Move to Archive? This will change the owner to ORPHANED_ARCHIVE and hide it from compliance tracking.')) {
             document.getElementById('archiveDocId').value = docId;
+            addActiveTab(document.getElementById('archiveGhostForm'));
             document.getElementById('archiveGhostForm').submit();
         }
     }

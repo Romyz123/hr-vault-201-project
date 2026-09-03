@@ -3620,3 +3620,41 @@ Stack trace:
 Stack trace:
 #0 {main}
   thrown in C:\xampp\htdocs\hr 201\public\analytics.php on line 1211
+[01-Sep-2026 09:13:31 Asia/Manila] PHP Fatal error:  Cannot redeclare sanitize_global_input() (previously declared in C:\xampp\htdocs\hr 201\config\db.php:27) in C:\xampp\htdocs\hr 201\config\db.php on line 27
+[01-Sep-2026 09:13:38 Asia/Manila] PHP Fatal error:  Cannot redeclare sanitize_global_input() (previously declared in C:\xampp\htdocs\hr 201\config\db.php:27) in C:\xampp\htdocs\hr 201\config\db.php on line 27
+[01-Sep-2026 09:13:55 Asia/Manila] PHP Fatal error:  Cannot redeclare sanitize_global_input() (previously declared in C:\xampp\htdocs\hr 201\config\db.php:27) in C:\xampp\htdocs\hr 201\config\db.php on line 27
+[01-Sep-2026 09:14:10 Asia/Manila] Failed to copy vault file: C:\xampp\htdocs\hr 201\vault\.gitkeep to U:\01_TESP\09_MAINTENANCE DOCS\041_GAG\201 FILES\sample\vault_mirror\
+[01-Sep-2026 09:14:10 Asia/Manila] Failed to copy vault file: C:\xampp\htdocs\hr 201\vault\.htaccess to U:\01_TESP\09_MAINTENANCE DOCS\041_GAG\201 FILES\sample\vault_mirror\
+[01-Sep-2026 09:15:07 Asia/Manila] PHP Fatal error:  Cannot redeclare sanitize_global_input() (previously declared in C:\xampp\htdocs\hr 201\config\db.php:27) in C:\xampp\htdocs\hr 201\config\db.php on line 27
+[01-Sep-2026 09:16:13 Asia/Manila] PHP Fatal error:  Cannot redeclare sanitize_global_input() (previously declared in C:\xampp\htdocs\hr 201\config\db.php:27) in C:\xampp\htdocs\hr 201\config\db.php on line 27
+[01-Sep-2026 09:16:18 Asia/Manila] PHP Fatal error:  Cannot redeclare sanitize_global_input() (previously declared in C:\xampp\htdocs\hr 201\config\db.php:27) in C:\xampp\htdocs\hr 201\config\db.php on line 27
+[01-Sep-2026 09:17:49 Asia/Manila] PHP Fatal error:  Cannot redeclare sanitize_global_input() (previously declared in C:\xampp\htdocs\hr 201\config\db.php:27) in C:\xampp\htdocs\hr 201\config\db.php on line 27
+[01-Sep-2026 09:32:59 Asia/Manila] PHP Fatal error:  Cannot redeclare sanitize_global_input() (previously declared in C:\xampp\htdocs\hr 201\config\db.php:27) in C:\xampp\htdocs\hr 201\config\db.php on line 27
+[01-Sep-2026 09:38:51 Asia/Manila] PHP Fatal error:  Cannot redeclare sanitize_global_input() (previously declared in C:\xampp\htdocs\hr 201\config\db.php:27) in C:\xampp\htdocs\hr 201\config\db.php on line 27
+[01-Sep-2026 09:40:04 Asia/Manila] PHP Fatal error:  Cannot redeclare sanitize_global_input() (previously declared in C:\xampp\htdocs\hr 201\config\db.php:27) in C:\xampp\htdocs\hr 201\config\db.php on line 27
+[01-Sep-2026 09:41:43 Asia/Manila] PHP Fatal error:  Cannot redeclare sanitize_global_input() (previously declared in C:\xampp\htdocs\hr 201\config\db.php:27) in C:\xampp\htdocs\hr 201\config\db.php on line 27
+[01-Sep-2026 09:42:49 Asia/Manila] PHP Fatal error:  Cannot redeclare sanitize_global_input() (previously declared in C:\xampp\htdocs\hr 201\config\db.php:27) in C:\xampp\htdocs\hr 201\config\db.php on line 27
+[01-Sep-2026 09:57:14 Asia/Manila] PHP Fatal error:  Cannot redeclare checkSessionTimeout() (previously declared in C:\xampp\htdocs\hr 201\config\db.php:138) in C:\xampp\htdocs\hr 201\config\db.php on line 138
+[01-Sep-2026 10:00:04 Asia/Manila] PHP Warning:  Undefined array key "doc_id" in C:\xampp\htdocs\hr 201\public\admin_approval.php on line 282
+[02-Sep-2026 10:22:07 Asia/Manila] PHP Fatal error:  Cannot redeclare checkSessionTimeout() (previously declared in C:\xampp\htdocs\hr 201\config\db.php:145) in C:\xampp\htdocs\hr 201\config\db.php on line 145
+[02-Sep-2026 14:05:27 Asia/Manila] PHP Fatal error:  Uncaught Error: Call to undefined function h() in C:\xampp\htdocs\hr 201\public\verify_otp.php:193
+Stack trace:
+#0 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\verify_otp.php on line 193
+[02-Sep-2026 14:06:10 Asia/Manila] PHP Fatal error:  Uncaught Error: Call to undefined function h() in C:\xampp\htdocs\hr 201\public\verify_otp.php:193
+Stack trace:
+#0 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\verify_otp.php on line 193
+[02-Sep-2026 14:08:19 Asia/Manila] PHP Fatal error:  Uncaught Error: Call to undefined function h() in C:\xampp\htdocs\hr 201\public\verify_otp.php:203
+Stack trace:
+#0 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\verify_otp.php on line 203
+[03-Sep-2026 08:59:23 Asia/Manila] PHP Fatal error:  Cannot redeclare checkSessionTimeout() (previously declared in C:\xampp\htdocs\hr 201\config\db.php:145) in C:\xampp\htdocs\hr 201\config\db.php on line 145
+[03-Sep-2026 09:04:46 Asia/Manila] PHP Fatal error:  Cannot redeclare checkSessionTimeout() (previously declared in C:\xampp\htdocs\hr 201\config\db.php:145) in C:\xampp\htdocs\hr 201\config\db.php on line 145
+[03-Sep-2026 09:04:56 Asia/Manila] PHP Fatal error:  Cannot redeclare checkSessionTimeout() (previously declared in C:\xampp\htdocs\hr 201\config\db.php:145) in C:\xampp\htdocs\hr 201\config\db.php on line 145
+[03-Sep-2026 09:05:01 Asia/Manila] PHP Fatal error:  Cannot redeclare checkSessionTimeout() (previously declared in C:\xampp\htdocs\hr 201\config\db.php:145) in C:\xampp\htdocs\hr 201\config\db.php on line 145
+[03-Sep-2026 09:05:04 Asia/Manila] PHP Fatal error:  Cannot redeclare checkSessionTimeout() (previously declared in C:\xampp\htdocs\hr 201\config\db.php:145) in C:\xampp\htdocs\hr 201\config\db.php on line 145
+[03-Sep-2026 09:10:18 Asia/Manila] PHP Fatal error:  Cannot redeclare checkSessionTimeout() (previously declared in C:\xampp\htdocs\hr 201\config\db.php:145) in C:\xampp\htdocs\hr 201\config\db.php on line 145
+[03-Sep-2026 09:11:23 Asia/Manila] PHP Fatal error:  Cannot redeclare checkSessionTimeout() (previously declared in C:\xampp\htdocs\hr 201\config\db.php:145) in C:\xampp\htdocs\hr 201\config\db.php on line 145
+[03-Sep-2026 09:11:28 Asia/Manila] PHP Fatal error:  Cannot redeclare checkSessionTimeout() (previously declared in C:\xampp\htdocs\hr 201\config\db.php:145) in C:\xampp\htdocs\hr 201\config\db.php on line 145
+[03-Sep-2026 11:17:14 Asia/Manila] PHP Fatal error:  Cannot redeclare checkSessionTimeout() (previously declared in C:\xampp\htdocs\hr 201\config\db.php:145) in C:\xampp\htdocs\hr 201\config\db.php on line 145

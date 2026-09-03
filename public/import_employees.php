@@ -1591,5 +1591,4 @@ $history = $pdo->query("SELECT import_batch, MAX(agency_name) as agency_name, CO
         });
     <?php endif; ?>
 </script>
-<script src="dark_mode.js"></script>
 <?php require 'footer.php'; ?>

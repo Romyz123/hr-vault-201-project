@@ -427,6 +427,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $group = trim($_POST['group'] ?? $emp['group'] ?? '');
     $company_name = trim($_POST['company_name'] ?? $emp['company_name'] ?? '');
     $previous_company = trim($_POST['previous_company'] ?? $emp['previous_company'] ?? '');
+    $manager_id = isset($_POST['manager_id']) ? (int)$_POST['manager_id'] : (($emp['manager_id'] ?? null) !== null ? (int)$emp['manager_id'] : null);
     $hire_date = !empty($_POST['hire_date']) ? $_POST['hire_date'] : null;
     $gender = trim($_POST['gender'] ?? $emp['gender'] ?? '');
     $birth_date = !empty($_POST['birth_date']) ? $_POST['birth_date'] : null;
@@ -673,6 +674,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'dept' => $dept,
             'section' => $section,
             'group' => $group,
+            'manager_id' => $manager_id,
             'employment_type' => $employment_type,
             'agency_name' => $agency_name,
             'company_name' => $company_name,

@@ -134,7 +134,6 @@ $deletedDocs = $stmt->fetchAll(PDO::FETCH_ASSOC);
     <script>
     </script>
     <script src="assets/bootstrap.bundle.min.js"></script>
-    <script src="dark_mode.js"></script>
     <script src="main.js"></script>
 </body>
 

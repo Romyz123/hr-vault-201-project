@@ -296,6 +296,42 @@ foreach ($employees as $emp) {
             .print-note { display: block; background: #fff3cd; border: 1px solid #ffeeba; padding: 15px; margin: 20px; text-align: center; font-family: sans-serif; border-radius: 5px; }
             body { font-family: "Arial", sans-serif; background: #555; margin: 0; padding: 40px; }
             .page { background: white; width: 210mm; min-height: 297mm; margin: 0 auto; padding: 40px; box-sizing: border-box; box-shadow: 0 0 15px rgba(0,0,0,0.3); }
+            .company-header {
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                text-align: center;
+                border-bottom: 3px solid #333;
+                padding-bottom: 20px;
+                margin-bottom: 30px;
+            }
+            .company-logo {
+                display: block;
+                max-height: 90px;
+                width: auto;
+                margin: 0 auto 12px auto;
+            }
+            .company-title {
+                font-size: 26px;
+                font-weight: bold;
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+                color: #000;
+                margin-bottom: 4px;
+            }
+            .company-sub {
+                font-size: 14px;
+                color: #555;
+                margin-bottom: 8px;
+            }
+            .doc-title {
+                margin: 0;
+                font-size: 18px;
+                font-weight: bold;
+                text-transform: uppercase;
+                color: #222;
+            }
             .header { display: flex; border-bottom: 3px solid #333; padding-bottom: 20px; margin-bottom: 30px; }
             .avatar { width: 120px; height: 120px; object-fit: cover; border: 1px solid #ccc; margin-right: 25px; }
             .header-info { flex-grow: 1; }

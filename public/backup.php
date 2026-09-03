@@ -43,11 +43,13 @@ if (isset($_GET['download_part'])) {
         http_response_code(404);
         exit;
     }
-
     $tempDir = __DIR__ . '/../backups/temp_downloads';
     if (!is_dir($tempDir)) {
-        @mkdir($tempDir, 0700, true);
-        @file_put_contents($tempDir . DIRECTORY_SEPARATOR . '.htaccess', "Deny from all\n");
+        if (!mkdir($tempDir, 0700, true)) {
+            http_response_code(500);
+            exit("Server Error: Cannot create temp directory.");
+        }
+        file_put_contents($tempDir . DIRECTORY_SEPARATOR . '.htaccess', "Deny from all\n");
     }
     $tempDirReal = realpath($tempDir);
 
@@ -178,15 +180,21 @@ if ($useZip) {
     };
 
     $startNewZip = function () use (&$zip, &$generatedZips, $tempDir, $baseFilename, &$partNumber, &$currentBytes, $cleanupOnError) {
-        if ($zip instanceof ZipArchive) $zip->close();
+        if ($zip instanceof ZipArchive) {
+            @$zip->close();
+        }
         $path = $tempDir . DIRECTORY_SEPARATOR . $baseFilename . "_Part{$partNumber}.zip";
+        if ($path === '' || !is_dir($tempDir)) {
+            $cleanupOnError("Server Error: Invalid ZIP target path.");
+        }
         $generatedZips[] = $path;
         if (!isset($_SESSION['backup_temp_files']) || !is_array($_SESSION['backup_temp_files'])) {
             $_SESSION['backup_temp_files'] = [];
         }
         $_SESSION['backup_temp_files'][] = $path;
         $zip = new ZipArchive();
-        if ($zip->open($path, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== TRUE) {
+        if (!$zip instanceof ZipArchive || $zip->open($path, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== TRUE) {
+            $zip = null;
             $cleanupOnError("Server Error: Could not create split ZIP.");
         }
         $currentBytes = 0;
@@ -199,13 +207,15 @@ if ($useZip) {
         $startNewZip();
     }
 
-    if ($zip instanceof ZipArchive) {
+    if ($zip instanceof ZipArchive && file_exists($tmpSqlFile) && filesize($tmpSqlFile) !== false) {
         $zip->addFile($tmpSqlFile, $sql_filename_in_zip);
         if ($password) {
             if (!$zip->setEncryptionName($sql_filename_in_zip, ZipArchive::EM_AES_256, $password)) {
                 $cleanupOnError("Server Error: Encryption failed for $sql_filename_in_zip.");
             }
         }
+    } else {
+        $cleanupOnError("Server Error: Temporary SQL file is missing or invalid.");
     }
     $currentBytes += $sqlSize;
 
