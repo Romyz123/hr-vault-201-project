@@ -133,6 +133,14 @@ try {
 require __DIR__ . '/options.php';
 $emp_options = $agencies;
 
+$managers = [];
+try {
+    $managerStmt = $pdo->query("SELECT id, username, role FROM users WHERE role IN ('ADMIN', 'MANAGER') ORDER BY username ASC");
+    $managers = $managerStmt->fetchAll(PDO::FETCH_ASSOC);
+} catch (Exception $e) {
+    error_log('Unable to load manager options in edit_employee.php: ' . $e->getMessage());
+}
+
 // [SECURITY] Generate CSRF Token
 if (empty($_SESSION['csrf_token'])) {
     $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
@@ -427,7 +435,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $group = trim($_POST['group'] ?? $emp['group'] ?? '');
     $company_name = trim($_POST['company_name'] ?? $emp['company_name'] ?? '');
     $previous_company = trim($_POST['previous_company'] ?? $emp['previous_company'] ?? '');
-    $manager_id = isset($_POST['manager_id']) ? (int)$_POST['manager_id'] : (($emp['manager_id'] ?? null) !== null ? (int)$emp['manager_id'] : null);
+    if (array_key_exists('manager_id', $_POST)) {
+        $manager_id = $_POST['manager_id'] === '' ? null : (int)$_POST['manager_id'];
+    } else {
+        $manager_id = ($emp['manager_id'] ?? null) !== null ? (int)$emp['manager_id'] : null;
+    }
     $hire_date = !empty($_POST['hire_date']) ? $_POST['hire_date'] : null;
     $gender = trim($_POST['gender'] ?? $emp['gender'] ?? '');
     $birth_date = !empty($_POST['birth_date']) ? $_POST['birth_date'] : null;
@@ -933,6 +945,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                     $groups = $groups ?? [];
                                     foreach ($groups as $g): ?>
                                         <option value="<?php echo h($g); ?>"><?php echo h($g); ?></option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label" for="manager_id">Manager</label>
+                                <select name="manager_id" id="manager_id" class="form-select">
+                                    <option value="">-- No Manager Assigned --</option>
+                                    <?php foreach ($managers as $manager): ?>
+                                        <option value="<?php echo (int)$manager['id']; ?>" <?php echo ((string)($manager_id ?? $emp['manager_id'] ?? '') === (string)$manager['id']) ? 'selected' : ''; ?>>
+                                            <?php echo h($manager['username'] . ' (' . $manager['role'] . ')'); ?>
+                                        </option>
                                     <?php endforeach; ?>
                                 </select>
                             </div>

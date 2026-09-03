@@ -93,7 +93,7 @@ try {
 // ---------- 2) AUTOMATED BACKUP SYSTEM ----------
 // Scheduled backups are handled exclusively by cron_backup.php. Keeping the
 // dashboard request free of backup work prevents page-load timeouts and duplicate runs.
-if (false && $userRole === 'ADMIN') {
+if ($userRole === 'ADMIN') {
     // Fetch Backup Settings
     $bkSettings = [];
     try {

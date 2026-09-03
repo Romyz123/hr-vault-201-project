@@ -922,6 +922,7 @@ include 'header.php';
     function runManualBackup() {
         const btn = document.getElementById('manualBackupBtn');
         const ogText = btn.innerHTML;
+        const runId = window.crypto?.randomUUID ? window.crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 
         Swal.fire({
             title: 'Running Full Backup...',
@@ -939,6 +940,7 @@ include 'header.php';
 
         const formData = new FormData();
         formData.append('csrf_token', '<?= $csrf_token_js ?>');
+        formData.append('run_id', runId);
 
         fetch('cron_backup.php?ajax=1', {
                 method: 'POST',
@@ -956,7 +958,7 @@ include 'header.php';
             .catch(err => {
                 Swal.close();
                 console.error(err);
-                monitorBackupStatus();
+                monitorBackupStatus(runId);
             })
             .finally(() => {
                 btn.innerHTML = ogText;
@@ -964,7 +966,7 @@ include 'header.php';
             });
     }
 
-    function monitorBackupStatus(attempt = 0) {
+    function monitorBackupStatus(runId, attempt = 0) {
         const maxAttempts = 30;
         Swal.fire({
             icon: 'info',
@@ -975,7 +977,7 @@ include 'header.php';
             showConfirmButton: false
         });
 
-        fetch('backup_status.php', {
+        fetch('backup_status.php?run_id=' + encodeURIComponent(runId), {
                 credentials: 'same-origin'
             })
             .then(response => response.json())
@@ -992,7 +994,7 @@ include 'header.php';
                 }
 
                 if (attempt < maxAttempts) {
-                    window.setTimeout(() => monitorBackupStatus(attempt + 1), 5000);
+                    window.setTimeout(() => monitorBackupStatus(runId, attempt + 1), 5000);
                     return;
                 }
 
@@ -1001,7 +1003,7 @@ include 'header.php';
             .catch(error => {
                 console.error(error);
                 if (attempt < maxAttempts) {
-                    window.setTimeout(() => monitorBackupStatus(attempt + 1), 5000);
+                    window.setTimeout(() => monitorBackupStatus(runId, attempt + 1), 5000);
                     return;
                 }
                 Swal.fire('Status unavailable', 'The backup may still be running, but its final status could not be read.', 'warning');

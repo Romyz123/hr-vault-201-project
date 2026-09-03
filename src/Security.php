@@ -23,9 +23,16 @@ class Security
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 
             $columns = $this->pdo->query("SHOW COLUMNS FROM `rate_limits`")->fetchAll(PDO::FETCH_COLUMN);
-            if (!in_array('ip_address', $columns, true) || !in_array('request_count', $columns, true) || !in_array('last_request', $columns, true)) {
-                $this->pdo->exec("ALTER TABLE `rate_limits` ADD COLUMN `request_count` INT UNSIGNED NOT NULL DEFAULT 1 AFTER `ip_address`");
-                $this->pdo->exec("ALTER TABLE `rate_limits` ADD COLUMN `last_request` DATETIME NOT NULL AFTER `request_count`");
+            if (!in_array('ip_address', $columns, true)) {
+                $this->pdo->exec("ALTER TABLE `rate_limits` ADD COLUMN `ip_address` VARCHAR(45) NOT NULL");
+                $columns[] = 'ip_address';
+            }
+            if (!in_array('request_count', $columns, true)) {
+                $this->pdo->exec("ALTER TABLE `rate_limits` ADD COLUMN `request_count` INT UNSIGNED NOT NULL DEFAULT 1");
+                $columns[] = 'request_count';
+            }
+            if (!in_array('last_request', $columns, true)) {
+                $this->pdo->exec("ALTER TABLE `rate_limits` ADD COLUMN `last_request` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP");
             }
 
             return true;

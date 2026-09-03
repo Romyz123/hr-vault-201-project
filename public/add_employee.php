@@ -55,6 +55,14 @@ $system_roles = [];
 // [NEW] Load Centralized Options
 require __DIR__ . '/options.php';
 
+$managers = [];
+try {
+    $managerStmt = $pdo->query("SELECT id, username, role FROM users WHERE role IN ('ADMIN', 'MANAGER') ORDER BY username ASC");
+    $managers = $managerStmt->fetchAll(PDO::FETCH_ASSOC);
+} catch (Exception $e) {
+    error_log('Unable to load manager options in add_employee.php: ' . $e->getMessage());
+}
+
 $allowedGenders = ['Male', 'Female'];
 
 if (empty($_SESSION['csrf_token'])) {
@@ -555,6 +563,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 <option value="">+ Add Group...</option>
                                 <?php foreach ($groups as $g): ?>
                                     <option value="<?php echo h($g); ?>"><?php echo h($g); ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+
+                        <div class="col-md-3">
+                            <label class="form-label" for="manager_id">Manager</label>
+                            <select name="manager_id" id="manager_id" class="form-select">
+                                <option value="">-- No Manager Assigned --</option>
+                                <?php foreach ($managers as $manager): ?>
+                                    <option value="<?php echo (int)$manager['id']; ?>" <?php echo ((string)($old['manager_id'] ?? '') === (string)$manager['id']) ? 'selected' : ''; ?>>
+                                        <?php echo h($manager['username'] . ' (' . $manager['role'] . ')'); ?>
+                                    </option>
                                 <?php endforeach; ?>
                             </select>
                         </div>

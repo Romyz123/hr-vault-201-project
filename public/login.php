@@ -127,7 +127,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
                     $isLocalRequest = in_array($_SERVER['REMOTE_ADDR'], ['127.0.0.1', '::1']);
                     $requires2FA = false;
 
-                    $hasExplicit2FA = !empty($user['is_2fa_enabled']) || (!empty($user['totp_secret']) && !empty($user['is_2fa_enabled']));
+                    $hasExplicit2FA = !empty($user['is_2fa_enabled']) && !empty($user['totp_secret']);
 
                     if ($hasExplicit2FA) {
                         $requires2FA = true;

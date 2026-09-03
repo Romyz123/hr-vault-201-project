@@ -17,7 +17,8 @@ $userId = $_SESSION['partial_user_id'];
 $stmt = $pdo->prepare("SELECT id, totp_secret, is_2fa_enabled FROM users WHERE id = ?");
 $stmt->execute([$userId]);
 $userState = $stmt->fetch();
-if (!$userState || (empty($userState['totp_secret']) && empty($userState['is_2fa_enabled']))) {
+$hasPendingEnrollment = !empty($_SESSION['pending_totp_secret']);
+if (!$userState || ((!empty($userState['is_2fa_enabled']) && !empty($userState['totp_secret'])) === false && !$hasPendingEnrollment)) {
     unset($_SESSION['partial_user_id'], $_SESSION['partial_login_at'], $_SESSION['pending_totp_secret']);
     header("Location: login.php");
     exit;
@@ -97,7 +98,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $isValid = true;
                 // Persist secret only after successful verification
                 if (isset($_SESSION['pending_totp_secret'])) {
-                    $pdo->prepare("UPDATE users SET totp_secret = ? WHERE id = ?")->execute([$_SESSION['pending_totp_secret'], $userId]);
+                    $pdo->prepare("UPDATE users SET totp_secret = ?, is_2fa_enabled = 1 WHERE id = ?")->execute([$_SESSION['pending_totp_secret'], $userId]);
                     unset($_SESSION['pending_totp_secret']);
                 }
             }

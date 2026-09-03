@@ -57,19 +57,16 @@ try {
     }
 }
 
-// Mark the backup as actively running before work begins so the UI can distinguish
-// a true failure from a client-side timeout while the server continues processing.
-try {
-    $pdo->exec("INSERT INTO system_settings (setting_key, setting_value) VALUES ('backup_last_status', 'RUNNING') ON DUPLICATE KEY UPDATE setting_value = 'RUNNING'");
-} catch (Exception $e) {
-    // Ignore DB status updates when the status table is unavailable; the backup itself still runs.
-}
-
 $customPath  = $settings['backup_path'] ?? '';
 $zipPass     = $settings['backup_password'] ?? '';
 $incVault    = ($settings['backup_include_vault'] ?? '0') === '1';
 $alertEmail  = $settings['backup_alert_email'] ?? '';
 $secondaryPath = $settings['secondary_backup_path'] ?? '';
+
+$requestedRunId = trim((string)($_POST['run_id'] ?? ''));
+$runId = preg_match('/^[a-f0-9-]{16,64}$/i', $requestedRunId)
+    ? $requestedRunId
+    : bin2hex(random_bytes(16));
 
 // [FIX] Ensure ZipArchive extension is available
 if (!class_exists('ZipArchive')) {
@@ -100,8 +97,53 @@ if (!$backupDir || !is_writable($backupDir)) {
     goto backup_end;
 }
 
+if (CLI_MODE) {
+    $scheduleDay = $settings['backup_day'] ?? 'Fri';
+    $scheduleTime = $settings['backup_time'] ?? '00:00';
+    $scheduledDay = date('D');
+    $scheduledTime = date('H:i');
+    if ($scheduledDay !== $scheduleDay || $scheduledTime < $scheduleTime) {
+        echo "Backup skipped: scheduled for {$scheduleDay} at {$scheduleTime}.\n";
+        exit(0);
+    }
+}
+
+$lockName = 'hr201_backup_execution';
+$lockStmt = $pdo->query("SELECT GET_LOCK(" . $pdo->quote($lockName) . ", 0)");
+if ((int)$lockStmt->fetchColumn() !== 1) {
+    $message = 'Another backup is already running.';
+    if ($isAjax) {
+        echo json_encode(['status' => 'error', 'code' => 'BACKUP_RUNNING', 'message' => $message]);
+    } else {
+        echo $message . "\n";
+    }
+    exit(CLI_MODE ? 2 : 0);
+}
+
+register_shutdown_function(function () use ($pdo, $lockName) {
+    try {
+        $pdo->query("SELECT RELEASE_LOCK(" . $pdo->quote($lockName) . ")");
+    } catch (Throwable $e) {
+    }
+});
+
+$runStartedAt = date('Y-m-d H:i:s');
+try {
+    $statusStmt = $pdo->prepare("INSERT INTO system_settings (setting_key, setting_value) VALUES (?, ?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)");
+    $statusStmt->execute(['backup_run_id', $runId]);
+    $statusStmt->execute(['backup_run_started_at', $runStartedAt]);
+    $statusStmt->execute(['backup_last_status', 'RUNNING']);
+} catch (Exception $e) {
+    error_log('cron_backup status initialization failed: ' . $e->getMessage());
+}
+
 $dateStr = date('Y-m-d_H-i-s');
 $baseName = "AutoBackup_" . $dateStr;
+
+if (CLI_MODE && !empty(glob(rtrim($backupDir, '/\\') . DIRECTORY_SEPARATOR . 'AutoBackup_' . date('Y-m-d') . '*.*'))) {
+    echo "Backup skipped: a backup already exists for today.\n";
+    exit(0);
+}
 
 // [MULTI-VOLUME LOGIC] Dynamic GB Limit
 $maxSizeGB = (float)($settings['backup_max_size_gb'] ?? 1.9);

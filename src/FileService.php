@@ -37,21 +37,16 @@ class FileService
         // Load the installation secret from protected configuration.
         $config = require __DIR__ . '/../config/config.php';
 
-        $keyCandidates = [];
-        foreach (['VAULT_KEY', 'LEGACY_VAULT_KEY'] as $keyName) {
-            $candidate = $config[$keyName] ?? null;
-            if (is_string($candidate) && trim($candidate) !== '') {
-                $keyCandidates[] = trim($candidate);
-            }
-        }
-
-        if (empty($keyCandidates)) {
-            // [SECURITY] Fail Secure: Never use a default key in production.
+        $primaryKey = $config['VAULT_KEY'] ?? null;
+        if (!is_string($primaryKey) || trim($primaryKey) === '') {
             throw new Exception("CRITICAL SECURITY ERROR: VAULT_KEY is missing in config.php. System halted to protect data.");
         }
 
-        $this->key = $keyCandidates[0];
-        $this->legacyKeys = array_values(array_unique(array_slice($keyCandidates, 1)));
+        $this->key = trim($primaryKey);
+        $legacyKey = $config['LEGACY_VAULT_KEY'] ?? null;
+        if (is_string($legacyKey) && trim($legacyKey) !== '') {
+            $this->legacyKeys = [trim($legacyKey)];
+        }
     }
 
     private function encrypt($data)

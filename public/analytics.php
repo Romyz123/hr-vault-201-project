@@ -3012,31 +3012,27 @@ include 'header.php';
             // Re-instantiate the chart on the same canvas element
             charts[key] = new Chart(canvasElement, originalConfig);
         }
-    }
-
-    // Also update the full-screen chart if it is active.
-    if (typeof fsChartInstance !== 'undefined' && fsChartInstance) {
-        const fsIsDark = document.documentElement.getAttribute('data-bs-theme') === 'dark';
-        const fsTextColor = fsIsDark ? '#adb5bd' : '#6c757d';
-        const fsGridColor = fsIsDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)';
-        if (fsChartInstance.options.scales) {
-            ['x', 'y'].forEach(axis => {
-                if (fsChartInstance.options.scales[axis]) {
-                    fsChartInstance.options.scales[axis].ticks = fsChartInstance.options.scales[axis].ticks || {};
-                    fsChartInstance.options.scales[axis].ticks.color = fsTextColor;
-                    fsChartInstance.options.scales[axis].grid = fsChartInstance.options.scales[axis].grid || {};
-                    fsChartInstance.options.scales[axis].grid.color = fsGridColor;
-                }
-            });
+        // Also update the full-screen chart whenever the theme changes.
+        if (typeof fsChartInstance !== 'undefined' && fsChartInstance) {
+            if (fsChartInstance.options.scales) {
+                ['x', 'y'].forEach(axis => {
+                    if (fsChartInstance.options.scales[axis]) {
+                        fsChartInstance.options.scales[axis].ticks = fsChartInstance.options.scales[axis].ticks || {};
+                        fsChartInstance.options.scales[axis].ticks.color = textColor;
+                        fsChartInstance.options.scales[axis].grid = fsChartInstance.options.scales[axis].grid || {};
+                        fsChartInstance.options.scales[axis].grid.color = gridColor;
+                    }
+                });
+            }
+            if (fsChartInstance.options.plugins && fsChartInstance.options.plugins.legend) {
+                fsChartInstance.options.plugins.legend.labels = fsChartInstance.options.plugins.legend.labels || {};
+                fsChartInstance.options.plugins.legend.labels.color = textColor;
+            }
+            if (fsChartInstance.options.plugins && fsChartInstance.options.plugins.title) {
+                fsChartInstance.options.plugins.title.color = textColor;
+            }
+            fsChartInstance.update();
         }
-        if (fsChartInstance.options.plugins && fsChartInstance.options.plugins.legend) {
-            fsChartInstance.options.plugins.legend.labels = fsChartInstance.options.plugins.legend.labels || {};
-            fsChartInstance.options.plugins.legend.labels.color = fsTextColor;
-        }
-        if (fsChartInstance.options.plugins && fsChartInstance.options.plugins.title) {
-            fsChartInstance.options.plugins.title.color = fsTextColor;
-        }
-        fsChartInstance.update();
     }
 
 

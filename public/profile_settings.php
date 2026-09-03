@@ -31,7 +31,7 @@ $alertMsg = "";
 
 // 1. FETCH CURRENT INFO
 try {
-    $stmt = $pdo->prepare("SELECT email, security_question, recovery_codes, totp_secret FROM users WHERE id = ?");
+    $stmt = $pdo->prepare("SELECT email, security_question, recovery_codes, totp_secret, is_2fa_enabled FROM users WHERE id = ?");
     $stmt->execute([$_SESSION['user_id']]);
     $currentUser = $stmt->fetch();
 } catch (PDOException $e) {
@@ -43,6 +43,9 @@ $currentEmail = $currentUser['email'] ?? '';
 $currentQuestion = $currentUser['security_question'] ?? '';
 $hasCodes = !empty($currentUser['recovery_codes']) && $currentUser['recovery_codes'] !== '[]';
 $currentTotpSecret = $currentUser['totp_secret'] ?? '';
+$pendingTotpSecret = $_SESSION['pending_totp_secret'] ?? '';
+$has2FAEnabled = !empty($currentUser['is_2fa_enabled']) && !empty($currentTotpSecret);
+$currentTotpSecret = $currentTotpSecret ?: $pendingTotpSecret;
 $issuer = 'TESP HR Vault';
 $accountName = (string)($_SESSION['username'] ?? $currentEmail ?? 'User');
 
@@ -245,11 +248,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     } else {
         require_once '../src/GoogleAuthenticator.php';
         $newSecret = GoogleAuthenticator::generateSecret();
-        $pdo->prepare("UPDATE users SET totp_secret = ? WHERE id = ?")->execute([$newSecret, $_SESSION['user_id']]);
+        $_SESSION['pending_totp_secret'] = $newSecret;
         $currentTotpSecret = $newSecret;
         ['manualSecret' => $manualSecret, 'otpauthUrl' => $otpauthUrl] = buildTotpProvisioning($currentTotpSecret, $issuer, $accountName);
         $alertType = "success";
         $alertMsg = "✅ Authenticator App Secret generated! Please scan the new QR code.";
+    }
+}
+
+// Verify a newly generated authenticator secret before enabling 2FA.
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'verify_2fa_setup') {
+    if (!isset($_POST['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'])) {
+        $alertType = "error";
+        $alertMsg = "❌ Security Token Mismatch.";
+    } else {
+        require_once '../src/GoogleAuthenticator.php';
+        $setupCode = trim($_POST['setup_code'] ?? '');
+        $pendingTotpSecret = $_SESSION['pending_totp_secret'] ?? '';
+        if (!preg_match('/^\d{6}$/', $setupCode) || $pendingTotpSecret === '' || !GoogleAuthenticator::verifyCode($pendingTotpSecret, $setupCode)) {
+            $alertType = "error";
+            $alertMsg = "❌ Invalid authenticator code. Please try again.";
+        } else {
+            $pdo->prepare("UPDATE users SET totp_secret = ?, is_2fa_enabled = 1 WHERE id = ?")
+                ->execute([$pendingTotpSecret, $_SESSION['user_id']]);
+            unset($_SESSION['pending_totp_secret']);
+            $currentTotpSecret = $pendingTotpSecret;
+            $has2FAEnabled = true;
+            $alertType = "success";
+            $alertMsg = "✅ Two-factor authentication is now enabled.";
+        }
     }
 }
 
@@ -394,7 +421,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             <div class="card shadow border-primary mb-4">
                 <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
                     <h5 class="mb-0"><i class="bi bi-phone"></i> Authenticator App (2FA)</h5>
-                    <?php if (!empty($currentTotpSecret)): ?>
+                    <?php if ($has2FAEnabled): ?>
                         <span class="badge bg-success">Configured</span>
                     <?php else: ?>
                         <span class="badge bg-warning text-dark">Not Configured</span>
@@ -430,6 +457,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                             <p class="small text-danger fw-bold mb-0">
                                 Scan this QR code with your authenticator app.
                             </p>
+                            <?php if (!empty($pendingTotpSecret)): ?>
+                                <form method="POST" class="mt-3 text-start">
+                                    <input type="hidden" name="action" value="verify_2fa_setup">
+                                    <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token); ?>">
+                                    <label class="form-label fw-bold" for="setup_code">Enter the 6-digit code to finish setup</label>
+                                    <div class="input-group">
+                                        <input type="text" name="setup_code" id="setup_code" class="form-control" inputmode="numeric" pattern="\d{6}" maxlength="6" required>
+                                        <button type="submit" class="btn btn-success">Verify</button>
+                                    </div>
+                                </form>
+                            <?php endif; ?>
                         </div>
                     <?php endif; ?>
 
