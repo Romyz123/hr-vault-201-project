@@ -291,7 +291,7 @@ $year_now  = date('Y');
                             <tr>
                                 <td style="width: 130px; text-align: right; vertical-align: middle; padding-right: 15px;">
                                     <?php $safe_logo_src = !empty($global_logo_src) ? htmlspecialchars($global_logo_src, ENT_QUOTES, 'UTF-8') : 'assets/images/tesp-logo.png'; ?>
-                                    <img src="<?php echo $safe_logo_src; ?>" style="width: 80px; height: 80px; border-radius: 50%; object-fit: cover;" alt="TESP Logo">
+                                    <img src="<?php echo $safe_logo_src; ?>" width="80" height="80" style="width: 80px; height: 80px; border-radius: 50%; object-fit: cover;" alt="TESP Logo">
                                 </td>
                                 <td style="text-align: center; vertical-align: middle;">
                                     <div style="font-weight: bold; font-size: 15pt !important; line-height: 1.2; white-space: nowrap;">TES PHILIPPINES, INC.</div>

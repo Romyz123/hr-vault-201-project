@@ -2971,49 +2971,43 @@ include 'header.php';
     }
 
     // [NEW] Dark Mode Adapter for Charts
-    // [NEW] Dark Mode Rebuilder for Charts
     function updateChartsTheme() {
-        if (typeof charts === 'undefined') return;
+        if (typeof charts === 'undefined' || typeof Chart === 'undefined') return;
 
-        const isDark = document.documentElement.getAttribute('data-bs-theme') === 'dark';
-        const textColor = isDark ? '#adb5bd' : '#6c757d';
-        const gridColor = isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)';
+        const isDark = (document.documentElement.getAttribute('data-bs-theme') === 'dark') ||
+            (document.body && document.body.getAttribute('data-bs-theme') === 'dark');
+        const textColor = isDark ? '#e9ecef' : '#495057';
+        const gridColor = isDark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.08)';
 
-        // Iterate through known active charts and rebuild them with updated theme colors
+        // Set Chart.js global defaults
+        Chart.defaults.color = textColor;
+        Chart.defaults.borderColor = gridColor;
+
+        // Iterate through active charts and update theme colors
         for (let key in charts) {
             if (!charts.hasOwnProperty(key)) continue;
             let currentChart = charts[key];
-            if (!currentChart) continue;
+            if (!currentChart || !currentChart.options) continue;
 
-            // Capture current data and chart type before destroying
-            let chartData = currentChart.data;
-            let chartType = currentChart.config.type;
-            let canvasElement = currentChart.canvas;
-            let originalConfig = currentChart.config;
-
-            // Destroy the old instance safely
-            currentChart.destroy();
-
-            // Update colors inside the options config template
-            if (originalConfig.options && originalConfig.options.scales) {
+            if (currentChart.options.scales) {
                 ['x', 'y'].forEach(axis => {
-                    if (originalConfig.options.scales[axis]) {
-                        originalConfig.options.scales[axis].ticks = originalConfig.options.scales[axis].ticks || {};
-                        originalConfig.options.scales[axis].ticks.color = textColor;
-                        originalConfig.options.scales[axis].grid = originalConfig.options.scales[axis].grid || {};
-                        originalConfig.options.scales[axis].grid.color = gridColor;
+                    if (currentChart.options.scales[axis]) {
+                        currentChart.options.scales[axis].ticks = currentChart.options.scales[axis].ticks || {};
+                        currentChart.options.scales[axis].ticks.color = textColor;
+                        currentChart.options.scales[axis].grid = currentChart.options.scales[axis].grid || {};
+                        currentChart.options.scales[axis].grid.color = gridColor;
                     }
                 });
             }
-            if (originalConfig.options && originalConfig.options.plugins && originalConfig.options.plugins.legend) {
-                originalConfig.options.plugins.legend.labels.color = textColor;
+            if (currentChart.options.plugins && currentChart.options.plugins.legend) {
+                currentChart.options.plugins.legend.labels = currentChart.options.plugins.legend.labels || {};
+                currentChart.options.plugins.legend.labels.color = textColor;
             }
-
-            // Re-instantiate the chart on the same canvas element
-            charts[key] = new Chart(canvasElement, originalConfig);
+            currentChart.update('none'); // Update smoothly without reset animation
         }
-        // Also update the full-screen chart whenever the theme changes.
-        if (typeof fsChartInstance !== 'undefined' && fsChartInstance) {
+
+        // Also update full-screen modal chart if active
+        if (typeof fsChartInstance !== 'undefined' && fsChartInstance && fsChartInstance.options) {
             if (fsChartInstance.options.scales) {
                 ['x', 'y'].forEach(axis => {
                     if (fsChartInstance.options.scales[axis]) {
@@ -3031,16 +3025,26 @@ include 'header.php';
             if (fsChartInstance.options.plugins && fsChartInstance.options.plugins.title) {
                 fsChartInstance.options.plugins.title.color = textColor;
             }
-            fsChartInstance.update();
+            fsChartInstance.update('none');
         }
     }
 
-
-    new MutationObserver(updateChartsTheme).observe(document.documentElement, {
+    // Observe theme attribute changes on html and body
+    const themeObserver = new MutationObserver(updateChartsTheme);
+    themeObserver.observe(document.documentElement, {
         attributes: true,
         attributeFilter: ['data-bs-theme']
     });
-    updateChartsTheme(); // Initial check
+    if (document.body) {
+        themeObserver.observe(document.body, {
+            attributes: true,
+            attributeFilter: ['data-bs-theme']
+        });
+    }
+    window.addEventListener('storage', (e) => {
+        if (e.key === 'theme') updateChartsTheme();
+    });
+    updateChartsTheme(); // Initial theme check
 
     function executeCustomPrint() {
         // 1. Reset any previously hidden items

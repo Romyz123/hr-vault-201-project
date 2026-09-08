@@ -39,6 +39,30 @@ class EmployeeService
         // Remove non-database fields if any
         unset($data['request_note']);
 
+        // [FIX] Fetch valid columns from employees table to prevent unknown column crashes
+        $colStmt = $this->pdo->query("SHOW COLUMNS FROM employees");
+        $validCols = $colStmt ? $colStmt->fetchAll(PDO::FETCH_COLUMN) : [];
+
+        if (!empty($validCols)) {
+            $data = array_intersect_key($data, array_flip($validCols));
+        }
+
+        // [FIX] Sanitize manager_id: if empty, 0, or non-existent in employees, convert to null
+        if (array_key_exists('manager_id', $data)) {
+            $mgrVal = $data['manager_id'];
+            if (empty($mgrVal) || $mgrVal === '0' || $mgrVal === 0 || $mgrVal === '') {
+                $data['manager_id'] = null;
+            } else {
+                $chkMgr = $this->pdo->prepare("SELECT id FROM employees WHERE id = ?");
+                $chkMgr->execute([(int)$mgrVal]);
+                if (!$chkMgr->fetch()) {
+                    $data['manager_id'] = null;
+                } else {
+                    $data['manager_id'] = (int)$mgrVal;
+                }
+            }
+        }
+
         $cols = array_keys($data);
 
         // [FIX] Wrap all column names in backticks

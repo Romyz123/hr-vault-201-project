@@ -1,4 +1,22 @@
 <?php
+// Fallback initialization for static analysis / Intelephense
+if (!isset($emp)) {
+    $emp = [];
+}
+$firstName  = $emp['first_name'] ?? '';
+$middleName = $emp['middle_name'] ?? '';
+$lastName   = $emp['last_name'] ?? '';
+
+if (!isset($full_name)) {
+    $full_name = strtoupper(trim($firstName . ' ' . ($middleName !== '' ? ($middleName[0] . '.') : '') . ' ' . $lastName));
+}
+if (!isset($position)) {
+    $position = strtoupper($emp['job_title'] ?? '');
+}
+if (!isset($current_full_date)) {
+    $current_full_date = date('F j, Y');
+}
+
 $companyName = $settings['company_name'] ?? 'TES PHILIPPINES, INC.';
 $companyAddress = $settings['company_address'] ?? 'Room 207, 2nd Flr., Meriton One Bldg., Quezon Avenue, Quezon City, Philippines';
 $purpose = 'This certificate is issued upon request for employment verification, loan processing, visa application, or other lawful purposes.';
@@ -26,14 +44,14 @@ if (!empty($emp['monthly_rate'])) {
     $salaryLabel = 'PHP ' . number_format((float)$emp['salary'], 2);
 }
 
-$jobDescription = trim($custom_duties ?: ($emp['job_description'] ?? ''));
+$jobDescription = trim(($custom_duties ?? '') ?: ($emp['job_description'] ?? ''));
 ?>
 <div style="text-align: center; margin-bottom: 30px;">
     <table style="width: 100%; margin-bottom: 10px;">
         <tr>
             <td style="width: 130px; text-align: right; vertical-align: middle; padding-right: 15px;">
                 <?php $safe_logo_src = !empty($global_logo_src) ? htmlspecialchars($global_logo_src, ENT_QUOTES, 'UTF-8') : 'assets/images/tesp-logo-1.png'; ?>
-                <img src="<?php echo $safe_logo_src; ?>" style="width: 80px; height: 80px; border-radius: 50%; object-fit: cover;" alt="TESP Logo">
+                <img src="<?php echo $safe_logo_src; ?>" width="80" height="80" style="width: 80px; height: 80px; border-radius: 50%; object-fit: cover;" alt="TESP Logo">
             </td>
             <td style="text-align: center; vertical-align: middle;">
                 <div style="font-weight: bold; font-size: 15pt !important; line-height: 1.2; white-space: nowrap;">

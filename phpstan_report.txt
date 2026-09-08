@@ -1,0 +1,211 @@
+PHP Warning:  PHP Startup: Unable to load dynamic library 'zip' (tried: C:\xampp\php\ext\zip (The specified module could not be found), C:\xampp\php\ext\php_zip.dll (The specified module could not be found)) in Unknown on line 0
+
+Warning: PHP Startup: Unable to load dynamic library 'zip' (tried: C:\xampp\php\ext\zip (The specified module could not be found), C:\xampp\php\ext\php_zip.dll (The specified module could not be found)) in Unknown on line 0
+ ------ ------------------------------------------------------------- 
+  Line   public\add_employee.php                                      
+ ------ ------------------------------------------------------------- 
+  :272   Variable $errors in empty() always exists and is not falsy.  
+         🪪 empty.variable                                             
+  :309   Variable $errors in empty() always exists and is not falsy.  
+         🪪 empty.variable                                             
+  :759   Variable $college_courses_list might not be defined.         
+         🪪 variable.undefined                                         
+  :876   Variable $sectionFriendlyMap might not be defined.           
+         🪪 variable.undefined                                         
+ ------ ------------------------------------------------------------- 
+
+ ------ ----------------------------------------------------------------------- 
+  Line   public\bulk_download_expiry.php                                        
+ ------ ----------------------------------------------------------------------- 
+  :4     Path in require() "../../config/db.php" is not a file or it does not   
+         exist.                                                                 
+         🪪 require.fileNotFound                                                 
+  :5     Path in require() "../../src/Security.php" is not a file or it does    
+         not exist.                                                             
+         🪪 require.fileNotFound                                                 
+  :6     Path in require() "../../src/FileService.php" is not a file or it      
+         does not exist.                                                        
+         🪪 require.fileNotFound                                                 
+  :7     Path in require() "../../src/Logger.php" is not a file or it does not  
+         exist.                                                                 
+         🪪 require.fileNotFound                                                 
+  :31    Path in require() "../../config/config.php" is not a file or it does   
+         not exist.                                                             
+         🪪 require.fileNotFound                                                 
+ ------ ----------------------------------------------------------------------- 
+
+ ------ ---------------------------------------------------------------- 
+  Line   public\cron_backup.php                                          
+ ------ ---------------------------------------------------------------- 
+  :269   Variable $handle in isset() always exists and is not nullable.  
+         🪪 isset.variable                                                
+ ------ ---------------------------------------------------------------- 
+
+ ------ ------------------------------------- 
+  Line   public\delete_document.php           
+ ------ ------------------------------------- 
+  :146   Variable $msg might not be defined.  
+         🪪 variable.undefined                 
+ ------ ------------------------------------- 
+
+ ------- --------------------------------------------------- 
+  Line    public\edit_employee.php                           
+ ------- --------------------------------------------------- 
+  :135    Variable $agencies might not be defined.           
+          🪪 variable.undefined                               
+  :911    Variable $system_roles might not be defined.       
+          🪪 variable.undefined                               
+  :924    Variable $deptMap might not be defined.            
+          🪪 variable.undefined                               
+  :1682   Variable $violation_options might not be defined.  
+          🪪 variable.undefined                               
+  :1710   Variable $rule_options might not be defined.       
+          🪪 variable.undefined                               
+ ------- --------------------------------------------------- 
+
+ ------ --------------------------------------------------------------------- 
+  Line   public\header.php                                                    
+ ------ --------------------------------------------------------------------- 
+  :475   Variable $clientTimeout might not be defined.                        
+         🪪 variable.undefined                                                 
+  :475   Variable $clientTimeout might not be defined.                        
+         🪪 variable.undefined                                                 
+  :518   Variable $doc_alerts on left side of ?? always exists and is not     
+         nullable.                                                            
+         🪪 nullCoalesce.variable                                              
+  :525   Variable $all_notifications on left side of ?? always exists and is  
+         not nullable.                                                        
+         🪪 nullCoalesce.variable                                              
+ ------ --------------------------------------------------------------------- 
+
+ ------ ---------------------------------------------------------------------- 
+  Line   public\import_employees.php                                           
+ ------ ---------------------------------------------------------------------- 
+  :737   Variable $college_degree on left side of ?? always exists and is not  
+         nullable.                                                             
+         🪪 nullCoalesce.variable                                               
+  :739   Variable $college_year on left side of ?? always exists and is not    
+         nullable.                                                             
+         🪪 nullCoalesce.variable                                               
+ ------ ---------------------------------------------------------------------- 
+
+ ------ ---------------------------------------------------------------- 
+  Line   public\index.php                                                
+ ------ ---------------------------------------------------------------- 
+  :409   Variable $logger in isset() always exists and is not nullable.  
+         🪪 isset.variable                                                
+ ------ ---------------------------------------------------------------- 
+
+ ------ --------------------------------------- 
+  Line   public\maintenance_log.php             
+ ------ --------------------------------------- 
+  :343   Variable $logId might not be defined.  
+         🪪 variable.undefined                   
+  :345   Variable $logId might not be defined.  
+         🪪 variable.undefined                   
+ ------ --------------------------------------- 
+
+ ------ --------------------------------------------------------------- 
+  Line   public\manage_options.php                                      
+ ------ --------------------------------------------------------------- 
+  :256   Variable $error in empty() always exists and is always falsy.  
+         🪪 empty.variable                                               
+  :270   Variable $error in empty() always exists and is always falsy.  
+         🪪 empty.variable                                               
+  :298   Variable $error in empty() always exists and is always falsy.  
+         🪪 empty.variable                                               
+  :341   Variable $error in empty() always exists and is always falsy.  
+         🪪 empty.variable                                               
+  :408   Variable $error in empty() always exists and is always falsy.  
+         🪪 empty.variable                                               
+  :446   Variable $error in empty() always exists and is always falsy.  
+         🪪 empty.variable                                               
+  :480   Variable $error in empty() always exists and is always falsy.  
+         🪪 empty.variable                                               
+  :513   Variable $error in empty() always exists and is always falsy.  
+         🪪 empty.variable                                               
+  :539   Variable $error in empty() always exists and is always falsy.  
+         🪪 empty.variable                                               
+  :570   Variable $error in empty() always exists and is always falsy.  
+         🪪 empty.variable                                               
+  :686   Variable $error in empty() always exists and is always falsy.  
+         🪪 empty.variable                                               
+  :701   Variable $error in empty() always exists and is always falsy.  
+         🪪 empty.variable                                               
+ ------ --------------------------------------------------------------- 
+
+ ------ ----------------------------------------------------------------- 
+  Line   public\process_upload.php                                        
+ ------ ----------------------------------------------------------------- 
+  :312   Variable $storedName in empty() always exists and is not falsy.  
+         🪪 empty.variable                                                 
+ ------ ----------------------------------------------------------------- 
+
+ ------ -------------------------------------------------------------------- 
+  Line   public\profile_settings.php                                         
+ ------ -------------------------------------------------------------------- 
+  :50    Variable $currentEmail on left side of ?? always exists and is not  
+         nullable.                                                           
+         🪪 nullCoalesce.variable                                             
+  :581   Variable $registeredDevices in empty() always exists and is always  
+         falsy.                                                              
+         🪪 empty.variable                                                    
+ ------ -------------------------------------------------------------------- 
+
+ ------ ----------------------------------------------------------------------- 
+  Line   public\save_template.php                                               
+ ------ ----------------------------------------------------------------------- 
+  :2     Path in require_once() "includes/db.php" is not a file or it does not  
+         exist.                                                                 
+         🪪 requireOnce.fileNotFound                                             
+  :3     Path in require_once() "includes/session.php" is not a file or it      
+         does not exist.                                                        
+         🪪 requireOnce.fileNotFound                                             
+  :4     Path in require_once() "includes/logger.php" is not a file or it does  
+         not exist.                                                             
+         🪪 requireOnce.fileNotFound                                             
+ ------ ----------------------------------------------------------------------- 
+
+ ------ --------------------------------------------------- 
+  Line   public\templates\coe.php                           
+ ------ --------------------------------------------------- 
+  :29    Variable $custom_duties might not be defined.      
+         🪪 variable.undefined                               
+  :62    Variable $full_name might not be defined.          
+         🪪 variable.undefined                               
+  :68    Variable $full_name might not be defined.          
+         🪪 variable.undefined                               
+  :72    Variable $position might not be defined.           
+         🪪 variable.undefined                               
+  :108   Variable $current_full_date might not be defined.  
+         🪪 variable.undefined                               
+ ------ --------------------------------------------------- 
+
+ ------ ------------------------------------------------- 
+  Line   public\templates\confidentiality_agreement.php   
+ ------ ------------------------------------------------- 
+  :159   Variable $global_logo_src might not be defined.  
+         🪪 variable.undefined                             
+ ------ ------------------------------------------------- 
+
+ ------ ------------------------------------- 
+  Line   public\templates\data_consent.php    
+ ------ ------------------------------------- 
+  :9     Variable $emp might not be defined.  
+         🪪 variable.undefined                 
+  :147   Variable $emp might not be defined.  
+         🪪 variable.undefined                 
+  :147   Variable $emp might not be defined.  
+         🪪 variable.undefined                 
+ ------ ------------------------------------- 
+
+ ------ ------------------------------------------------------------ 
+  Line   public\tracker.php                                          
+ ------ ------------------------------------------------------------ 
+  :491   Regex pattern is invalid: Unknown modifier '\' in pattern:  
+         /[\\/\:\*\?"<>|\x00-\x1F]/                                  
+         🪪 regexp.pattern                                            
+ ------ ------------------------------------------------------------ 
+
+ [ERROR] Found 53 errors                                                       
+

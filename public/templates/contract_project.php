@@ -180,7 +180,7 @@ $dept_code = strtoupper($emp['dept']); // [NEW] Get Dept for MHI check
                         <table style="width: 100%; margin-bottom: 10px;">
                             <tr>
                                 <td style="width: 130px; text-align: right; vertical-align: middle; padding-right: 15px;">
-                                    <img src="<?php echo htmlspecialchars($global_logo_src ?? ''); ?>" style="width: 80px; height: 80px; border-radius: 50%; object-fit: cover;" alt="TESP Logo">
+                                    <img src="<?php echo htmlspecialchars($global_logo_src ?? ''); ?>" width="80" height="80" style="width: 80px; height: 80px; border-radius: 50%; object-fit: cover;" alt="TESP Logo">
                                 </td>
                                 <td style="text-align: center; vertical-align: middle;">
                                     <div style="font-weight: bold; font-size: 15pt !important; line-height: 1.2; white-space: nowrap;">TES PHILIPPINES, INC.</div>

@@ -715,10 +715,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'exit_reason' => $exit_reason, // <--- SAVING THE REASON
             'avatar_path' => $final_avatar_path
         ];
+        // [FIX] Fetch valid table columns to prevent unknown column errors
+        $empColsStmt = $pdo->query("SHOW COLUMNS FROM employees");
+        $employeeColumns = [];
+        if ($empColsStmt) {
+            while ($colRow = $empColsStmt->fetch(PDO::FETCH_ASSOC)) {
+                $employeeColumns[$colRow['Field']] = true;
+            }
+        }
+
         foreach (['college_degree' => $college_degree, 'college_course' => $college_course, 'college_year' => $college_year] as $column => $value) {
-            if (isset($employeeColumns[$column])) {
+            if (!empty($employeeColumns) && isset($employeeColumns[$column])) {
                 $updateData[$column] = $value;
             }
+        }
+
+        // [FIX] Sanitize manager_id: verify manager exists in database and is not self
+        if ($manager_id !== null) {
+            if ($manager_id === 0 || $manager_id === (int)$id) {
+                $manager_id = null;
+            } else {
+                $chkMgr = $pdo->prepare("SELECT id FROM employees WHERE id = ?");
+                $chkMgr->execute([$manager_id]);
+                if (!$chkMgr->fetch()) {
+                    $manager_id = null;
+                }
+            }
+        }
+        $updateData['manager_id'] = $manager_id;
+
+        // Filter updateData to only include columns that actually exist in the table
+        if (!empty($employeeColumns)) {
+            $updateData = array_intersect_key($updateData, $employeeColumns);
         }
 
         // LOGIC FIX: STAFF REQUEST vs ADMIN UPDATE

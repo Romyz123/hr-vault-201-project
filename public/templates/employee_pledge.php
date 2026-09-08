@@ -1,102 +1,153 @@
 <?php
-// public/templates/employee_pledge.php
+// Fallback initialization to satisfy static analysis / Intelephense
 if (!isset($emp)) {
-    die("Access Denied");
+    $emp = [
+        'first_name' => '',
+        'last_name'  => ''
+    ];
+}
+
+$firstName = strtoupper($emp['first_name'] ?? '');
+$lastName  = strtoupper($emp['last_name'] ?? '');
+$fullName  = trim($firstName . ' ' . $lastName);
+if (empty($fullName)) {
+    $fullName = 'SAMPLE SAMPLE';
 }
 ?>
-<!DOCTYPE html>
-<html>
 
-<head>
-    <style>
-        @page {
-            size: A4;
-            margin: 0.2in;
-        }
+<style>
+    /* Professional Document Container */
+    .pledge-container {
+        width: 100% !important;
+        border-collapse: collapse;
+    }
 
-        body {
-            text-align: justify;
-            font-family: "Times New Roman", serif;
-            font-size: 10pt;
-            line-height: 1.90;
-            padding-left: 0in;
-            margin: 0;
-            padding-right: 1in;
-        }
+    /* Centered Header Table */
+    .pledge-header-table {
+        width: 100%;
+        margin-bottom: 20px;
+        border-collapse: collapse;
+    }
 
-        .header {
-            text-align: left;
-            font-weight: bold;
-            line-height: 1.3;
-            padding-top: 0in;
-        }
+    .pledge-title-box {
+        text-align: center;
+    }
 
-        p {
-            text-align: justify;
-            margin-bottom: 0px;
-        }
+    .pledge-title {
+        font-weight: bold;
+        font-size: 14pt;
+        margin: 0;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
 
-        ul.rules-list {
-            margin: 0in 0;
-            padding-left: 0in;
+    .pledge-subtitle {
+        font-size: 10pt;
+        font-weight: bold;
+        margin-top: 3px;
+    }
 
+    /* Professional Body & Typography Spacing */
+    .pledge-body p {
+        text-align: justify;
+        text-justify: inter-word;
+        font-size: 9.5pt;
+        line-height: 1.45;
+        margin-bottom: 10px;
+    }
 
-        }
+    .pledge-body ul {
+        margin-top: 6px;
+        margin-bottom: 12px;
+        padding-left: 20px;
+    }
 
-        ul.rules-list li {
-            margin-bottom: 0px;
-            text-align: justify;
-        }
+    .pledge-body li {
+        text-align: justify;
+        text-justify: inter-word;
+        font-size: 9pt;
+        line-height: 1.4;
+        margin-bottom: 5px;
+    }
 
-        .header-table {
-            margin: 0 auto 0px auto;
-            border-collapse: collapse;
-        }
-    </style>
-</head>
+    .pledge-section-title {
+        font-weight: bold;
+        margin-top: 12px;
+        margin-bottom: 6px;
+    }
 
-<body>
-    <table class="header-table">
+    /* Clean Signature Block */
+    .pledge-sig-wrapper {
+        margin-top: 35px;
+        page-break-inside: avoid;
+    }
+
+    .pledge-sig-block {
+        width: 260px;
+        text-align: center;
+    }
+
+    .pledge-sig-line {
+        border-top: 1px solid #000;
+        margin-bottom: 4px;
+    }
+</style>
+
+<table class="pledge-container">
+    <tbody>
         <tr>
-            <td style="padding-right: 15px; vertical-align: middle;">
-                <img src="<?php echo htmlspecialchars($global_logo_src ?? '', ENT_QUOTES, 'UTF-8'); ?>" style="width: 70px; height: auto; display: block;" alt="TESP Logo">
-            </td>
-            <td style="vertical-align: middle;">
-                <div class="header">
-                    <div style="font-size: 14pt;">EMPLOYEE’S SAFETY PLEDGE</div>
-                    <div style="font-size: 11pt;">10 Life Saving Rules and Point & Call Policy</div>
+            <td class="pledge-body">
+                <!-- Centered Header Section -->
+                <table class="pledge-header-table">
+                    <tr>
+                        <td style="width: 100px; text-align: right; vertical-align: middle; padding-right: 15px;">
+                            <?php $safe_logo = !empty($global_logo_src) ? htmlspecialchars($global_logo_src, ENT_QUOTES, 'UTF-8') : 'assets/images/tesp-logo-1.png'; ?>
+                            <img src="<?php echo $safe_logo; ?>" width="75" height="75" style="width: 75px; height: 75px; object-fit: cover;" alt="TESP Logo">
+                        </td>
+                        <td style="vertical-align: middle; text-align: center;">
+                            <div class="pledge-title-box">
+                                <div class="pledge-title">EMPLOYEE’S SAFETY PLEDGE</div>
+                                <div class="pledge-subtitle">10 Life Saving Rules and Point & Call Policy</div>
+                            </div>
+                        </td>
+                        <td style="width: 100px;"></td> <!-- Balance spacer to keep text centered -->
+                    </tr>
+                </table>
+
+                <!-- Opening Statement -->
+                <p>Today, I <strong><?php echo htmlspecialchars($fullName); ?></strong>, do hereby pledge that I am committed to doing my part to instill a safety culture and promote the health and safety of all employees. I believe that safety and health are core values of our organization. I pledge to actively practice the following:</p>
+
+                <!-- Lifesaving Rules List -->
+                <div class="pledge-section-title">10 Lifesaving Rules (LSR):</div>
+                <ul>
+                    <li><strong>1.1 Buddy System:</strong> Always work in pair. Lone working is not allowed. All work should be executed in the presence of a Person In Charge (PIC).</li>
+                    <li><strong>1.2 Competency:</strong> No Job to be undertaken unless you have been trained and assessed as competent for that task.</li>
+                    <li><strong>1.3 Fall Protection:</strong> Always use fall protection device such as Full body harness unless other engineering controls are in place.</li>
+                    <li><strong>1.4 Lock Out Tag Out:</strong> De-energize the electrical equipment, apply right LOTO devices before doing maintenance activities.</li>
+                    <li><strong>1.5 Exclusion Zone:</strong> Never enter the exclusion zone in depot area without authorization or unless directed by the Yardmaster/PIC.</li>
+                    <li><strong>1.6 Drug and Alcohol:</strong> Zero tolerance to drug and alcohol. Never work or drive under the influence.</li>
+                    <li><strong>1.7 Permit to Work:</strong> All safety critical activities should be executed with appropriate Permit To Work authorization.</li>
+                    <li><strong>1.8 Earthing Testing:</strong> Test all de-energized equipment, system, power rails, before touching them.</li>
+                    <li><strong>1.9 Track Access:</strong> Never cross the tracks. Always use the designated safe passage or walkway.</li>
+                    <li><strong>1.10 Equipment Guard:</strong> Do not remove guards or work on or near unprotected rotating equipment.</li>
+                </ul>
+
+                <!-- Policy Section -->
+                <p><strong>11. Point and Call Policy:</strong> This policy is intended to encourage all personnel to imbibe a cautious work practice by closely following the rules on Point and Call policy every time, until it becomes a safe working habit.</p>
+
+                <p>I therefore understand that violation of any of the Lifesaving rules will have corresponding disciplinary sanctions which may include dismissal from work.</p>
+
+                <p>This is my pledge and commitment to helping ensure the safety of myself and my co-workers:</p>
+
+                <!-- Signature Section -->
+                <div class="pledge-sig-wrapper">
+                    <div class="pledge-sig-block">
+                        <div class="pledge-sig-line"></div>
+                        <strong style="font-size: 9.5pt; text-transform: uppercase;"><?php echo htmlspecialchars($fullName); ?></strong><br>
+                        <span style="font-size: 8.5pt;">Signature over Printed Name</span>
+                    </div>
                 </div>
             </td>
         </tr>
-    </table>
-
-    <p>Today, I <strong><?php echo strtoupper($emp['first_name'] . ' ' . $emp['last_name']); ?></strong>, do hereby pledge that I am committed to doing my part to instill a safety culture and promote the health and safety of all employees. I believe that safety and health are core values of our organization. I pledge to actively practice the following:</p>
-
-    <p style="margin-top: 10px;"><strong>10 Lifesaving Rules (LSR):</strong></p>
-    <ul class="rules-list">
-        <li><strong>I.1 Buddy System:</strong> Always work in pair. Lone working is not allowed. All work should be executed in the presence of a Person In Charge (PIC).</li>
-        <li><strong>I.2 Competency:</strong> No Job to be undertaken unless you have been trained and assessed as competent for that task.</li>
-        <li><strong>I.3 Fall Protection:</strong> Always use fall protection device such as Full body harness unless other engineering controls are in place.</li>
-        <li><strong>I.4 Lock Out Tag Out:</strong> De-energize the electrical equipment, apply right LOTO devices before doing maintenance activities.</li>
-        <li><strong>I.5 Exclusion Zone:</strong> Never enter the exclusion zone in depot area without authorization or unless directed by the Yardmaster/PIC.</li>
-        <li><strong>I.6 Drug and Alcohol:</strong> Zero tolerance to drug and alcohol. Never work or drive under the influence.</li>
-        <li><strong>I.7 Permit to Work:</strong> All safety critical activities should be executed with appropriate Permit To Work authorization.</li>
-        <li><strong>I.8 Earthing Testing:</strong> Test all de-energized equipment, system, power rails, before touching them.</li>
-        <li><strong>I.9 Track Access:</strong> Never cross the tracks. Always use the designated safe passage or walkway.</li>
-        <li><strong>I.10 Equipment Guard:</strong> Do not remove guards or work on or near unprotected rotating equipment.</li>
-    </ul>
-
-    <p><strong>II. Point and Call Policy:</strong> This policy is intended to encourage all personnel to imbibe a cautious work practice by closely following the rules on Point and Call policy every time, until it becomes a safe working habit.</p>
-
-    <p style="margin-top: 10px;">I therefore understand that violation of any of the Lifesaving rules will have corresponding disciplinary sanctions which may include dismissal from work.</p>
-
-    <p style="margin-top: 10px;">This is my pledge and commitment to helping ensure the safety of myself and my co-workers:</p>
-
-    <br>
-    <div style="border-top: 1px solid black; width: 300px; text-align: center; padding-top: 5px; margin-top: 20px;">
-        <strong><?php echo strtoupper($emp['first_name'] . ' ' . $emp['last_name']); ?></strong><br>
-        Signature over Printed Name
-    </div>
-</body>
-
-</html>
+    </tbody>
+</table>

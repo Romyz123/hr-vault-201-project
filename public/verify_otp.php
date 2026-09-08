@@ -3,10 +3,13 @@ require '../config/db.php';
 require '../src/Security.php';
 require '../src/Logger.php';
 require '../src/GoogleAuthenticator.php';
+require_once __DIR__ . '/../src/helpers.php'; // [FIX] Required for h() function used in HTML
 session_start();
 
 // OTP verification is disabled by default. Only allow access when an explicit 2FA flow was started.
-if (!isset($_SESSION['partial_user_id']) || !isset($_SESSION['partial_login_at']) || time() - (int)$_SESSION['partial_login_at'] > 300) {
+// [FIX] Extended timeout from 300s (5 min) to 600s (10 min) to allow time for first-time QR setup.
+if (!isset($_SESSION['partial_user_id']) || !isset($_SESSION['partial_login_at']) || time() - (int)$_SESSION['partial_login_at'] > 600) {
+
     unset($_SESSION['partial_user_id'], $_SESSION['partial_login_at'], $_SESSION['pending_totp_secret']);
     header("Location: login.php");
     exit;
@@ -154,9 +157,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             // SUCCESS: Log them in fully
             session_regenerate_id(true);
-            $_SESSION['user_id'] = $user['id'];
+            $_SESSION['user_id']  = $user['id'];
             $_SESSION['username'] = $user['username'];
-            $_SESSION['role'] = $user['role'];
+            $_SESSION['role']     = strtoupper(trim($user['role'] ?? 'STAFF')); // [FIX] Normalize role to uppercase, matching login.php behavior
+            $_SESSION['csrf_token'] = bin2hex(random_bytes(32)); // [FIX] Regenerate CSRF after full login
             unset($_SESSION['otp_attempts']); // [SECURITY] Reset counter on success
 
             // [NEW] Handle "Trust Device" (Remember Me)

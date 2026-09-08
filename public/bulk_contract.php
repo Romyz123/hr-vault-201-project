@@ -49,8 +49,10 @@ if (empty($_SESSION['csrf_token'])) {
     $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 }
 
-// 2. HANDLE GENERATION (Moved before header.php to prevent dashboard layout pollution)
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate_bulk'])) {
+// =========================================================================
+// STEP 2 (PHP BACKEND): Check for either 'generate_bulk' OR 'export_word'
+// =========================================================================
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_POST['generate_bulk']) || isset($_POST['export_word']))) {
     // [SECURITY] Verify CSRF Token
     if (empty($_POST['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'])) {
         die("Invalid CSRF Token");
@@ -145,8 +147,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate_bulk'])) {
     }
 
     if ($templateFile && file_exists($templateFile) && !empty($ids)) {
-        // [NEW] Set cookie to tell the frontend to close the loading spinner
-        setcookie("downloadToken", $_POST['csrf_token'] ?? '1', time() + 300, "/");
+
+        // =========================================================================
+        // STEP 2 (WORD MIME HEADERS): Trigger download if Word button was clicked
+        // =========================================================================
+        if (isset($_POST['export_word'])) {
+            $filename = preg_replace('/[^a-zA-Z0-9_\-]/', '_', $friendlyTitle) . '_Bulk_' . date('Y-m-d') . '.doc';
+            header("Content-Type: application/msword");
+            header("Content-Disposition: attachment; filename=\"$filename\"");
+            header("Cache-Control: max-age=0");
+            header("Pragma: no-cache");
+            header("Expires: 0");
+        } else {
+            // Standard Print View Cookie for JS Loading Spinner
+            setcookie("downloadToken", $_POST['csrf_token'] ?? '1', time() + 300, "/");
+        }
 
         // Start Output
         $faviconTag = '<link rel="icon" href="uploads/tesp-logo.png?v=3" type="image/png">';
@@ -212,11 +227,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate_bulk'])) {
         </style>';
         echo '</head><body>';
 
-        echo '<div class="toolbar no-print">
-                <strong>Bulk Preview:</strong> ' . count($ids) . ' Documents 
-                <button onclick="window.print()" style="padding: 5px 15px; margin-left: 20px; cursor: pointer; font-weight: bold;">🖨️ Print All</button>
-                <button onclick="window.close()" style="padding: 5px 15px; margin-left: 10px; cursor: pointer;">Close</button>
-              </div><div style="height: 50px;" class="no-print"></div>';
+        if (!isset($_POST['export_word'])) {
+            echo '<div class="toolbar no-print">
+                    <strong>Bulk Preview:</strong> ' . count($ids) . ' Documents 
+                    <button onclick="window.print()" style="padding: 5px 15px; margin-left: 20px; cursor: pointer; font-weight: bold;">🖨️ Print All</button>
+                    <button onclick="window.close()" style="padding: 5px 15px; margin-left: 10px; cursor: pointer;">Close</button>
+                  </div><div style="height: 50px;" class="no-print"></div>';
+        }
 
         foreach ($ids as $id) {
             // Fetch Employee Data
@@ -270,9 +287,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate_bulk'])) {
                     $contract_period = "$start_date_str up to $end_date_str";
                 }
 
-                $current_day  = date('jS');
+                $current_day   = date('jS');
                 $current_month = date('F');
-                $current_year = date('Y');
+                $current_year  = date('Y');
                 $current_full_date = date('F j, Y');
 
                 // Capture Template Output
@@ -337,7 +354,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate_bulk'])) {
                 echo '<div class="document-container">';
                 echo $bodyContent;
                 echo '</div>';
-                echo '<div class="page-break"></div>';
+
+                // =========================================================================
+                // STEP 3 (PAGE BREAKS): Separate pages using Word XML vs HTML Print CSS
+                // =========================================================================
+                if (isset($_POST['export_word'])) {
+                    echo '<br clear="all" style="page-break-before:always;" />';
+                } else {
+                    echo '<div class="page-break"></div>';
+                }
             }
         }
         echo '</body></html>';
@@ -399,6 +424,23 @@ $allDepts = $pdo->query("SELECT DISTINCT dept FROM employees WHERE dept != '' OR
 ?>
 <!DOCTYPE html>
 <html lang="en">
+<style>
+    /* Fix Word Base64 Image Enlargement */
+    img {
+        max-width: 100px !important;
+        width: 80px !important;
+        height: 80px !important;
+        object-fit: cover !important;
+    }
+
+    .header-wrapper img,
+    .header-table img,
+    .logo {
+        width: 80px !important;
+        max-width: 80px !important;
+        height: 80px !important;
+    }
+</style>
 
 <head>
     <meta charset="UTF-8">
@@ -512,9 +554,16 @@ $allDepts = $pdo->query("SELECT DISTINCT dept FROM employees WHERE dept != '' OR
                             <label class="form-label small fw-bold">End Date</label>
                             <input type="date" name="end_date" id="endDate" class="form-control">
                         </div>
-                        <div class="col-md-2 d-flex align-items-end">
-                            <button type="submit" name="generate_bulk" class="btn btn-success w-100 fw-bold">
-                                <i class="bi bi-printer"></i> Generate
+
+                        <!-- ========================================================================= -->
+                        <!-- STEP 1 (UI BUTTONS): Two clean buttons placed side-by-side in flex layout -->
+                        <!-- ========================================================================= -->
+                        <div class="col-md-2 d-flex align-items-end gap-1">
+                            <button type="submit" name="generate_bulk" class="btn btn-success fw-bold flex-fill" title="Print HTML View">
+                                <i class="bi bi-printer"></i> Print
+                            </button>
+                            <button type="submit" name="export_word" class="btn btn-primary fw-bold flex-fill" title="Download Word Document">
+                                <i class="bi bi-file-earmark-word"></i> Word
                             </button>
                         </div>
 
@@ -684,8 +733,6 @@ $allDepts = $pdo->query("SELECT DISTINCT dept FROM employees WHERE dept != '' OR
             e.preventDefault(); // Stop default submit to show alert
 
             const deptSelect = document.querySelector('select[name="dept"]');
-            // Check if "All Departments" is selected in the filter (value is empty)
-            // Note: The select box reflects the current filter state.
             const deptVal = deptSelect ? deptSelect.value : "";
             const checkedCount = document.querySelectorAll('.emp-checkbox:checked').length;
 
@@ -714,7 +761,6 @@ $allDepts = $pdo->query("SELECT DISTINCT dept FROM employees WHERE dept != '' OR
                 confirmButtonColor: '#198754'
             }).then((result) => {
                 if (result.isConfirmed) {
-                    // Create hidden input to simulate button click (since preventDefault killed it)
                     const form = this.closest('form');
                     const hiddenInput = document.createElement('input');
                     hiddenInput.type = 'hidden';

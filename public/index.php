@@ -1391,33 +1391,44 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
             ?>
                 <div class="col-md-6 col-lg-4 mb-4">
                     <div class="card h-100 employee-card <?php echo $statusClass; ?>"
-                        role="button"
-                        data-bs-toggle="modal"
-                        data-bs-target="#<?php echo h($modalId); ?>"
                         data-emp-id-str="<?php echo h($emp['emp_id']); ?>">
-                        <!-- [NEW] Selection Checkbox -->
-                        <div class="position-absolute top-0 start-0 p-2" style="z-index: 10;">
-                            <input type="checkbox" class="form-check-input emp-select-check" value="<?php echo (int)$emp['id']; ?>" onclick="event.stopPropagation(); setEmployeeSelected(this.value, this.checked);">
+
+                        <!-- Selection Checkbox (Isolated from Modal) -->
+                        <div class="position-absolute top-0 start-0 p-2" style="z-index: 10;" onclick="event.stopPropagation();">
+                            <input type="checkbox"
+                                class="form-check-input emp-select-check"
+                                value="<?php echo (int)$emp['id']; ?>"
+                                onclick="event.stopPropagation(); setEmployeeSelected(this.value, this.checked);"
+                                onchange="event.stopPropagation();">
                         </div>
 
                         <div class="card-body">
                             <div class="d-flex justify-content-between align-items-start mb-3">
-                                <div class="me-3">
-                                    <img src="uploads/avatars/<?php echo h($emp['avatar_path'] ?: 'default.png'); ?>"
-                                        class="card-img-top avatar-circle"
-                                        alt="Profile"
-                                        onerror="this.onerror=null; this.src='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI1MCIgZmlsbD0iI2UzZTNlMyIvPjxwYXRoIGQ9Ik01MCA1MCBhMjAgMjAgMCAxIDAgMC00MCAyMCAyMCAwIDEgMCAwIDQwIHptMCAxMCBjLTE1IDAtMzUgMTAtMzUgMzAgdjEwIGg3MCB2LTEwIGMtMC0yMC0yMC0zMC0zNS0zMCIgZmlsbD0iI2FhYSIvPjwvc3ZnPg==';">
+
+                                <!-- CLICKABLE AREA FOR MODAL -->
+                                <div class="d-flex flex-grow-1"
+                                    role="button"
+                                    data-bs-toggle="modal"
+                                    data-bs-target="#<?php echo h($modalId); ?>">
+                                    <div class="me-3">
+                                        <img src="uploads/avatars/<?php echo h($emp['avatar_path'] ?: 'default.png'); ?>"
+                                            class="card-img-top avatar-circle"
+                                            alt="Profile"
+                                            onerror="this.onerror=null; this.src='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI1MCIgZmlsbD0iI2UzZTNlMyIvPjxwYXRoIGQ9Ik01MCA1MCBhMjAgMjAgMCAxIDAgMC00MCAyMCAyMCAwIDEgMCAwIDQwIHptMCAxMCBjLTE1IDAtMzUgMTAtMzUgMzAgdjEwIGg3MCB2LTEwIGMtMC0yMC0yMC0zMC0zNS0zMCIgZmlsbD0iI2FhYSIvPjwvc3ZnPg==';">
+                                    </div>
+                                    <div>
+                                        <h5 class="card-title mb-1 fw-bold"><?php echo h($emp['first_name'] . ' ' . $emp['last_name']); ?></h5>
+                                        <small class="text-muted d-block mb-1"><?php echo $deptDisplay; ?></small>
+                                        <?php if ($hasUncategorized): ?>
+                                            <div class="mb-1"><span class="badge bg-danger-subtle text-danger border border-danger-subtle extra-small"><i class="bi bi-exclamation-triangle-fill"></i> Uncategorized Files</span></div>
+                                        <?php endif; ?>
+                                        <span class="badge <?php echo $statusBadge; ?> rounded-pill"><?php echo h($emp['status']); ?></span>
+                                        <span class="badge <?php echo $roleBadge; ?> rounded-pill ms-1" title="System Role"><i class="bi bi-person-badge"></i> <?php echo h($sysRole); ?></span>
+                                    </div>
                                 </div>
-                                <div class="flex-grow-1">
-                                    <h5 class="card-title mb-1 fw-bold"><?php echo h($emp['first_name'] . ' ' . $emp['last_name']); ?></h5>
-                                    <small class="text-muted d-block mb-1"><?php echo $deptDisplay; ?></small>
-                                    <?php if ($hasUncategorized): ?>
-                                        <div class="mb-1"><span class="badge bg-danger-subtle text-danger border border-danger-subtle extra-small"><i class="bi bi-exclamation-triangle-fill"></i> Uncategorized Files</span></div>
-                                    <?php endif; ?>
-                                    <span class="badge <?php echo $statusBadge; ?> rounded-pill"><?php echo h($emp['status']); ?></span>
-                                    <span class="badge <?php echo $roleBadge; ?> rounded-pill ms-1" title="System Role"><i class="bi bi-person-badge"></i> <?php echo h($sysRole); ?></span>
-                                </div>
-                                <div class="d-flex flex-column align-items-end">
+
+                                <!-- ACTIONS AREA (Pencil, Print) -->
+                                <div class="d-flex flex-column align-items-end ms-2">
                                     <div class="mb-2"><?php echo $employerBadge; ?></div>
                                     <a href="print_employee.php?id=<?php echo (int)$emp['id']; ?>" class="btn btn-sm btn-outline-dark py-0 px-2 mt-1" target="_blank" onclick="event.stopPropagation();" aria-label="Print employee">
                                         <i class="bi bi-printer-fill"></i>

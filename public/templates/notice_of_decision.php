@@ -92,7 +92,7 @@ $rule_violated = nl2br(htmlspecialchars($rule_violated ?? ''));
                 <tr>
                     <td style="width: 130px; text-align: right; vertical-align: middle; padding-right: 15px;">
                         <?php if (isset($global_logo_src) && $global_logo_src !== ''): ?>
-                            <img src="<?php echo htmlspecialchars($global_logo_src); ?>" alt="Company Logo" class="logo" style="width: 80px; height: 80px; border-radius: 50%; object-fit: cover;">
+                            <img src="<?php echo htmlspecialchars($global_logo_src, ENT_QUOTES, 'UTF-8'); ?>" class="logo" width="80" height="80" style="width: 80px; height: 80px; border-radius: 50%; object-fit: cover;" alt="Logo">
                         <?php endif; ?>
                     </td>
                     <td style="vertical-align: middle; text-align: center;">

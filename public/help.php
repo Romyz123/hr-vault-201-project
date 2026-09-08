@@ -1,7 +1,7 @@
 <?php
 // ======================================================
 // [FILE] public/help.php
-// [PURPOSE] System Instructions and User Manual
+// [PURPOSE] User-Friendly Feature Guide & System Manual
 // ======================================================
 
 require '../config/db.php';
@@ -9,207 +9,660 @@ require '../src/Security.php';
 session_start();
 checkSessionTimeout($pdo); // [SECURITY] Enforce Timeout
 
-// 1. SECURITY: Require Login
+// Security: Require Login
 if (!isset($_SESSION['user_id'])) {
     header("Location: login.php");
     exit;
 }
 
-// [UX] Fetch Client Timeout
-$clientTimeout = 900;
-try {
-    $stmt = $pdo->query("SELECT setting_value FROM system_settings WHERE setting_key = 'session_timeout_client'");
-    $val = $stmt->fetchColumn();
-    if ($val) $clientTimeout = (int)$val;
-} catch (Exception $e) {
-}
+$userRole = strtoupper(trim($_SESSION['role'] ?? 'STAFF'));
 ?>
 <?php require 'header.php'; ?>
 
-<div class="container pb-5" style="max-width: 900px;">
+<style>
+    .help-hero {
+        background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+        color: #000000;
+        border-radius: 1rem;
+        padding: 2.5rem 1.5rem;
+        margin-bottom: 2rem;
+        box-shadow: 0 10px 25px rgba(30, 60, 114, 0.15);
+    }
 
-    <div class="text-center mb-4">
-        <h2 class="fw-bold"><i class="bi bi-book-half text-primary"></i> TESP HR 201 System</h2>
-        <p class="text-muted">Documentation, Architecture, and Deployment Guide</p>
+    .feature-card {
+        border: none;
+        border-radius: 0.85rem;
+        transition: transform 0.25s ease, box-shadow 0.25s ease;
+        height: 100%;
+        background: var(--bs-card-bg, #000000);
+    }
+
+    .feature-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 12px 24px rgba(0, 0, 0, 0.08) !important;
+    }
+
+    .icon-box {
+        width: 54px;
+        height: 54px;
+        border-radius: 0.75rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.6rem;
+        margin-bottom: 1rem;
+    }
+
+    .step-badge {
+        width: 28px;
+        height: 28px;
+        border-radius: 50%;
+        background: #0d6efd;
+        color: white;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: bold;
+        font-size: 0.85rem;
+        margin-right: 0.5rem;
+    }
+
+    .role-pill {
+        font-size: 0.75rem;
+        font-weight: 600;
+        padding: 0.25rem 0.6rem;
+        border-radius: 50rem;
+    }
+
+    .search-highlight {
+        background-color: #fff3cd;
+        padding: 0.1rem 0.3rem;
+        border-radius: 0.2rem;
+    }
+</style>
+
+<div class="container pb-5" style="max-width: 1100px;">
+    <!-- 1. HERO BANNER & QUICK SEARCH -->
+    <div class="help-hero text-center" style="color: #ffffff;">
+        <!-- Black/Dark Text on White Rounded Pill -->
+        <div class="d-inline-block px-3 py-1 bg-white rounded-pill mb-3 text-dark small fw-bold shadow-sm">
+            <i class="bi bi-patch-check-fill me-1 text-primary"></i> User Manual & System Guide
+        </div>
+        <h1 class="fw-bold mb-2 text-white"><i class="bi bi-journal-richtext me-2"></i>HR Vault 201 Help Center</h1>
+        <p class="lead opacity-90 mx-auto mb-4 text-white" style="max-width: 650px;">
+            Everything you need to know about managing 201 records, analytics, document contracts, performance, and approvals.
+        </p>
+
+        <!-- Search Input with Length Limitation & Sanitization -->
+        <div class="row justify-content-center">
+            <div class="col-md-7 col-lg-6">
+                <div class="input-group input-group-lg shadow-sm rounded-pill overflow-hidden">
+                    <span class="input-group-text bg-white border-0 ps-3 text-muted"><i class="bi bi-search"></i></span>
+                    <input type="text"
+                        id="helpSearch"
+                        class="form-control border-0 pe-3 fs-6"
+                        placeholder="Search a feature (e.g. Analytics, Add Employee, Vault)..."
+                        maxlength="50"
+                        pattern="[a-zA-Z0-9\s\-_+]+"
+                        title="Allowed: Letters, Numbers, Spaces, Dashes, Underscores, Plus"
+                        oninput="this.value = this.value.replace(/[^a-zA-Z0-9\s\-_+]/g, '')">
+                </div>
+            </div>
+        </div>
     </div>
-
-    <div class="accordion shadow-sm" id="manualAccordion">
-
-        <!-- 1. System Overview -->
-        <div class="accordion-item">
-            <h2 class="accordion-header">
-                <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#collapseOverview">
-                    <strong>1. System Overview & Features</strong>
-                </button>
-            </h2>
-            <div id="collapseOverview" class="accordion-collapse collapse show" data-bs-parent="#manualAccordion">
-                <div class="accordion-body">
-                    <p>The <strong>TESP HR 201 System</strong> is a secure, web-based Human Resource Information System (HRIS) designed for managing employee records, digital 201 files, recruitment, and performance reviews.</p>
-
-                    <h6 class="fw-bold text-primary mt-3">Key Features:</h6>
-                    <ul>
-                        <li><strong>Security:</strong> AES-256 encryption for sensitive documents, Role-Based Access Control (RBAC), and Audit Logging.</li>
-                        <li><strong>Compliance:</strong> Designed strictly to meet MHI Security Application Requirements.</li>
-                        <li><strong>Modules:</strong> Employee Management, Recruitment & ATS, Disciplinary Console, Performance Reviews, Document Expiry Tracking.</li>
-                    </ul>
+    <!-- 2. QUICK ROLE-BASED ACCESS SUMMARY -->
+    <div class="card border-0 shadow-sm rounded-3 mb-4">
+        <div class="card-body p-3 p-md-4">
+            <div class="d-flex align-items-center mb-3">
+                <i class="bi bi-person-badge text-primary fs-3 me-3"></i>
+                <div>
+                    <h5 class="fw-bold mb-0">Your Current Role: <span class="badge bg-primary fs-6 ms-1"><?php echo htmlspecialchars($userRole); ?></span></h5>
+                    <small class="text-muted">Below is a breakdown of permissions per role in HR Vault 201.</small>
                 </div>
             </div>
-        </div>
-
-        <!-- 2. Architecture -->
-        <div class="accordion-item">
-            <h2 class="accordion-header">
-                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseArch">
-                    <strong>2. Architecture & Data Flow</strong>
-                </button>
-            </h2>
-            <div id="collapseArch" class="accordion-collapse collapse" data-bs-parent="#manualAccordion">
-                <div class="accordion-body">
-                    <h6 class="fw-bold text-primary">Core Components</h6>
-                    <ul>
-                        <li><code>public/</code> - Web entry points handling user interactions, file uploads, and viewing.</li>
-                        <li><code>config/</code> - Database connection (<code>db.php</code>) and configuration (<code>config.php</code>).</li>
-                        <li><code>src/Security.php</code> - Centralized security utilities for CSRF, rate limiting, and input sanitization.</li>
-                        <li><code>vault/</code> - Protected directory storing actual PDF files with randomized UUID names.</li>
-                    </ul>
-
-                    <h6 class="fw-bold text-primary mt-3">Critical Data Flow: Document Upload</h6>
-                    <ol>
-                        <li><strong>Form Submission:</strong> User selects employee, category, and file; CSRF token is embedded.</li>
-                        <li><strong>Validation:</strong> Enforces Strict MIME type validation (PDF/Images only) using <code>finfo</code>.</li>
-                        <li><strong>Storage:</strong> Files move to Vault with UUID naming; metadata stored in <code>requests</code> table.</li>
-                        <li><strong>Approval:</strong> Admin approves via the Approval Center, moving the file into the active <code>documents</code> table.</li>
-                    </ol>
-                </div>
-            </div>
-        </div>
-
-        <!-- 3. Security Patterns -->
-        <div class="accordion-item">
-            <h2 class="accordion-header">
-                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseSecurity">
-                    <strong>3. Security Patterns & Compliance</strong>
-                </button>
-            </h2>
-            <div id="collapseSecurity" class="accordion-collapse collapse" data-bs-parent="#manualAccordion">
-                <div class="accordion-body">
-                    <div class="alert alert-warning small">
-                        <i class="bi bi-shield-lock-fill"></i> <strong>MHI Compliance Note:</strong> These patterns must be strictly followed when making modifications.
+            <div class="row g-2 pt-2 text-center">
+                <div class="col-6 col-md-3">
+                    <div class="p-2 border rounded bg-light">
+                        <span class="badge bg-secondary mb-1">STAFF</span>
+                        <div class="small text-muted">View own profile, request edits & submit documents</div>
                     </div>
-
-                    <h6 class="fw-bold text-primary mt-3">CSRF Protection</h6>
-                    <p class="small">Every form includes a hidden <code>csrf_token</code>. POST requests are validated with <code>$security->checkCSRF()</code>. Tokens regenerate per session.</p>
-
-                    <h6 class="fw-bold text-primary mt-3">Input Sanitization</h6>
-                    <p class="small">Global sanitization neutralizes XSS and Null-Byte injections. Use parametrized PDO queries exclusively (<code>$pdo->prepare()</code> + <code>execute([])</code>).</p>
-
-                    <h6 class="fw-bold text-primary mt-3">Rate Limiting</h6>
-                    <p class="small">Sensitive endpoints enforce a strict limit of 60 requests per 60 seconds per IP to prevent brute force attacks.</p>
-
-                    <h6 class="fw-bold text-primary mt-3">File Security</h6>
-                    <ul class="small mb-0">
-                        <li><strong>MIME Checking:</strong> File extensions are untrusted. True MIME types are verified server-side.</li>
-                        <li><strong>Malware Block:</strong> Deep Signature Scans reject files containing <code>MZ</code>, <code>ELF</code>, or <code>&lt;?php</code> headers.</li>
-                        <li><strong>Path Validation:</strong> Uses <code>realpath()</code> to prevent directory traversal attacks.</li>
-                    </ul>
+                </div>
+                <div class="col-6 col-md-3">
+                    <div class="p-2 border rounded bg-light">
+                        <span class="badge bg-info text-dark mb-1">MANAGER</span>
+                        <div class="small text-muted">View team records, manage reviews & generate contracts</div>
+                    </div>
+                </div>
+                <div class="col-6 col-md-3">
+                    <div class="p-2 border rounded bg-light">
+                        <span class="badge bg-success mb-1">HR</span>
+                        <div class="small text-muted">Full 201 management, ATS recruitment & Analytics</div>
+                    </div>
+                </div>
+                <div class="col-6 col-md-3">
+                    <div class="p-2 border rounded bg-light">
+                        <span class="badge bg-danger mb-1">ADMIN</span>
+                        <div class="small text-muted">Full system access, approvals, settings & backups</div>
+                    </div>
                 </div>
             </div>
         </div>
+    </div>
 
-        <!-- 4. Deployment & Requirements -->
-        <div class="accordion-item">
-            <h2 class="accordion-header">
-                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseDeploy">
-                    <strong>4. Server Requirements & Deployment</strong>
-                </button>
-            </h2>
-            <div id="collapseDeploy" class="accordion-collapse collapse" data-bs-parent="#manualAccordion">
-                <div class="accordion-body">
-                    <h6 class="fw-bold text-primary">Server Requirements</h6>
-                    <ul class="small">
-                        <li><strong>OS:</strong> Windows Server (IIS/Apache) or Linux.</li>
-                        <li><strong>Web Server:</strong> Apache 2.4+ (with <code>mod_rewrite</code>).</li>
-                        <li><strong>PHP:</strong> v8.0+ (Extensions: pdo_mysql, openssl, mbstring, gd, zip, fileinfo).</li>
-                        <li><strong>Database:</strong> MySQL 5.7+ or MariaDB 10.4+.</li>
-                        <li><strong>SSL:</strong> A valid SSL Certificate is mandatory for production.</li>
-                    </ul>
+    <!-- 3. SYSTEM MODULE CARDS (VISUAL GRAPHIC GRID) -->
+    <h4 class="fw-bold mb-3"><i class="bi bi-grid-fill text-primary me-2"></i>Core System Features</h4>
+    <div class="row g-4 mb-5" id="featureCardsContainer">
 
-                    <h6 class="fw-bold text-primary mt-3">Configuration Checklist</h6>
-                    <ol class="small">
-                        <li>Create a strong, 32-character string for <code>VAULT_KEY</code> inside <code>config/config.php</code>.</li>
-                        <li>Ensure the web server user has Write access to <code>vault/</code>, <code>public/uploads/</code>, and <code>backups/</code>.</li>
-                        <li>Disable debugging in <code>config/db.php</code> (Set <code>display_errors = 0</code>).</li>
-                        <li>Delete all development files via the red warning prompt on the Admin Dashboard.</li>
+        <!-- Module 1: Employee Management -->
+        <div class="col-md-6 col-lg-4 feature-item">
+            <div class="card feature-card shadow-sm p-3">
+                <div class="icon-box bg-primary bg-opacity-10 text-primary">
+                    <i class="bi bi-people-fill"></i>
+                </div>
+                <h5 class="fw-bold mb-1">Employee 201 Records</h5>
+                <p class="text-muted small mb-3">Centralized database for personal info, government numbers (SSS, TIN, PhilHealth, Pag-IBIG), education, and emergency contacts.</p>
+                <div class="mt-auto border-top pt-2">
+                    <span class="fw-bold small text-primary"><i class="bi bi-check-circle me-1"></i>How to Use:</span>
+                    <ol class="small text-muted ps-3 mb-0 mt-1">
+                        <li>Navigate to <strong>Employee List</strong>.</li>
+                        <li>Click <strong>Add Employee</strong> to onboard new staff.</li>
+                        <li>Click <strong>Edit/View Profile</strong> to update info or upload avatar.</li>
                     </ol>
                 </div>
             </div>
         </div>
 
-        <!-- 5. Troubleshooting -->
-        <div class="accordion-item">
-            <h2 class="accordion-header">
-                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseTrouble">
-                    <strong>5. Troubleshooting & Maintenance</strong>
-                </button>
-            </h2>
-            <div id="collapseTrouble" class="accordion-collapse collapse" data-bs-parent="#manualAccordion">
-                <div class="accordion-body small">
-                    <h6 class="fw-bold text-danger">"Database connection error"</h6>
-                    <p>Check <code>config/config.php</code> credentials. Verify if MySQL is using Port 3306 or 3307.</p>
-
-                    <h6 class="fw-bold text-danger">"Decryption Failed" / Files not loading</h6>
-                    <p>Ensure the <code>VAULT_KEY</code> in <code>config.php</code> matches the key originally used to encrypt the files. <strong>Do not change this key</strong> once files are actively stored in the vault.</p>
-
-                    <h6 class="fw-bold text-danger">"Upload Failed" or 0 Byte Files</h6>
-                    <p>Check folder permissions for the <code>vault/</code> directory. Ensure <code>upload_max_filesize</code> and <code>post_max_size</code> are appropriately set in <code>php.ini</code>.</p>
-
-                    <hr>
-
-                    <h6 class="fw-bold text-primary">Automated Backups</h6>
-                    <p>Backups can be automated via Windows Task Scheduler or Linux Cron using the script at <code>public/cron_backup.php</code>. The script is heavily optimized to stream data directly to the disk, bypassing memory limits.</p>
+        <!-- Module 2: Analytics & Insights -->
+        <div class="col-md-6 col-lg-4 feature-item">
+            <div class="card feature-card shadow-sm p-3">
+                <div class="icon-box bg-success bg-opacity-10 text-success">
+                    <i class="bi bi-bar-chart-line-fill"></i>
+                </div>
+                <h5 class="fw-bold mb-1">Analytics Dashboard</h5>
+                <p class="text-muted small mb-3">Real-time metrics on headcount, attrition trends, agency vs direct distribution, tenure, age breakdown, and birthday calendars.</p>
+                <div class="mt-auto border-top pt-2">
+                    <span class="fw-bold small text-success"><i class="bi bi-check-circle me-1"></i>How to Use:</span>
+                    <ol class="small text-muted ps-3 mb-0 mt-1">
+                        <li>Go to <strong>System Analytics</strong>.</li>
+                        <li>Use top filters for Year, Department, or Group.</li>
+                        <li>Click the <strong>Full Screen</strong> or <strong>Download</strong> icon on any chart to export images.</li>
+                    </ol>
                 </div>
             </div>
         </div>
 
-        <!-- 6. MHI Disaster Recovery -->
-        <div class="accordion-item">
-            <h2 class="accordion-header">
-                <button class="accordion-button collapsed bg-danger text-white bg-opacity-75" type="button" data-bs-toggle="collapse" data-bs-target="#collapseMHI">
-                    <strong>6. Disaster Recovery SOP (Massive Data / No CMD)</strong>
-                </button>
-            </h2>
-            <div id="collapseMHI" class="accordion-collapse collapse" data-bs-parent="#manualAccordion">
-                <div class="accordion-body small">
-                    <p>Because MHI policy prohibits Command Line (CMD) scripts, and PHP web scripts will time out when processing a massive 20GB+ Vault, follow this procedure to safely Backup and Restore the system.</p>
-
-                    <h6 class="fw-bold text-danger mt-3">PHASE 1: BACKUP PROCEDURE</h6>
-                    <ol>
-                        <li><strong>Database:</strong> Go to <em>Manager Users -> Disaster Recovery</em>. Click <strong>Download Backup</strong>. (Leave "Include Vault Files" unchecked). This safely streams your SQL data and Encryption Key without overloading PHP RAM.</li>
-                        <li><strong>Multi-Part ZIPs:</strong> If your automated backup exceeded the GB limit, the system created multiple files (e.g., <code>Part1.zip</code>, <code>Part2.zip</code>). Collect all parts.</li>
-                        <li><strong>Vault Files (Manual Shortcut):</strong> If skipping the web-backup, open Windows File Explorer on the server, navigate to <code>htdocs\hr-vault\vault\</code>, and manually copy it to an external drive.</li>
+        <!-- Module 3: Document Vault & Expiry -->
+        <div class="col-md-6 col-lg-4 feature-item">
+            <div class="card feature-card shadow-sm p-3">
+                <div class="icon-box bg-warning bg-opacity-15 text-warning">
+                    <i class="bi bi-shield-lock-fill"></i>
+                </div>
+                <h5 class="fw-bold mb-1">Encrypted Vault & Expiry</h5>
+                <p class="text-muted small mb-3">AES-256 encrypted digital storage for contracts, NBI clearances, medical certificates, and ID cards with automated expiry tracking.</p>
+                <div class="mt-auto border-top pt-2">
+                    <span class="fw-bold small text-warning"><i class="bi bi-check-circle me-1"></i>How to Use:</span>
+                    <ol class="small text-muted ps-3 mb-0 mt-1">
+                        <li>Open employee profile ➔ <strong>Documents</strong>.</li>
+                        <li>Upload PDF/Image with expiry date.</li>
+                        <li>Monitor red warnings on Dashboard for expiring items.</li>
                     </ol>
+                </div>
+            </div>
+        </div>
 
-                    <h6 class="fw-bold text-success mt-3">PHASE 2: RESTORE PROCEDURE</h6>
-                    <ol>
-                        <li><strong>Vault Files:</strong> Extract ALL your backup ZIP parts. Merge all the extracted <code>vault</code> folders together, and place them back into the <code>htdocs\hr-vault\</code> directory on the new server.</li>
-                        <li><strong>Database (Web UI):</strong> Go to <em>Manage Users -> Disaster Recovery</em>. Use the <strong>Restore SQL</strong> tool. You can hold CTRL/CMD and select ALL parts at once. The system will automatically stitch them together.</li>
-                        <li><strong>Database (GUI Client - Massive Restores without CMD):</strong> If your database is so massive that it exceeds browser capabilities, and Command Line is forbidden by MHI policy, use a standard Database GUI tool (like MySQL Workbench, HeidiSQL, or DBeaver).
-                            <ul>
-                                <li>Open your Database GUI and connect to the server (<code>127.0.0.1</code>, Port <code>3306</code>) using your database administrator credentials.</li>
-                                <li>Select the <code>hr201_prod</code> database. Go to <strong>File > Run SQL Script...</strong> (or <strong>Import > Load SQL File</strong>).</li>
-                                <li>Select your extracted <code>.sql</code> backup parts one by one and execute them. This bypasses all browser limits instantly and securely.</li>
-                            </ul>
-                        </li>
-                        <li><strong>Alignment:</strong> Go to <em>System Recovery Console -> Orphaned Files</em> and run a <strong>Master Sync</strong>. This instantly aligns the database records with the physical files you just copied over.</li>
+        <!-- Module 4: Contract & Document Generator -->
+        <div class="col-md-6 col-lg-4 feature-item">
+            <div class="card feature-card shadow-sm p-3">
+                <div class="icon-box bg-info bg-opacity-10 text-info">
+                    <i class="bi bi-file-earmark-word-fill"></i>
+                </div>
+                <h5 class="fw-bold mb-1">Contract Generator</h5>
+                <p class="text-muted small mb-3">Automated generation of employment contracts, COE (Certificate of Employment), and custom templates using employee profile tags.</p>
+                <div class="mt-auto border-top pt-2">
+                    <span class="fw-bold small text-info"><i class="bi bi-check-circle me-1"></i>How to Use:</span>
+                    <ol class="small text-muted ps-3 mb-0 mt-1">
+                        <li>Select <strong>Generate Document</strong> or <strong>Bulk Contracts</strong>.</li>
+                        <li>Choose template (e.g. Regularization Letter).</li>
+                        <li>Preview auto-filled tags and download DOCX/PDF.</li>
+                    </ol>
+                </div>
+            </div>
+        </div>
+
+        <!-- Module 5: Recruitment & Applicant Tracking -->
+        <div class="col-md-6 col-lg-4 feature-item">
+            <div class="card feature-card shadow-sm p-3">
+                <div class="icon-box bg-purple bg-opacity-10 text-purple" style="color: #6f42c1; background: rgba(111,66,193,0.1);">
+                    <i class="bi bi-briefcase-fill"></i>
+                </div>
+                <h5 class="fw-bold mb-1">Recruitment ATS Console</h5>
+                <p class="text-muted small mb-3">Manage job postings, applicant resumes, interview scheduling, scoring matrix, and seamless 1-click hire onboarding into 201 records.</p>
+                <div class="mt-auto border-top pt-2">
+                    <span class="fw-bold small" style="color: #6f42c1;"><i class="bi bi-check-circle me-1"></i>How to Use:</span>
+                    <ol class="small text-muted ps-3 mb-0 mt-1">
+                        <li>Go to <strong>Recruitment / ATS</strong>.</li>
+                        <li>Create a Job Opening or upload Applicant CVs.</li>
+                        <li>Move applicants through pipeline stages to <strong>Hired</strong>.</li>
+                    </ol>
+                </div>
+            </div>
+        </div>
+
+        <!-- Module 6: Performance & Disciplinary -->
+        <div class="col-md-6 col-lg-4 feature-item">
+            <div class="card feature-card shadow-sm p-3">
+                <div class="icon-box bg-danger bg-opacity-10 text-danger">
+                    <i class="bi bi-gavel"></i>
+                </div>
+                <h5 class="fw-bold mb-1">Disciplinary & Performance</h5>
+                <p class="text-muted small mb-3">Track annual performance reviews, ratings, formal warnings, NTE (Notice to Explain), and disciplinary action history.</p>
+                <div class="mt-auto border-top pt-2">
+                    <span class="fw-bold small text-danger"><i class="bi bi-check-circle me-1"></i>How to Use:</span>
+                    <ol class="small text-muted ps-3 mb-0 mt-1">
+                        <li>Open employee profile ➔ <strong>Disciplinary / Reviews</strong>.</li>
+                        <li>Log review score or issue formal warning record.</li>
+                        <li>Track resolution status and employee explanations.</li>
                     </ol>
                 </div>
             </div>
         </div>
 
     </div>
+
+    <!-- 4. STEP-BY-STEP VISUAL WORKFLOW GUIDES -->
+    <h4 class="fw-bold mb-3"><i class="bi bi-diagram-3-fill text-primary me-2"></i>Common Workflows & How-To Guides</h4>
+
+    <div class="accordion shadow-sm mb-5" id="workflowAccordion">
+
+        <!-- Workflow 1: Onboarding a New Employee -->
+        <div class="accordion-item border-0 mb-2 rounded shadow-sm overflow-hidden">
+            <h2 class="accordion-header">
+                <button class="accordion-button fw-bold py-3" type="button" data-bs-toggle="collapse" data-bs-target="#wfOnboarding">
+                    <i class="bi bi-person-plus-fill text-primary me-2 fs-5"></i> How to Add a New Employee
+                </button>
+            </h2>
+            <div id="wfOnboarding" class="accordion-collapse collapse show" data-bs-parent="#workflowAccordion">
+                <div class="accordion-body">
+                    <div class="row g-3">
+                        <div class="col-md-3 text-center">
+                            <div class="p-3 border rounded bg-light">
+                                <span class="step-badge">1</span>
+                                <h6 class="fw-bold mt-2 mb-1">Open Form</h6>
+                                <p class="small text-muted mb-0">Click <strong>Add Employee</strong> in the top navigation bar.</p>
+                            </div>
+                        </div>
+                        <div class="col-md-3 text-center">
+                            <div class="p-3 border rounded bg-light">
+                                <span class="step-badge">2</span>
+                                <h6 class="fw-bold mt-2 mb-1">Fill Profile</h6>
+                                <p class="small text-muted mb-0">Enter Employee ID, Name, Department, Role, & Government IDs.</p>
+                            </div>
+                        </div>
+                        <div class="col-md-3 text-center">
+                            <div class="p-3 border rounded bg-light">
+                                <span class="step-badge">3</span>
+                                <h6 class="fw-bold mt-2 mb-1">Upload Photo</h6>
+                                <p class="small text-muted mb-0">(Optional) Attach a JPG/PNG avatar photo for the 201 profile.</p>
+                            </div>
+                        </div>
+                        <div class="col-md-3 text-center">
+                            <div class="p-3 border rounded bg-light">
+                                <span class="step-badge bg-success">4</span>
+                                <h6 class="fw-bold mt-2 mb-1">Save & Confirm</h6>
+                                <p class="small text-muted mb-0">Click <strong>Save Employee</strong>. Record is active immediately.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Workflow 2: Uploading & Approving 201 Documents -->
+        <div class="accordion-item border-0 mb-2 rounded shadow-sm overflow-hidden">
+            <h2 class="accordion-header">
+                <button class="accordion-button collapsed fw-bold py-3" type="button" data-bs-toggle="collapse" data-bs-target="#wfVault">
+                    <i class="bi bi-file-earmark-lock-fill text-warning me-2 fs-5"></i> How Vault Document Upload & Approvals Work
+                </button>
+            </h2>
+            <div id="wfVault" class="accordion-collapse collapse" data-bs-parent="#workflowAccordion">
+                <div class="accordion-body">
+                    <div class="row g-3">
+                        <div class="col-md-3 text-center">
+                            <div class="p-3 border rounded bg-light">
+                                <span class="step-badge">1</span>
+                                <h6 class="fw-bold mt-2 mb-1">Upload Document</h6>
+                                <p class="small text-muted mb-0">Employee or HR selects file (PDF/Image) & sets document category.</p>
+                            </div>
+                        </div>
+                        <div class="col-md-3 text-center">
+                            <div class="p-3 border rounded bg-light">
+                                <span class="step-badge">2</span>
+                                <h6 class="fw-bold mt-2 mb-1">AES-256 Encryption</h6>
+                                <p class="small text-muted mb-0">System automatically encrypts file to protected vault storage.</p>
+                            </div>
+                        </div>
+                        <div class="col-md-3 text-center">
+                            <div class="p-3 border rounded bg-light">
+                                <span class="step-badge">3</span>
+                                <h6 class="fw-bold mt-2 mb-1">Approval Queue</h6>
+                                <p class="small text-muted mb-0">Request enters <strong>Admin Approval Center</strong> for verification.</p>
+                            </div>
+                        </div>
+                        <div class="col-md-3 text-center">
+                            <div class="p-3 border rounded bg-light">
+                                <span class="step-badge bg-success">4</span>
+                                <h6 class="fw-bold mt-2 mb-1">Approved & Linked</h6>
+                                <p class="small text-muted mb-0">Admin approves ➔ File is securely accessible in 201 record.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Workflow 3: Generating Contracts & Official Documents -->
+        <div class="accordion-item border-0 mb-2 rounded shadow-sm overflow-hidden">
+            <h2 class="accordion-header">
+                <button class="accordion-button collapsed fw-bold py-3" type="button" data-bs-toggle="collapse" data-bs-target="#wfContract">
+                    <i class="bi bi-file-earmark-word-fill text-info me-2 fs-5"></i> How to Generate Contracts & Official Documents
+                </button>
+            </h2>
+            <div id="wfContract" class="accordion-collapse collapse" data-bs-parent="#workflowAccordion">
+                <div class="accordion-body">
+                    <div class="row g-3">
+                        <div class="col-md-3 text-center">
+                            <div class="p-3 border rounded bg-light h-100">
+                                <span class="step-badge bg-info">1</span>
+                                <h6 class="fw-bold mt-2 mb-1">Select Generator</h6>
+                                <p class="small text-muted mb-0">Go to <strong>Generate Document</strong> or <strong>Bulk Contracts</strong>.</p>
+                            </div>
+                        </div>
+                        <div class="col-md-3 text-center">
+                            <div class="p-3 border rounded bg-light h-100">
+                                <span class="step-badge bg-info">2</span>
+                                <h6 class="fw-bold mt-2 mb-1">Pick Template</h6>
+                                <p class="small text-muted mb-0">Choose COE, Regularization Letter, Contract, or custom template.</p>
+                            </div>
+                        </div>
+                        <div class="col-md-3 text-center">
+                            <div class="p-3 border rounded bg-light h-100">
+                                <span class="step-badge bg-info">3</span>
+                                <h6 class="fw-bold mt-2 mb-1">Select Employee</h6>
+                                <p class="small text-muted mb-0">System automatically fills tags like <code>{FIRST_NAME}</code> and <code>{SALARY}</code>.</p>
+                            </div>
+                        </div>
+                        <div class="col-md-3 text-center">
+                            <div class="p-3 border rounded bg-light h-100">
+                                <span class="step-badge bg-success">4</span>
+                                <h6 class="fw-bold mt-2 mb-1">Download & Print</h6>
+                                <p class="small text-muted mb-0">Click <strong>Generate DOCX/PDF</strong> to download ready-to-sign files.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Workflow 4: Recruitment & ATS Hiring -->
+        <div class="accordion-item border-0 mb-2 rounded shadow-sm overflow-hidden">
+            <h2 class="accordion-header">
+                <button class="accordion-button collapsed fw-bold py-3" type="button" data-bs-toggle="collapse" data-bs-target="#wfATS">
+                    <i class="bi bi-briefcase-fill me-2 fs-5" style="color: #6f42c1;"></i> How ATS Recruitment & 1-Click Hiring Works
+                </button>
+            </h2>
+            <div id="wfATS" class="accordion-collapse collapse" data-bs-parent="#workflowAccordion">
+                <div class="accordion-body">
+                    <div class="row g-3">
+                        <div class="col-md-3 text-center">
+                            <div class="p-3 border rounded bg-light h-100">
+                                <span class="step-badge" style="background: #6f42c1;">1</span>
+                                <h6 class="fw-bold mt-2 mb-1">Post Job Opening</h6>
+                                <p class="small text-muted mb-0">Go to <strong>Recruitment / ATS</strong> ➔ Create a new job vacancy position.</p>
+                            </div>
+                        </div>
+                        <div class="col-md-3 text-center">
+                            <div class="p-3 border rounded bg-light h-100">
+                                <span class="step-badge" style="background: #6f42c1;">2</span>
+                                <h6 class="fw-bold mt-2 mb-1">Add Applicants</h6>
+                                <p class="small text-muted mb-0">Upload resumes (PDF/DOCX) and candidate profile information.</p>
+                            </div>
+                        </div>
+                        <div class="col-md-3 text-center">
+                            <div class="p-3 border rounded bg-light h-100">
+                                <span class="step-badge" style="background: #6f42c1;">3</span>
+                                <h6 class="fw-bold mt-2 mb-1">Interview & Rate</h6>
+                                <p class="small text-muted mb-0">Move candidates through pipeline stages (Applied ➔ Interviewed ➔ Offered).</p>
+                            </div>
+                        </div>
+                        <div class="col-md-3 text-center">
+                            <div class="p-3 border rounded bg-light h-100">
+                                <span class="step-badge bg-success">4</span>
+                                <h6 class="fw-bold mt-2 mb-1">1-Click Onboarding</h6>
+                                <p class="small text-muted mb-0">Click <strong>Mark Hired</strong> to automatically create their active 201 profile.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Workflow 5: Disciplinary Actions & Performance Reviews -->
+        <div class="accordion-item border-0 mb-2 rounded shadow-sm overflow-hidden">
+            <h2 class="accordion-header">
+                <button class="accordion-button collapsed fw-bold py-3" type="button" data-bs-toggle="collapse" data-bs-target="#wfDisciplinary">
+                    <i class="bi bi-gavel text-danger me-2 fs-5"></i> How Disciplinary & Performance Tracking Works
+                </button>
+            </h2>
+            <div id="wfDisciplinary" class="accordion-collapse collapse" data-bs-parent="#workflowAccordion">
+                <div class="accordion-body">
+                    <div class="row g-3">
+                        <div class="col-md-3 text-center">
+                            <div class="p-3 border rounded bg-light h-100">
+                                <span class="step-badge bg-danger">1</span>
+                                <h6 class="fw-bold mt-2 mb-1">Select Employee</h6>
+                                <p class="small text-muted mb-0">Open employee profile ➔ Select <strong>Disciplinary / Reviews</strong> tab.</p>
+                            </div>
+                        </div>
+                        <div class="col-md-3 text-center">
+                            <div class="p-3 border rounded bg-light h-100">
+                                <span class="step-badge bg-danger">2</span>
+                                <h6 class="fw-bold mt-2 mb-1">Log Case / Review</h6>
+                                <p class="small text-muted mb-0">Issue performance score or formal Notice to Explain (NTE).</p>
+                            </div>
+                        </div>
+                        <div class="col-md-3 text-center">
+                            <div class="p-3 border rounded bg-light h-100">
+                                <span class="step-badge bg-danger">3</span>
+                                <h6 class="fw-bold mt-2 mb-1">Track Response</h6>
+                                <p class="small text-muted mb-0">Attach employee written explanation and HR committee hearing notes.</p>
+                            </div>
+                        </div>
+                        <div class="col-md-3 text-center">
+                            <div class="p-3 border rounded bg-light h-100">
+                                <span class="step-badge bg-success">4</span>
+                                <h6 class="fw-bold mt-2 mb-1">File Resolution</h6>
+                                <p class="small text-muted mb-0">Set status to <strong>Resolved</strong> to permanently log entry in 201 history.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Workflow 6: Profile Edit Requests & Approvals -->
+        <div class="accordion-item border-0 mb-2 rounded shadow-sm overflow-hidden">
+            <h2 class="accordion-header">
+                <button class="accordion-button collapsed fw-bold py-3" type="button" data-bs-toggle="collapse" data-bs-target="#wfApprovals">
+                    <i class="bi bi-check-square-fill text-success me-2 fs-5"></i> How Staff Profile Edits & Admin Approvals Work
+                </button>
+            </h2>
+            <div id="wfApprovals" class="accordion-collapse collapse" data-bs-parent="#workflowAccordion">
+                <div class="accordion-body">
+                    <div class="row g-3">
+                        <div class="col-md-3 text-center">
+                            <div class="p-3 border rounded bg-light h-100">
+                                <span class="step-badge bg-success">1</span>
+                                <h6 class="fw-bold mt-2 mb-1">Submit Edit</h6>
+                                <p class="small text-muted mb-0">Staff updates profile info and clicks <strong>Submit Edit Request</strong>.</p>
+                            </div>
+                        </div>
+                        <div class="col-md-3 text-center">
+                            <div class="p-3 border rounded bg-light h-100">
+                                <span class="step-badge bg-success">2</span>
+                                <h6 class="fw-bold mt-2 mb-1">Approval Queue</h6>
+                                <p class="small text-muted mb-0">Request appears instantly in the <strong>Admin Approval Center</strong>.</p>
+                            </div>
+                        </div>
+                        <div class="col-md-3 text-center">
+                            <div class="p-3 border rounded bg-light h-100">
+                                <span class="step-badge bg-success">3</span>
+                                <h6 class="fw-bold mt-2 mb-1">Side-by-Side Review</h6>
+                                <p class="small text-muted mb-0">Admin compares old vs new profile data and notes.</p>
+                            </div>
+                        </div>
+                        <div class="col-md-3 text-center">
+                            <div class="p-3 border rounded bg-light h-100">
+                                <span class="step-badge bg-success">4</span>
+                                <h6 class="fw-bold mt-2 mb-1">Auto-Update</h6>
+                                <p class="small text-muted mb-0">Admin clicks <strong>Approve</strong> ➔ Employee 201 profile updates immediately.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Workflow 7: Exporting Master Lists & Analytics -->
+        <div class="accordion-item border-0 mb-2 rounded shadow-sm overflow-hidden">
+            <h2 class="accordion-header">
+                <button class="accordion-button collapsed fw-bold py-3" type="button" data-bs-toggle="collapse" data-bs-target="#wfExport">
+                    <i class="bi bi-file-earmark-spreadsheet-fill text-primary me-2 fs-5"></i> How to Export Reports & Master Lists
+                </button>
+            </h2>
+            <div id="wfExport" class="accordion-collapse collapse" data-bs-parent="#workflowAccordion">
+                <div class="accordion-body">
+                    <div class="row g-3">
+                        <div class="col-md-3 text-center">
+                            <div class="p-3 border rounded bg-light h-100">
+                                <span class="step-badge">1</span>
+                                <h6 class="fw-bold mt-2 mb-1">Set Filters</h6>
+                                <p class="small text-muted mb-0">Filter by Department, Group, Year, or Active/Inactive status.</p>
+                            </div>
+                        </div>
+                        <div class="col-md-3 text-center">
+                            <div class="p-3 border rounded bg-light h-100">
+                                <span class="step-badge">2</span>
+                                <h6 class="fw-bold mt-2 mb-1">Choose Format</h6>
+                                <p class="small text-muted mb-0">Click <strong>Export Master List (CSV)</strong> or <strong>Custom Print Report</strong>.</p>
+                            </div>
+                        </div>
+                        <div class="col-md-3 text-center">
+                            <div class="p-3 border rounded bg-light h-100">
+                                <span class="step-badge">3</span>
+                                <h6 class="fw-bold mt-2 mb-1">Customize Output</h6>
+                                <p class="small text-muted mb-0">(For Reports) Check specific charts and matrices to include.</p>
+                            </div>
+                        </div>
+                        <div class="col-md-3 text-center">
+                            <div class="p-3 border rounded bg-light h-100">
+                                <span class="step-badge bg-success">4</span>
+                                <h6 class="fw-bold mt-2 mb-1">Save / Print</h6>
+                                <p class="small text-muted mb-0">Download structured CSV or print a high-resolution PDF document.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Workflow 8: Disaster Recovery & Backups -->
+        <div class="accordion-item border-0 rounded shadow-sm overflow-hidden">
+            <h2 class="accordion-header">
+                <button class="accordion-button collapsed fw-bold py-3" type="button" data-bs-toggle="collapse" data-bs-target="#wfBackup">
+                    <i class="bi bi-hdd-network-fill text-danger me-2 fs-5"></i> System Backups & Disaster Recovery (Admins Only)
+                </button>
+            </h2>
+            <div id="wfBackup" class="accordion-collapse collapse" data-bs-parent="#workflowAccordion">
+                <div class="accordion-body">
+                    <div class="alert alert-info small mb-3">
+                        <i class="bi bi-info-circle-fill me-1"></i> Backups can be scheduled automatically or downloaded on-demand from <strong>Manage Users ➔ Disaster Recovery</strong>.
+                    </div>
+                    <ul class="small mb-0">
+                        <li class="mb-2"><strong>Automated Backups:</strong> The system automatically streams daily database snapshots directly to disk.</li>
+                        <li class="mb-2"><strong>Manual Backup:</strong> Go to <em>Disaster Recovery</em>, click <strong>Download Backup</strong>.</li>
+                        <li class="mb-0"><strong>Restoration:</strong> Select your <code>.sql</code> backup archive in the Disaster Recovery panel to restore records seamlessly.</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- 5. FAQ & TROUBLESHOOTING -->
+    <h4 class="fw-bold mb-3"><i class="bi bi-question-circle-fill text-primary me-2"></i>Frequently Asked Questions</h4>
+    <div class="card border-0 shadow-sm rounded-3">
+        <div class="card-body p-4">
+            <div class="row g-4">
+                <div class="col-md-6">
+                    <h6 class="fw-bold text-dark"><i class="bi bi-exclamation-triangle-fill text-warning me-2"></i>Why am I logged out automatically?</h6>
+                    <p class="small text-muted mb-0">For security compliance, inactive sessions auto-logout after 15 minutes of inactivity. You can save your work periodically to prevent session timeouts.</p>
+                </div>
+                <div class="col-md-6">
+                    <h6 class="fw-bold text-dark"><i class="bi bi-shield-x text-danger me-2"></i>Why is my document upload failing?</h6>
+                    <p class="small text-muted mb-0">Ensure your file is under 10MB and is a valid PDF, JPG, or PNG image. Executable or script files are strictly blocked by system security scanners.</p>
+                </div>
+                <div class="col-md-6">
+                    <h6 class="fw-bold text-dark"><i class="bi bi-pencil-square text-info me-2"></i>Can staff edit their own profile directly?</h6>
+                    <p class="small text-muted mb-0">Staff can submit an <strong>Edit Profile Request</strong>. Once an Admin or HR approves the request in the Approval Center, the changes update automatically.</p>
+                </div>
+                <div class="col-md-6">
+                    <h6 class="fw-bold text-dark"><i class="bi bi-printer-fill text-success me-2"></i>How do I print or export analytics reports?</h6>
+                    <p class="small text-muted mb-0">On the Analytics page, click <strong>Custom Report / Print</strong> at the top right to select which sections you want included in your PDF or printout.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
 </div>
 
-<script src="assets/bootstrap.bundle.min.js"></script>
-</body>
+<!-- INTERACTIVE LIVE SEARCH SCRIPT WITH VALIDATION & SANITIZATION -->
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const searchInput = document.getElementById('helpSearch');
+        const featureItems = document.querySelectorAll('.feature-item');
 
-</html>
+        if (searchInput) {
+            searchInput.addEventListener('input', (e) => {
+                // Sanitize input in real-time
+                let cleanVal = e.target.value.replace(/[^a-zA-Z0-9\s\-_+]/g, '');
+
+                // Enforce max length limit
+                if (cleanVal.length > 50) {
+                    cleanVal = cleanVal.slice(0, 50);
+                }
+
+                e.target.value = cleanVal;
+                const query = cleanVal.toLowerCase().trim();
+
+                // Live filter feature cards
+                featureItems.forEach(item => {
+                    const text = item.textContent.toLowerCase();
+                    if (query === '' || text.includes(query)) {
+                        item.style.display = 'block';
+                    } else {
+                        item.style.display = 'none';
+                    }
+                });
+            });
+        }
+    });
+</script>
+
+<?php
+// Include system footer if present in your file structure
+if (file_exists(__DIR__ . '/footer.php')) {
+    require 'footer.php';
+} else {
+    echo '</body></html>';
+}
+?>

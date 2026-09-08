@@ -3740,3 +3740,14 @@ Stack trace:
   thrown in C:\xampp\htdocs\hr 201\src\FileService.php on line 42
 [03-Sep-2026 15:48:38 Asia/Manila] Database Error in edit_employee.php: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'manager_id' in 'field list'. Stack: #0 C:\xampp\htdocs\hr 201\public\edit_employee.php(781): PDO->prepare('UPDATE employee...')
 #1 {main}
+[03-Sep-2026 16:38:40 Asia/Manila] Database Error in add_employee.php: SQLSTATE[23000]: Integrity constraint violation: 1452 Cannot add or update a child row: a foreign key constraint fails (`hr201_local`.`employees`, CONSTRAINT `fk_employee_manager` FOREIGN KEY (`manager_id`) REFERENCES `employees` (`id`) ON DELETE SET NULL). Stack: #0 C:\xampp\htdocs\hr 201\src\EmployeeService.php(51): PDOStatement->execute(Array)
+#1 C:\xampp\htdocs\hr 201\public\add_employee.php(318): EmployeeService->create(Array, 1)
+#2 {main}
+[07-Sep-2026 19:36:04 Asia/Manila] PHP Fatal error:  Uncaught Error: Call to undefined function h() in C:\xampp\htdocs\hr 201\public\verify_otp.php:204
+Stack trace:
+#0 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\verify_otp.php on line 204
+[07-Sep-2026 19:36:07 Asia/Manila] PHP Fatal error:  Uncaught Error: Call to undefined function h() in C:\xampp\htdocs\hr 201\public\verify_otp.php:204
+Stack trace:
+#0 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\verify_otp.php on line 204
