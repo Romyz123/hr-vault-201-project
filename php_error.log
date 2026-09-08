@@ -3658,3 +3658,85 @@ Stack trace:
 [03-Sep-2026 09:11:23 Asia/Manila] PHP Fatal error:  Cannot redeclare checkSessionTimeout() (previously declared in C:\xampp\htdocs\hr 201\config\db.php:145) in C:\xampp\htdocs\hr 201\config\db.php on line 145
 [03-Sep-2026 09:11:28 Asia/Manila] PHP Fatal error:  Cannot redeclare checkSessionTimeout() (previously declared in C:\xampp\htdocs\hr 201\config\db.php:145) in C:\xampp\htdocs\hr 201\config\db.php on line 145
 [03-Sep-2026 11:17:14 Asia/Manila] PHP Fatal error:  Cannot redeclare checkSessionTimeout() (previously declared in C:\xampp\htdocs\hr 201\config\db.php:145) in C:\xampp\htdocs\hr 201\config\db.php on line 145
+[03-Sep-2026 15:17:40 Asia/Manila] PHP Fatal error:  Uncaught Exception: Template not found for slug: project in C:\xampp\htdocs\hr 201\public\bulk_contract.php:70
+Stack trace:
+#0 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\bulk_contract.php on line 70
+[03-Sep-2026 15:18:02 Asia/Manila] PHP Fatal error:  Uncaught Exception: Template not found for slug: project in C:\xampp\htdocs\hr 201\public\bulk_contract.php:70
+Stack trace:
+#0 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\bulk_contract.php on line 70
+[03-Sep-2026 15:19:25 Asia/Manila] PHP Fatal error:  Uncaught Exception: Template not found for slug: project in C:\xampp\htdocs\hr 201\public\bulk_contract.php:70
+Stack trace:
+#0 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\bulk_contract.php on line 70
+[03-Sep-2026 15:23:06 Asia/Manila] PHP Fatal error:  Uncaught Exception: Template not found for slug: employment-contract in C:\xampp\htdocs\hr 201\public\bulk_contract.php:419
+Stack trace:
+#0 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\bulk_contract.php on line 419
+[03-Sep-2026 15:23:27 Asia/Manila] PHP Warning:  Cannot modify header information - headers already sent by (output started at C:\xampp\htdocs\hr 201\public\header.php:186) in C:\xampp\htdocs\hr 201\public\bulk_contract.php on line 150
+[03-Sep-2026 15:23:50 Asia/Manila] PHP Warning:  Cannot modify header information - headers already sent by (output started at C:\xampp\htdocs\hr 201\public\header.php:186) in C:\xampp\htdocs\hr 201\public\bulk_contract.php on line 150
+[03-Sep-2026 15:25:44 Asia/Manila] PHP Warning:  Cannot modify header information - headers already sent by (output started at C:\xampp\htdocs\hr 201\public\header.php:186) in C:\xampp\htdocs\hr 201\public\bulk_contract.php on line 150
+[03-Sep-2026 15:28:52 Asia/Manila] PHP Warning:  Cannot modify header information - headers already sent by (output started at C:\xampp\htdocs\hr 201\public\header.php:186) in C:\xampp\htdocs\hr 201\public\bulk_contract.php on line 150
+[03-Sep-2026 15:29:17 Asia/Manila] PHP Fatal error:  Uncaught Exception: CRITICAL SECURITY ERROR: VAULT_KEY is missing in config.php. System halted to protect data. in C:\xampp\htdocs\hr 201\src\FileService.php:42
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\generate_document.php(28): FileService->__construct('C:\\xampp\\htdocs...')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\src\FileService.php on line 42
+[03-Sep-2026 15:29:19 Asia/Manila] PHP Fatal error:  Uncaught Exception: CRITICAL SECURITY ERROR: VAULT_KEY is missing in config.php. System halted to protect data. in C:\xampp\htdocs\hr 201\src\FileService.php:42
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\generate_document.php(28): FileService->__construct('C:\\xampp\\htdocs...')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\src\FileService.php on line 42
+[03-Sep-2026 15:29:23 Asia/Manila] PHP Fatal error:  Uncaught Exception: CRITICAL SECURITY ERROR: VAULT_KEY is missing in config.php. System halted to protect data. in C:\xampp\htdocs\hr 201\src\FileService.php:42
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\generate_document.php(28): FileService->__construct('C:\\xampp\\htdocs...')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\src\FileService.php on line 42
+[03-Sep-2026 15:29:30 Asia/Manila] PHP Fatal error:  Uncaught Exception: CRITICAL SECURITY ERROR: VAULT_KEY is missing in config.php. System halted to protect data. in C:\xampp\htdocs\hr 201\src\FileService.php:42
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\generate_document.php(28): FileService->__construct('C:\\xampp\\htdocs...')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\src\FileService.php on line 42
+[03-Sep-2026 15:29:32 Asia/Manila] PHP Fatal error:  Uncaught Exception: CRITICAL SECURITY ERROR: VAULT_KEY is missing in config.php. System halted to protect data. in C:\xampp\htdocs\hr 201\src\FileService.php:42
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\generate_document.php(28): FileService->__construct('C:\\xampp\\htdocs...')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\src\FileService.php on line 42
+[03-Sep-2026 15:32:17 Asia/Manila] PHP Fatal error:  Uncaught Exception: CRITICAL SECURITY ERROR: VAULT_KEY is missing in config.php. System halted to protect data. in C:\xampp\htdocs\hr 201\src\FileService.php:42
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\generate_document.php(30): FileService->__construct('C:\\xampp\\htdocs...')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\src\FileService.php on line 42
+[03-Sep-2026 15:32:18 Asia/Manila] PHP Fatal error:  Uncaught Exception: CRITICAL SECURITY ERROR: VAULT_KEY is missing in config.php. System halted to protect data. in C:\xampp\htdocs\hr 201\src\FileService.php:42
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\generate_document.php(30): FileService->__construct('C:\\xampp\\htdocs...')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\src\FileService.php on line 42
+[03-Sep-2026 15:32:33 Asia/Manila] PHP Fatal error:  Uncaught Exception: CRITICAL SECURITY ERROR: VAULT_KEY is missing in config.php. System halted to protect data. in C:\xampp\htdocs\hr 201\src\FileService.php:42
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\generate_document.php(32): FileService->__construct('C:\\xampp\\htdocs...')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\src\FileService.php on line 42
+[03-Sep-2026 15:32:39 Asia/Manila] PHP Fatal error:  Uncaught Exception: CRITICAL SECURITY ERROR: VAULT_KEY is missing in config.php. System halted to protect data. in C:\xampp\htdocs\hr 201\src\FileService.php:42
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\generate_document.php(32): FileService->__construct('C:\\xampp\\htdocs...')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\src\FileService.php on line 42
+[03-Sep-2026 15:32:40 Asia/Manila] PHP Fatal error:  Uncaught Exception: CRITICAL SECURITY ERROR: VAULT_KEY is missing in config.php. System halted to protect data. in C:\xampp\htdocs\hr 201\src\FileService.php:42
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\generate_document.php(32): FileService->__construct('C:\\xampp\\htdocs...')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\src\FileService.php on line 42
+[03-Sep-2026 15:32:41 Asia/Manila] PHP Fatal error:  Uncaught Exception: CRITICAL SECURITY ERROR: VAULT_KEY is missing in config.php. System halted to protect data. in C:\xampp\htdocs\hr 201\src\FileService.php:42
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\generate_document.php(32): FileService->__construct('C:\\xampp\\htdocs...')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\src\FileService.php on line 42
+[03-Sep-2026 15:33:20 Asia/Manila] PHP Fatal error:  Uncaught Exception: CRITICAL SECURITY ERROR: VAULT_KEY is missing in config.php. System halted to protect data. in C:\xampp\htdocs\hr 201\src\FileService.php:42
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\generate_document.php(32): FileService->__construct('C:\\xampp\\htdocs...')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\src\FileService.php on line 42
+[03-Sep-2026 15:48:38 Asia/Manila] Database Error in edit_employee.php: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'manager_id' in 'field list'. Stack: #0 C:\xampp\htdocs\hr 201\public\edit_employee.php(781): PDO->prepare('UPDATE employee...')
+#1 {main}

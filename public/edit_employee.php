@@ -11,6 +11,7 @@ require '../config/db.php';
 require '../src/Security.php';
 require '../src/Logger.php';
 require '../src/helpers.php';
+require_once '../src/helpers.php'; // [FIX] Include global helpers for h() and other functions
 session_start();
 
 // [FIX] PRG Pattern for Validation: Load errors and old data from session

@@ -9,7 +9,7 @@ require '../src/Security.php';
 require '../src/Logger.php';
 require '../src/Validator.php';
 require '../src/SearchHelper.php';
-
+require_once '../src/helpers.php'; // [FIX] Include global helpers for h() and other functions
 // [FIX] Locate the company logo and convert to Base64 for reliable display and printing
 $logo_paths = [
     __DIR__ . '/uploads/tesp-logo.png',

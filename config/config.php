@@ -14,6 +14,6 @@ return [
 
     // Current secret for new data. If you rotated the key, set LEGACY_VAULT_KEY
     // to the previous value so old files can still be decrypted during migration.
-    'VAULT_KEY' => getenv('VAULT_KEY') ?: null,
+    'VAULT_KEY' => getenv('VAULT_KEY') ?: 'your_secure_random_hex_key_here_for_local_dev',
     'LEGACY_VAULT_KEY' => getenv('LEGACY_VAULT_KEY') ?: ''
 ];

@@ -9,7 +9,7 @@ require '../config/db.php';
 require '../src/Security.php';
 require '../src/Logger.php';
 require 'options.php'; // Fetch dynamic options for agencies
-
+require_once '../src/helpers.php'; // [FIX] Include global helpers for h() and other functions
 // [FIX] Satisfy Intelephense by providing a safe fallback
 $agencies = $agencies ?? [];
 $deptMap = $deptMap ?? [];

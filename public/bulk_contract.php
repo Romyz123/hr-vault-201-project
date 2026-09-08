@@ -22,7 +22,6 @@ if (!isset($_SESSION['user_id']) || !in_array($userRole, ['ADMIN', 'MANAGER', 'H
 }
 
 $logger = new Logger($pdo);
-require 'header.php';
 
 // [FIX] Defensive initialization
 $agencies = [];
@@ -50,7 +49,7 @@ if (empty($_SESSION['csrf_token'])) {
     $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 }
 
-// 2. HANDLE GENERATION
+// 2. HANDLE GENERATION (Moved before header.php to prevent dashboard layout pollution)
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate_bulk'])) {
     // [SECURITY] Verify CSRF Token
     if (empty($_POST['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'])) {
@@ -208,7 +207,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate_bulk'])) {
                 ' : '') . '
             }
             body { background: #555; font-family: sans-serif; }
-            .document-container { background: white; margin: 100px auto; padding: 20px <?php echo $marginR; ?>px 20px <?php echo $marginL; ?>px; box-sizing: border-box; max-width: 8.5in; box-shadow: 0 0 10px rgba(0,0,0,0.5); }
+            .document-container { background: white; margin: 100px auto; padding: 20px ' . $marginR . 'px 20px ' . $marginL . 'px; box-sizing: border-box; max-width: 8.5in; box-shadow: 0 0 10px rgba(0,0,0,0.5); }
             .toolbar { position: fixed; top: 0; left: 0; width: 100%; background: #333; color: white; padding: 10px; text-align: center; z-index: 1000; }
         </style>';
         echo '</head><body>';
@@ -349,6 +348,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate_bulk'])) {
         $error = "Invalid template or no employees selected.";
     }
 }
+
+// Now require header.php only for normal page views (GET requests)
+require 'header.php';
 
 // 3. FETCH EMPLOYEES
 $filter_dept   = $_GET['dept'] ?? '';
