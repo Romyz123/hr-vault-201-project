@@ -5,7 +5,7 @@ ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
 // ======================================================
 // [FILE] public/generate_document.php
-// [STATUS] DOCUMENT ENGINE: Handles Contract & NDA Generation
+// [STATUS] DOCUMENT ENGINE: Handles Contract, COE & NDA Generation
 // ======================================================
 
 require '../config/db.php';
@@ -91,7 +91,7 @@ $companyPresident = !empty($settings['company_president']) ? $settings['company_
 $defaultProjectName = $settings['default_project_name'] ?? '';
 $defaultNoticePlace = $settings['default_notice_place'] ?? '';
 
-// 3. PREPARE SHARED INPUTS
+// 3. PREPARE SHARED INPUTS & COE DYNAMIC PARAMETERS
 $custom_duties = (isset($_GET['custom_duties']) && !is_array($_GET['custom_duties'])) ? trim($_GET['custom_duties']) : '';
 $start_override = $_GET['start_date'] ?? '';
 $end_input   = $_GET['end_date'] ?? '';
@@ -99,12 +99,20 @@ $end_input   = $_GET['end_date'] ?? '';
 $_GET['project_name'] = $_GET['project_name'] ?? $defaultProjectName;
 $_GET['notice_place'] = $_GET['notice_place'] ?? $defaultNoticePlace;
 
+// Pass COE Dynamic Form Inputs into $_REQUEST for templates/coe.php
+$_REQUEST['salutation']    = $_GET['salutation'] ?? ($_POST['salutation'] ?? '');
+$_REQUEST['salary']        = $_GET['salary'] ?? ($_POST['salary'] ?? '0');
+$_REQUEST['basic_pay']     = $_GET['basic_pay'] ?? ($_POST['basic_pay'] ?? '');
+$_REQUEST['allowance']     = $_GET['allowance'] ?? ($_POST['allowance'] ?? '');
+$_REQUEST['manager_name']  = $_GET['manager_name'] ?? ($_POST['manager_name'] ?? 'GARLAN A. CASIMERO');
+$_REQUEST['manager_title'] = $_GET['manager_title'] ?? ($_POST['manager_title'] ?? 'Manager - Administration');
+
 $manual_end_date_override = isset($_GET['manual_end_date_override']) && $_GET['manual_end_date_override'] === 'on';
 $manual_end_date_value = $_GET['manual_end_date_value'] ?? '';
 
 // Current Date for Signatures
-$current_day  = date('jS'); // 24th
-$current_month = date('F'); // January
+$current_day  = date('jS');
+$current_month = date('F');
 $current_year = date('Y');
 $current_full_date = date('F j, Y');
 
@@ -150,7 +158,7 @@ foreach ($logo_paths as $p) {
     }
 }
 
-// [NEW] Move Template Selection Logic Up
+// [NEW] Template Selection Logic
 $templateMap = [
     'probationary' => __DIR__ . '/templates/contract_probationary.php',
     'confidentiality' => __DIR__ . '/templates/confidentiality_agreement.php',
@@ -178,7 +186,7 @@ $docTitles = [
 ];
 $friendlyTitle = $docTitles[$type] ?? 'Document';
 
-// [REFACTOR] Consolidate Word and HTML generation loops
+// Consolidate Word and HTML generation loops
 $isWordFormat = ($format === 'word');
 
 if ($isWordFormat) {
@@ -212,12 +220,10 @@ if ($isWordFormat) {
                 page-break-after: always;
                 min-height: 11in;
                 padding: 0.5in;
-                /* [PREVIEW CONTROL] Keep this same as print margin */
                 margin: 20px auto;
                 box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
                 position: relative;
                 box-sizing: border-box;
-                /* Forces padding to stay inside the 8in width */
             }
 
             .no-print {
@@ -270,8 +276,6 @@ if ($isWordFormat) {
                 @page {
                     margin: 0.5in;
                 }
-
-                /* Minimal margins for printer */
             }
 
             /* Dynamic Font Size Override */
@@ -285,20 +289,93 @@ if ($isWordFormat) {
     </head>
 
     <body>
+        <div class="no-print" style="position: fixed; top: 15px; right: 15px; width: 320px; background: #ffffff; border: 1px solid #0d6efd; padding: 15px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); z-index: 9999; font-family: sans-serif;">
+            <h6 style="margin-top: 0; font-weight: bold; color: #0d6efd; border-bottom: 1px solid #eee; padding-bottom: 5px;">Document Controls</h6>
 
-        <div class="no-print">
-            <button onclick="window.print()" style="padding: 10px 20px; background: #0d6efd; color: white; border: none; cursor: pointer; font-weight: bold; border-radius: 5px; width: 100%;">🖨️ Print / Save as PDF</button>
-            <a href="<?php echo $_SERVER['REQUEST_URI'] . '&format=word'; ?>" style="padding: 10px 20px; background: #2a5298; color: white; border: none; cursor: pointer; font-weight: bold; border-radius: 5px; text-decoration: none; text-align: center; width: 100%; box-sizing: border-box;">📄 Download as Word</a>
-            <button onclick="window.close()" style="padding: 10px 20px; background: #6c757d; color: white; border: none; cursor: pointer; font-weight: bold; border-radius: 5px; width: 100%;">Close</button>
+            <form method="GET" action="" style="display: flex; flex-direction: column; gap: 8px;">
+                <!-- Retain GET Parameters -->
+                <input type="hidden" name="id" value="<?php echo htmlspecialchars($ids_raw); ?>">
+                <input type="hidden" name="type" value="<?php echo htmlspecialchars($type); ?>">
+
+                <?php if ($type === 'coe'): ?>
+                    <div>
+                        <label style="font-size: 11px; font-weight: bold; display: block;">Salutation</label>
+                        <select name="salutation" style="width: 100%; padding: 4px; font-size: 12px;">
+                            <option value="Mr." <?php echo ($_REQUEST['salutation'] ?? '') === 'Mr.' ? 'selected' : ''; ?>>Mr.</option>
+                            <option value="Ms." <?php echo ($_REQUEST['salutation'] ?? '') === 'Ms.' ? 'selected' : ''; ?>>Ms.</option>
+                            <option value="Mrs." <?php echo ($_REQUEST['salutation'] ?? '') === 'Mrs.' ? 'selected' : ''; ?>>Mrs.</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label style="font-size: 11px; font-weight: bold; display: block;">Include Salary Breakdown?</label>
+                        <select name="salary" style="width: 100%; padding: 4px; font-size: 12px;">
+                            <option value="0" <?php echo ($_REQUEST['salary'] ?? '0') === '0' ? 'selected' : ''; ?>>No Salary (Standard)</option>
+                            <option value="1" <?php echo ($_REQUEST['salary'] ?? '0') === '1' ? 'selected' : ''; ?>>With Salary Breakdown</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label style="font-size: 11px; font-weight: bold; display: block;">Basic Pay (PHP)</label>
+                        <input type="number" step="0.01" min="0" max="99999999.99" name="basic_pay"
+                            value="<?php echo htmlspecialchars($_REQUEST['basic_pay'] ?? ''); ?>"
+                            placeholder="e.g. 39870.44" maxlength="12"
+                            oninput="validateCurrencyInput(this)"
+                            style="width: 100%; padding: 4px; font-size: 12px; box-sizing: border-box;">
+                    </div>
+
+                    <div>
+                        <label style="font-size: 11px; font-weight: bold; display: block;">Allowance (PHP)</label>
+                        <input type="number" step="0.01" min="0" max="99999999.99" name="allowance"
+                            value="<?php echo htmlspecialchars($_REQUEST['allowance'] ?? ''); ?>"
+                            placeholder="e.g. 4430.06" maxlength="12"
+                            oninput="validateCurrencyInput(this)"
+                            style="width: 100%; padding: 4px; font-size: 12px; box-sizing: border-box;">
+                    </div>
+
+                    <div>
+                        <label style="font-size: 11px; font-weight: bold; display: block;">End Date (Leave blank for Present)</label>
+                        <input type="date" name="end_date" value="<?php echo htmlspecialchars($_REQUEST['end_date'] ?? ''); ?>" style="width: 100%; padding: 4px; font-size: 12px; box-sizing: border-box;">
+                    </div>
+
+                    <div>
+                        <label style="font-size: 11px; font-weight: bold; display: block;">Manager Name</label>
+                        <input type="text" name="manager_name"
+                            value="<?php echo htmlspecialchars($_REQUEST['manager_name'] ?? 'GARLAN A. CASIMERO'); ?>"
+                            maxlength="100" pattern="[a-zA-Z0-9\s\-\.\,\(\)]+"
+                            title="Allowed: Letters, Numbers, Spaces, - . , ( )"
+                            oninput="this.value = this.value.replace(/[^a-zA-Z0-9\s\-\.\,\(\)]/g, '')"
+                            style="width: 100%; padding: 4px; font-size: 12px; box-sizing: border-box;">
+                    </div>
+
+                    <div>
+                        <label style="font-size: 11px; font-weight: bold; display: block;">Manager Title</label>
+                        <input type="text" name="manager_title"
+                            value="<?php echo htmlspecialchars($_REQUEST['manager_title'] ?? 'Manager - Administration'); ?>"
+                            maxlength="60" pattern="[a-zA-Z0-9\s\-\.\/]+"
+                            title="Allowed: Letters, Numbers, Spaces, - . /"
+                            oninput="this.value = this.value.replace(/[^a-zA-Z0-9\s\-\.\/]/g, '')"
+                            style="width: 100%; padding: 4px; font-size: 12px; box-sizing: border-box;">
+                    </div>
+
+                    <button type="submit" style="padding: 6px; background: #0d6efd; color: white; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; font-size: 12px;">🔄 Update Preview</button>
+                <?php endif; ?>
+
+                <div style="display: flex; gap: 5px; margin-top: 5px;">
+                    <button type="button" onclick="window.print()" style="flex: 1; padding: 8px; background: #198754; color: white; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; font-size: 12px;">🖨️ Print</button>
+                    <a href="<?php echo $_SERVER['REQUEST_URI'] . '&format=word'; ?>" style="flex: 1; padding: 8px; background: #0d6efd; color: white; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; text-decoration: none; text-align: center; font-size: 12px; box-sizing: border-box;">📄 Word</a>
+                    <button type="button" onclick="window.close()" style="padding: 8px; background: #6c757d; color: white; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; font-size: 12px;">Close</button>
+                </div>
+            </form>
         </div>
     <?php
 }
 
 foreach ($all_employees as $emp) {
-    // [NEW] Capture content per employee for individual auto-saving
+    // Capture content per employee for individual auto-saving
     ob_start();
 
-    // Re-initialize per-employee variables for the current employee in the loop
+    // Re-initialize per-employee variables for current employee
     $full_name = strtoupper($emp['first_name'] . ' ' . (empty($emp['middle_name']) ? '' : $emp['middle_name'][0] . '.') . ' ' . $emp['last_name']);
     $position  = strtoupper($emp['job_title']);
     $address   = strtoupper($emp['present_address']);
@@ -323,7 +400,7 @@ foreach ($all_employees as $emp) {
     }
     $_GET['employment_end_display'] = $employmentEnd;
 
-    // Auto-case filing
+    // Auto-case filing for NTE / NOD
     if (in_array($type, ['notice_to_explain', 'notice_of_decision'])) {
         try {
             $vDate = $incident_date;
@@ -352,7 +429,7 @@ foreach ($all_employees as $emp) {
         }
     }
 
-    // [LOGGING] Record document generation for each
+    // Record document generation for each employee
     $logger->log($_SESSION['user_id'], 'GENERATE_DOC', "Generated $type for {$emp['first_name']} {$emp['last_name']} ({$emp['emp_id']})");
     ?>
         <div class="document-container">
@@ -367,18 +444,15 @@ foreach ($all_employees as $emp) {
     <?php
     $renderedContent = ob_get_clean();
 
-    // --- [NEW] PER-EMPLOYEE AUTO-ATTACH LOGIC ---
+    // Auto-save unsigned copy logic
     if (isset($_GET['auto_save_copy']) && !empty($renderedContent)) {
         try {
-            // 1. requested formal naming
             $baseName = "Unsigned Digital Copy of the Document ($friendlyTitle)";
             $fileExt = "html";
 
-            // [NEW] Append Status to Filename for Non-Active Employees
             $empStatus = $emp['status'] ?? 'Active';
             if ($empStatus !== 'Active') $baseName .= " ($empStatus)";
 
-            // 2. Collision Detection & Auto-Numbering (-0001)
             $checkStmt = $pdo->prepare("SELECT original_name FROM documents WHERE employee_id = ? AND deleted_at IS NULL");
             $checkStmt->execute([$emp['emp_id']]);
             $existingInDB = $checkStmt->fetchAll(PDO::FETCH_COLUMN);
@@ -390,7 +464,6 @@ foreach ($all_employees as $emp) {
                 $counter++;
             }
 
-            // 3. Save and Link
             $tmp = tempnam(sys_get_temp_dir(), 'gen_doc');
             $standaloneHtml = '<!DOCTYPE html><html><head><meta charset="UTF-8"><style>body{font-family:sans-serif;padding:20mm;}p{text-align:justify;line-height:1.5;}</style></head><body>' . $renderedContent . '</body></html>';
             file_put_contents($tmp, $standaloneHtml);
@@ -418,7 +491,20 @@ foreach ($all_employees as $emp) {
 }
 
 if (!$isWordFormat) {
+    echo '<script>
+    function validateCurrencyInput(input) {
+        input.value = input.value.replace(/[^0-9\.]/g, "");
+        if ((input.value.match(/\./g) || []).length > 1) {
+            input.value = input.value.replace(/\.$/, "");
+        }
+        if (input.value.length > 12) {
+            input.value = input.value.slice(0, 12);
+        }
+        if (parseFloat(input.value) > 99999999.99) {
+            input.value = "99999999.99";
+        }
+    }
+    </script>';
     echo '</body></html>';
 }
 exit;
-    ?>

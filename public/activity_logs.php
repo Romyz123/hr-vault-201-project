@@ -8,7 +8,7 @@ require '../config/db.php';
 require '../src/Security.php';
 session_start();
 
-// [FIX] Ensure checkSessionTimeout is defined before calling it
+// Ensure checkSessionTimeout is defined before calling it
 if (!function_exists('checkSessionTimeout')) {
     require_once __DIR__ . '/../config/db.php';
 }
@@ -20,7 +20,6 @@ if (!isset($_SESSION['user_id']) || !in_array($_SESSION['role'] ?? '', ['ADMIN',
 }
 
 // --- MANAGEMENT ACTIONS ---
-// [REMOVED] delete_log action to maintain audit integrity.
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     $security = new Security($pdo);
     try {
@@ -30,8 +29,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         exit('Forbidden');
     }
     if ($_POST['action'] === 'archive_logs') {
-        // This moves older data to a secondary storage table if needed, 
-        // but keeps the records in the system for compliance.
         $stmt = $pdo->prepare("INSERT INTO activity_logs_archive SELECT * FROM activity_logs WHERE created_at < DATE_SUB(NOW(), INTERVAL 1 YEAR)");
         $stmt->execute();
         $_SESSION['msg'] = "Logs older than 1 year have been moved to archives.";
@@ -60,14 +57,12 @@ if ($period === 'DAILY') {
     $where[] = "MONTH(a.created_at) = MONTH(CURRENT_DATE()) AND YEAR(a.created_at) = YEAR(CURRENT_DATE())";
 }
 
-// New Detailed Category Logic
+// Detailed Category Logic
 if ($filter === 'SECURITY') {
     $where[] = "a.action IN ('LOGIN_SUCCESS', 'LOGIN_FAILED', 'ACCOUNT_LOCKOUT', 'PASSWORD_RESET', 'USER_UNLOCK')";
 } elseif ($filter === 'EDITS') {
-    // Specifically for modifications and new entries
     $where[] = "(a.action LIKE '%ADD%' OR a.action LIKE '%EDIT%' OR a.action LIKE '%UPDATE%' OR a.action LIKE '%CHANGE%')";
 } elseif ($filter === 'DOCUMENTATION') {
-    // Specifically for generated files, reports, and COE
     $where[] = "(a.action LIKE '%GENERATE%' OR a.action LIKE '%PRINT%' OR a.action LIKE '%REPORT%' OR a.action LIKE '%COE%')";
 } elseif ($filter === 'VAULT') {
     $where[] = "(a.action LIKE '%VAULT%' OR a.action LIKE '%FILE%')";
@@ -101,9 +96,135 @@ $totalRows = $pdo->prepare("SELECT COUNT(*) FROM activity_logs a LEFT JOIN users
 $totalRows->execute($params);
 $totalRows = $totalRows->fetchColumn();
 $totalPages = max(1, (int)ceil($totalRows / $perPage));
+
+function getLogBadge($action)
+{
+    if (strpos($action, 'FAIL') !== false || strpos($action, 'LOCK') !== false) return 'bg-danger text-danger border-danger';
+    if (strpos($action, 'EDIT') !== false || strpos($action, 'UPDATE') !== false) return 'bg-warning text-warning border-warning';
+    if (strpos($action, 'ADD') !== false || strpos($action, 'GENERATE') !== false) return 'bg-success text-success border-success';
+    if (strpos($action, 'LOGIN') !== false) return 'bg-primary text-primary border-primary';
+    return 'bg-secondary text-secondary border-secondary';
+}
 ?>
 
+<style>
+    /* Executive Print Formatting Styles */
+    @media print {
+
+        /* Hide navigation, action buttons, search bars, and pagination */
+        header,
+        nav,
+        footer,
+        .no-print,
+        .btn,
+        form,
+        .pagination,
+        #searchInput,
+        #charCount,
+        .input-group,
+        .btn-group {
+            display: none !important;
+        }
+
+        /* Set clean print layout margins */
+        @page {
+            size: A4 portrait;
+            margin: 15mm 10mm 15mm 10mm;
+        }
+
+        body {
+            background-color: #ffffff !important;
+            color: #000000 !important;
+            font-family: Arial, Helvetica, sans-serif !important;
+            font-size: 10pt !important;
+        }
+
+        .container-fluid {
+            padding: 0 !important;
+            margin: 0 !important;
+            width: 100% !important;
+        }
+
+        /* Print Header Display */
+        .print-header {
+            display: block !important;
+            border-bottom: 2px solid #000000;
+            padding-bottom: 8px;
+            margin-bottom: 15px;
+        }
+
+        .print-header h2 {
+            font-size: 14pt;
+            font-weight: bold;
+            margin: 0;
+            text-transform: uppercase;
+            color: #000000;
+        }
+
+        .print-header p {
+            font-size: 8.5pt;
+            margin: 2px 0 0 0;
+            color: #333333;
+        }
+
+        /* Table Formatting */
+        .card {
+            border: none !important;
+            box-shadow: none !important;
+        }
+
+        .table {
+            width: 100% !important;
+            border-collapse: collapse !important;
+            font-size: 8.5pt !important;
+        }
+
+        .table th {
+            background-color: #f2f2f2 !important;
+            color: #000000 !important;
+            border-bottom: 2px solid #000000 !important;
+            padding: 6px 4px !important;
+        }
+
+        .table td {
+            border-bottom: 1px solid #dddddd !important;
+            padding: 6px 4px !important;
+            vertical-align: top !important;
+        }
+
+        tr {
+            page-break-inside: avoid !important;
+        }
+
+        /* Reset Badges for Print Integrity */
+        .badge {
+            border: none !important;
+            background: transparent !important;
+            color: #000000 !important;
+            font-weight: bold !important;
+            padding: 0 !important;
+        }
+    }
+
+    /* Hide Print Header on Screen View */
+    .print-header {
+        display: none;
+    }
+</style>
+
 <?php require 'header.php'; ?>
+
+<!-- Formal Header for Print / PDF Generation -->
+<div class="print-header">
+    <div style="float: right; text-align: right;">
+        <p><strong>Generated On:</strong> <?php echo date('M d, Y h:i A'); ?></p>
+        <p><strong>Generated By:</strong> <?php echo htmlspecialchars($_SESSION['username'] ?? 'System User'); ?></p>
+    </div>
+    <h2>TES Philippines, Inc.</h2>
+    <p><strong>SECURITY AUDIT TRAIL REPORT</strong> | HR Vault 201 System</p>
+    <p><strong>Filter Applied:</strong> Category: <?php echo htmlspecialchars($filter); ?> | Period: <?php echo htmlspecialchars($period); ?></p>
+    <div style="clear: both;"></div>
+</div>
 
 <div class="container-fluid px-4 py-4">
     <div class="d-flex justify-content-between align-items-center mb-4">
@@ -111,13 +232,13 @@ $totalPages = max(1, (int)ceil($totalRows / $perPage));
             <h4 class="mb-0 text-dark fw-bold"><i class="bi bi-journal-text text-primary me-2"></i>Audit Trail</h4>
             <small class="text-muted">Tracking all system events for TESP HR Vault</small>
         </div>
-        <div class="d-flex gap-2">
+        <div class="d-flex gap-2 no-print">
             <button onclick="exportCSV()" class="btn btn-outline-success btn-sm border-0 shadow-sm"><i class="bi bi-file-earmark-excel"></i> Export Excel</button>
             <button onclick="window.print()" class="btn btn-outline-danger btn-sm border-0 shadow-sm"><i class="bi bi-file-earmark-pdf"></i> PDF Report</button>
         </div>
     </div>
 
-    <div class="card shadow-sm border-0 rounded-3 mb-4">
+    <div class="card shadow-sm border-0 rounded-3 mb-4 no-print">
         <div class="card-body bg-white rounded-3">
             <form class="row g-3 align-items-center" method="GET">
                 <div class="col-md-auto">
@@ -187,7 +308,7 @@ $totalPages = max(1, (int)ceil($totalRows / $perPage));
                                 </td>
                                 <td>
                                     <div class="d-flex align-items-center">
-                                        <div class="bg-primary bg-opacity-10 text-primary rounded-circle d-flex align-items-center justify-content-center me-2" style="width: 24px; height: 24px; font-size: 0.7rem;">
+                                        <div class="bg-primary bg-opacity-10 text-primary rounded-circle d-flex align-items-center justify-content-center me-2 no-print" style="width: 24px; height: 24px; font-size: 0.7rem;">
                                             <i class="bi bi-person"></i>
                                         </div>
                                         <span class="fw-semibold"><?php echo htmlspecialchars($log['username'] ?? 'SYSTEM'); ?></span>
@@ -212,17 +333,17 @@ $totalPages = max(1, (int)ceil($totalRows / $perPage));
 
     <!-- PAGINATION -->
     <?php if ($totalPages > 1): ?>
-        <nav class="mt-4">
+        <nav class="mt-4 no-print">
             <ul class="pagination justify-content-center">
                 <?php
-                $qs = $_GET; // Current filters
+                $qs = $_GET;
 
-                // Previous
+                // Previous Page
                 $qs['page'] = max(1, $page - 1);
                 $prevUrl = '?' . http_build_query($qs);
                 echo '<li class="page-item ' . ($page <= 1 ? 'disabled' : '') . '"><a class="page-link shadow-sm" href="' . $prevUrl . '">&laquo; Prev</a></li>';
 
-                // Numbers (Windowed)
+                // Windowed Page Numbers
                 $start = max(1, $page - 2);
                 $end = min($totalPages, $page + 2);
                 for ($i = $start; $i <= $end; $i++) {
@@ -232,7 +353,7 @@ $totalPages = max(1, (int)ceil($totalRows / $perPage));
                     echo '<li class="page-item ' . $active . '"><a class="page-link shadow-sm" href="' . $url . '">' . $i . '</a></li>';
                 }
 
-                // Next
+                // Next Page
                 $qs['page'] = min($totalPages, $page + 1);
                 $nextUrl = '?' . http_build_query($qs);
                 echo '<li class="page-item ' . ($page >= $totalPages ? 'disabled' : '') . '"><a class="page-link shadow-sm" href="' . $nextUrl . '">Next &raquo;</a></li>';
@@ -248,13 +369,14 @@ $totalPages = max(1, (int)ceil($totalRows / $perPage));
     const searchInput = document.getElementById('searchInput');
     const charCount = document.getElementById('charCount');
 
-    searchInput.addEventListener('input', function() {
-        let val = this.value;
-        if (val.length > 100) this.value = val.substring(0, 100);
-        charCount.textContent = `${this.value.length}/100`;
-        // Validation: Strips illegal characters for SQL safety
-        this.value = this.value.replace(/[^a-zA-Z0-9\-_ ,]/g, '');
-    });
+    if (searchInput) {
+        searchInput.addEventListener('input', function() {
+            let val = this.value;
+            if (val.length > 100) this.value = val.substring(0, 100);
+            charCount.textContent = `${this.value.length}/100`;
+            this.value = this.value.replace(/[^a-zA-Z0-9\-_ ,]/g, '');
+        });
+    }
 
     function exportCSV() {
         let table = document.getElementById("logsTable");
@@ -277,13 +399,3 @@ $totalPages = max(1, (int)ceil($totalRows / $perPage));
 </body>
 
 </html>
-<?php
-function getLogBadge($action)
-{
-    if (strpos($action, 'FAIL') !== false || strpos($action, 'LOCK') !== false) return 'bg-danger text-danger border-danger';
-    if (strpos($action, 'EDIT') !== false || strpos($action, 'UPDATE') !== false) return 'bg-warning text-warning border-warning';
-    if (strpos($action, 'ADD') !== false || strpos($action, 'GENERATE') !== false) return 'bg-success text-success border-success';
-    if (strpos($action, 'LOGIN') !== false) return 'bg-primary text-primary border-primary';
-    return 'bg-secondary text-secondary border-secondary';
-}
-?>

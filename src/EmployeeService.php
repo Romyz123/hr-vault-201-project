@@ -65,11 +65,13 @@ class EmployeeService
 
         $cols = array_keys($data);
 
-        // [FIX] Wrap all column names in backticks
+        // Lines 65-68 in EmployeeService.php
+        $cols = array_keys($data);
+
+        // [FIX] Wrap all column names in backticks (handles 'group' and all other columns)
         $colsStr = "`" . implode("`, `", $cols) . "`";
 
         $valsStr = implode(", ", array_fill(0, count($cols), "?"));
-
         $sql = "INSERT INTO employees ($colsStr) VALUES ($valsStr)";
         $stmt = $this->pdo->prepare($sql);
         $stmt->execute(array_values($data));

@@ -130,3 +130,15 @@ if (!function_exists('isDocUncategorized')) {
         return !$matched;
     }
 }
+if (!function_exists('isEmployeeUncategorized')) {
+    /**
+     * Checks if an employee is uncategorized/unassigned to a group.
+     *
+     * @param array|null $employee Employee record array.
+     * @return bool
+     */
+    function isEmployeeUncategorized(?array $employee): bool
+    {
+        return empty($employee['group']) || strcasecmp(trim($employee['group']), 'Uncategorized') === 0;
+    }
+}

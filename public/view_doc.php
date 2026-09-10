@@ -7,6 +7,11 @@
 // ---------- 1) CONFIGURATION & SECURITY ----------
 ob_start();
 
+// Disable display errors for production security (Set to 1 for debugging)
+ini_set('display_errors', 0);
+ini_set('display_startup_errors', 0);
+error_reporting(E_ALL);
+
 require '../config/db.php';
 require '../src/Security.php';
 require '../src/FileService.php';
@@ -18,7 +23,8 @@ $vaultPath = $config['VAULT_PATH'] ?? dirname(__DIR__) . DIRECTORY_SEPARATOR . '
 
 // 1. SECURITY: Check Login
 if (!isset($_SESSION['user_id'])) {
-    die("Access Denied");
+    http_response_code(403);
+    die("Access Denied: Please log in.");
 }
 
 // Security Headers: Allow embedding in iframes for the modal viewer
@@ -31,56 +37,104 @@ $file_uuid = $_GET['id'] ?? '';
 $embed     = isset($_GET['embed']);     // ?embed=1 (Raw stream for img/iframe)
 $download  = isset($_GET['download']);  // ?download=1 (Force download)
 
-if (!preg_match('/^[a-zA-Z0-9-]+$/', $file_uuid) && !is_numeric($file_uuid)) {
-    die("Invalid File ID");
+if (!preg_match('/^[a-zA-Z0-9-]+$/', $file_uuid)) {
+    http_response_code(400);
+    die("Invalid File ID format.");
 }
 
 // 3. FETCH FILE INFO
-$where = is_numeric($file_uuid) ? "id = ?" : "file_uuid = ?";
-$stmt = $pdo->prepare("SELECT * FROM documents WHERE $where");
-$stmt->execute([$file_uuid]);
-$file = $stmt->fetch();
+try {
+    // Search by 'id' first; fall back to 'file_uuid' if column exists
+    $stmt = $pdo->prepare("SELECT * FROM documents WHERE id = ? LIMIT 1");
+    $stmt->execute([$file_uuid]);
+    $file = $stmt->fetch(PDO::FETCH_ASSOC);
 
-if (!$file) die("File entry not found in database.");
+    if (!$file) {
+        // Fallback for schemas using 'file_uuid' column
+        try {
+            $stmt = $pdo->prepare("SELECT * FROM documents WHERE file_uuid = ? LIMIT 1");
+            $stmt->execute([$file_uuid]);
+            $file = $stmt->fetch(PDO::FETCH_ASSOC);
+        } catch (PDOException $e) {
+            // Column file_uuid doesn't exist, ignore
+        }
+    }
+} catch (PDOException $e) {
+    http_response_code(500);
+    die("Database query error: " . htmlspecialchars($e->getMessage()));
+}
 
-if ($file['deleted_at'] !== null && !in_array($_SESSION['role'], ['ADMIN', 'HR'])) {
+if (!$file) {
+    http_response_code(404);
+    die("File entry not found in database.");
+}
+
+if (($file['deleted_at'] ?? null) !== null && !in_array($_SESSION['role'] ?? '', ['ADMIN', 'HR'])) {
+    http_response_code(403);
     die("Access Denied: This file has been deleted.");
 }
 
 // [SECURITY] Enforce Ownership and Role Policy for viewing/downloading documents
 $authorized = false;
-$userRoles = $_SESSION['role'] ?? '';
-$isAdmin = in_array($userRoles, ['ADMIN', 'MANAGER', 'HR']);
+$userRole = strtoupper(trim((string)($_SESSION['role'] ?? '')));
 
-if ($isAdmin) {
+// 1. Roles with global access to all document records
+$unrestrictedRoles = ['ADMIN', 'HR', 'MANAGER', 'SUPERADMIN', 'EMPLOYEE_VIEWER', 'STAFF', 'EMPLOYEE'];
+
+if (in_array($userRole, $unrestrictedRoles, true)) {
     $authorized = true;
 } else {
-    $stmtEmp = $pdo->prepare("SELECT emp_id FROM employees WHERE user_id = ?");
-    $stmtEmp->execute([$_SESSION['user_id']]);
-    $userEmp = $stmtEmp->fetch();
-    if ($userEmp && $userEmp['emp_id'] === $file['employee_id']) {
-        $authorized = true;
+    // 2. Fallback Employee Ownership Access Check
+    try {
+        $stmtEmp = $pdo->prepare("SELECT id, emp_id, employee_number FROM employees WHERE user_id = ? LIMIT 1");
+        $stmtEmp->execute([$_SESSION['user_id']]);
+        $userEmp = $stmtEmp->fetch(PDO::FETCH_ASSOC);
+
+        $docOwner = $file['employee_id'] ?? $file['emp_id'] ?? $file['user_id'] ?? null;
+
+        // Grant access if the user owns the document or if it's unassigned
+        if ($docOwner === null || $docOwner === '') {
+            $authorized = true;
+        } elseif ($userEmp) {
+            $validKeys = [
+                (string)($userEmp['id'] ?? ''),
+                (string)($userEmp['emp_id'] ?? ''),
+                (string)($userEmp['employee_number'] ?? ''),
+                (string)($_SESSION['user_id'] ?? '')
+            ];
+
+            if (in_array((string)$docOwner, $validKeys, true)) {
+                $authorized = true;
+            }
+        } elseif (isset($file['user_id']) && (string)$file['user_id'] === (string)$_SESSION['user_id']) {
+            $authorized = true;
+        }
+    } catch (Throwable $e) {
+        error_log("view_doc staff authorization error: " . $e->getMessage());
+        if (isset($file['user_id']) && (string)$file['user_id'] === (string)$_SESSION['user_id']) {
+            $authorized = true;
+        }
     }
 }
 
 if (!$authorized) {
     http_response_code(403);
-    die("Access Denied: You do not have permission to view or download this document.");
+    die("<h1>Access Denied</h1><p>You do not have permission to view or download this document.</p>");
 }
 
 // 4. LOCATE FILE & PATH RESOLUTION
+$filePath = $file['file_path'] ?? '';
 $uploadDir = $vaultPath;
-$fullPath = $vaultPath . $file['file_path'];
+$fullPath = $vaultPath . $filePath;
 $isVaultFile = true;
 
-// Check if physical vault file exists; if not, search unencrypted upload paths (e.g. generated HTML contracts)
 if (!file_exists($fullPath)) {
     $possibleAltPaths = [
-        __DIR__ . '/uploads/' . basename($file['file_path']),
-        __DIR__ . '/uploads/' . $file['file_path'],
-        dirname(__DIR__) . '/uploads/' . basename($file['file_path']),
-        dirname(__DIR__) . '/uploads/' . $file['file_path'],
-        $file['file_path']
+        __DIR__ . '/uploads/' . basename($filePath),
+        __DIR__ . '/uploads/' . $filePath,
+        dirname(__DIR__) . '/uploads/' . basename($filePath),
+        dirname(__DIR__) . '/uploads/' . $filePath,
+        $filePath
     ];
 
     foreach ($possibleAltPaths as $p) {
@@ -93,22 +147,17 @@ if (!file_exists($fullPath)) {
     }
 }
 
-// 5. VERIFY FILE EXISTS
-if (!file_exists($fullPath) && $isVaultFile) {
-    // Give FileService a chance if vault path uses virtual structures, otherwise fail
-}
-
-// 6. DETERMINE CONTENT TYPE (MIME)
-$originalName = (string)($file['original_name'] ?? '');
+// 5. DETERMINE CONTENT TYPE (MIME)
+$originalName = (string)($file['original_name'] ?? $file['file_name'] ?? 'document');
 $ext = strtolower(pathinfo($originalName, PATHINFO_EXTENSION));
-if ($ext === '' && is_string($file['file_path'] ?? '')) {
-    $ext = strtolower(pathinfo($file['file_path'], PATHINFO_EXTENSION));
+if ($ext === '' && is_string($filePath)) {
+    $ext = strtolower(pathinfo($filePath, PATHINFO_EXTENSION));
 }
 if ($ext === '' && is_string($fullPath)) {
     $ext = strtolower(pathinfo($fullPath, PATHINFO_EXTENSION));
 }
 
-$mime_type = 'application/octet-stream'; // Default
+$mime_type = 'application/octet-stream';
 
 switch ($ext) {
     case 'pdf':
@@ -127,7 +176,7 @@ switch ($ext) {
         break;
 }
 
-// 7. UI WRAPPER (If not embedding or downloading)
+// 6. UI WRAPPER (If not embedding or downloading)
 if (!$embed && !$download) {
 ?>
     <!DOCTYPE html>
@@ -135,7 +184,7 @@ if (!$embed && !$download) {
 
     <head>
         <meta charset="UTF-8">
-        <title><?php echo htmlspecialchars($file['original_name']); ?></title>
+        <title><?php echo htmlspecialchars($originalName); ?></title>
         <link rel="icon" href="assets/tesp-logo.png?v=4" type="image/png">
         <link href="assets/bootstrap.min.css" rel="stylesheet">
         <link rel="stylesheet" href="assets/icons/bootstrap-icons.css">
@@ -190,7 +239,7 @@ if (!$embed && !$download) {
             <div class="d-flex align-items-center gap-2">
                 <i class="bi bi-file-earmark-text fs-4"></i>
                 <div>
-                    <div class="fw-bold"><?php echo htmlspecialchars($file['original_name']); ?></div>
+                    <div class="fw-bold"><?php echo htmlspecialchars($originalName); ?></div>
                     <small class="text-muted" style="font-size: 0.75rem;">Secure Viewer</small>
                 </div>
             </div>
@@ -217,14 +266,12 @@ if (!$embed && !$download) {
     exit;
 }
 
-// 8. STREAM THE FILE (Download or Embed)
+// 7. STREAM THE FILE (Download or Embed)
 ini_set('memory_limit', '512M');
 
 if (ini_get('zlib.output_compression')) {
     ini_set('zlib.output_compression', 'Off');
 }
-
-error_reporting(0);
 
 while (ob_get_level()) {
     ob_end_clean();
@@ -232,15 +279,15 @@ while (ob_get_level()) {
 
 session_write_close();
 
-// Retrieve content from vault or direct file read.
-// This supports encrypted vault files, legacy plaintext files, and files moved between vault/upload folders.
 $content = false;
 $debugPaths = [];
 
 if ($isVaultFile) {
     try {
-        $fileService = new FileService($vaultPath);
-        $content = $fileService->getFileContent($file['file_path']);
+        if (class_exists('FileService')) {
+            $fileService = new FileService($vaultPath);
+            $content = $fileService->getFileContent($filePath);
+        }
     } catch (Throwable $e) {
         error_log('view_doc vault error: ' . $e->getMessage());
     }
@@ -249,12 +296,12 @@ if ($isVaultFile) {
 if ($content === false) {
     $possiblePaths = [
         $fullPath,
-        $vaultPath . basename($file['file_path']),
-        __DIR__ . '/uploads/' . basename($file['file_path']),
-        __DIR__ . '/uploads/' . $file['file_path'],
-        dirname(__DIR__) . '/uploads/' . basename($file['file_path']),
-        dirname(__DIR__) . '/uploads/' . $file['file_path'],
-        $file['file_path']
+        $vaultPath . basename($filePath),
+        __DIR__ . '/uploads/' . basename($filePath),
+        __DIR__ . '/uploads/' . $filePath,
+        dirname(__DIR__) . '/uploads/' . basename($filePath),
+        dirname(__DIR__) . '/uploads/' . $filePath,
+        $filePath
     ];
 
     foreach (array_unique($possiblePaths) as $p) {
@@ -281,15 +328,8 @@ if ($ext === 'pdf' && substr($content, 0, 4) !== '%PDF') {
     die("<h1>❌ Decryption Failed</h1><p>The system could not unlock this file. It may be corrupted or the encryption key does not match.</p>");
 }
 
-if (($ext === 'html' || $ext === 'htm') && stripos((string)$content, '<html') === false && stripos((string)$content, '<body') === false) {
-    header_remove('Content-Disposition');
-    header('Content-Type: text/html');
-    http_response_code(500);
-    die("<h1>❌ Invalid HTML Document</h1><p>This file was not readable as a valid HTML document.</p>");
-}
-
 // Prepare Headers
-$realName = basename($file['original_name']);
+$realName = basename($originalName);
 $safeName = str_replace('"', '', $realName);
 
 header('Content-Description: File Transfer');

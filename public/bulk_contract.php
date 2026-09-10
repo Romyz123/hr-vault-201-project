@@ -88,6 +88,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_POST['generate_bulk']) || 
     $_GET['notice_date']  = $_POST['notice_date'] ?? '';
     $_GET['notice_place'] = $place;
 
+    // COE Dynamic Parameters
+    $_REQUEST['salutation']    = $_POST['salutation'] ?? 'Mr.';
+    $_REQUEST['salary']        = $_POST['salary'] ?? '0';
+    $_REQUEST['basic_pay']     = $_POST['basic_pay'] ?? '';
+    $_REQUEST['allowance']     = $_POST['allowance'] ?? '';
+    $_REQUEST['manager_name']  = $_POST['manager_name'] ?? 'GARLAN A. CASIMERO';
+    $_REQUEST['manager_title'] = $_POST['manager_title'] ?? 'Manager - Administration';
+
+
     // [FIX] Initialize custom_duties to empty for bulk generation (Forces template to use Role-based duties)
     $custom_duties = '';
     $companyPresident = !empty($settings['company_president']) ? $settings['company_president'] : 'JUNJI FURUYA';
@@ -505,7 +514,8 @@ $allDepts = $pdo->query("SELECT DISTINCT dept FROM employees WHERE dept != '' OR
                 </div>
                 <div class="card-body bg-white">
                     <div class="row g-3">
-                        <div class="col-md-2">
+                        <!-- Document Type Selection -->
+                        <div class="col-md-3">
                             <label class="form-label small fw-bold">Document Type</label>
                             <select name="doc_type" id="docType" class="form-select" required onchange="toggleFields()">
                                 <option value="project">Project Contract</option>
@@ -519,25 +529,69 @@ $allDepts = $pdo->query("SELECT DISTINCT dept FROM employees WHERE dept != '' OR
                                 <option value="whistleblowing">Whistle Blowing Consent</option>
                             </select>
                         </div>
-                        <div class="col-md-2 d-flex align-items-center">
-                            <!-- [NEW] Auto-Save Copy Toggle -->
-                            <div class="form-check form-switch mt-3">
-                                <input class="form-check-input" type="checkbox" name="auto_save_copy" id="autoSaveCopy" value="1">
-                                <label class="form-check-label small fw-bold text-primary" for="autoSaveCopy">
-                                    <i class="bi bi-cloud-arrow-up-fill"></i> Auto-save Copies
-                                </label>
-                            </div>
+
+                        <!-- COE DYNAMIC INPUT FIELDS -->
+                        <div class="col-md-2 coe-field" style="display: none;">
+                            <label class="form-label small fw-bold">Salutation</label>
+                            <select name="salutation" class="form-select">
+                                <option value="Mr.">Mr.</option>
+                                <option value="Ms.">Ms.</option>
+                                <option value="Mrs.">Mrs.</option>
+                            </select>
                         </div>
-                        <div class="col-md-2 project-field">
+
+                        <div class="col-md-2 coe-field" style="display: none;">
+                            <label class="form-label small fw-bold">Include Salary?</label>
+                            <select name="salary" class="form-select" onchange="toggleCoeSalaryInputs()">
+                                <option value="0">No Salary (Standard COE)</option>
+                                <option value="1">With Salary Breakdown</option>
+                            </select>
+                        </div>
+
+                        <div class="col-md-2 coe-field coe-salary-input" style="display: none;">
+                            <label class="form-label small fw-bold">Basic Pay (PHP)</label>
+                            <input type="number" step="0.01" min="0" max="99999999" name="basic_pay" class="form-control"
+                                placeholder="e.g. 39870.44" maxlength="12"
+                                oninput="validateCurrencyInput(this)">
+                        </div>
+
+                        <div class="col-md-2 coe-field coe-salary-input" style="display: none;">
+                            <label class="form-label small fw-bold">Allowance (PHP)</label>
+                            <input type="number" step="0.01" min="0" max="99999999" name="allowance" class="form-control"
+                                placeholder="e.g. 4430.06" maxlength="12"
+                                oninput="validateCurrencyInput(this)">
+                        </div>
+
+                        <div class="col-md-3 coe-field" style="display: none;">
+                            <label class="form-label small fw-bold">Manager Name</label>
+                            <input type="text" name="manager_name" class="form-control" value="GARLAN A. CASIMERO"
+                                maxlength="100" pattern="[a-zA-Z0-9\s\-\.\,\(\)]+"
+                                title="Allowed: Letters, Numbers, Spaces, - . , ( )"
+                                oninput="this.value = this.value.replace(/[^a-zA-Z0-9\s\-\.\,\(\)]/g, '')">
+                        </div>
+
+                        <div class="col-md-3 coe-field" style="display: none;">
+                            <label class="form-label small fw-bold">Manager Title</label>
+                            <input type="text" name="manager_title" class="form-control" value="Manager - Administration"
+                                maxlength="60" pattern="[a-zA-Z0-9\s\-\.\/]+"
+                                title="Allowed: Letters, Numbers, Spaces, - . /"
+                                oninput="this.value = this.value.replace(/[^a-zA-Z0-9\s\-\.\/]/g, '')">
+                        </div>
+
+                        <!-- Project Specific Fields -->
+                        <div class="col-md-3 project-field">
                             <label class="form-label small fw-bold">Project Name</label>
                             <input type="text" name="project_name" class="form-control" placeholder="e.g. MRT-3 Rehab" value="<?php echo htmlspecialchars($defProject); ?>"
                                 maxlength="100" pattern="[a-zA-Z0-9\s\-\.\(\)]+" title="Allowed: Letters, Numbers, Spaces, - . ( )"
                                 oninput="this.value = this.value.replace(/[^a-zA-Z0-9\s\-\.\(\)]/g, '')">
                         </div>
+
+                        <!-- Common Date Fields -->
                         <div class="col-md-2 date-field">
                             <label class="form-label small fw-bold">Start Date</label>
                             <input type="date" name="start_date" id="startDate" class="form-control" value="<?php echo date('Y-m-d'); ?>" onchange="calcEndDate()">
                         </div>
+
                         <div class="col-md-2 date-field">
                             <label class="form-label small fw-bold">Duration</label>
                             <div class="input-group input-group-sm">
@@ -550,14 +604,22 @@ $allDepts = $pdo->query("SELECT DISTINCT dept FROM employees WHERE dept != '' OR
                                 <input type="text" inputmode="numeric" name="duration" id="durationInput" class="form-control" value="6" oninput="validateDuration(this); calcEndDate()" readonly style="max-width: 60px;" maxlength="2">
                             </div>
                         </div>
+
                         <div class="col-md-2 date-field">
                             <label class="form-label small fw-bold">End Date</label>
                             <input type="date" name="end_date" id="endDate" class="form-control">
                         </div>
 
-                        <!-- ========================================================================= -->
-                        <!-- STEP 1 (UI BUTTONS): Two clean buttons placed side-by-side in flex layout -->
-                        <!-- ========================================================================= -->
+                        <div class="col-md-2 d-flex align-items-center">
+                            <div class="form-check form-switch mt-3">
+                                <input class="form-check-input" type="checkbox" name="auto_save_copy" id="autoSaveCopy" value="1">
+                                <label class="form-check-label small fw-bold text-primary" for="autoSaveCopy">
+                                    <i class="bi bi-cloud-arrow-up-fill"></i> Auto-save Copies
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- Action Buttons -->
                         <div class="col-md-2 d-flex align-items-end gap-1">
                             <button type="submit" name="generate_bulk" class="btn btn-success fw-bold flex-fill" title="Print HTML View">
                                 <i class="bi bi-printer"></i> Print
@@ -567,10 +629,9 @@ $allDepts = $pdo->query("SELECT DISTINCT dept FROM employees WHERE dept != '' OR
                             </button>
                         </div>
 
-                        <!-- [NEW] Advanced Print Settings Row -->
+                        <!-- Advanced Print Settings Row -->
                         <div class="col-12 mt-3 pt-3 border-top">
                             <div class="row g-3 align-items-center">
-
                                 <div class="col-md-2">
                                     <label class="form-label small text-muted mb-1">Left Margin (px)</label>
                                     <input type="number" name="margin_left" class="form-control form-control-sm" value="<?php echo htmlspecialchars($marginL); ?>" min="3" max="500" oninput="validateMargin(this)">
@@ -665,11 +726,33 @@ $allDepts = $pdo->query("SELECT DISTINCT dept FROM employees WHERE dept != '' OR
         function toggleFields() {
             const type = document.getElementById('docType').value;
             const projFields = document.querySelectorAll('.project-field');
+            const coeFields = document.querySelectorAll('.coe-field');
 
+            // Toggle Project Fields
             if (type === 'project') {
                 projFields.forEach(el => el.style.display = 'block');
             } else {
                 projFields.forEach(el => el.style.display = 'none');
+            }
+
+            // Toggle COE Fields
+            if (type === 'coe') {
+                coeFields.forEach(el => el.style.display = 'block');
+                toggleCoeSalaryInputs(); // Adjust Basic Pay & Allowance visibility
+            } else {
+                coeFields.forEach(el => el.style.display = 'none');
+            }
+        }
+
+        function toggleCoeSalaryInputs() {
+            const type = document.getElementById('docType').value;
+            const salarySelect = document.querySelector('select[name="salary"]');
+            const salaryInputs = document.querySelectorAll('.coe-salary-input');
+
+            if (type === 'coe' && salarySelect && salarySelect.value === '1') {
+                salaryInputs.forEach(el => el.style.display = 'block');
+            } else {
+                salaryInputs.forEach(el => el.style.display = 'none');
             }
         }
 
@@ -818,6 +901,27 @@ $allDepts = $pdo->query("SELECT DISTINCT dept FROM employees WHERE dept != '' OR
         document.querySelectorAll('.emp-checkbox').forEach(cb => {
             cb.addEventListener('change', updateCount);
         });
+
+        // Validation for Currency Inputs (Basic Pay & Allowance)
+        function validateCurrencyInput(input) {
+            // Allows only numbers and a single decimal point
+            input.value = input.value.replace(/[^0-9\.]/g, '');
+
+            // Prevent multiple decimal points
+            if ((input.value.match(/\./g) || []).length > 1) {
+                input.value = input.value.replace(/\.$/, '');
+            }
+
+            // Limit length to 12 characters (e.g. 999999999.99)
+            if (input.value.length > 12) {
+                input.value = input.value.slice(0, 12);
+            }
+
+            // Restrict max value to 99,999,999.99
+            if (parseFloat(input.value) > 99999999.99) {
+                input.value = '99999999.99';
+            }
+        }
     </script>
     <?php require 'footer.php'; ?>
 

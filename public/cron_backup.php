@@ -16,7 +16,7 @@ $isAjax = isset($_GET['ajax']) && $_GET['ajax'] == '1';
 
 define('CLI_MODE', php_sapi_name() === 'cli');
 
-// Load DB and settings FIRST so ini_set() executes before session_start()
+// Load DB and settings
 require '../config/db.php';
 require '../src/Logger.php';
 
@@ -25,18 +25,17 @@ if (!CLI_MODE) {
     session_start();
     if (($_SESSION['role'] ?? '') !== 'ADMIN') {
         if ($isAjax) {
+            if (ob_get_length()) ob_clean();
+            header('Content-Type: application/json');
             echo json_encode(['status' => 'error', 'message' => 'Access Denied']);
             exit;
         }
         die("Access Denied");
     }
 
-    // [FIX] Release session lock so the dashboard remains responsive while the backup generates in the background
+    // Release session lock so the dashboard remains responsive while backup runs
     session_write_close();
 }
-
-require '../config/db.php';
-require '../src/Logger.php';
 
 // 2. LOAD SETTINGS
 $settings = [];
@@ -46,21 +45,18 @@ try {
         $settings[$row['setting_key']] = $row['setting_value'];
     }
 } catch (Exception $e) {
-    // Avoid leaking sensitive information in web mode
     if (CLI_MODE) {
-        // CLI can show full details for troubleshooting
         die("Error loading settings: " . $e->getMessage());
     } else {
-        // log the full exception and show generic message
         error_log("cron_backup settings load failure: " . $e->getMessage() . "\n" . $e->getTraceAsString());
         die("Error loading settings");
     }
 }
 
-$customPath  = $settings['backup_path'] ?? '';
-$zipPass     = $settings['backup_password'] ?? '';
-$incVault    = ($settings['backup_include_vault'] ?? '0') === '1';
-$alertEmail  = $settings['backup_alert_email'] ?? '';
+$customPath    = $settings['backup_path'] ?? '';
+$zipPass       = $settings['backup_password'] ?? '';
+$incVault      = ($settings['backup_include_vault'] ?? '0') === '1';
+$alertEmail    = $settings['backup_alert_email'] ?? '';
 $secondaryPath = $settings['secondary_backup_path'] ?? '';
 
 $requestedRunId = trim((string)($_POST['run_id'] ?? ''));
@@ -68,7 +64,7 @@ $runId = preg_match('/^[a-f0-9-]{16,64}$/i', $requestedRunId)
     ? $requestedRunId
     : bin2hex(random_bytes(16));
 
-// [FIX] Ensure ZipArchive extension is available
+// Ensure ZipArchive extension is available
 if (!class_exists('ZipArchive')) {
     $success = false;
     $errorMessage = "PHP ZipArchive extension is not enabled. Cannot create ZIP backups.";
@@ -113,6 +109,8 @@ $lockStmt = $pdo->query("SELECT GET_LOCK(" . $pdo->quote($lockName) . ", 0)");
 if ((int)$lockStmt->fetchColumn() !== 1) {
     $message = 'Another backup is already running.';
     if ($isAjax) {
+        if (ob_get_length()) ob_clean();
+        header('Content-Type: application/json');
         echo json_encode(['status' => 'error', 'code' => 'BACKUP_RUNNING', 'message' => $message]);
     } else {
         echo $message . "\n";
@@ -158,8 +156,6 @@ $generatedZips[] = $zipFile;
 
 if (CLI_MODE) echo "Starting backup to: $zipFile\n";
 
-// [INFO] Maintenance cleanup from cron_backup has been moved to public/cleanup_resolved_expiry.php
-
 // 4. INITIALIZE ZIP & SQL
 $tables = [];
 $query = $pdo->query('SHOW TABLES');
@@ -177,8 +173,8 @@ if (!$zip instanceof ZipArchive || $zip->open($zipFile, ZipArchive::CREATE) !== 
     $errorMessage = "Could not create ZIP file ($zipFile).";
     if ($alertEmail) mail($alertEmail, "⚠️ HR System Backup Failed", "Manual/Cron backup failed: $errorMessage\n\nTime: " . date('Y-m-d H:i:s'));
 }
+
 if ($success && $zip instanceof ZipArchive) {
-    // [OPTIMIZATION] Stream directly to a local temporary folder to bypass C:\Users restrictions
     $localTempDir = __DIR__ . '/../backups/temp';
     if (!is_dir($localTempDir)) @mkdir($localTempDir, 0700, true);
     $tmpSqlFile = tempnam($localTempDir, 'hr201_backup_');
@@ -199,7 +195,6 @@ if ($success && $zip instanceof ZipArchive) {
         if (!$row) continue;
         $sqlBytes += fwrite($handle, "DROP TABLE IF EXISTS `$table`;\n" . $row[1] . ";\n\n");
 
-        // stream the rows instead of loading entire table
         $stmtRows = $pdo->prepare("SELECT * FROM `" . str_replace("`", "``", $table) . "` ");
         $stmtRows->execute();
         while ($r = $stmtRows->fetch(PDO::FETCH_ASSOC)) {
@@ -207,7 +202,6 @@ if ($success && $zip instanceof ZipArchive) {
             $line = "INSERT INTO `$table` VALUES (" . implode(',', $vals) . ");\n";
             $len = strlen($line);
 
-            // [SPLIT LOGIC] Trigger split if adding this line exceeds limit
             if ($currentBytes + $sqlBytes + $len > $maxSizeBytes) {
                 fwrite($handle, "SET FOREIGN_KEY_CHECKS=1;\n");
                 fclose($handle);
@@ -290,9 +284,7 @@ if ($success && $zip instanceof ZipArchive) {
 
     $currentBytes += $sqlBytes;
 
-    // Add Vault & Key (CRITICAL for Encryption System)
     if ($incVault) {
-        // [LOGICAL FIX] Backup the Encryption Key! Without this, vault files are permanently locked if server dies.
         $configPath = realpath(__DIR__ . '/../config/config.php');
         if ($configPath && is_file($configPath)) {
             $fsize = filesize($configPath);
@@ -335,7 +327,6 @@ if ($success && $zip instanceof ZipArchive) {
             goto backup_end;
         }
 
-        // [MULTI-VOLUME FILE SPLIT] Compress Vault items and track bytes
         $configEnv = require __DIR__ . '/../config/config.php';
         $vaultPath = $configEnv['VAULT_PATH'] ?? realpath(__DIR__ . '/../vault');
         if ($vaultPath && is_dir($vaultPath)) {
@@ -356,7 +347,6 @@ if ($success && $zip instanceof ZipArchive) {
                         goto backup_end;
                     }
 
-                    // [SPLIT LOGIC]
                     if ($currentBytes + $fsize > $maxSizeBytes && $currentBytes > 0) {
                         if ($zip instanceof ZipArchive) @$zip->close();
                         foreach ($pendingUnlink as $f) @unlink($f);
@@ -395,7 +385,7 @@ if ($success && $zip instanceof ZipArchive) {
     if ($zip instanceof ZipArchive && !empty($zip->filename)) {
         @$zip->close();
     }
-    $zip = null; // Mark as finished
+    $zip = null;
     foreach ($pendingUnlink as $f) @unlink($f);
     $pendingUnlink = [];
 }
@@ -408,7 +398,6 @@ foreach ($pendingUnlink as $f) @unlink($f);
 $pendingUnlink = [];
 
 // 6. LOG & FINISH
-// [EARLY WARNING CHECK] Validate generated zip files
 $totalSize = 0;
 $allValid = true;
 foreach ($generatedZips as $gz) {
@@ -420,13 +409,11 @@ foreach ($generatedZips as $gz) {
 }
 
 if ($success && $allValid && count($generatedZips) > 0) {
-    // Mark System Status as Healthy
     $pdo->exec("INSERT INTO system_settings (setting_key, setting_value) VALUES ('backup_last_status', 'OK') ON DUPLICATE KEY UPDATE setting_value = 'OK'");
 
-    // [RETENTION POLICY] Delete Backups older than 30 days to prevent server crash
     $deletedCount = 0;
     $files = glob(rtrim($backupDir, '/\\') . '/*.{zip,sql}', GLOB_BRACE);
-    $cutoffTime = time() - (30 * 86400); // 30 Days
+    $cutoffTime = time() - (30 * 86400);
     foreach ($files as $f) {
         if (is_file($f) && filemtime($f) < $cutoffTime) {
             @unlink($f);
@@ -438,7 +425,6 @@ if ($success && $allValid && count($generatedZips) > 0) {
     if (CLI_MODE) echo "✅ Backup Complete! Total Size: $size\n";
     if (CLI_MODE && $deletedCount > 0) echo "🧹 Cleaned up $deletedCount old backups.\n";
 
-    // Log to DB if possible
     try {
         $logger = new Logger($pdo);
         $userId = CLI_MODE ? 0 : ($_SESSION['user_id'] ?? 0);
@@ -446,7 +432,6 @@ if ($success && $allValid && count($generatedZips) > 0) {
         $partLabel = $partCount === 1 ? '1 part' : "$partCount parts";
         $logger->log($userId, 'AUTO_BACKUP_CLI', "Created backup: " . basename($generatedZips[0]) . " ($partLabel)");
 
-        // [NEW] Secondary Path Redundancy
         if (!empty($secondaryPath)) {
             if (!is_dir($secondaryPath) && !@mkdir($secondaryPath, 0755, true)) {
                 error_log("CRON BACKUP ERROR: Could not create secondary directory: $secondaryPath");
@@ -459,7 +444,6 @@ if ($success && $allValid && count($generatedZips) > 0) {
             }
         }
 
-        // [FIX] Always create a notification for Admins so the result is visible in the UI
         $adminIds = $pdo->query("SELECT id FROM users WHERE role = 'ADMIN'")->fetchAll(PDO::FETCH_COLUMN);
         $notifTitle = CLI_MODE ? "Automated Backup" : "Manual Backup";
         $notifStmt = $pdo->prepare("INSERT INTO notifications (user_id, title, message, type) VALUES (?, ?, ?, 'success')");
@@ -470,6 +454,8 @@ if ($success && $allValid && count($generatedZips) > 0) {
     }
 
     if ($isAjax) {
+        if (ob_get_length()) ob_clean();
+        header('Content-Type: application/json');
         $syncMsg = isset($syncCount) ? " (Vault Synced: $syncCount files)" : "";
         echo json_encode(['status' => 'success', 'message' => "Backup Complete! Size: $size. Removed $deletedCount old backups." . $syncMsg]);
         exit;
@@ -478,16 +464,14 @@ if ($success && $allValid && count($generatedZips) > 0) {
         exit;
     }
 } else {
-    // adjust error message if any part is missing/0 bytes
+    // Failure handling
     if ($success && !$allValid) {
         $errorMessage = "Archive generation failed or one of the split parts resulted in 0 bytes.";
         $success = false;
     }
 
-    // [EARLY WARNING ALERT] Log Failure to Dashboard
     $pdo->exec("INSERT INTO system_settings (setting_key, setting_value) VALUES ('backup_last_status', 'FAILED') ON DUPLICATE KEY UPDATE setting_value = 'FAILED'");
 
-    // [FIX] Always create a notification for Admins so the failure is visible in the UI
     try {
         $adminIds = $pdo->query("SELECT id FROM users WHERE role = 'ADMIN'")->fetchAll(PDO::FETCH_COLUMN);
         $notifTitle = CLI_MODE ? "Automated Backup Failed" : "Manual Backup Failed";
@@ -498,15 +482,6 @@ if ($success && $allValid && count($generatedZips) > 0) {
     } catch (Exception $e) {
     }
 
-    // failure path
-    if (CLI_MODE) {
-        $msg = "❌ Backup Failed.";
-        if ($errorMessage) {
-            $msg .= " Reason: $errorMessage";
-        }
-        echo $msg . "\n";
-        exit(1);
-    }
     if ($alertEmail) {
         $body = "Manual/Cron backup failed";
         if ($errorMessage) {
@@ -517,14 +492,30 @@ if ($success && $allValid && count($generatedZips) > 0) {
     }
 
     if ($isAjax) {
-        echo json_encode(['status' => 'error', 'message' => $errorMessage ?: "Backup execution failed."]);
+        if (ob_get_length()) ob_clean();
+        header('Content-Type: application/json');
+        echo json_encode([
+            'status' => 'error',
+            'message' => $errorMessage ?: "Backup execution failed."
+        ]);
         exit;
     }
+
+    if (CLI_MODE) {
+        $msg = "❌ Backup Failed.";
+        if ($errorMessage) {
+            $msg .= " Reason: $errorMessage";
+        }
+        echo $msg . "\n";
+        exit(1);
+    }
+
     if (!CLI_MODE) {
         $redirectMsg = "❌ Backup Failed.";
         if ($errorMessage) $redirectMsg .= " Reason: $errorMessage";
         header("Location: settings.php?error=" . urlencode($redirectMsg));
         exit;
     }
+
     exit(1);
 }

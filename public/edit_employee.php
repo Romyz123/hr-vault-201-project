@@ -770,19 +770,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 header("Location: index.php?msg=" . urlencode("📝 Edit Request Submitted"));
                 exit;
             }
+            // Find this block around line 383:
         } else {
             // Admin: Direct Update
             $setParts = [];
             $values = [];
             foreach ($updateData as $k => $v) {
-                // [FIX] Added backticks around $k to protect reserved words like 'group'
+                // [FIX] Add backticks around $k to escape reserved keywords like `group`
                 $setParts[] = "`$k` = ?";
                 $values[] = $v;
             }
-            // [NEW] Track when the profile was last updated
+            // Track when the profile was last updated
             $setParts[] = "updated_at = NOW()";
             $values[] = $id;
 
+            $sql = "UPDATE employees SET " . implode(', ', $setParts) . " WHERE id = ?";
+            $pdo->prepare($sql)->execute($values);
             try {
                 // [FIX] Check if emp_id changed, and cascade update if so
                 if ($new_emp_id !== $emp['emp_id']) {
