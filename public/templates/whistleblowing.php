@@ -13,6 +13,8 @@ $fullName  = trim($firstName . ' ' . $lastName);
 if (empty($fullName)) {
     $fullName = 'SAMPLE SAMPLE';
 }
+
+$whistleblower_url = 'https://www.dial-soudan.jp/et/mhi-sarch-rinri_en/';
 ?>
 
 <style>
@@ -25,7 +27,7 @@ if (empty($fullName)) {
     /* Centered Header Title */
     .wb-header-table {
         width: 100%;
-        margin-bottom: 15px;
+        margin-bottom: 20px;
         border-collapse: collapse;
     }
 
@@ -35,76 +37,91 @@ if (empty($fullName)) {
 
     .wb-title {
         font-weight: bold;
-        font-size: 13pt;
-        line-height: 1.25;
+        font-size: 13.5pt;
+        line-height: 1.3;
+        font-family: "Times New Roman", Times, serif;
     }
 
     .wb-subtitle {
-        font-size: 10.5pt;
+        font-size: 11pt;
         font-weight: normal;
     }
 
-    /* Compact Typography to Fit 1 Page */
+    /* Executive Grade Typography */
     .wb-body {
         text-align: justify;
         text-justify: inter-word;
         font-family: "Times New Roman", Times, serif;
+        color: #000;
     }
 
     .wb-body p {
         text-align: justify;
         text-justify: inter-word;
         font-size: 9.5pt;
-        line-height: 1.35;
-        margin-bottom: 8px;
+        line-height: 1.42;
+        margin-bottom: 10px;
     }
 
     .wb-body ol.main-list {
-        margin-top: 6px;
-        margin-bottom: 8px;
-        padding-left: 20px;
+        margin-top: 8px;
+        margin-bottom: 10px;
+        padding-left: 22px;
     }
 
     .wb-body ol.main-list>li {
         text-align: justify;
         text-justify: inter-word;
         font-size: 9.5pt;
-        line-height: 1.35;
-        margin-bottom: 6px;
+        line-height: 1.42;
+        margin-bottom: 8px;
     }
 
     .wb-body ol.sub-list {
-        margin-top: 4px;
-        margin-bottom: 4px;
-        padding-left: 18px;
+        margin-top: 5px;
+        margin-bottom: 5px;
+        padding-left: 20px;
     }
 
     .wb-body ol.sub-list>li {
         font-size: 9.5pt;
-        line-height: 1.3;
-        margin-bottom: 3px;
+        line-height: 1.38;
+        margin-bottom: 4px;
     }
 
     .contact-box {
-        margin-top: 4px;
-        margin-bottom: 4px;
-        padding-left: 15px;
+        margin-top: 5px;
+        margin-bottom: 5px;
+        padding-left: 18px;
+        line-height: 1.4;
     }
 
-    /* Compact Signature Section */
+    /* Bright Blue Hyperlink Styling */
+    .wb-link {
+        color: #0066CC !important;
+        text-decoration: underline !important;
+        word-break: break-all;
+    }
+
+    /* Professional Signature Section */
     .wb-sig-wrapper {
-        margin-top: 25px;
+        margin-top: 30px;
         page-break-inside: avoid;
     }
 
     .wb-sig-block {
-        width: 280px;
+        width: 290px;
         text-align: center;
+    }
+
+    .wb-sig-space {
+        height: 45px;
+        /* Creates explicit whitespace for wet/digital signatures */
     }
 
     .wb-sig-line {
         border-top: 1px solid #000;
-        margin-bottom: 4px;
+        margin-bottom: 6px;
     }
 </style>
 
@@ -149,7 +166,7 @@ if (empty($fullName)) {
                         I understand that for any questions or complaints regarding MHI’s handling of my data or MHI’s compliance with the DPA, I may contact its data privacy officer through:
                         <div class="contact-box">
                             Email: honesto.domingo.f2@mhi.com<br>
-                            [URL] https://www.dial-soudan.ip/et/mhi-sarch-rinri_en/
+                            [URL] <a href="<?php echo htmlspecialchars($whistleblower_url); ?>" target="_blank" class="wb-link"><?php echo htmlspecialchars($whistleblower_url); ?></a>
                         </div>
                     </li>
                     <li>
@@ -157,11 +174,12 @@ if (empty($fullName)) {
                     </li>
                 </ol>
 
-                <p style="margin-top: 10px;">I have read and understood all the above provisions.</p>
+                <p style="margin-top: 12px; margin-bottom: 5px;">I have read and understood all the above provisions.</p>
 
                 <!-- Signature Section -->
                 <div class="wb-sig-wrapper">
                     <div class="wb-sig-block">
+                        <div class="wb-sig-space"></div>
                         <div class="wb-sig-line"></div>
                         <strong style="font-size: 9.5pt; text-transform: uppercase;"><?php echo htmlspecialchars($fullName); ?></strong><br>
                         <span style="font-size: 8.5pt;">Signature above Printed Name and Date</span>

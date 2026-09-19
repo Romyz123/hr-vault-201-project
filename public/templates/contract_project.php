@@ -5,18 +5,25 @@ if (!isset($emp)) {
 }
 
 // 1. CAPTURE INPUTS (from generate_document.php)
-$project_name = isset($_GET['project_name']) ? strtoupper(htmlspecialchars($_GET['project_name'])) : "____________";
-$start_date = isset($_GET['start_date']) ? date('F d, Y', strtotime($_GET['start_date'])) : "____________";
-$end_date   = isset($_GET['end_date'])   ? date('F d, Y', strtotime($_GET['end_date']))   : "____________";
+$project_name = isset($_GET['project_name']) && !empty($_GET['project_name'])
+    ? strtoupper(htmlspecialchars($_GET['project_name']))
+    : "SECOND EXTENDED MAINTENANCE SERVICE";
+
+$start_date = isset($_GET['start_date']) && !empty($_GET['start_date'])
+    ? date('F d, Y', strtotime($_GET['start_date']))
+    : "May 03, 2026";
+
+$end_date   = isset($_GET['end_date']) && !empty($_GET['end_date'])
+    ? date('F d, Y', strtotime($_GET['end_date']))
+    : "December 31, 2026";
+
 $contract_period = "$start_date to $end_date";
 
-// Name Formatting
+// Name & Address Formatting
 $mi = !empty($emp['middle_name']) ? substr($emp['middle_name'], 0, 1) . '.' : '';
-$emp_name_formal = strtoupper(htmlspecialchars($emp['first_name'] . ' ' . $mi . ' ' . $emp['last_name']));
-$address  = strtoupper(htmlspecialchars($emp['present_address']));
-$position = strtoupper(htmlspecialchars($emp['job_title']));
-$system_role = $emp['system_role'] ?? 'Staff'; // [NEW] Get System Role
-$dept_code = strtoupper($emp['dept']); // [NEW] Get Dept for MHI check
+$emp_name_formal = strtoupper(htmlspecialchars(trim($emp['first_name'] . ' ' . $mi . ' ' . $emp['last_name'])));
+$address  = !empty($emp['present_address']) ? strtoupper(htmlspecialchars($emp['present_address'])) : "__________________________________________________";
+$position = !empty($emp['job_title']) ? strtoupper(htmlspecialchars($emp['job_title'])) : "TECHNICIAN";
 ?>
 
 <!DOCTYPE html>
@@ -26,25 +33,23 @@ $dept_code = strtoupper($emp['dept']); // [NEW] Get Dept for MHI check
     <meta charset="UTF-8">
     <title>Project Contract - <?php echo htmlspecialchars($emp_name_formal); ?></title>
     <style>
-        /* 1. MAXIMIZE PAPER SPACE (Reduces Dead Space)  */
+        /* 1. PAPER & PRINT LAYOUT */
         @page {
             size: A4;
-            margin: 0.5in;
-            /* [ADJUST HERE] Page Margins: Increase to 1in for narrower text, decrease to 0.25in for wider text */
+            margin: 0.6in 0.8in;
         }
 
         body {
             font-family: "Times New Roman", Times, serif;
-            font-size: 12pt;
-            line-height: 2.13;
-            /* [ADJUST HERE] Line Spacing: 1.0 = Single, 1.5 = 1.5 Lines, 2.0 = Double Spacing */
+            font-size: 11pt;
+            line-height: 1.5;
             color: #000;
-            background: white;
+            background: #fff;
             margin: 0;
             padding: 0;
         }
 
-        /* 2. HEADER LAYOUT (CENTERED BLOCK) */
+        /* 2. CONTAINER & HEADER */
         table.report-container {
             width: 100%;
             border-collapse: collapse;
@@ -54,74 +59,26 @@ $dept_code = strtoupper($emp['dept']); // [NEW] Get Dept for MHI check
             display: table-header-group;
         }
 
-        tfoot.report-footer {
-            display: table-footer-group;
-        }
-
         .header-wrapper {
             width: 100%;
             margin-bottom: 20px;
-            padding-bottom: 10px;
             text-align: center;
         }
 
-        .header-content-table {
-            width: auto;
-            margin: 0 auto;
-            border-collapse: collapse;
-        }
-
-        .header-content-table td {
-            vertical-align: center;
-            padding: 0;
-        }
-
-        .co-name {
-            font-weight: bold;
-            font-size: 14pt;
-            text-transform: uppercase;
-            color: #000;
-            letter-spacing: 0.5px;
-            margin-bottom: 2px;
-        }
-
-        .co-sub {
-            font-weight: bold;
-            font-size: 10pt;
-            text-transform: uppercase;
-            margin-bottom: 2px;
-        }
-
-        .co-addr {
-            font-size: 9pt;
-            margin-bottom: 0px;
-        }
-
-        /* 3. CONTENT TYPOGRAPHY */
         .doc-title {
             width: 100%;
             font-weight: bold;
-            font-size: 15pt;
-            margin: 10px 0 15px 0;
+            font-size: 13pt;
+            margin: 15px 0 20px 0;
+            text-align: center;
             text-transform: uppercase;
         }
 
-        .salutation {
-            font-weight: bold;
-            font-size: 11pt;
-            text-transform: uppercase;
-            margin-bottom: 10px;
-        }
-
+        /* 3. CONTENT TYPOGRAPHY */
         .justify {
             text-align: justify;
             text-justify: inter-word;
-            margin-bottom: 8px;
-            /* [ADJUST HERE] Paragraph Spacing: Controls gap between paragraphs */
-        }
-
-        .indent {
-            text-indent: 0.5in;
+            margin-bottom: 12px;
         }
 
         .bold {
@@ -132,41 +89,33 @@ $dept_code = strtoupper($emp['dept']); // [NEW] Get Dept for MHI check
             text-transform: uppercase;
         }
 
-        .center {
-            text-align: center;
+        ol.contract-list {
+            margin-top: 5px;
+            margin-bottom: 15px;
+            padding-left: 20px;
         }
 
-        /* 5. SIGNATURES */
+        ol.contract-list li {
+            margin-bottom: 10px;
+            text-align: justify;
+            text-justify: inter-word;
+        }
+
+        /* 4. SIGNATURE SECTION (STACKED LAYOUT) */
         .sig-section {
-            margin-top: 100px;
+            margin-top: 30px;
             page-break-inside: avoid;
-            /* [ADJUST HERE] Signature Spacing: Controls gap above signatures */
         }
 
         .sig-block {
-            margin-bottom: 10px;
+            margin-bottom: 30px;
         }
 
         .sig-line {
             border-top: 1px solid #000;
-            width: 250px;
-            margin-bottom: 10px;
-        }
-
-        /* TABLE FOR DETAILS */
-        .details-table {
-            width: 100%;
-            margin-bottom: 15px;
-        }
-
-        .details-table td {
-            vertical-align: top;
-            padding-bottom: 5px;
-        }
-
-        .label-col {
-            width: 160px;
-            font-weight: bold;
+            width: 260px;
+            margin-top: 45px;
+            margin-bottom: 5px;
         }
     </style>
 </head>
@@ -179,16 +128,16 @@ $dept_code = strtoupper($emp['dept']); // [NEW] Get Dept for MHI check
                     <div class="header-wrapper">
                         <table style="width: 100%; margin-bottom: 10px;">
                             <tr>
-                                <td style="width: 130px; text-align: right; vertical-align: middle; padding-right: 15px;">
-                                    <img src="<?php echo htmlspecialchars($global_logo_src ?? ''); ?>" width="80" height="80" style="width: 80px; height: 80px; border-radius: 50%; object-fit: cover;" alt="TESP Logo">
+                                <td style="width: 110px; text-align: right; vertical-align: middle; padding-right: 15px;">
+                                    <img src="<?php echo htmlspecialchars($global_logo_src ?? ''); ?>" width="75" height="75" style="width: 75px; height: 75px; border-radius: 50%; object-fit: cover;" alt="TESP Logo">
                                 </td>
                                 <td style="text-align: center; vertical-align: middle;">
-                                    <div style="font-weight: bold; font-size: 15pt !important; line-height: 1.2; white-space: nowrap;">TES PHILIPPINES, INC.</div>
-                                    <div style="font-weight: bold; font-size: 11pt !important; line-height: 1.2; white-space: nowrap;">METRO RAIL TRANSIT LINE 3 REHABILITATION PROJECT</div>
-                                    <div style="font-size: 11pt !important; line-height: 1.2;">Meriton One Building, 1668 Quezon Avenue, Quezon City</div>
-                                    <div style="font-size: 11pt !important; line-height: 1.2;">Telephone Number: 8929-5347 local 4404</div>
+                                    <div style="font-weight: bold; font-size: 14pt !important; line-height: 1.2; white-space: nowrap;">TES PHILIPPINES, INC.</div>
+                                    <div style="font-weight: bold; font-size: 10pt !important; line-height: 1.2; white-space: nowrap;">METRO RAIL TRANSIT LINE 3 REHABILITATION PROJECT</div>
+                                    <div style="font-size: 9.5pt !important; line-height: 1.2;">Meriton One Building, 1668 Quezon Avenue, Quezon City</div>
+                                    <div style="font-size: 9.5pt !important; line-height: 1.2;">Telephone Number: 8929-5347 local 4404</div>
                                 </td>
-                                <td style="width: 70px;"></td> <!-- Spacer for shifting text right -->
+                                <td style="width: 70px;"></td>
                             </tr>
                         </table>
                     </div>
@@ -199,44 +148,36 @@ $dept_code = strtoupper($emp['dept']); // [NEW] Get Dept for MHI check
         <tbody>
             <tr>
                 <td>
-                    <div class="doc-title" style="text-align: center;">PROJECT EMPLOYMENT CONTRACT</div>
+                    <div class="doc-title">PROJECT EMPLOYMENT CONTRACT</div>
 
-                    <div class="bold uppercase" style="margin-bottom: 0;"><?php echo $emp_name_formal; ?></div>
-                    <div class="uppercase" style="margin-bottom: 20px;"><?php echo $address; ?></div>
+                    <div class="bold uppercase"><?php echo $emp_name_formal; ?></div>
+                    <div class="uppercase" style="margin-bottom: 15px;"><?php echo $address; ?></div>
 
                     <p class="justify">
                         We are pleased to advise you of your Employment with <span class="bold">TES PHILIPPINES, INC.</span> (hereinafter called the “Company”) on a Project and Term Basis arrangement.
                     </p>
 
-                    <ol>
-
+                    <ol class="contract-list">
                         <li>
-                            <span class="bold">Name of Project </span> <span class="bold"> :</span> <span class="bold uppercase"><?php echo $project_name; ?></span>
-
+                            <span class="bold">Name of Project:</span> <?php echo $project_name; ?>
                         </li>
                         <li>
-                            <span class="bold">Duration of Project </span> <span class="bold"> :</span> <span class="bold"><?php echo $contract_period; ?></span>
-
+                            <span class="bold">Duration of Project:</span> <?php echo $contract_period; ?>
                         </li>
                         <li>
-                            <span class="bold">Compensation </span> <span class="bold"> : </span>Annex A
-
+                            <span class="bold">Compensation:</span> Annex A
                         </li>
                         <li>
-                            <span class="bold">Position </span> <span class="bold"> :</span> <span class="bold uppercase"><?php echo $position; ?></span>
-
+                            <span class="bold">Position:</span> <?php echo $position; ?>
                         </li>
-
                         <li>
-                            <div style="margin-bottom: 5px;">The EMPLOYEE is expected to perform the following functions:</div>
-                            </ul>
-                            <div>These duties shall be subject to change as the need of the Company arises in the pursuit of its objectives.</div>
+                            Your specific duties and responsibilities shall be discussed with you by your assigned Superior and shall be subject to change as the need of the Company arises in the pursuit of its objectives.
                         </li>
                         <li>
                             During your employment, you shall comply with all lawful instructions and observe and abide by the Company’s rules, regulations, and policies.
                         </li>
                         <li>
-                            It is knowingly and willingly understood that this contract of employment shall be limited only for the period/term and <span class="bold uppercase"><?php echo $project_name; ?></span> indicated above and shall automatically terminate on the date/term stated above without the need for any further notice to you unless earlier terminated by the Company for lawful or just cause such as, but not limited to, earlier completion of the work for which you are hired, non-compliance with Company rules and regulations or for any other justifiable reason.
+                            It is knowingly and willingly understood that this contract of employment shall be limited only for the period/term and <?php echo $project_name; ?> indicated above and shall automatically terminate on the date/term stated above without the need for any further notice to you unless earlier terminated by the Company for lawful or just cause such as, but not limited to, earlier completion of the work for which you are hired, non-compliance with Company rules and regulations or for any other justifiable reason.
                         </li>
                         <li>
                             Your employment herein is understood to be on an Extended Maintenance Agreement and Term Basis only, limited to and by the terms and conditions herein knowingly and willingly agreed upon by the Employee, and shall in no manner obligate the Company to extend the Rehabilitation Project Phase and term/period of this contract.
@@ -256,20 +197,19 @@ $dept_code = strtoupper($emp['dept']); // [NEW] Get Dept for MHI check
                     <div class="sig-section">
                         <div class="sig-block">
                             <div>Truly yours,</div>
-                            <br>
-                            <br>
-                            <br>
                             <div class="sig-line"></div>
                             <div class="bold">JUNJI FURUYA</div>
                             <div>President</div>
                         </div>
-                        <div class="sig-block">
-                            <div class="justify" style="font-style: italic;">I hereby certify that I have read and fully understood the terms and conditions of the foregoing Project Employment Contract and accept them accordingly.</div>
-                            <br>
+
+                        <div class="sig-block" style="margin-top: 30px;">
+                            <div class="justify" style="font-size: 10pt; line-height: 1.3;">
+                                I hereby certify that I have read and fully understood the terms and conditions of the foregoing Project Employment Contract and accept them accordingly.
+                            </div>
                             <div class="sig-line"></div>
                             <div class="bold uppercase"><?php echo $emp_name_formal; ?></div>
-                            <div>Employee's Name and Signature</div>
-                            <div style="margin-top: 5px;">Date: _________________</div>
+                            <div>Employee’s Name and Signature</div>
+                            <div style="margin-top: 5px;">Date: ________________________</div>
                         </div>
                     </div>
                 </td>

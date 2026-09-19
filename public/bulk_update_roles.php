@@ -1,7 +1,7 @@
 <?php
 // ======================================================
 // [FILE] public/bulk_update_roles.php
-// [PURPOSE] Bulk update System Roles and Job Titles
+// [PURPOSE] Bulk update System Roles, Job Titles, Departments, and Groups
 // ======================================================
 
 require '../config/db.php';
@@ -10,18 +10,15 @@ require '../src/Logger.php';
 require '../src/Validator.php';
 require '../src/SearchHelper.php';
 
-// [FIX] Ensure checkSessionTimeout is defined before calling it
 if (!function_exists('checkSessionTimeout')) {
     require_once __DIR__ . '/../config/db.php';
 }
-// [FIX] Include global helper functions
 if (!function_exists('h')) {
     require_once __DIR__ . '/../src/helpers.php';
 }
 session_start();
-checkSessionTimeout($pdo); // [SECURITY] Enforce Timeout
+checkSessionTimeout($pdo);
 
-// [UX] Fetch Client Timeout
 $clientTimeout = 900;
 try {
     $stmt = $pdo->query("SELECT setting_value FROM system_settings WHERE setting_key = 'session_timeout_client'");
@@ -30,7 +27,6 @@ try {
 } catch (Exception $e) {
 }
 
-// 1. SECURITY: Admin, Manager & HR Only
 if (!isset($_SESSION['user_id']) || !in_array($_SESSION['role'], ['ADMIN', 'MANAGER', 'HR'])) {
     header("Location: index.php");
     exit;
@@ -39,43 +35,53 @@ if (!isset($_SESSION['user_id']) || !in_array($_SESSION['role'], ['ADMIN', 'MANA
 $logger = new Logger($pdo);
 $msg = "";
 $error = "";
-// [FIX] Defensive initialization
 $agencies = [];
 $deptMap = [];
 $system_roles = [];
-$dryRunResults = null; // Store preview data
+$groups = [];
+$dryRunResults = null;
 
-// [NEW] Load Centralized Options
 require __DIR__ . '/options.php';
 
-// [SECURITY] Generate CSRF Token
+// Dynamically fetch actual organizational groups from DB or options fallback
+try {
+    $dbGroups = $pdo->query("SELECT group_name FROM org_groups ORDER BY group_name ASC")->fetchAll(PDO::FETCH_COLUMN);
+    if (!empty($dbGroups)) {
+        $groups = $dbGroups;
+    } elseif (isset($org_groups)) {
+        $groups = $org_groups;
+    }
+} catch (Exception $e) {
+    if (isset($org_groups)) {
+        $groups = $org_groups;
+    }
+}
+
 if (empty($_SESSION['csrf_token'])) {
     $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 }
 
 // 2. HANDLE BULK UPDATE
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_POST['update_roles']) || isset($_POST['dry_run']))) {
-    // CSRF Check
     if (empty($_POST['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'])) {
         die("Security Error: Invalid Token.");
     }
 
     $ids = $_POST['employee_ids'] ?? [];
-    // Validate $ids: filter for numeric values and cast to int
     $ids = array_filter($ids, function ($id) {
         return is_numeric($id);
     });
     $ids = array_map('intval', $ids);
 
-    $new_role = trim($_POST['new_system_role'] ?? '');
-    $new_job  = trim($_POST['new_job_title'] ?? '');
-    $new_dept = trim($_POST['new_dept'] ?? '');
+    $new_role    = trim($_POST['new_system_role'] ?? '');
+    $new_job     = trim($_POST['new_job_title'] ?? '');
+    $new_dept    = trim($_POST['new_dept'] ?? '');
     $new_section = trim($_POST['new_section'] ?? '');
-    $new_gender = trim($_POST['new_gender'] ?? '');
-    $new_agency = trim($_POST['new_agency'] ?? '');
-    $new_status = trim($_POST['new_status'] ?? '');
+    $new_group   = trim($_POST['new_group'] ?? '');
+    $new_gender  = trim($_POST['new_gender'] ?? '');
+    $new_agency  = trim($_POST['new_agency'] ?? '');
+    $new_status  = trim($_POST['new_status'] ?? '');
 
-    // Validate against allowlists
     $allowedRoles = $system_roles;
     $allowedGenders = ['Male', 'Female', 'Other'];
     $allowedDepts = array_keys($deptMap);
@@ -99,7 +105,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_POST['update_roles']) || i
     if (empty($ids)) {
         $error = "❌ No employees selected.";
     } else {
-        // Validation
         $valid = true;
         if ($new_job !== '') {
             if (strlen($new_job) > 50) {
@@ -112,10 +117,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_POST['update_roles']) || i
         }
 
         if ($valid) {
-            // [NEW] DRY RUN LOGIC
             if (isset($_POST['dry_run'])) {
                 $placeholders = rtrim(str_repeat('?,', count($ids)), ',');
-                $sql = "SELECT id, emp_id, first_name, last_name, job_title, dept, section, gender, system_role, agency_name, employment_type, status FROM employees WHERE id IN ($placeholders)";
+                $sql = "SELECT id, emp_id, first_name, last_name, job_title, dept, section, group_name, gender, system_role, agency_name, employment_type, status FROM employees WHERE id IN ($placeholders)";
                 $stmt = $pdo->prepare($sql);
                 $stmt->execute($ids);
                 $targets = $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -123,34 +127,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_POST['update_roles']) || i
                 $dryRunResults = [];
                 foreach ($targets as $t) {
                     $changes = [];
-                    $oldRole = htmlspecialchars($t['system_role'], ENT_QUOTES, 'UTF-8');
-                    $oldJob = htmlspecialchars($t['job_title'], ENT_QUOTES, 'UTF-8');
-                    $oldDept = htmlspecialchars($t['dept'], ENT_QUOTES, 'UTF-8');
-                    $oldSection = htmlspecialchars($t['section'], ENT_QUOTES, 'UTF-8');
-                    $oldGender = htmlspecialchars($t['gender'], ENT_QUOTES, 'UTF-8');
-                    $oldAgency = htmlspecialchars($t['agency_name'] ?? '', ENT_QUOTES, 'UTF-8');
+                    $oldRole    = htmlspecialchars($t['system_role'] ?? '', ENT_QUOTES, 'UTF-8');
+                    $oldJob     = htmlspecialchars($t['job_title'] ?? '', ENT_QUOTES, 'UTF-8');
+                    $oldDept    = htmlspecialchars($t['dept'] ?? '', ENT_QUOTES, 'UTF-8');
+                    $oldSection = htmlspecialchars($t['section'] ?? '', ENT_QUOTES, 'UTF-8');
+                    $oldGroup   = htmlspecialchars($t['group_name'] ?? '', ENT_QUOTES, 'UTF-8');
+                    $oldGender  = htmlspecialchars($t['gender'] ?? '', ENT_QUOTES, 'UTF-8');
+                    $oldAgency  = htmlspecialchars($t['agency_name'] ?? '', ENT_QUOTES, 'UTF-8');
                     $oldEmpType = htmlspecialchars($t['employment_type'] ?? '', ENT_QUOTES, 'UTF-8');
-                    $oldStatus = htmlspecialchars($t['status'], ENT_QUOTES, 'UTF-8');
+                    $oldStatus  = htmlspecialchars($t['status'] ?? '', ENT_QUOTES, 'UTF-8');
 
-                    if ($new_role && $t['system_role'] !== $new_role) {
+                    if ($new_role && ($t['system_role'] ?? '') !== $new_role) {
                         $changes[] = "Role: <s>$oldRole</s> &rarr; <strong>" . htmlspecialchars($new_role, ENT_QUOTES, 'UTF-8') . "</strong>";
                     }
                     if ($new_job) {
                         $fmtJob = ucwords(strtolower($new_job));
-                        if ($t['job_title'] !== $fmtJob) {
+                        if (($t['job_title'] ?? '') !== $fmtJob) {
                             $changes[] = "Job: <s>$oldJob</s> &rarr; <strong>" . htmlspecialchars($fmtJob, ENT_QUOTES, 'UTF-8') . "</strong>";
                         }
                     }
-                    if ($new_dept && $t['dept'] !== $new_dept) {
+                    if ($new_dept && ($t['dept'] ?? '') !== $new_dept) {
                         $changes[] = "Dept: <s>$oldDept</s> &rarr; <strong>" . htmlspecialchars($new_dept, ENT_QUOTES, 'UTF-8') . "</strong>";
                     }
-                    if ($new_section && $t['section'] !== $new_section) {
+                    if ($new_section && ($t['section'] ?? '') !== $new_section) {
                         $changes[] = "Section: <s>$oldSection</s> &rarr; <strong>" . htmlspecialchars($new_section, ENT_QUOTES, 'UTF-8') . "</strong>";
                     }
-                    if ($new_gender && $t['gender'] !== $new_gender) {
+                    if ($new_group && ($t['group_name'] ?? '') !== $new_group) {
+                        $changes[] = "Group: <s>$oldGroup</s> &rarr; <strong>" . htmlspecialchars($new_group, ENT_QUOTES, 'UTF-8') . "</strong>";
+                    }
+                    if ($new_gender && ($t['gender'] ?? '') !== $new_gender) {
                         $changes[] = "Gender: <s>$oldGender</s> &rarr; <strong>" . htmlspecialchars($new_gender, ENT_QUOTES, 'UTF-8') . "</strong>";
                     }
-                    if ($new_status && $t['status'] !== $new_status) {
+                    if ($new_status && ($t['status'] ?? '') !== $new_status) {
                         $changes[] = "Status: <s>$oldStatus</s> &rarr; <strong class='text-danger'>" . htmlspecialchars($new_status, ENT_QUOTES, 'UTF-8') . "</strong>";
                     }
                     if ($new_agency) {
@@ -158,7 +166,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_POST['update_roles']) || i
                         if (($t['agency_name'] ?? '') !== $new_agency) {
                             $changes[] = "Agency: <s>$oldAgency</s> &rarr; <strong>" . htmlspecialchars($new_agency, ENT_QUOTES, 'UTF-8') . "</strong>";
                         }
-                        // Also update employment_type if it's inconsistent
                         if ($oldEmpType !== $newEmpType) {
                             $changes[] = "Type: <s>$oldEmpType</s> &rarr; <strong>$newEmpType</strong>";
                         }
@@ -185,7 +192,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_POST['update_roles']) || i
                     }
                     if ($new_job !== '') {
                         $updates[] = "job_title = ?";
-                        $params[] = ucwords(strtolower($new_job)); // Auto-capitalize
+                        $params[] = ucwords(strtolower($new_job));
                     }
                     if (!empty($new_dept)) {
                         $updates[] = "dept = ?";
@@ -194,6 +201,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_POST['update_roles']) || i
                     if (!empty($new_section)) {
                         $updates[] = "section = ?";
                         $params[] = $new_section;
+                    }
+                    if (!empty($new_group)) {
+                        $updates[] = "group_name = ?";
+                        $params[] = $new_group;
                     }
                     if (!empty($new_gender)) {
                         $updates[] = "gender = ?";
@@ -229,14 +240,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_POST['update_roles']) || i
 
                         $pdo->commit();
                         $logger->log($_SESSION['user_id'], 'BULK_UPDATE_ROLE', "Updated details for $count employees.");
-                        header("Location: bulk_update_roles.php?msg=" . urlencode("✅ Successfully updated $count employees."));
+
+                        // Preserve search filters across redirect
+                        $redirectParams = http_build_query([
+                            'msg' => "✅ Successfully updated $count employees.",
+                            'search' => $_POST['search_state'] ?? '',
+                            'dept' => $_POST['dept_state'] ?? '',
+                            'limit' => $_POST['limit_state'] ?? '100'
+                        ]);
+
+                        header("Location: bulk_update_roles.php?" . $redirectParams);
                         exit;
                     }
                 } catch (Exception $e) {
                     $pdo->rollBack();
-                    // Log the full error server-side
                     error_log('Bulk update error: ' . $e->getMessage());
-                    // Show generic error to user
                     $error = "An internal error occurred while updating roles. Please try again later.";
                 }
             }
@@ -244,7 +262,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_POST['update_roles']) || i
     }
 }
 
-// [FIX] Capture message from URL (Post-Redirect-Get)
 if (isset($_GET['msg'])) {
     $msg = $_GET['msg'];
 }
@@ -254,10 +271,10 @@ if (isset($_GET['error'])) {
 
 // 3. FETCH EMPLOYEES
 $search = Validator::sanitizeSearch($_GET['search'] ?? '');
-
 $dept = isset($_GET['dept']) ? $_GET['dept'] : '';
+$limit = isset($_GET['limit']) ? $_GET['limit'] : '100';
 
-$sql = "SELECT id, emp_id, first_name, last_name, job_title, dept, section, system_role, agency_name, employment_type, status FROM employees WHERE deleted_at IS NULL";
+$sql = "SELECT id, emp_id, first_name, last_name, job_title, dept, section, group_name, system_role, agency_name, employment_type, status FROM employees WHERE deleted_at IS NULL";
 $params = [];
 
 if ($search) {
@@ -273,13 +290,16 @@ if ($dept) {
     $params[] = "%{$dept}%";
 }
 
-$sql .= " ORDER BY last_name ASC LIMIT 100"; // Limit for performance
+$sql .= " ORDER BY last_name ASC";
+
+if ($limit !== 'all' && is_numeric($limit)) {
+    $sql .= " LIMIT " . (int)$limit;
+}
 
 $stmt = $pdo->prepare($sql);
 $stmt->execute($params);
 $employees = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-// [NEW] Fuzzy Search Logic
 $didYouMean = null;
 $didYouMeanLink = "#";
 if (empty($employees) && !empty($search)) {
@@ -290,18 +310,15 @@ if (empty($employees) && !empty($search)) {
     }
 }
 
-// Departments for filter
 $depts = $pdo->query("SELECT DISTINCT dept FROM employees WHERE status='Active' ORDER BY dept")->fetchAll(PDO::FETCH_COLUMN);
-
-// Fetch History Logs
 $historyLogs = $pdo->query("SELECT a.*, u.username FROM activity_logs a LEFT JOIN users u ON a.user_id = u.id WHERE action = 'BULK_UPDATE_ROLE' ORDER BY created_at DESC LIMIT 5")->fetchAll(PDO::FETCH_ASSOC);
+
 require 'header.php';
 ?>
 
 <div class="container">
     <!-- FILTERS -->
     <div class="card shadow-sm mb-4">
-        <!-- DRY RUN RESULTS DISPLAY -->
         <?php if ($dryRunResults !== null): ?>
             <div class="alert alert-info border-info shadow-sm mb-4">
                 <h5 class="alert-heading"><i class="bi bi-eye"></i> Simulation Results (Dry Run)</h5>
@@ -340,7 +357,7 @@ require 'header.php';
                         <?php endforeach; ?>
                     </select>
                 </div>
-                <div class="col-md-4">
+                <div class="col-md-3">
                     <div class="input-group input-group-sm">
                         <input type="text" name="search" class="form-control" placeholder="Search Name or ID..." value="<?php echo htmlspecialchars($search); ?>" maxlength="50" pattern="[a-zA-Z0-9\-_ ]+" title="Allowed: Letters, Numbers, Spaces, Dashes, Underscores" oninput="this.value = this.value.replace(/[^a-zA-Z0-9\-_ ]/g, '')">
                         <?php if ($search): ?>
@@ -349,7 +366,18 @@ require 'header.php';
                     </div>
                 </div>
                 <div class="col-md-2">
-                    <button type="submit" class="btn btn-primary btn-sm w-100">Search</button>
+                    <select name="limit" class="form-select form-select-sm fw-bold text-primary" onchange="this.form.submit()">
+                        <option value="50" <?php echo ($limit === '50') ? 'selected' : ''; ?>>Show 50</option>
+                        <option value="100" <?php echo ($limit === '100') ? 'selected' : ''; ?>>Show 100</option>
+                        <option value="250" <?php echo ($limit === '250') ? 'selected' : ''; ?>>Show 250</option>
+                        <option value="all" <?php echo ($limit === 'all') ? 'selected' : ''; ?>>Show ALL Employees</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <button type="submit" class="btn btn-primary btn-sm w-100"><i class="bi bi-search me-1"></i> Search</button>
+                </div>
+                <div class="col-md-2 text-end">
+                    <span class="badge bg-dark">Total Listed: <?php echo count($employees); ?></span>
                 </div>
             </form>
         </div>
@@ -364,6 +392,11 @@ require 'header.php';
 
     <form method="POST" id="bulkUpdateForm">
         <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
+
+        <!-- Hidden Fields to Preserve Filter State -->
+        <input type="hidden" name="search_state" value="<?php echo htmlspecialchars($search); ?>">
+        <input type="hidden" name="dept_state" value="<?php echo htmlspecialchars($dept); ?>">
+        <input type="hidden" name="limit_state" value="<?php echo htmlspecialchars($limit); ?>">
 
         <!-- UPDATE PANEL -->
         <div class="card shadow-sm mb-4 border-warning">
@@ -423,6 +456,22 @@ require 'header.php';
                             <option value="">+ Add Section...</option>
                         </select>
                     </div>
+
+                    <!-- DYNAMIC SYSTEM GROUP PICKER -->
+                    <div class="col-md-2">
+                        <label class="form-label fw-bold">New Group(s)</label>
+                        <div class="input-group">
+                            <input type="text" name="new_group" id="new_group" class="form-control bg-white" readonly placeholder="No Change">
+                            <button class="btn btn-outline-secondary" type="button" onclick="document.getElementById('new_group').value = '';"><i class="bi bi-x-lg"></i></button>
+                        </div>
+                        <select id="groupPicker" class="form-select mt-1 form-select-sm text-muted" onchange="addGroup(this.value)">
+                            <option value="">+ Add Group...</option>
+                            <?php foreach ($groups as $g): ?>
+                                <option value="<?php echo htmlspecialchars($g); ?>"><?php echo htmlspecialchars($g); ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+
                     <div class="col-md-2">
                         <label class="form-label fw-bold">New Gender</label>
                         <select name="new_gender" class="form-select">
@@ -459,6 +508,7 @@ require 'header.php';
                             <th>ID</th>
                             <th>Dept</th>
                             <th>Section</th>
+                            <th>Group</th>
                             <th>Current Job Title</th>
                             <th>Current Agency</th>
                             <th>Current Role</th>
@@ -468,7 +518,7 @@ require 'header.php';
                     <tbody>
                         <?php if (empty($employees)): ?>
                             <tr>
-                                <td colspan="7" class="text-center p-4 text-muted">No employees found.</td>
+                                <td colspan="10" class="text-center p-4 text-muted">No employees found matching your criteria.</td>
                             </tr>
                         <?php else: ?>
                             <?php foreach ($employees as $e): ?>
@@ -478,6 +528,7 @@ require 'header.php';
                                     <td><?php echo htmlspecialchars($e['emp_id']); ?></td>
                                     <td><?php echo htmlspecialchars($e['dept']); ?></td>
                                     <td><?php echo htmlspecialchars($e['section']); ?></td>
+                                    <td><span class="badge bg-light text-dark border"><?php echo htmlspecialchars($e['group_name'] ?? 'N/A'); ?></span></td>
                                     <td><?php echo htmlspecialchars($e['job_title']); ?></td>
                                     <td><span class="badge bg-info text-dark"><?php echo htmlspecialchars($e['agency_name'] ?: $e['employment_type']); ?></span></td>
                                     <td><span class="badge bg-secondary"><?php echo htmlspecialchars($e['system_role']); ?></span></td>
@@ -535,10 +586,8 @@ require 'header.php';
         }
     <?php endif; ?>
 
-    // Dynamic Section Logic
     const deptMap = <?php echo json_encode($deptMap); ?>;
 
-    // [NEW] Multi-Department Logic
     function addDept(val) {
         if (!val) return;
         const input = document.getElementById('new_dept');
@@ -549,7 +598,7 @@ require 'header.php';
             input.value = val;
         }
         document.getElementById('deptPicker').value = "";
-        updateNewSections(); // Refresh sections based on new dept list
+        updateNewSections();
     }
 
     function updateNewSections() {
@@ -557,10 +606,8 @@ require 'header.php';
         const sect = document.getElementById('sectionPicker');
         sect.innerHTML = '<option value="">+ Add Section...</option>';
 
-        // Loop through ALL selected departments
         depts.forEach(dept => {
             if (dept && deptMap[dept]) {
-                // Add Optgroup for clarity
                 const group = document.createElement('optgroup');
                 group.label = dept;
 
@@ -577,7 +624,6 @@ require 'header.php';
 
     function addSection(val) {
         const picker = document.getElementById('sectionPicker');
-
         if (val) appendSectionValue(val);
         picker.value = "";
     }
@@ -592,7 +638,19 @@ require 'header.php';
         }
     }
 
-    // [NEW] Confirmation Popup Logic
+    // Dynamic Group Helper
+    function addGroup(val) {
+        if (!val) return;
+        const input = document.getElementById('new_group');
+        let current = input.value;
+        if (current) {
+            if (!current.includes(val)) input.value = current + ', ' + val;
+        } else {
+            input.value = val;
+        }
+        document.getElementById('groupPicker').value = "";
+    }
+
     document.getElementById('applyBtn').addEventListener('click', function(e) {
         e.preventDefault();
 
@@ -606,13 +664,14 @@ require 'header.php';
 
         const role = document.querySelector('select[name="new_system_role"]').value;
         const job = document.querySelector('input[name="new_job_title"]').value.trim();
-        const dept = document.querySelector('input[name="new_dept"]').value;
-        const section = document.querySelector('input[name="new_section"]').value;
+        const dept = document.getElementById('new_dept').value;
+        const section = document.getElementById('new_section').value;
+        const group = document.getElementById('new_group').value;
         const gender = document.querySelector('select[name="new_gender"]').value;
         const agency = document.querySelector('select[name="new_agency"]').value;
         const status = document.querySelector('select[name="new_status"]').value;
 
-        if (!role && !job && !dept && !section && !gender && !agency && !status) {
+        if (!role && !job && !dept && !section && !group && !gender && !agency && !status) {
             Swal.fire('No Changes', 'Please select at least one field to update.', 'warning');
             return;
         }
@@ -625,6 +684,7 @@ require 'header.php';
         }
         if (dept) summary += `<li><strong>Department:</strong> ${document.createElement('div').appendChild(document.createTextNode(dept)).parentNode.textContent}</li>`;
         if (section) summary += `<li><strong>Section:</strong> ${document.createElement('div').appendChild(document.createTextNode(section)).parentNode.textContent}</li>`;
+        if (group) summary += `<li><strong>Group:</strong> ${document.createElement('div').appendChild(document.createTextNode(group)).parentNode.textContent}</li>`;
         if (gender) summary += `<li><strong>Gender:</strong> ${document.createElement('div').appendChild(document.createTextNode(gender)).parentNode.textContent}</li>`;
         if (agency) summary += `<li><strong>Agency:</strong> ${document.createElement('div').appendChild(document.createTextNode(agency)).parentNode.textContent}</li>`;
         summary += `</ul>`;
@@ -639,7 +699,6 @@ require 'header.php';
             confirmButtonText: 'Yes, Apply Updates'
         }).then((result) => {
             if (result.isConfirmed) {
-                // Create hidden input to simulate button click
                 const hiddenInput = document.createElement('input');
                 hiddenInput.type = 'hidden';
                 hiddenInput.name = 'update_roles';
@@ -650,16 +709,21 @@ require 'header.php';
         });
     });
 
-    // [NEW] Scroll Memory Logic
-    const scrollKey = 'hr201_scroll_pos_' + window.location.pathname;
+    // Save Scroll Position Before Reload
     window.addEventListener('beforeunload', () => {
-        sessionStorage.setItem(scrollKey, window.scrollY);
+        sessionStorage.setItem('bulk_update_scroll_pos', window.scrollY);
     });
 
-    const urlParamsForScroll = new URLSearchParams(window.location.search);
-    if (urlParamsForScroll.has('msg') || urlParamsForScroll.has('search') || urlParamsForScroll.has('dept')) {
-        const savedPos = sessionStorage.getItem(scrollKey);
-        if (savedPos) window.scrollTo(0, parseInt(savedPos));
-    }
+    // Restore Scroll Position After Reload
+    document.addEventListener("DOMContentLoaded", () => {
+        const savedPos = sessionStorage.getItem('bulk_update_scroll_pos');
+        if (savedPos !== null) {
+            window.scrollTo({
+                top: parseInt(savedPos),
+                behavior: 'instant'
+            });
+            sessionStorage.removeItem('bulk_update_scroll_pos');
+        }
+    });
 </script>
 <?php require 'footer.php'; ?>

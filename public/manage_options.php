@@ -296,7 +296,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         // --- ROLES ---
         elseif (empty($error) && $action === 'add_role' && !empty($name)) {
-            // Allow Mixed Case for roles but sanitize
+            $name = strtoupper($name); // [FIX] Auto-capitalize role names
             try {
                 if (strlen($name) > 100) $error = "❌ Role name is too long (Max 100 chars).";
                 elseif (!preg_match('/^[A-Za-z0-9\s\-\.\&]+$/', $name)) $error = "❌ Role name contains invalid characters.";
@@ -318,10 +318,43 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $logger->log($_SESSION['user_id'], 'DELETE_ROLE', "Deleted system role ID: $id");
                 $redirectMsg = "✅ Role deleted.";
             }
+        }
+        // --- ROLE RENAME ---
+        elseif (empty($error) && $action === 'edit_role' && !empty($name) && $id > 0) {
+            $name = strtoupper($name); // [FIX] Auto-capitalize role names
+            try {
+                if (strlen($name) > 100) $error = "❌ Role name is too long (Max 100 chars).";
+                elseif (!preg_match('/^[A-Za-z0-9\s\-\.&]+$/', $name)) $error = "❌ Role name contains invalid characters.";
+                else {
+                    $pdo->beginTransaction();
+                    // Get old name for cascade
+                    $old = $pdo->prepare("SELECT name FROM system_roles WHERE id = ?");
+                    $old->execute([$id]);
+                    $oldName = $old->fetchColumn();
+
+                    $pdo->prepare("UPDATE system_roles SET name = ? WHERE id = ?")->execute([$name, $id]);
+
+                    // Cascade rename to all employees using this role
+                    if ($oldName && $oldName !== $name) {
+                        $pdo->prepare("UPDATE employees SET system_role = ? WHERE system_role = ?")
+                            ->execute([$name, $oldName]);
+                    }
+                    $pdo->commit();
+                    $logger->log($_SESSION['user_id'], 'EDIT_ROLE', "Renamed role '$oldName' to '$name' (ID $id)");
+                    $redirectMsg = "✅ Role renamed and employee records updated.";
+                }
+            } catch (PDOException $e) {
+                if ($pdo->inTransaction()) $pdo->rollBack();
+                if ($e->getCode() == 23000) {
+                    $error = "❌ Role name already exists.";
+                } else {
+                    $error = "❌ DB Error: " . $e->getMessage();
+                }
+            }
         } elseif ($action === 'update_role_duties' && $id > 0) {
             $duties = trim($_POST['duties'] ?? '');
-            if (strlen($duties) > 3000) {
-                $error = "❌ Duties list is too long (Max 3000 characters).";
+            if (strlen($duties) > 5000) {
+                $error = "❌ Duties list is too long (Max 5000 characters).";
             } else {
                 $checkStmt = $pdo->prepare("SELECT COUNT(*) FROM system_roles WHERE id = ?");
                 $checkStmt->execute([$id]);
@@ -978,7 +1011,7 @@ if (isset($_GET['tab'])) $activeTab = $_GET['tab'];
                             <input type="hidden" name="action" value="add_role">
                             <div class="col-md-9">
                                 <label class="form-label fw-bold">Add New Role <span class="text-danger">*</span></label>
-                                <input type="text" name="name" class="form-control" placeholder="e.g. SUPERVISOR" required maxlength="100" pattern="[A-Za-z0-9 \-\.]+" title="Alphanumeric, spaces, dashes, dots">
+                                <input type="text" name="name" class="form-control" placeholder="e.g. SUPERVISOR" required maxlength="100" pattern="[A-Za-z0-9 \-\.]+" title="Alphanumeric, spaces, dashes, dots" oninput="this.value = this.value.toUpperCase()">
                             </div>
                             <div class="col-md-3">
                                 <button type="submit" class="btn btn-success w-100"><i class="bi bi-plus-lg"></i> Add</button>
@@ -1323,26 +1356,42 @@ if (isset($_GET['tab'])) $activeTab = $_GET['tab'];
     <div class="modal fade" id="dutiesModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-lg">
             <div class="modal-content">
-                <form method="POST">
+                <form method="POST" id="dutiesForm">
                     <div class="modal-header bg-primary text-white">
-                        <h5 class="modal-title">Edit Duties: <span id="modalRoleName" class="fw-bold"></span></h5>
+                        <h5 class="modal-title"><i class="bi bi-pencil-square"></i> Edit Role: <span id="modalRoleName" class="fw-bold"></span></h5>
                         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                     </div>
                     <div class="modal-body">
                         <input type="hidden" name="csrf_token" value="<?php echo $_SESSION['csrf_token']; ?>">
-                        <input type="hidden" name="action" value="update_role_duties">
+                        <input type="hidden" name="action" id="dutiesFormAction" value="update_role_duties">
                         <input type="hidden" name="id" id="modalRoleId">
 
-                        <div class="alert alert-info small">
+                        <!-- [NEW] Role Name Rename Section -->
+                        <div class="mb-3 p-3 border rounded bg-light">
+                            <label class="form-label fw-bold"><i class="bi bi-tag"></i> Role Name <span class="text-danger">*</span></label>
+                            <div class="input-group">
+                                <input type="text" name="name" id="modalRoleNameInput" class="form-control" required maxlength="100"
+                                    pattern="[A-Za-z0-9\s\-\.&]+" title="Alphanumeric, spaces, dashes, dots, ampersand"
+                                    oninput="this.value = this.value.toUpperCase()">
+                                <button type="button" class="btn btn-outline-warning" onclick="submitRoleRename()" title="Rename this role">
+                                    <i class="bi bi-arrow-repeat"></i> Rename
+                                </button>
+                            </div>
+                            <div class="form-text"><i class="bi bi-info-circle"></i> Renaming will also update all employees assigned to this role.</div>
+                        </div>
+
+                        <hr>
+
+                        <div class="alert alert-info small mb-2">
                             <i class="bi bi-info-circle"></i> Enter each duty on a <strong>new line</strong>. These will appear as bullet points in the contract.
                         </div>
-                        <textarea name="duties" id="modalDuties" class="form-control" rows="10" placeholder="e.g.&#10;Perform daily checks.&#10;Submit reports on time." maxlength="3000"></textarea>
-                        <div class="form-text text-end">Max 3000 characters.</div>
+                        <textarea name="duties" id="modalDuties" class="form-control" rows="10" placeholder="e.g.&#10;Perform daily checks.&#10;Submit reports on time." maxlength="5000"></textarea>
+                        <div class="form-text text-end">Max 5000 characters.</div>
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-info text-white" onclick="previewDuties()"><i class="bi bi-eye"></i> Preview</button>
                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                        <button type="submit" class="btn btn-primary">Save Duties</button>
+                        <button type="submit" class="btn btn-primary"><i class="bi bi-save"></i> Save Duties</button>
                     </div>
                 </form>
             </div>
@@ -1517,8 +1566,40 @@ if (isset($_GET['tab'])) $activeTab = $_GET['tab'];
         function editDuties(id, name, currentDuties) {
             document.getElementById('modalRoleId').value = id;
             document.getElementById('modalRoleName').innerText = name;
+            document.getElementById('modalRoleNameInput').value = name; // [NEW] Populate rename field
             document.getElementById('modalDuties').value = currentDuties;
+            document.getElementById('dutiesFormAction').value = 'update_role_duties'; // Reset to duties mode
             dutiesModal.show();
+        }
+
+        // [NEW] Rename role via the same modal
+        function submitRoleRename() {
+            const nameInput = document.getElementById('modalRoleNameInput');
+            const newName = nameInput.value.trim();
+            const currentName = document.getElementById('modalRoleName').innerText;
+
+            if (!newName) {
+                Swal.fire('Error', 'Role name cannot be empty.', 'error');
+                return;
+            }
+            if (newName === currentName) {
+                Swal.fire('No Change', 'The role name is already "' + currentName + '".', 'info');
+                return;
+            }
+
+            Swal.fire({
+                title: 'Rename Role?',
+                html: `Rename <strong>${currentName}</strong> → <strong>${newName}</strong>?<br><small class="text-muted">All employees with this role will be updated automatically.</small>`,
+                icon: 'question',
+                showCancelButton: true,
+                confirmButtonText: 'Yes, Rename',
+                confirmButtonColor: '#ffc107'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    document.getElementById('dutiesFormAction').value = 'edit_role';
+                    document.getElementById('dutiesForm').submit();
+                }
+            });
         }
 
         function editViolation(id, cat, name, desc) {
