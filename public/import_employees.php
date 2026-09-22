@@ -44,14 +44,24 @@ session_start();
 
 // ---------- 2) SECURITY & ACCESS CONTROL ----------
 // 1. SECURITY: Admin, Manager & HR Only
+if (!function_exists('h')) {
+    require_once __DIR__ . '/../src/helpers.php';
+}
+session_start();
+
+// ---------- 2) SECURITY & ACCESS CONTROL ----------
+// 1. SECURITY: Admin, Manager & HR Only
 if (!isset($_SESSION['role']) || !in_array($_SESSION['role'], ['ADMIN', 'MANAGER', 'HR'])) {
     die("ACCESS DENIED");
 }
 
 $security = new Security($pdo);
 $logger   = new Logger($pdo);
-$msg = "";
-$error = "";
+
+// Retrieve and clear flash messages from session (PRG Pattern)
+$msg = $_SESSION['import_msg'] ?? "";
+$error = $_SESSION['import_error'] ?? "";
+unset($_SESSION['import_msg'], $_SESSION['import_error']);
 
 // ensure rollback table exists for import undo support
 // NOTE: The best practice, as noted here, is to handle this with a one-time migration script.
@@ -473,7 +483,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['undo_batch'])) {
                 }
 
                 while (($data = fgetcsv($handle, 0, $delimiter)) !== FALSE) {
-                    if (empty($data) || (count($data) === 1 && empty($data[0]))) continue; // Skip empty rows
+                    if (empty($data) || (count($data) === 1 && ($data[0] === null || trim((string)$data[0]) === ''))) continue; // Skip empty rows safely
 
                     // DEFAULT VARIABLES
                     $emp_id = "";
@@ -1054,14 +1064,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['undo_batch'])) {
             if ($success_count > 0 || $updated_count > 0) {
                 if (isset($requiresApproval) && $requiresApproval) {
                     $logger->log($_SESSION['user_id'], 'IMPORT_REQUEST', "Requested import of $success_count new, $updated_count updates (Format: $format)");
-                    $msg = "📝 Success! $success_count new additions and $updated_count updates were sent to the Admin Approval Center.";
+                    $_SESSION['import_msg'] = "📝 Success! $success_count new additions and $updated_count updates were sent to the Admin Approval Center.";
                 } else {
                     $logger->log($_SESSION['user_id'], 'IMPORT_SUCCESS', "Imported $success_count, Updated $updated_count (Format: $format)");
-                    $msg = "✅ Success! Added $success_count new, Updated $updated_count existing employees.";
+                    $_SESSION['import_msg'] = "✅ Success! Added $success_count new, Updated $updated_count existing employees.";
                 }
             } else {
-                $error = "No valid records found or all were duplicates.";
+                $_SESSION['import_error'] = "No valid records found or all were duplicates.";
             }
+
+            // [FIX] Redirect to clear POST data and prevent duplication on page reload (PRG Pattern)
+            header("Location: import_employees.php");
+            exit;
         }
     }
 }

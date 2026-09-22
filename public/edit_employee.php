@@ -171,7 +171,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             header("Location: edit_employee.php?id=$id&tab=eval&error=" . urlencode("❌ Evaluator name is too long (Max 100 chars)."));
             exit;
         }
-        if (!preg_match('/^[a-zA-Z\s\-\.\,]+$/', $evaluator)) {
+        if (!preg_match('/^[a-zA-ZñÑ\s\-\.\,]+$/u', $evaluator)) {
             header("Location: edit_employee.php?id=$id&tab=eval&error=" . urlencode("❌ Evaluator name contains invalid characters (Letters only)."));
             exit;
         }
@@ -206,7 +206,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             header("Location: edit_employee.php?id=$id&tab=eval&error=" . urlencode("❌ Score must be between 1 and 100."));
             exit;
         }
-        if (!preg_match('/^[a-zA-Z\s\-\.\,]+$/', $evaluator)) {
+        if (!preg_match('/^[a-zA-ZñÑ\s\-\.\,]+$/u', $evaluator)) {
             header("Location: edit_employee.php?id=$id&tab=eval&error=" . urlencode("❌ Evaluator name contains invalid characters (Letters only)."));
             exit;
         }
@@ -316,7 +316,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
             // [SECURITY] Validate Filename Characters
-            if (!preg_match('/^[a-zA-Z0-9\s\-\.\(\)_]+$/', $newName)) {
+            if (!preg_match('/^[a-zA-ZñÑ0-9\s\-\.\(\)_]+$/u', $newName)) {
                 header("Location: edit_employee.php?id=$id&tab=docs&error=" . urlencode("❌ Invalid filename. Allowed: Alphanumeric, Spaces, Dots, Dashes, Underscores, Parentheses."));
                 exit;
             }
@@ -547,7 +547,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($group !== '') {
         $groupItems = array_filter(array_map('trim', explode(',', $group)), fn($item) => $item !== '');
         foreach ($groupItems as $item) {
-            if (!preg_match('/^[A-Za-z0-9\s\-]+$/', $item)) {
+            if (!preg_match('/^[A-Za-zñÑ0-9\s\-]+$/u', $item)) {
                 $errors[] = "Group contains invalid characters. Allowed: letters, numbers, spaces, and hyphens.";
                 break;
             }
@@ -559,20 +559,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     // [SECURITY] Name Validation
-    if (!preg_match("/^[a-zA-Z\s\-\.\']+$/", $first_name)) $errors[] = "First Name contains invalid characters. Allowed: Letters, spaces, dots, dashes, apostrophes.";
-    if ($middle_name !== '' && !preg_match("/^[a-zA-Z\s\-\.\']+$/", $middle_name)) $errors[] = "Middle Name contains invalid characters.";
-    if (!preg_match("/^[a-zA-Z\s\-\.\']+$/", $last_name)) $errors[] = "Last Name contains invalid characters.";
+    if (!preg_match("/^[a-zA-ZñÑ\s\-\.\']+$/u", $first_name)) $errors[] = "First Name contains invalid characters. Allowed: Letters, spaces, dots, dashes, apostrophes.";
+    if ($middle_name !== '' && !preg_match("/^[a-zA-ZñÑ\s\-\.\']+$/u", $middle_name)) $errors[] = "Middle Name contains invalid characters.";
+    if (!preg_match("/^[a-zA-ZñÑ\s\-\.\']+$/u", $last_name)) $errors[] = "Last Name contains invalid characters.";
 
     // [SECURITY] Job & Company Validation
-    $jobTitleRegex = "/^[a-zA-Z0-9\s\-\.\,\(\)\/\&']+$/";
+    $jobTitleRegex = "/^[a-zA-ZñÑ0-9\s\-\.\,\(\)\/\&']+$/u";
     if (!preg_match($jobTitleRegex, $job_title)) $errors[] = "Job Title contains invalid characters.";
 
-    $companyRegex = "/^[a-zA-Z0-9\s\-\.\,\(\)\/\&'\p{L}]+$/u"; // Allow unicode letters
+    $companyRegex = "/^[a-zA-ZñÑ0-9\s\-\.\,\(\)\/\&'\p{L}]+$/u"; // Allow unicode letters
     if ($company_name !== '' && !preg_match($companyRegex, $company_name)) $errors[] = "Company Name contains invalid characters.";
     if ($previous_company !== '' && !preg_match($companyRegex, $previous_company)) $errors[] = "Previous Company contains invalid characters.";
 
     // [SECURITY] Address Validation
-    $addrRegex = "/^[a-zA-Z0-9\s\.,\-\/#\(\)\']+$/";
+    $addrRegex = "/^[a-zA-ZñÑ0-9\s\.,\-\/#\(\)\']+$/u";
     if ($present_address !== '' && !preg_match($addrRegex, $present_address)) $errors[] = "Present Address contains invalid characters.";
     if ($permanent_address !== '' && !preg_match($addrRegex, $permanent_address)) $errors[] = "Permanent Address contains invalid characters.";
     if ($emergency_address !== '' && !preg_match($addrRegex, $emergency_address)) $errors[] = "Emergency Address contains invalid characters.";
@@ -595,17 +595,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($tin_no !== '' && !preg_match($idRegex, $tin_no)) $errors[] = "TIN No contains invalid characters.";
     if ($pagibig_no !== '' && !preg_match($idRegex, $pagibig_no)) $errors[] = "Pag-IBIG No contains invalid characters.";
     if ($philhealth_no !== '' && !preg_match($idRegex, $philhealth_no)) $errors[] = "PhilHealth No contains invalid characters.";
-    if ($emergency_name !== '' && !preg_match("/^[a-zA-Z\s\-\.\']+$/", $emergency_name)) $errors[] = "Emergency Contact Name contains invalid characters.";
+    if ($emergency_name !== '' && !preg_match("/^[a-zA-ZñÑ\s\-\.\']+$/u", $emergency_name)) $errors[] = "Emergency Contact Name contains invalid characters.";
 
     // [SECURITY] Qualifications Validation
-    $qualRegex = "/^[a-zA-Z0-9\s\.,\-\(\)\/\':]*$/";
+    $qualRegex = "/^[a-zA-ZñÑ0-9\s\.,\-\(\)\/\':]*$/u";
     if (!preg_match($qualRegex, $education))  $errors[] = "Education contains invalid characters.";
     if (!preg_match($qualRegex, $experience)) $errors[] = "Experience contains invalid characters.";
     if (!preg_match($qualRegex, $skills))     $errors[] = "Skills contains invalid characters.";
     if (!preg_match($qualRegex, $licenses))   $errors[] = "Licenses contains invalid characters.";
     // [FIX] Add validation for college fields
-    if ($college_degree !== '' && !preg_match("/^[a-zA-Z0-9\s\-\.\(\)\',]*$/", $college_degree)) $errors[] = "College Degree contains invalid characters.";
-    if ($college_course !== '' && !preg_match("/^[a-zA-Z0-9\s\-\.\(\)\',]*$/", $college_course)) $errors[] = "College Course contains invalid characters.";
+    if ($college_degree !== '' && !preg_match("/^[a-zA-ZñÑ0-9\s\-\.\(\)\',]*$/u", $college_degree)) $errors[] = "College Degree contains invalid characters.";
+    if ($college_course !== '' && !preg_match("/^[a-zA-ZñÑ0-9\s\-\.\(\)\',]*$/u", $college_course)) $errors[] = "College Course contains invalid characters.";
     if ($college_year !== '' && !preg_match("/^[0-9]*$/", $college_year)) $errors[] = "Year Finished contains invalid characters.";
 
 
@@ -934,7 +934,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             </div>
                             <div class="col-md-2">
                                 <label class="form-label"><?= lang('job_title') ?></label>
-                                <input type="text" name="job_title" class="form-control" value="<?php echo val('job_title'); ?>" required oninput="this.value = this.value.replace(/[^a-zA-Z0-9\s\-\.\,\(\)\/\&']/g, ''); capitalize(this)" pattern="[a-zA-Z0-9\s\-\.\,\(\)\/\&']+" title="Allowed: Alphanumeric and basic punctuation" maxlength="50">
+                                <input type="text" name="job_title" class="form-control" value="<?php echo val('job_title'); ?>" required oninput="this.value = this.value.replace(/[^a-zA-ZñÑ0-9\s\-\.\,\(\)\/\&']/g, ''); capitalize(this)" pattern="[a-zA-ZñÑ0-9\s\-\.\,\(\)\/\&']+" title="Allowed: Alphanumeric and basic punctuation" maxlength="50">
                             </div>
                             <div class="col-md-2">
                                 <label class="form-label"><?= lang('contract_role') ?></label>
@@ -1008,11 +1008,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label"><?= lang('company_name') ?></label>
-                                <input type="text" name="company_name" class="form-control" value="<?php echo val('company_name'); ?>" pattern="[a-zA-Z0-9\s\-\.\,\(\)\/\&']+" title="Allowed: Alphanumeric and basic punctuation" oninput="this.value = this.value.replace(/[^a-zA-Z0-9\s\-\.\,\(\)\/\&']/g, '')" maxlength="50">
+                                <input type="text" name="company_name" class="form-control" value="<?php echo val('company_name'); ?>" pattern="[a-zA-ZñÑ0-9\s\-\.\,\(\)\/\&']+" title="Allowed: Alphanumeric and basic punctuation" oninput="this.value = this.value.replace(/[^a-zA-ZñÑ0-9\s\-\.\,\(\)\/\&']/g, '')" maxlength="50">
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label"><?= lang('previous_company') ?></label>
-                                <input type="text" name="previous_company" class="form-control" value="<?php echo val('previous_company'); ?>" pattern="[a-zA-Z0-9\s\-\.\,\(\)\/\&']+" title="Allowed: Alphanumeric and basic punctuation" oninput="this.value = this.value.replace(/[^a-zA-Z0-9\s\-\.\,\(\)\/\&']/g, '')" maxlength="100">
+                                <input type="text" name="previous_company" class="form-control" value="<?php echo val('previous_company'); ?>" pattern="[a-zA-ZñÑ0-9\s\-\.\,\(\)\/\&']+" title="Allowed: Alphanumeric and basic punctuation" oninput="this.value = this.value.replace(/[^a-zA-ZñÑ0-9\s\-\.\,\(\)\/\&']/g, '')" maxlength="100">
                             </div>
                         </div>
 
@@ -1041,9 +1041,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                     placeholder="e.g. Found better opportunity, Family reasons..."
                                     value="<?php echo htmlspecialchars($emp['exit_reason'] ?? ''); ?>"
                                     maxlength="100"
-                                    pattern="[a-zA-Z0-9\s.,'-]+"
+                                    pattern="[a-zA-ZñÑ0-9\s.,'-]+"
                                     title="Only letters, numbers, spaces, and basic punctuation (.,'-) are allowed."
-                                    oninput="this.value = this.value.replace(/[^a-zA-Z0-9\s.,'-]/g, '')">
+                                    oninput="this.value = this.value.replace(/[^a-zA-ZñÑ0-9\s.,'-]/g, '')">
                                 <div class="form-text text-danger small" style="font-size: 0.75rem;">
                                     * Max 100 chars. No special symbols allowed.
                                 </div>
@@ -1053,15 +1053,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <div class="row g-3">
                             <div class="col-md-4">
                                 <label class="form-label"><?= lang('first_name') ?></label>
-                                <input type="text" name="first_name" class="form-control" value="<?php echo val('first_name'); ?>" required oninput="this.value = this.value.replace(/[^a-zA-Z\s\-\.\']/g, ''); capitalize(this)" pattern="[a-zA-Z\s\-\.\']+" title="Allowed: Letters, spaces, dots, dashes, apostrophes" maxlength="50">
+                                <input type="text" name="first_name" class="form-control" value="<?php echo val('first_name'); ?>" required oninput="this.value = this.value.replace(/[^a-zA-ZñÑ\s\-\.\']/g, ''); capitalize(this)" pattern="[a-zA-ZñÑ\s\-\.\']+" title="Allowed: Letters, spaces, dots, dashes, apostrophes" maxlength="50">
                             </div>
                             <div class="col-md-4">
                                 <label class="form-label"><?= lang('middle_name') ?></label>
-                                <input type="text" name="middle_name" class="form-control" value="<?php echo val('middle_name'); ?>" oninput="this.value = this.value.replace(/[^a-zA-Z\s\-\.\']/g, ''); capitalize(this)" pattern="[a-zA-Z\s\-\.\']+" title="Allowed: Letters, spaces, dots, dashes, apostrophes" maxlength="50">
+                                <input type="text" name="middle_name" class="form-control" value="<?php echo val('middle_name'); ?>" oninput="this.value = this.value.replace(/[^a-zA-ZñÑ\s\-\.\']/g, ''); capitalize(this)" pattern="[a-zA-ZñÑ\s\-\.\']+" title="Allowed: Letters, spaces, dots, dashes, apostrophes" maxlength="50">
                             </div>
                             <div class="col-md-4">
                                 <label class="form-label"><?= lang('last_name') ?></label>
-                                <input type="text" name="last_name" class="form-control" value="<?php echo val('last_name'); ?>" required oninput="this.value = this.value.replace(/[^a-zA-Z\s\-\.\']/g, ''); capitalize(this)" pattern="[a-zA-Z\s\-\.\']+" title="Allowed: Letters, spaces, dots, dashes, apostrophes" maxlength="50">
+                                <input type="text" name="last_name" class="form-control" value="<?php echo val('last_name'); ?>" required oninput="this.value = this.value.replace(/[^a-zA-ZñÑ\s\-\.\']/g, ''); capitalize(this)" pattern="[a-zA-ZñÑ\s\-\.\']+" title="Allowed: Letters, spaces, dots, dashes, apostrophes" maxlength="50">
                             </div>
                             <div class="col-md-3">
                                 <label class="form-label"><?= lang('gender') ?></label>
@@ -1085,12 +1085,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             </div>
                             <div class="col-12">
                                 <label class="form-label"><?= lang('present_address') ?></label>
-                                <input type="text" name="present_address" class="form-control" value="<?php echo val('present_address'); ?>" maxlength="150" pattern="[a-zA-Z0-9\s\.,\-\/#\(\)\']+" title="Allowed: A-Z, 0-9, . , - / # ( ) '" oninput="this.value = this.value.replace(/[^a-zA-Z0-9\s\.,\-\/#\(\)\']/g, '')">
+                                <input type="text" name="present_address" class="form-control" value="<?php echo val('present_address'); ?>" maxlength="150" pattern="[a-zA-ZñÑ0-9\s\.,\-\/#\(\)\']+" title="Allowed: A-Z, 0-9, . , - / # ( ) '" oninput="this.value = this.value.replace(/[^a-zA-ZñÑ0-9\s\.,\-\/#\(\)\']/g, '')">
                                 <div class="form-text small">Max 150 chars. Allowed: A-Z, 0-9, . , - / #</div>
                             </div>
                             <div class="col-12">
                                 <label class="form-label"><?= lang('permanent_address') ?></label>
-                                <input type="text" name="permanent_address" class="form-control" value="<?php echo val('permanent_address'); ?>" maxlength="150" pattern="[a-zA-Z0-9\s\.,\-\/#\(\)\']+" title="Allowed: A-Z, 0-9, . , - / # ( ) '" oninput="this.value = this.value.replace(/[^a-zA-Z0-9\s\.,\-\/#\(\)\']/g, '')">
+                                <input type="text" name="permanent_address" class="form-control" value="<?php echo val('permanent_address'); ?>" maxlength="150" pattern="[a-zA-ZñÑ0-9\s\.,\-\/#\(\)\']+" title="Allowed: A-Z, 0-9, . , - / # ( ) '" oninput="this.value = this.value.replace(/[^a-zA-ZñÑ0-9\s\.,\-\/#\(\)\']/g, '')">
                                 <div class="form-text small">Max 150 chars.</div>
                             </div>
                             <div class="col-12">
@@ -1127,7 +1127,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <div class="row g-3">
                             <div class="col-md-6">
                                 <label class="form-label"><?= lang('name') ?></label>
-                                <input type="text" name="emergency_name" class="form-control" value="<?php echo val('emergency_name'); ?>" oninput="this.value = this.value.replace(/[^a-zA-Z\s\-\.\']/g, ''); capitalize(this)" pattern="[a-zA-Z\s\-\.\']+" title="Allowed: Letters, spaces, dots, dashes, apostrophes" maxlength="100">
+                                <input type="text" name="emergency_name" class="form-control" value="<?php echo val('emergency_name'); ?>" oninput="this.value = this.value.replace(/[^a-zA-ZñÑ\s\-\.\']/g, ''); capitalize(this)" pattern="[a-zA-ZñÑ\s\-\.\']+" title="Allowed: Letters, spaces, dots, dashes, apostrophes" maxlength="100">
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label"><?= lang('contact_no') ?></label>
@@ -1136,7 +1136,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             </div>
                             <div class="col-12">
                                 <label class="form-label"><?= lang('address') ?></label>
-                                <input type="text" name="emergency_address" class="form-control" value="<?php echo val('emergency_address'); ?>" maxlength="150" pattern="[a-zA-Z0-9\s\.,\-\/#\(\)\']+" title="Allowed: A-Z, 0-9, . , - / # ( ) '" oninput="this.value = this.value.replace(/[^a-zA-Z0-9\s\.,\-\/#\(\)\']/g, '')">
+                                <input type="text" name="emergency_address" class="form-control" value="<?php echo val('emergency_address'); ?>" maxlength="150" pattern="[a-zA-ZñÑ0-9\s\.,\-\/#\(\)\']+" title="Allowed: A-Z, 0-9, . , - / # ( ) '" oninput="this.value = this.value.replace(/[^a-zA-ZñÑ0-9\s\.,\-\/#\(\)\']/g, '')">
                                 <div class="form-text small">Max 150 chars.</div>
                             </div>
                         </div>
@@ -1145,7 +1145,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <div class="row g-3">
                             <div class="col-12">
                                 <label class="form-label"><?= lang('education') ?></label>
-                                <textarea name="education" class="form-control" rows="2" maxlength="1000" spellcheck="true" lang="en" style="text-align: center; white-space: pre-wrap; word-wrap: break-word;" oninput="this.value = this.value.replace(/[^a-zA-Z0-9\s\.,\-\(\)\/\':]/g, '')"><?php echo val('education'); ?></textarea>
+                                <textarea name="education" class="form-control" rows="2" maxlength="1000" spellcheck="true" lang="en" style="text-align: center; white-space: pre-wrap; word-wrap: break-word;" oninput="this.value = this.value.replace(/[^a-zA-ZñÑ0-9\s\.,\-\(\)\/\':]/g, '')"><?php echo val('education'); ?></textarea>
                                 <div class="form-text small text-center">Max 1000 chars. Text auto-wraps. Press Enter for new lines.</div>
                             </div>
                             <div class="col-md-4">
@@ -1162,17 +1162,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             </div>
                             <div class="col-12">
                                 <label class="form-label"><?= lang('experience') ?></label>
-                                <textarea name="experience" class="form-control" rows="2" maxlength="1000" spellcheck="true" lang="en" style="text-align: center; white-space: pre-wrap; word-wrap: break-word;" oninput="this.value = this.value.replace(/[^a-zA-Z0-9\s\.,\-\(\)\/\':]/g, '')"><?php echo val('experience'); ?></textarea>
+                                <textarea name="experience" class="form-control" rows="2" maxlength="1000" spellcheck="true" lang="en" style="text-align: center; white-space: pre-wrap; word-wrap: break-word;" oninput="this.value = this.value.replace(/[^a-zA-ZñÑ0-9\s\.,\-\(\)\/\':]/g, '')"><?php echo val('experience'); ?></textarea>
                                 <div class="form-text small text-center">Max 1000 chars. Text auto-wraps. Press Enter for new lines.</div>
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label"><?= lang('skills') ?></label>
-                                <textarea name="skills" class="form-control" rows="2" maxlength="1000" spellcheck="true" lang="en" style="text-align: center; white-space: pre-wrap; word-wrap: break-word;" oninput="this.value = this.value.replace(/[^a-zA-Z0-9\s\.,\-\(\)\/\':]/g, '')"><?php echo val('skills'); ?></textarea>
+                                <textarea name="skills" class="form-control" rows="2" maxlength="1000" spellcheck="true" lang="en" style="text-align: center; white-space: pre-wrap; word-wrap: break-word;" oninput="this.value = this.value.replace(/[^a-zA-ZñÑ0-9\s\.,\-\(\)\/\':]/g, '')"><?php echo val('skills'); ?></textarea>
                                 <div class="form-text small text-center">Max 1000 chars. Text auto-wraps. Press Enter for new lines.</div>
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label"><?= lang('licenses_certifications') ?></label>
-                                <textarea name="licenses" class="form-control" rows="2" maxlength="1000" spellcheck="true" lang="en" style="text-align: center; white-space: pre-wrap; word-wrap: break-word;" oninput="this.value = this.value.replace(/[^a-zA-Z0-9\s\.,\-\(\)\/\':]/g, '')"><?php echo val('licenses'); ?></textarea>
+                                <textarea name="licenses" class="form-control" rows="2" maxlength="1000" spellcheck="true" lang="en" style="text-align: center; white-space: pre-wrap; word-wrap: break-word;" oninput="this.value = this.value.replace(/[^a-zA-ZñÑ0-9\s\.,\-\(\)\/\':]/g, '')"><?php echo val('licenses'); ?></textarea>
                                 <div class="form-text small">Max 1000 chars. Type N/A if not applicable. Press Enter for new lines.</div>
                             </div>
                         </div>
@@ -1457,8 +1457,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <div class="mb-3">
                     <label class="form-label fw-bold">File Name</label>
                     <input type="text" name="file_name" id="edit_file_name" class="form-control" required
-                        maxlength="100" pattern="[a-zA-Z0-9\.\-_ \(\)]+" title="Allowed: Letters, Numbers, Dots, Dashes, Underscores, Spaces, Parentheses"
-                        oninput="this.value = this.value.replace(/[^a-zA-Z0-9\.\-_ \(\)]/g, '')">
+                        maxlength="100" pattern="[a-zA-ZñÑ0-9\.\-_ \(\)]+" title="Allowed: Letters, Numbers, Dots, Dashes, Underscores, Spaces, Parentheses"
+                        oninput="this.value = this.value.replace(/[^a-zA-ZñÑ0-9\.\-_ \(\)]/g, '')">
                     <div class="form-text">Tip: Keep the file extension (e.g. .pdf) to ensure it opens correctly.</div>
                 </div>
 
@@ -1480,8 +1480,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <div class="mb-3" id="edit_other_cat_div" style="display:none;">
                     <label class="form-label fw-bold text-primary">Specify Document Type</label>
                     <input type="text" name="other_category" id="edit_other_category" class="form-control" placeholder="e.g. Gym Membership"
-                        maxlength="50" pattern="[a-zA-Z0-9\-_ ]+" title="Allowed: Letters, Numbers, Spaces, Dashes, Underscores"
-                        oninput="this.value = this.value.replace(/[^a-zA-Z0-9\-_ ]/g, '')">
+                        maxlength="50" pattern="[a-zA-ZñÑ0-9\-_ ]+" title="Allowed: Letters, Numbers, Spaces, Dashes, Underscores"
+                        oninput="this.value = this.value.replace(/[^a-zA-ZñÑ0-9\-_ ]/g, '')">
                 </div>
 
                 <hr>
@@ -1492,8 +1492,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <div class="input-group">
                         <span class="input-group-text"><i class="bi bi-search"></i></span>
                         <input type="text" id="edit_employeeSearch" class="form-control" placeholder="Search by Name or ID..." autocomplete="off"
-                            maxlength="50" pattern="[a-zA-Z0-9\-_ \(\)]+" title="Allowed: Letters, Numbers, Spaces, Dashes, Underscores, Parentheses"
-                            oninput="this.value = this.value.replace(/[^a-zA-Z0-9\-_ \(\)]/g, '')">
+                            maxlength="50" pattern="[a-zA-ZñÑ0-9\-_ \(\)]+" title="Allowed: Letters, Numbers, Spaces, Dashes, Underscores, Parentheses"
+                            oninput="this.value = this.value.replace(/[^a-zA-ZñÑ0-9\-_ \(\)]/g, '')">
                     </div>
                     <div id="edit_suggestionBox" class="list-group position-absolute w-100 shadow" style="z-index: 1056; display: none;"></div>
                     <div class="form-text">Leave blank to keep the document with the current employee.</div>
@@ -1524,8 +1524,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <div class="mb-3">
                     <label class="form-label fw-bold">Evaluator Name</label>
                     <input type="text" name="evaluator" class="form-control" value="<?php echo h($_SESSION['username'] ?? ''); ?>" required maxlength="100"
-                        pattern="[a-zA-Z\s\-\.\,]+" title="Allowed: Letters, spaces, dots, dashes, commas"
-                        oninput="this.value = this.value.replace(/[^a-zA-Z\s\-\.\,]/g, '')">
+                        pattern="[a-zA-ZñÑ\s\-\.\,]+" title="Allowed: Letters, spaces, dots, dashes, commas"
+                        oninput="this.value = this.value.replace(/[^a-zA-ZñÑ\s\-\.\,]/g, '')">
                 </div>
                 <div class="mb-3">
                     <label class="form-label fw-bold">Score (1-100)</label>
@@ -1602,7 +1602,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 </div>
                 <div class="mb-3">
                     <label class="form-label fw-bold">Evaluator Name</label>
-                    <input type="text" name="evaluator" id="edit_evaluator" class="form-control" required maxlength="100" pattern="[a-zA-Z\s\-\.\,]+" title="Allowed: Letters, spaces, dots, dashes, commas" oninput="this.value = this.value.replace(/[^a-zA-Z\s\-\.\,]/g, '')">
+                    <input type="text" name="evaluator" id="edit_evaluator" class="form-control" required maxlength="100" pattern="[a-zA-ZñÑ\s\-\.\,]+" title="Allowed: Letters, spaces, dots, dashes, commas" oninput="this.value = this.value.replace(/[^a-zA-ZñÑ\s\-\.\,]/g, '')">
                 </div>
                 <div class="mb-3">
                     <label class="form-label fw-bold">Score (1-100)</label>

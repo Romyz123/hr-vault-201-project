@@ -116,8 +116,51 @@ $position = !empty($emp['job_title']) ? strtoupper(htmlspecialchars($emp['job_ti
             width: 260px;
             margin-top: 45px;
             margin-bottom: 5px;
+
+        }
+
+        /* Contract List Table Layout */
+        .contract-details-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+            margin-bottom: 10px;
+            font-family: "Times New Roman", Times, serif;
+            font-size: 11pt;
+        }
+
+        .contract-details-table td {
+            vertical-align: top;
+            padding: 3px 0;
+            line-height: 1.5;
+        }
+
+        .contract-details-table td.num-col {
+            width: 35px;
+            text-align: right;
+            padding-right: 12px;
+        }
+
+        .contract-details-table td.label-col {
+            width: 170px;
+        }
+
+        .contract-details-table td.colon-col {
+            width: 30px;
+            text-align: center;
+        }
+
+        .contract-details-table td.val-col {
+            font-style: italic;
+        }
+
+        .contract-details-table td.full-text {
+            text-align: justify;
+            text-justify: inter-word;
         }
     </style>
+
+
 </head>
 
 <body>
@@ -158,36 +201,68 @@ $position = !empty($emp['job_title']) ? strtoupper(htmlspecialchars($emp['job_ti
                     </p>
 
                     <ol class="contract-list">
-                        <li>
-                            <span class="bold">Name of Project:</span> <?php echo $project_name; ?>
-                        </li>
-                        <li>
-                            <span class="bold">Duration of Project:</span> <?php echo $contract_period; ?>
-                        </li>
-                        <li>
-                            <span class="bold">Compensation:</span> Annex A
-                        </li>
-                        <li>
-                            <span class="bold">Position:</span> <?php echo $position; ?>
-                        </li>
-                        <li>
-                            Your specific duties and responsibilities shall be discussed with you by your assigned Superior and shall be subject to change as the need of the Company arises in the pursuit of its objectives.
-                        </li>
-                        <li>
-                            During your employment, you shall comply with all lawful instructions and observe and abide by the Company’s rules, regulations, and policies.
-                        </li>
-                        <li>
-                            It is knowingly and willingly understood that this contract of employment shall be limited only for the period/term and <?php echo $project_name; ?> indicated above and shall automatically terminate on the date/term stated above without the need for any further notice to you unless earlier terminated by the Company for lawful or just cause such as, but not limited to, earlier completion of the work for which you are hired, non-compliance with Company rules and regulations or for any other justifiable reason.
-                        </li>
-                        <li>
-                            Your employment herein is understood to be on an Extended Maintenance Agreement and Term Basis only, limited to and by the terms and conditions herein knowingly and willingly agreed upon by the Employee, and shall in no manner obligate the Company to extend the Rehabilitation Project Phase and term/period of this contract.
-                        </li>
-                        <li>
-                            Your work schedule will be given to you by our work superiors. Work schedules are expected to be strictly followed.
-                        </li>
-                        <li>
-                            For the duration of your employment, you agree to render overtime service or work on specified holidays and rest days, or specified work shifts if necessary to the completion of the project for which additional or premium compensation is paid by law.
-                        </li>
+                        <table class="contract-details-table">
+                            <tr>
+                                <td class="num-col">1.</td>
+                                <td class="label-col">Name of Project</td>
+                                <td class="colon-col">:</td>
+                                <td class="val-col"><?php echo $project_name; ?></td>
+                            </tr>
+                            <tr>
+                                <td class="num-col">2.</td>
+                                <td class="label-col">Duration of Project</td>
+                                <td class="colon-col">:</td>
+                                <td class="val-col"><u><?php echo $contract_period; ?></u></td>
+                            </tr>
+                            <tr>
+                                <td class="num-col">3.</td>
+                                <td class="label-col">Compensation</td>
+                                <td class="colon-col">:</td>
+                                <td class="val-col">Annex A</td>
+                            </tr>
+                            <tr>
+                                <td class="num-col">4.</td>
+                                <td class="label-col">Position</td>
+                                <td class="colon-col">:</td>
+                                <td class="val-col"><?php echo ucwords(strtolower($position)); ?></td>
+                            </tr>
+                            <tr>
+                                <td class="num-col">5.</td>
+                                <td class="full-text" colspan="3">
+                                    Your specific duties and responsibilities shall be discussed with you by your assigned Superior and shall be subject to change as the need of the Company arises in the pursuit of its objectives.
+                                </td>
+                            </tr>
+                            <tr>
+                                <td class="num-col">6.</td>
+                                <td class="full-text" colspan="3">
+                                    During your employment, you shall comply with all lawful instructions and observe and abide by the Company’s rules, regulations, and policies.
+                                </td>
+                            </tr>
+                            <tr>
+                                <td class="num-col">7.</td>
+                                <td class="full-text" colspan="3">
+                                    It is knowingly and willingly understood that this contract of employment shall be limited only for the period/term and <?php echo $project_name; ?> indicated above and shall automatically terminate on the date/term stated above without the need for any further notice to you unless earlier terminated by the Company for lawful or just cause such as, but not limited to, earlier completion of the work for which you are hired, non-compliance with Company rules and regulations or for any other justifiable reason.
+                                </td>
+                            </tr>
+                            <tr>
+                                <td class="num-col">8.</td>
+                                <td class="full-text" colspan="3">
+                                    Your employment herein is understood to be on an Extended Maintenance Agreement and Term Basis only, limited to and by the terms and conditions herein knowingly and willingly agreed upon by the Employee, and shall in no manner obligate the Company to Second Extended maintenance Service phase and term/period of this contract.
+                                </td>
+                            </tr>
+                            <tr>
+                                <td class="num-col">9.</td>
+                                <td class="full-text" colspan="3">
+                                    Your work schedule will be given to you by our work superiors. Work schedules are expected to be strictly followed.
+                                </td>
+                            </tr>
+                            <tr>
+                                <td class="num-col">10.</td>
+                                <td class="full-text" colspan="3">
+                                    For the duration of your employment, you agree to render overtime service or work on specified holidays and rest days, or specified work shifts if necessary to the completion of the project for which additional or premium compensation is paid by law.
+                                </td>
+                            </tr>
+                        </table>
                     </ol>
 
                     <p class="justify">

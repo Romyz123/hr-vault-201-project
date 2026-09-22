@@ -292,24 +292,31 @@ $displayTitle = $pageTitles[$currentPage] ?? 'TESP HR 201 System';
         }
 
         .avatar-circle {
-            width: 86px;
-            height: 86px;
+            width: 70px;
+            height: 70px;
             border-radius: 50%;
             object-fit: cover;
-            border: 4px solid #fff;
-            box-shadow: 0 6px 12px rgba(0, 0, 0, .12);
+            border: 3px solid #fff;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, .12);
             background: #fff;
+            flex-shrink: 0;
         }
 
         .employee-card {
             cursor: pointer;
             transition: transform 0.25s ease, box-shadow 0.25s ease, background-color 0.3s ease, border-color 0.3s ease;
             border: 1px solid var(--card-border);
+            overflow: hidden;
         }
 
         .employee-card:hover {
-            transform: translateY(-6px);
-            box-shadow: 0 1rem 2rem rgba(0, 0, 0, .12);
+            transform: translateY(-4px);
+            box-shadow: 0 .75rem 1.5rem rgba(0, 0, 0, .12);
+        }
+
+        /* Ensure flex children can shrink and truncate */
+        .min-w-0 {
+            min-width: 0;
         }
 
         .status-active {

@@ -1298,7 +1298,7 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
             <?php endif; ?>
         <?php endif; ?>
 
-        <div class="row" id="directory-results">
+        <div class="row g-3" id="directory-results">
             <?php foreach ($employees as $emp):
                 $statusClass = match ($emp['status']) {
                     'Active'     => 'status-active',
@@ -1339,12 +1339,8 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
                     $employerBadge = '<span class="badge bg-secondary">' . h($agName ?: 'AGENCY') . '</span>';
                 }
                 $deptDisplay = h($emp['dept']);
-                if (!empty($emp['section']) && $emp['section'] !== 'Main Unit') {
-                    $deptDisplay .= ' &gt; ' . h($emp['section']);
-                }
-                if (!empty($emp['group'])) {
-                    $deptDisplay .= ' (' . h($emp['group']) . ')';
-                }
+                $sectionDisplay = (!empty($emp['section']) && $emp['section'] !== 'Main Unit') ? h($emp['section']) : '';
+                $groupDisplay   = !empty($emp['group']) ? h($emp['group']) : '';
                 $files      = $filesByEmp[$emp['emp_id']] ?? [];
                 $modalId    = 'viewModal' . (int)$emp['id'];
                 $previewBoxId = 'preview-' . (int)$emp['id'];
@@ -1389,8 +1385,8 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
                     }
                 }
             ?>
-                <div class="col-md-6 col-lg-4 mb-4">
-                    <div class="card h-100 employee-card <?php echo $statusClass; ?>"
+                <div class="col-sm-6 col-lg-4 mb-0">
+                    <div class="card h-100 employee-card <?php echo $statusClass; ?> position-relative"
                         data-emp-id-str="<?php echo h($emp['emp_id']); ?>">
 
                         <!-- Selection Checkbox (Isolated from Modal) -->
@@ -1402,39 +1398,70 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
                                 onchange="event.stopPropagation();">
                         </div>
 
-                        <div class="card-body">
-                            <div class="d-flex justify-content-between align-items-start mb-3">
+                        <div class="card-body d-flex flex-column p-3">
+                            <div class="d-flex align-items-start gap-2 mb-2">
 
-                                <!-- CLICKABLE AREA FOR MODAL -->
-                                <div class="d-flex flex-grow-1"
+                                <!-- Avatar -->
+                                <div class="flex-shrink-0"
                                     role="button"
                                     data-bs-toggle="modal"
                                     data-bs-target="#<?php echo h($modalId); ?>">
-                                    <div class="me-3">
-                                        <img src="uploads/avatars/<?php echo h($emp['avatar_path'] ?: 'default.png'); ?>"
-                                            class="card-img-top avatar-circle"
-                                            alt="Profile"
-                                            onerror="this.onerror=null; this.src='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI1MCIgZmlsbD0iI2UzZTNlMyIvPjxwYXRoIGQ9Ik01MCA1MCBhMjAgMjAgMCAxIDAgMC00MCAyMCAyMCAwIDEgMCAwIDQwIHptMCAxMCBjLTE1IDAtMzUgMTAtMzUgMzAgdjEwIGg3MCB2LTEwIGMtMC0yMC0yMC0zMC0zNS0zMCIgZmlsbD0iI2FhYSIvPjwvc3ZnPg==';">
+                                    <img src="uploads/avatars/<?php echo h($emp['avatar_path'] ?: 'default.png'); ?>"
+                                        class="card-img-top avatar-circle"
+                                        alt="Profile"
+                                        style="width:70px;height:70px;"
+                                        onerror="this.onerror=null; this.src='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI1MCIgZmlsbD0iI2UzZTNlMyIvPjxwYXRoIGQ9Ik01MCA1MCBhMjAgMjAgMCAxIDAgMC00MCAyMCAyMCAwIDEgMCAwIDQwIHptMCAxMCBjLTE1IDAtMzUgMTAtMzUgMzAgdjEwIGg3MCB2LTEwIGMtMC0yMC0yMC0zMC0zNS0zMCIgZmlsbD0iI2FhYSIvPjwvc3ZnPg==';">
+                                </div>
+
+                                <!-- Name, Dept, Badges -->
+                                <div class="flex-grow-1 min-w-0"
+                                    role="button"
+                                    data-bs-toggle="modal"
+                                    data-bs-target="#<?php echo h($modalId); ?>">
+                                    <h6 class="card-title fw-bold mb-1 text-truncate"
+                                        title="<?php echo h($emp['first_name'] . ' ' . $emp['last_name']); ?>"
+                                        style="max-width:100%;">
+                                        <?php echo h($emp['first_name'] . ' ' . $emp['last_name']); ?>
+                                    </h6>
+                                    <!-- Dept -->
+                                    <div class="text-muted small text-truncate mb-0" title="<?php echo $deptDisplay; ?>">
+                                        <i class="bi bi-building me-1"></i><?php echo $deptDisplay; ?>
                                     </div>
-                                    <div>
-                                        <h5 class="card-title mb-1 fw-bold"><?php echo h($emp['first_name'] . ' ' . $emp['last_name']); ?></h5>
-                                        <small class="text-muted d-block mb-1"><?php echo $deptDisplay; ?></small>
-                                        <?php if ($hasUncategorized): ?>
-                                            <div class="mb-1"><span class="badge bg-danger-subtle text-danger border border-danger-subtle extra-small"><i class="bi bi-exclamation-triangle-fill"></i> Uncategorized Files</span></div>
-                                        <?php endif; ?>
+                                    <!-- Section (only if set) -->
+                                    <?php if ($sectionDisplay): ?>
+                                        <div class="text-muted small text-truncate mb-1" title="<?php echo $sectionDisplay; ?>">
+                                            <i class="bi bi-diagram-3 me-1"></i><?php echo $sectionDisplay; ?>
+                                        </div>
+                                    <?php endif; ?>
+                                    <!-- Badges row -->
+                                    <div class="d-flex flex-wrap gap-1 mt-1">
                                         <span class="badge <?php echo $statusBadge; ?> rounded-pill"><?php echo h($emp['status']); ?></span>
-                                        <span class="badge <?php echo $roleBadge; ?> rounded-pill ms-1" title="System Role"><i class="bi bi-person-badge"></i> <?php echo h($sysRole); ?></span>
+                                        <span class="badge <?php echo $roleBadge; ?> rounded-pill" title="System Role">
+                                            <i class="bi bi-person-badge"></i> <?php echo h($sysRole); ?>
+                                        </span>
+                                        <?php if ($hasUncategorized): ?>
+                                            <span class="badge bg-danger-subtle text-danger border border-danger-subtle" style="font-size:.68rem;">
+                                                <i class="bi bi-exclamation-triangle-fill"></i> Uncategorized
+                                            </span>
+                                        <?php endif; ?>
                                     </div>
                                 </div>
 
-                                <!-- ACTIONS AREA (Pencil, Print) -->
-                                <div class="d-flex flex-column align-items-end ms-2">
-                                    <div class="mb-2"><?php echo $employerBadge; ?></div>
-                                    <a href="print_employee.php?id=<?php echo (int)$emp['id']; ?>" class="btn btn-sm btn-outline-dark py-0 px-2 mt-1" target="_blank" onclick="event.stopPropagation();" aria-label="Print employee">
+                                <!-- ACTIONS (Right column) -->
+                                <div class="d-flex flex-column align-items-end flex-shrink-0 gap-1">
+                                    <?php echo $employerBadge; ?>
+                                    <a href="print_employee.php?id=<?php echo (int)$emp['id']; ?>"
+                                        class="btn btn-sm btn-outline-dark py-0 px-2"
+                                        target="_blank"
+                                        onclick="event.stopPropagation();"
+                                        aria-label="Print employee">
                                         <i class="bi bi-printer-fill"></i>
                                     </a>
                                     <?php if (isset($_SESSION['user_id'])): ?>
-                                        <a href="edit_employee.php?id=<?php echo (int)$emp['id']; ?>" class="btn btn-sm btn-outline-secondary py-0 px-2 mt-1" onclick="event.stopPropagation();" aria-label="Edit employee">
+                                        <a href="edit_employee.php?id=<?php echo (int)$emp['id']; ?>"
+                                            class="btn btn-sm btn-outline-secondary py-0 px-2"
+                                            onclick="event.stopPropagation();"
+                                            aria-label="Edit employee">
                                             <i class="bi bi-pencil-square"></i> Edit
                                         </a>
                                     <?php endif; ?>

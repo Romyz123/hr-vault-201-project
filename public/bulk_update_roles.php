@@ -73,14 +73,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_POST['update_roles']) || i
     });
     $ids = array_map('intval', $ids);
 
-    $new_role    = trim($_POST['new_system_role'] ?? '');
-    $new_job     = trim($_POST['new_job_title'] ?? '');
-    $new_dept    = trim($_POST['new_dept'] ?? '');
-    $new_section = trim($_POST['new_section'] ?? '');
-    $new_group   = trim($_POST['new_group'] ?? '');
-    $new_gender  = trim($_POST['new_gender'] ?? '');
-    $new_agency  = trim($_POST['new_agency'] ?? '');
-    $new_status  = trim($_POST['new_status'] ?? '');
+    $new_role     = trim($_POST['new_system_role'] ?? '');
+    $new_job      = trim($_POST['new_job_title'] ?? '');
+    $new_dept     = trim($_POST['new_dept'] ?? '');
+    $new_section  = trim($_POST['new_section'] ?? '');
+    $new_group    = trim($_POST['new_group'] ?? '');
+    $new_gender   = trim($_POST['new_gender'] ?? '');
+    $new_agency   = trim($_POST['new_agency'] ?? '');
+    $new_status   = trim($_POST['new_status'] ?? '');
+    $new_emp_type = trim($_POST['new_emp_type'] ?? '');
+    $audit_reason = substr(trim($_POST['audit_reason'] ?? ''), 0, 200);
 
     $allowedRoles = $system_roles;
     $allowedGenders = ['Male', 'Female', 'Other'];
@@ -170,10 +172,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_POST['update_roles']) || i
                             $changes[] = "Type: <s>$oldEmpType</s> &rarr; <strong>$newEmpType</strong>";
                         }
                     }
+                    if ($new_emp_type && ($t['employment_type'] ?? '') !== $new_emp_type) {
+                        $changes[] = "Employment Type: <s>$oldEmpType</s> &rarr; <strong>" . htmlspecialchars($new_emp_type, ENT_QUOTES, 'UTF-8') . "</strong>";
+                    }
 
                     if (!empty($changes)) {
                         $dryRunResults[] = [
-                            'name' => $t['first_name'] . ' ' . $t['last_name'],
+                            'name'    => $t['first_name'] . ' ' . $t['last_name'],
+                            'dept'    => $t['dept'] ?? '',
+                            'section' => $t['section'] ?? '',
                             'changes' => $changes
                         ];
                     }
@@ -214,11 +221,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_POST['update_roles']) || i
                         $updates[] = "status = ?";
                         $params[] = $new_status;
                     }
+                    if (!empty($new_emp_type)) {
+                        $updates[] = "employment_type = ?";
+                        $params[] = $new_emp_type;
+                    }
                     if (!empty($new_agency)) {
                         $updates[] = "agency_name = ?";
                         $params[] = $new_agency;
-                        $updates[] = "employment_type = ?";
-                        $params[] = (stripos($new_agency, 'TESP') !== false) ? 'TESP Direct' : 'Agency';
+                        if (empty($new_emp_type)) { // only auto-set if not manually overridden
+                            $updates[] = "employment_type = ?";
+                            $params[] = (stripos($new_agency, 'TESP') !== false) ? 'TESP Direct' : 'Agency';
+                        }
                     }
 
                     if (empty($updates)) {
@@ -239,7 +252,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_POST['update_roles']) || i
                         }
 
                         $pdo->commit();
-                        $logger->log($_SESSION['user_id'], 'BULK_UPDATE_ROLE', "Updated details for $count employees.");
+                        $reasonNote = $audit_reason ? " | Reason: $audit_reason" : '';
+                        $logger->log($_SESSION['user_id'], 'BULK_UPDATE_ROLE', "Updated details for $count employees.$reasonNote");
 
                         // Preserve search filters across redirect
                         $redirectParams = http_build_query([
@@ -270,9 +284,10 @@ if (isset($_GET['error'])) {
 }
 
 // 3. FETCH EMPLOYEES
-$search = Validator::sanitizeSearch($_GET['search'] ?? '');
-$dept = isset($_GET['dept']) ? $_GET['dept'] : '';
-$limit = isset($_GET['limit']) ? $_GET['limit'] : '100';
+$search    = Validator::sanitizeSearch($_GET['search'] ?? '');
+$dept      = isset($_GET['dept']) ? $_GET['dept'] : '';
+$limit     = isset($_GET['limit']) ? $_GET['limit'] : '100';
+$dup_filter = in_array($_GET['dup_filter'] ?? '', ['all', 'duplicates', 'unique']) ? ($_GET['dup_filter'] ?? 'all') : 'all';
 
 $sql = "SELECT id, emp_id, first_name, last_name, job_title, dept, section, group_name, system_role, agency_name, employment_type, status FROM employees WHERE deleted_at IS NULL";
 $params = [];
@@ -299,6 +314,32 @@ if ($limit !== 'all' && is_numeric($limit)) {
 $stmt = $pdo->prepare($sql);
 $stmt->execute($params);
 $employees = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+// 3b. DETECT DUPLICATES (by full name, case-insensitive)
+$nameCount = [];
+foreach ($employees as $e) {
+    $key = strtolower(trim($e['first_name'] . '|' . $e['last_name']));
+    $nameCount[$key] = ($nameCount[$key] ?? 0) + 1;
+}
+$duplicateKeys = array_keys(array_filter($nameCount, fn($c) => $c > 1));
+
+// Apply dup_filter on in-memory result set
+if ($dup_filter === 'duplicates') {
+    $employees = array_filter(
+        $employees,
+        fn($e) =>
+        in_array(strtolower(trim($e['first_name'] . '|' . $e['last_name'])), $duplicateKeys)
+    );
+    $employees = array_values($employees);
+} elseif ($dup_filter === 'unique') {
+    $employees = array_filter(
+        $employees,
+        fn($e) =>
+        !in_array(strtolower(trim($e['first_name'] . '|' . $e['last_name'])), $duplicateKeys)
+    );
+    $employees = array_values($employees);
+}
+$totalDuplicates = count($duplicateKeys);
 
 $didYouMean = null;
 $didYouMeanLink = "#";
@@ -331,6 +372,8 @@ require 'header.php';
                             <thead class="table-light">
                                 <tr>
                                     <th>Employee</th>
+                                    <th>Department</th>
+                                    <th>Section</th>
                                     <th>Proposed Changes</th>
                                 </tr>
                             </thead>
@@ -338,6 +381,8 @@ require 'header.php';
                                 <?php foreach ($dryRunResults as $res): ?>
                                     <tr>
                                         <td class="fw-bold"><?php echo htmlspecialchars($res['name']); ?></td>
+                                        <td><?php echo htmlspecialchars($res['dept']); ?></td>
+                                        <td><?php echo htmlspecialchars($res['section']); ?></td>
                                         <td><?php echo implode('<br>', $res['changes']); ?></td>
                                     </tr>
                                 <?php endforeach; ?>
@@ -348,13 +393,20 @@ require 'header.php';
             </div>
         <?php endif; ?>
         <div class="card-body py-2">
-            <form method="GET" class="row g-2 align-items-center">
-                <div class="col-md-3">
+            <form method="GET" class="row g-2 align-items-center" id="filterForm">
+                <div class="col-md-2">
                     <select name="dept" class="form-select form-select-sm" onchange="this.form.submit()">
                         <option value="">All Departments</option>
                         <?php foreach ($depts as $d): ?>
                             <option value="<?php echo htmlspecialchars($d); ?>" <?php echo ($dept === $d) ? 'selected' : ''; ?>><?php echo htmlspecialchars($d); ?></option>
                         <?php endforeach; ?>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <select name="dup_filter" class="form-select form-select-sm fw-bold" onchange="this.form.submit()">
+                        <option value="all" <?php echo $dup_filter === 'all'        ? 'selected' : ''; ?>>All Records</option>
+                        <option value="duplicates" <?php echo $dup_filter === 'duplicates' ? 'selected' : ''; ?>>⚠️ Duplicates Only (<?php echo $totalDuplicates; ?>)</option>
+                        <option value="unique" <?php echo $dup_filter === 'unique'     ? 'selected' : ''; ?>>✔ Unique Only</option>
                     </select>
                 </div>
                 <div class="col-md-3">
@@ -367,17 +419,23 @@ require 'header.php';
                 </div>
                 <div class="col-md-2">
                     <select name="limit" class="form-select form-select-sm fw-bold text-primary" onchange="this.form.submit()">
-                        <option value="50" <?php echo ($limit === '50') ? 'selected' : ''; ?>>Show 50</option>
+                        <option value="50" <?php echo ($limit === '50')  ? 'selected' : ''; ?>>Show 50</option>
                         <option value="100" <?php echo ($limit === '100') ? 'selected' : ''; ?>>Show 100</option>
                         <option value="250" <?php echo ($limit === '250') ? 'selected' : ''; ?>>Show 250</option>
-                        <option value="all" <?php echo ($limit === 'all') ? 'selected' : ''; ?>>Show ALL Employees</option>
+                        <option value="all" <?php echo ($limit === 'all') ? 'selected' : ''; ?>>Show ALL</option>
                     </select>
                 </div>
-                <div class="col-md-2">
-                    <button type="submit" class="btn btn-primary btn-sm w-100"><i class="bi bi-search me-1"></i> Search</button>
+                <div class="col-md-1">
+                    <button type="submit" class="btn btn-primary btn-sm w-100"><i class="bi bi-search"></i></button>
                 </div>
-                <div class="col-md-2 text-end">
-                    <span class="badge bg-dark">Total Listed: <?php echo count($employees); ?></span>
+                <div class="col-md-2 text-end d-flex gap-2 justify-content-end align-items-center flex-wrap">
+                    <span class="badge bg-dark">Listed: <?php echo count($employees); ?></span>
+                    <?php if ($totalDuplicates > 0): ?>
+                        <span class="badge bg-danger" title="Duplicate name groups detected">
+                            <i class="bi bi-exclamation-triangle-fill"></i> <?php echo $totalDuplicates; ?> Dup<?php echo $totalDuplicates > 1 ? 's' : ''; ?>
+                        </span>
+                    <?php endif; ?>
+                    <span class="badge bg-primary" id="selectionCounter">Selected: 0</span>
                 </div>
             </form>
         </div>

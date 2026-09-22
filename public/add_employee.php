@@ -1,7 +1,7 @@
 <?php
 // ======================================================
 // [FILE] public/add_employee.php
-// [STATUS] FIXED: Javascript Syntax Error + PHP Logic
+// [STATUS] FIXED: Optional Section + Working Dark Mode
 // ======================================================
 
 require '../config/db.php';
@@ -159,7 +159,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $rules = [
         ['val' => $emp_id, 'name' => 'Employee ID', 'max' => 20, 'pattern' => '/^[A-Za-z0-9\-_]+$/'],
         ['val' => $job_title, 'name' => 'Job Title', 'max' => 50, 'pattern' => "/^[a-zA-Z0-9\s\-\.\,\(\)\/\&']+$/"],
-        ['val' => $system_role, 'name' => 'System Role', 'max' => 50],
+        ['val' => $system_role, 'name' => 'System Role', 'max' => 100],
         ['val' => $company_name, 'name' => 'Company Name', 'max' => 50, 'pattern' => "/^[a-zA-Z0-9\s\-\.\,\(\)\/\&']+$/"],
         ['val' => $previous_company, 'name' => 'Previous Company', 'max' => 100, 'pattern' => "/^[a-zA-Z0-9\s\-\.\,\(\)\/\&']+$/"],
         ['val' => $first_name, 'name' => 'First Name', 'max' => 50, 'pattern' => "/^[a-zA-Z\s\-\.\']+$/"],
@@ -202,7 +202,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
     }
-
     if ($group !== '') {
         $groupItems = array_filter(array_map('trim', explode(',', $group)), fn($item) => $item !== '');
         foreach ($groupItems as $item) {
@@ -262,8 +261,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     ];
 
     // 5. Use Service for Validation
-    // Note: You can move the detailed regex checks into EmployeeService::validate() to clean this up further.
-    // For now, we'll use the service's basic validation + duplicate check.
     $serviceErrors = $empService->validate($empData);
     $errors = array_merge($errors, $serviceErrors);
 
@@ -386,10 +383,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             font-weight: 600;
         }
 
+        /* Dark mode overrides for section-header */
+        [data-bs-theme="dark"] .section-header {
+            border-bottom-color: #343a40;
+            color: #adb5bd;
+        }
+
         /* SweetAlert2 Brand Customization */
         .swal2-popup {
             border-top: 5px solid #198754;
-            /* Brand Green */
             border-radius: 15px;
             animation: slideUp 0.4s ease-out !important;
         }
@@ -424,7 +426,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         .swal2-confirm {
             background-color: #198754 !important;
-            /* Brand Green */
             box-shadow: 0 0 0 3px rgba(25, 135, 84, 0.2) !important;
             transition: all 0.3s ease;
         }
@@ -436,7 +437,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         .swal2-cancel {
             background-color: #6c757d !important;
-            /* Grey */
             transition: all 0.3s ease;
         }
 
@@ -480,7 +480,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <span class="fs-5">➕ Add New Employee</span>
                 <div class="d-flex align-items-center gap-2">
                     <button id="darkModeToggle" class="btn btn-sm btn-outline-light border-0" title="Toggle Dark Mode">
-                        <i class="bi bi-moon-stars-fill"></i>
+                        <i class="bi bi-moon-stars-fill" id="darkModeIcon"></i>
                     </button>
                     <a href="index.php" class="btn btn-sm btn-outline-light">Back to Dashboard</a>
                 </div>
@@ -533,7 +533,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <div class="col-md-3">
                             <label class="form-label">Department(s) <span class="text-danger">*</span></label>
                             <div class="input-group">
-                                <input type="text" name="dept" id="dept" class="form-control bg-white" required readonly placeholder="Select below..." value="<?php echo old('dept'); ?>">
+                                <input type="text" name="dept" id="dept" class="form-control" required readonly placeholder="Select below..." value="<?php echo old('dept'); ?>">
                                 <button class="btn btn-outline-secondary" type="button" onclick="document.getElementById('dept').value = ''; updateSections();" title="Clear"><i class="bi bi-x-lg"></i></button>
                             </div>
                             <select id="deptPicker" class="form-select mt-1 form-select-sm text-muted" onchange="addDept(this.value)">
@@ -544,9 +544,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             </select>
                         </div>
                         <div class="col-md-3">
-                            <label class="form-label">Section(s) <span class="text-danger">*</span></label>
+                            <!-- [FIX] Removed required red star -->
+                            <label class="form-label">Section(s)</label>
                             <div class="input-group">
-                                <input type="text" name="section" id="section" class="form-control bg-white" required readonly placeholder="Select below..." value="<?php echo old('section'); ?>">
+                                <!-- [FIX] Removed required attribute -->
+                                <input type="text" name="section" id="section" class="form-control" readonly placeholder="Select below..." value="<?php echo old('section'); ?>">
                                 <button class="btn btn-outline-secondary" type="button" onclick="document.getElementById('section').value = ''" title="Clear"><i class="bi bi-x-lg"></i></button>
                             </div>
                             <select id="sectionPicker" class="form-select mt-1 form-select-sm text-muted" onchange="addSection(this.value)">
@@ -556,7 +558,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <div class="col-md-3">
                             <label class="form-label">Group(s)</label>
                             <div class="input-group">
-                                <input type="text" name="group" id="group" class="form-control bg-white" readonly placeholder="Select below..." value="<?php echo old('group'); ?>">
+                                <input type="text" name="group" id="group" class="form-control" readonly placeholder="Select below..." value="<?php echo old('group'); ?>">
                                 <button class="btn btn-outline-secondary" type="button" onclick="document.getElementById('group').value = ''" title="Clear"><i class="bi bi-x-lg"></i></button>
                             </div>
                             <select id="groupPicker" class="form-select mt-1 form-select-sm text-muted" onchange="addGroup(this.value)">
@@ -578,8 +580,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 <?php endforeach; ?>
                             </select>
                         </div>
-
-
 
                         <div class="col-md-6">
                             <label class="form-label">Employment Type <span class="text-danger">*</span></label>
@@ -839,6 +839,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <script src="assets/sweetalert2.all.min.js"></script>
     <script src="assets/bootstrap.bundle.min.js"></script>
     <script>
+        // --- DARK MODE LOGIC ---
+        document.addEventListener("DOMContentLoaded", function() {
+            const toggleBtn = document.getElementById('darkModeToggle');
+            const icon = document.getElementById('darkModeIcon');
+
+            function applyTheme(theme) {
+                document.documentElement.setAttribute('data-bs-theme', theme);
+                if (theme === 'dark') {
+                    if (icon) icon.className = 'bi bi-sun-fill';
+                } else {
+                    if (icon) icon.className = 'bi bi-moon-stars-fill';
+                }
+            }
+
+            const currentTheme = localStorage.getItem('theme') || 'light';
+            applyTheme(currentTheme);
+
+            if (toggleBtn) {
+                toggleBtn.addEventListener('click', function() {
+                    const activeTheme = document.documentElement.getAttribute('data-bs-theme');
+                    const newTheme = activeTheme === 'dark' ? 'light' : 'dark';
+                    localStorage.setItem('theme', newTheme);
+                    applyTheme(newTheme);
+                });
+            }
+        });
+
         // [NEW] Real-time Duplicate ID Detector
         async function checkDuplicateID(id) {
             if (!id || id.length < 2) return;
@@ -872,7 +899,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         // 1. FRIENDLY NAME MAPPING
-        // This maps the Database Value (val) to the Dropdown Text (text)
         const sectionMap = <?php echo json_encode($sectionFriendlyMap); ?>;
 
         // Fallback for departments not in the list above (uses PHP data)
@@ -883,7 +909,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         const deptInput = document.getElementById('dept');
         const sectionSelect = document.getElementById('sectionPicker');
 
-        // [NEW] Multi-Department Logic
+        // Multi-Department Logic
         function addDept(val) {
             if (!val) return;
             let current = deptInput.value;
@@ -896,15 +922,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             updateSections();
         }
 
-        // [NEW] Multi-Group Logic
+        // Multi-Group Logic
         function addGroup(val) {
             const picker = document.getElementById('groupPicker');
             const input = document.getElementById('group');
             if (!val) return;
             let current = input.value;
-            // Split by comma, trim, and check exact matches
             const existing = current.split(',').map(s => s.trim()).filter(s => s !== '');
-            if (existing.includes(val)) return; // Already selected
+            if (existing.includes(val)) return;
             if (current) {
                 input.value = current + ', ' + val;
             } else {
@@ -912,6 +937,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             picker.value = "";
         }
+
         // 3. DYNAMIC DROPDOWN LOGIC
         function updateSections() {
             const depts = deptInput.value.split(',').map(s => s.trim()).filter(s => s !== '');
@@ -919,7 +945,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             let options = [];
 
-            // Loop through ALL selected departments
             depts.forEach(dept => {
                 let currentOptions = [];
                 if (sectionMap[dept]) {
@@ -956,7 +981,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             input.value = words.join(' ');
         }
 
-        // [NEW] Multi-Section Logic
+        // Multi-Section Logic
         function addSection(val) {
             const picker = document.getElementById('sectionPicker');
 
@@ -977,17 +1002,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // 5. ATTACH EVENTS
         if (deptInput && sectionSelect) {
             deptInput.addEventListener('change', updateSections);
-            updateSections(); // Run once on load
+            updateSections();
         }
 
-        // 6. ATTACH CAPITALIZATION
+        // 6. ATTACH CAPITALIZATION & DRAFTS
         document.addEventListener("DOMContentLoaded", function() {
-            // Attach ID Check
             document.getElementById('emp_id_input').addEventListener('blur', function() {
                 checkDuplicateID(this.value);
             });
 
-            // [FIX] Declare key at the start of block to prevent ReferenceError
             const draftKey = 'hr_add_emp_draft';
 
             const fieldsToCap = ['first_name', 'middle_name', 'last_name', 'job_title', 'emergency_name'];
@@ -1000,7 +1023,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             });
 
-            // 7. AUTO-SAVE DRAFT (Protects against Session Timeout)
+            // 7. AUTO-SAVE DRAFT
             const form = document.querySelector('form');
             const indicator = document.getElementById('autoSaveIndicator');
 
@@ -1011,22 +1034,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             }
 
-            // A. Restore on Load
+            // Restore on Load
             const savedDraft = localStorage.getItem(draftKey);
             const firstInput = document.querySelector('input[name="first_name"]');
 
-            // [FIX] Ask before restoring draft to prevent confusion/conflicts
             if (savedDraft && firstInput && !firstInput.value) {
                 try {
                     const data = JSON.parse(savedDraft);
-
-                    // Check Expiration (24 Hours)
                     const now = Date.now();
                     const savedAt = data._savedAt || 0;
                     const oneDayMs = 24 * 60 * 60 * 1000;
 
                     if (savedAt && (now - savedAt > oneDayMs)) {
-                        localStorage.removeItem(draftKey); // Expired
+                        localStorage.removeItem(draftKey);
                     } else {
                         Swal.fire({
                             title: 'Unsaved Draft Found',
@@ -1038,35 +1058,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         }).then((result) => {
                             if (result.isConfirmed) {
                                 Object.keys(data).forEach(key => {
-                                    if (key === '_savedAt') return; // Skip metadata
+                                    if (key === '_savedAt') return;
                                     const el = document.querySelector(`[name="${key}"]`);
                                     if (el && el.type !== 'file' && el.type !== 'hidden') el.value = data[key];
                                 });
                                 if (data._savedAt) updateAutoSaveIndicator(data._savedAt);
                             } else {
-                                localStorage.removeItem(draftKey); // User chose to discard
+                                localStorage.removeItem(draftKey);
                             }
                         });
                     }
                 } catch (e) {}
             }
 
-            // B. Save on Typing
+            // Save on Typing
             form.addEventListener('input', () => {
                 const formData = new FormData(form);
                 const data = {};
                 formData.forEach((value, key) => {
                     if (key !== 'csrf_token' && key !== 'avatar') data[key] = value;
                 });
-                data._savedAt = Date.now(); // Add timestamp
+                data._savedAt = Date.now();
                 localStorage.setItem(draftKey, JSON.stringify(data));
                 updateAutoSaveIndicator(data._savedAt);
             });
 
-            // C. Clear on Submit (Optional: You can leave it to persist until manually cleared)
-            // form.addEventListener('submit', () => localStorage.removeItem(draftKey));
-
-            // [NEW] Save Draft Button Logic
+            // Save Draft Button
             const saveDraftBtn = document.getElementById('saveDraftBtn');
             if (saveDraftBtn) {
                 saveDraftBtn.addEventListener('click', () => {
@@ -1075,7 +1092,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     formData.forEach((value, key) => {
                         if (key !== 'csrf_token' && key !== 'avatar') data[key] = value;
                     });
-                    data._savedAt = Date.now(); // Add timestamp
+                    data._savedAt = Date.now();
                     localStorage.setItem(draftKey, JSON.stringify(data));
                     updateAutoSaveIndicator(data._savedAt);
 
@@ -1094,10 +1111,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         });
 
-        // [NEW] Draft key for localStorage - keeps this in module scope shared by multiple handlers
         const draftKey = 'hr_add_emp_draft';
 
-        // [NEW] Clear Form Button Logic
+        // Clear Form Button Logic
         const clearBtn = document.getElementById('clearFormBtnTop');
         if (clearBtn) {
             clearBtn.addEventListener('click', () => {
@@ -1126,7 +1142,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             requiredFields.forEach(field => {
                 if (!field.value.trim()) {
                     isValid = false;
-                    field.classList.add('is-invalid'); // Bootstrap red border
+                    field.classList.add('is-invalid');
                     if (!firstError) firstError = field;
                 } else {
                     field.classList.remove('is-invalid');
@@ -1135,9 +1151,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             });
 
             if (!isValid) {
-                e.preventDefault(); // Stop submission
+                e.preventDefault();
 
-                // Scroll to first error
                 if (firstError) {
                     firstError.scrollIntoView({
                         behavior: 'smooth',
@@ -1153,10 +1168,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     confirmButtonText: 'OK, I will fix it'
                 });
             } else {
-                // [FIX] Clear draft on valid submission so next visit is clean
                 localStorage.removeItem(draftKey);
 
-                // [NEW] Prevent Double Submission (Fixes "Security Token Mismatch" on double-click)
                 const btn = this.querySelector('button[type="submit"]');
                 if (btn && !btn.disabled) {
                     btn.disabled = true;
@@ -1174,11 +1187,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             });
         });
 
-        // [NEW] Handle URL Messages (Success/Error) on Page Load
+        // Handle URL Messages on Page Load
         document.addEventListener("DOMContentLoaded", function() {
             const urlParams = new URLSearchParams(window.location.search);
             if (urlParams.has('msg')) {
-                // Ensure draft is cleared
                 localStorage.removeItem('hr_add_emp_draft');
 
                 const msgText = urlParams.get('msg');
@@ -1211,7 +1223,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         });
 
-        // [NEW] Auto-Resize Textareas (On Input and On Load)
+        // Auto-Resize Textareas
         document.addEventListener('input', function(e) {
             if (e.target.tagName.toLowerCase() === 'textarea') {
                 autoResize(e.target);
@@ -1248,8 +1260,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         async function startCamera() {
             const video = document.getElementById('cameraVideo');
-            stopCamera(); // Ensure previous stream is killed
-            retakePhoto(); // Reset UI and stop any existing stream
+            stopCamera();
+            retakePhoto();
 
             const isSecureContext = window.isSecureContext || location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1';
             if (!isSecureContext) {
@@ -1385,7 +1397,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             if (!videoStream) return;
 
-            // Disable confirm while the blob is being prepared
             if (confirmBtn) {
                 confirmBtn.disabled = true;
                 confirmBtn.dataset.originalHtml = confirmBtn.innerHTML;
@@ -1393,7 +1404,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             capturedBlob = null;
 
-            // --- VISUAL SHUTTER FLASH ---
             const modalBody = video.closest('.modal-body');
             if (modalBody) {
                 const flash = document.createElement('div');
@@ -1411,12 +1421,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }, 300);
             }
 
-            // [FIX] Remove crop and downscale to max 800px width/height while keeping aspect ratio
             const MAX_DIM = 800;
             let outWidth = video.videoWidth;
             let outHeight = video.videoHeight;
 
-            // [FIX] Fallback if video metadata isn't loaded yet to prevent 0x0 blank images
             if (outWidth === 0 || outHeight === 0) {
                 outWidth = video.clientWidth || 640;
                 outHeight = video.clientHeight || 480;
@@ -1438,7 +1446,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             ctx.drawImage(video, 0, 0, outWidth, outHeight);
 
-            // [FIX] Use Data URL for 100% reliable instant preview on all mobile browsers
             const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
             if (previewImg) {
                 previewImg.src = dataUrl;
