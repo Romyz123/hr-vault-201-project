@@ -84,7 +84,7 @@ require 'header.php';
 <div class="container">
     <div class="alert alert-info shadow-sm mb-4">
         <i class="bi bi-info-circle-fill me-2"></i>
-        <strong>How this works:</strong> This tool shows all employees whose status is marked as <em>Resigned, Terminated, AWOL, or Retired</em>. Archiving them will move their records and documents into the <strong>Recycle Bin</strong>, keeping your main active directory clean.
+        <strong>How this works:</strong> This tool shows employees with any status other than <em>Active</em>. Archiving them will move their records and documents into the <strong>Recycle Bin</strong>, keeping your main active directory clean.
     </div>
 
     <form method="POST" id="bulkArchiveForm">

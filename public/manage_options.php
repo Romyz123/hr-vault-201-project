@@ -15,8 +15,48 @@ require_once __DIR__ . '/../src/helpers.php';
 $userRole = strtoupper(trim($_SESSION['role'] ?? ''));
 
 // 1. SECURITY: Admin and Manager Only
+if (!isset($_SESSION['user_id']) || !in_array($userRole, ['ADMIN', 'MANAGER'], true)) {
+    http_response_code(403);
+    exit('Access denied.');
+}
+
 $security = new Security($pdo);
 $logger   = new Logger($pdo);
+
+function manageOptionLoadEmployeeStatuses(PDO $pdo): array
+{
+    $defaults = ['Active', 'Resigned', 'Terminated', 'AWOL', 'Retired'];
+    try {
+        $stmt = $pdo->prepare("SELECT setting_value FROM system_settings WHERE setting_key = 'employee_statuses'");
+        $stmt->execute();
+        $stored = json_decode((string)$stmt->fetchColumn(), true);
+        if (!is_array($stored)) $stored = $defaults;
+    } catch (Throwable $exception) {
+        $stored = $defaults;
+    }
+
+    $statuses = array_values(array_unique(array_filter(array_map(static function ($status) {
+        return is_string($status) ? trim($status) : '';
+    }, $stored), static function ($status) {
+        return $status !== '';
+    })));
+    if (!in_array('Active', $statuses, true)) array_unshift($statuses, 'Active');
+    return $statuses;
+}
+
+function manageOptionSaveEmployeeStatuses(PDO $pdo, array $statuses): void
+{
+    $encoded = json_encode(array_values($statuses), JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+    $pdo->prepare("INSERT INTO system_settings (setting_key, setting_value) VALUES ('employee_statuses', ?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)")
+        ->execute([$encoded]);
+}
+
+function manageOptionValidateEmployeeStatus(string $status): bool
+{
+    return $status !== '' && mb_strlen($status, 'UTF-8') <= 20 && preg_match('/^[A-Za-z0-9][A-Za-z0-9 ._()\/-]*$/', $status) === 1;
+}
+
+$employeeStatuses = manageOptionLoadEmployeeStatuses($pdo);
 
 // [SECURITY] CSRF Token
 if (empty($_SESSION['csrf_token'])) {
@@ -238,6 +278,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $activeTab = 'agency';
         } elseif (strpos($action, 'role') !== false) {
             $activeTab = 'role';
+        } elseif (strpos($action, 'status') !== false) {
+            $activeTab = 'status';
         } elseif (strpos($action, 'college') !== false) {
             $activeTab = 'college';
         } elseif (strpos($action, 'course') !== false) {
@@ -250,6 +292,67 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $activeTab = 'violation';
         } elseif (strpos($action, 'rule') !== false) {
             $activeTab = 'rule';
+        }
+
+        // --- EMPLOYEE STATUSES ---
+        if (empty($error) && $action === 'add_employee_status') {
+            if (!manageOptionValidateEmployeeStatus($name)) {
+                $error = '❌ Status names must be 1-20 characters and use letters, numbers, spaces, or . _ ( ) / -.';
+            } elseif (count($employeeStatuses) >= 30) {
+                $error = '❌ You can configure up to 30 employee statuses.';
+            } elseif (strcasecmp($name, 'Active') === 0 || count(array_filter($employeeStatuses, static fn($status) => strcasecmp($status, $name) === 0)) > 0) {
+                $error = '❌ That status already exists.';
+            } else {
+                $employeeStatuses[] = $name;
+                manageOptionSaveEmployeeStatuses($pdo, $employeeStatuses);
+                $logger->log($_SESSION['user_id'], 'ADD_EMPLOYEE_STATUS', "Added employee status: $name");
+                $redirectMsg = "✅ Status '$name' added.";
+            }
+        } elseif (empty($error) && $action === 'edit_employee_status') {
+            $oldStatus = trim($_POST['old_status'] ?? '');
+            if ($oldStatus === 'Active') {
+                $error = '❌ Active is a protected system status.';
+            } elseif (!in_array($oldStatus, $employeeStatuses, true)) {
+                $error = '❌ Status not found.';
+            } elseif (!manageOptionValidateEmployeeStatus($name)) {
+                $error = '❌ Status names must be 1-20 characters and use letters, numbers, spaces, or . _ ( ) / -.';
+            } elseif (strcasecmp($name, 'Active') === 0 || count(array_filter($employeeStatuses, static fn($status) => $status !== $oldStatus && strcasecmp($status, $name) === 0)) > 0) {
+                $error = '❌ That status already exists.';
+            } else {
+                try {
+                    $pdo->beginTransaction();
+                    if ($oldStatus !== $name) {
+                        $pdo->prepare('UPDATE employees SET status = ? WHERE status = ?')->execute([$name, $oldStatus]);
+                        $employeeStatuses[array_search($oldStatus, $employeeStatuses, true)] = $name;
+                        manageOptionSaveEmployeeStatuses($pdo, $employeeStatuses);
+                    }
+                    $pdo->commit();
+                    $logger->log($_SESSION['user_id'], 'EDIT_EMPLOYEE_STATUS', "Renamed employee status '$oldStatus' to '$name'.");
+                    $redirectMsg = '✅ Status updated.';
+                } catch (Throwable $exception) {
+                    if ($pdo->inTransaction()) $pdo->rollBack();
+                    $error = '❌ Unable to update that status.';
+                    error_log('Employee status update failed: ' . $exception->getMessage());
+                }
+            }
+        } elseif (empty($error) && $action === 'delete_employee_status') {
+            $statusToDelete = trim($_POST['status'] ?? '');
+            if ($statusToDelete === 'Active') {
+                $error = '❌ Active is a protected system status.';
+            } elseif (!in_array($statusToDelete, $employeeStatuses, true)) {
+                $error = '❌ Status not found.';
+            } else {
+                $usageStmt = $pdo->prepare('SELECT COUNT(*) FROM employees WHERE status = ?');
+                $usageStmt->execute([$statusToDelete]);
+                if ((int)$usageStmt->fetchColumn() > 0) {
+                    $error = "❌ Cannot delete '$statusToDelete' while employees are assigned to it. Rename it instead.";
+                } else {
+                    $employeeStatuses = array_values(array_filter($employeeStatuses, static fn($status) => $status !== $statusToDelete));
+                    manageOptionSaveEmployeeStatuses($pdo, $employeeStatuses);
+                    $logger->log($_SESSION['user_id'], 'DELETE_EMPLOYEE_STATUS', "Deleted unused employee status: $statusToDelete");
+                    $redirectMsg = "✅ Status '$statusToDelete' deleted.";
+                }
+            }
         }
 
         // --- AGENCIES ---
@@ -353,8 +456,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         } elseif ($action === 'update_role_duties' && $id > 0) {
             $duties = trim($_POST['duties'] ?? '');
-            if (strlen($duties) > 5000) {
-                $error = "❌ Duties list is too long (Max 5000 characters).";
+            if (mb_strlen($duties, 'UTF-8') > 10000) {
+                $error = "❌ Duties list is too long (Max 10,000 characters).";
             } else {
                 $checkStmt = $pdo->prepare("SELECT COUNT(*) FROM system_roles WHERE id = ?");
                 $checkStmt->execute([$id]);
@@ -753,9 +856,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $redirectMsg = "✅ College course deleted.";
         }
 
-        // Regenerate CSRF token on success
         if (!empty($redirectMsg)) {
-            $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
             header("Location: manage_options.php?msg=" . urlencode($redirectMsg) . "&tab=" . urlencode($activeTab));
             exit;
         }
@@ -768,6 +869,12 @@ $agencies = $stmtAg ? $stmtAg->fetchAll() : [];
 
 $stmtRo = $pdo->query("SELECT * FROM system_roles ORDER BY name ASC");
 $roles = $stmtRo ? $stmtRo->fetchAll() : [];
+$employeeStatuses = manageOptionLoadEmployeeStatuses($pdo);
+$employeeStatusUsage = [];
+$statusUsageStmt = $pdo->query("SELECT status, COUNT(*) AS total FROM employees GROUP BY status");
+foreach ($statusUsageStmt->fetchAll(PDO::FETCH_ASSOC) as $statusUsage) {
+    $employeeStatusUsage[$statusUsage['status']] = (int)$statusUsage['total'];
+}
 
 $stmtDp = $pdo->query("SELECT * FROM departments ORDER BY name ASC");
 $depts = $stmtDp ? $stmtDp->fetchAll() : [];
@@ -856,13 +963,24 @@ if (isset($_GET['tab'])) $activeTab = $_GET['tab'];
             font-size: 0.9rem;
             padding: 2px;
         }
+
+        .manage-options-back,
+        .manage-options-back:hover,
+        .manage-options-back:focus {
+            color: #fff !important;
+        }
+
+        .manage-options-back:hover,
+        .manage-options-back:focus {
+            text-decoration: underline;
+        }
     </style>
 </head>
 
 <body class="bg-body-tertiary">
     <nav class="navbar navbar-dark bg-dark mb-4">
         <div class="container">
-            <a class="navbar-brand" href="index.php">Back to Dashboard</a>
+            <a class="navbar-brand manage-options-back" href="index.php"><i class="bi bi-arrow-left me-1" aria-hidden="true"></i>Back to Dashboard</a>
             <div class="d-flex align-items-center gap-2">
                 <button id="darkModeToggle" class="btn btn-sm btn-outline-light border-0" title="Toggle Dark Mode">
                     <i class="bi bi-moon-stars-fill"></i>
@@ -883,6 +1001,7 @@ if (isset($_GET['tab'])) $activeTab = $_GET['tab'];
         <ul class="nav nav-tabs mb-4" id="optionTabs" role="tablist">
             <li class="nav-item"><button class="nav-link <?php echo $activeTab === 'agency' ? 'active' : ''; ?> fw-bold" id="agency-tab" data-bs-toggle="tab" data-bs-target="#agency" type="button">🏢 Agencies</button></li>
             <li class="nav-item"><button class="nav-link <?php echo $activeTab === 'role' ? 'active' : ''; ?> fw-bold" id="role-tab" data-bs-toggle="tab" data-bs-target="#role" type="button">💼 System Roles & Duties</button></li>
+            <li class="nav-item"><button class="nav-link <?php echo $activeTab === 'status' ? 'active' : ''; ?> fw-bold" id="status-tab" data-bs-toggle="tab" data-bs-target="#status" type="button">🟢 Employee Statuses</button></li>
             <li class="nav-item"><button class="nav-link <?php echo $activeTab === 'college' ? 'active' : ''; ?> fw-bold" id="college-tab" data-bs-toggle="tab" data-bs-target="#college" type="button">🎓 College Courses</button></li>
             <li class="nav-item"><button class="nav-link <?php echo $activeTab === 'course' ? 'active' : ''; ?> fw-bold text-success" id="course-tab" data-bs-toggle="tab" data-bs-target="#course" type="button">🎓 Training Catalog</button></li>
             <li class="nav-item"><button class="nav-link <?php echo $activeTab === 'group' ? 'active' : ''; ?> fw-bold text-primary" id="group-tab" data-bs-toggle="tab" data-bs-target="#group" type="button">👥 Groups</button></li>
@@ -1061,6 +1180,70 @@ if (isset($_GET['tab'])) $activeTab = $_GET['tab'];
                 </div>
             </div>
 
+            <div class="tab-pane fade <?php echo $activeTab === 'status' ? 'show active' : ''; ?>" id="status" role="tabpanel">
+                <h4 class="mb-4">Employee Statuses</h4>
+                <div class="card shadow-sm border-success">
+                    <div class="card-body">
+                        <p class="text-muted">Add, rename, or remove employee statuses. <strong>Active is protected</strong> because dashboards and reports use it to identify current employees. Rename statuses already in use; deletion is available only when unused.</p>
+                        <form method="POST" class="row g-2 mb-4 align-items-end">
+                            <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
+                            <input type="hidden" name="action" value="add_employee_status">
+                            <div class="col-md-9">
+                                <label class="form-label fw-bold" for="newEmployeeStatus">Add New Status <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="newEmployeeStatus" name="name" maxlength="20" pattern="[A-Za-z0-9][A-Za-z0-9 ._()/-]*" title="Letters, numbers, spaces, and . _ ( ) / -" placeholder="e.g. Transferred" required>
+                            </div>
+                            <div class="col-md-3">
+                                <button type="submit" class="btn btn-success w-100"><i class="bi bi-plus-lg me-1"></i>Add Status</button>
+                            </div>
+                        </form>
+                        <div class="table-responsive">
+                            <table class="table table-hover align-middle mb-0">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Status Name</th>
+                                        <th>Employees</th>
+                                        <th class="text-end">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php foreach ($employeeStatuses as $statusOption): ?>
+                                        <tr>
+                                            <td>
+                                                <?php if ($statusOption === 'Active'): ?>
+                                                    <span class="fw-bold">Active</span> <span class="badge bg-success">Protected</span>
+                                                <?php else: ?>
+                                                    <form method="POST" class="d-flex gap-2">
+                                                        <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
+                                                        <input type="hidden" name="action" value="edit_employee_status">
+                                                        <input type="hidden" name="old_status" value="<?php echo htmlspecialchars($statusOption); ?>">
+                                                        <input type="text" name="name" class="form-control form-control-sm" value="<?php echo htmlspecialchars($statusOption); ?>" maxlength="20" pattern="[A-Za-z0-9][A-Za-z0-9 ._()/-]*" required>
+                                                        <button type="submit" class="btn btn-sm btn-outline-primary" title="Save status name"><i class="bi bi-save"></i></button>
+                                                    </form>
+                                                <?php endif; ?>
+                                            </td>
+                                            <td><?php echo (int)($employeeStatusUsage[$statusOption] ?? 0); ?></td>
+                                            <td class="text-end">
+                                                <?php if ($statusOption === 'Active'): ?>
+                                                    <span class="text-muted small">Required</span>
+                                                <?php else: ?>
+                                                    <form method="POST" class="d-inline" onsubmit="return confirm('Delete this unused employee status?');">
+                                                        <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
+                                                        <input type="hidden" name="action" value="delete_employee_status">
+                                                        <input type="hidden" name="status" value="<?php echo htmlspecialchars($statusOption); ?>">
+                                                        <button type="submit" class="btn btn-sm btn-outline-danger" title="<?php echo ($employeeStatusUsage[$statusOption] ?? 0) > 0 ? 'Rename this status; employees are assigned to it' : 'Delete unused status'; ?>" <?php echo ($employeeStatusUsage[$statusOption] ?? 0) > 0 ? 'disabled' : ''; ?>><i class="bi bi-trash"></i></button>
+                                                    </form>
+                                                <?php endif; ?>
+                                            </td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                </tbody>
+                            </table>
+                        </div>
+                        <small class="text-muted d-block mt-3">Maximum 20 characters per status. Up to 30 statuses.</small>
+                    </div>
+                </div>
+            </div>
+
             <div class="tab-pane fade <?php echo $activeTab === 'course' ? 'show active' : ''; ?>" id="course" role="tabpanel">
                 <h4 class="mb-4">Training Catalog</h4>
                 <div class="card shadow-sm border-success">
@@ -1189,12 +1372,19 @@ if (isset($_GET['tab'])) $activeTab = $_GET['tab'];
                                 <form method="POST" class="input-group mb-3">
                                     <input type="hidden" name="csrf_token" value="<?php echo $_SESSION['csrf_token']; ?>">
                                     <input type="hidden" name="action" value="add_dept">
-                                    <input type="text" name="name" class="form-control" placeholder="New Dept" required maxlength="100" pattern="[A-Za-z0-9 \-\.]+" title="Alphanumeric, spaces, dashes, dots">
+                                    <input type="text" name="name" class="form-control" placeholder="New Department" required maxlength="50" pattern="[A-Za-z0-9 \-\.]+" title="Up to 50 characters: letters, numbers, spaces, dashes, dots" list="departmentSuggestions">
                                     <button class="btn btn-success" type="submit"><i class="bi bi-plus-lg"></i></button>
                                 </form>
+                                <label class="form-label small fw-bold" for="departmentSearch">Search departments</label>
+                                <input type="search" id="departmentSearch" class="form-control form-control-sm mb-2" placeholder="Type a department name..." maxlength="50" list="departmentSuggestions" autocomplete="off">
+                                <datalist id="departmentSuggestions">
+                                    <?php foreach ($depts as $d): ?>
+                                        <option value="<?php echo h($d['name']); ?>">
+                                        <?php endforeach; ?>
+                                </datalist>
                                 <div class="list-group" id="deptList">
                                     <?php foreach ($depts as $d): ?>
-                                        <div class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+                                        <div class="list-group-item list-group-item-action d-flex justify-content-between align-items-center" data-department-name="<?php echo h($d['name']); ?>">
                                             <a href="#" class="text-decoration-none text-dark flex-grow-1 py-1" onclick="showSections(<?php echo $d['id']; ?>, '<?php echo htmlspecialchars($d['name']); ?>'); return false;">
                                                 <strong><?php echo htmlspecialchars($d['name']); ?></strong>
                                             </a>
@@ -1213,6 +1403,7 @@ if (isset($_GET['tab'])) $activeTab = $_GET['tab'];
                                         </div>
                                     <?php endforeach; ?>
                                 </div>
+                                <div id="departmentSearchEmpty" class="small text-muted text-center py-3 d-none">No matching departments.</div>
                             </div>
                         </div>
                     </div>
@@ -1385,8 +1576,8 @@ if (isset($_GET['tab'])) $activeTab = $_GET['tab'];
                         <div class="alert alert-info small mb-2">
                             <i class="bi bi-info-circle"></i> Enter each duty on a <strong>new line</strong>. These will appear as bullet points in the contract.
                         </div>
-                        <textarea name="duties" id="modalDuties" class="form-control" rows="10" placeholder="e.g.&#10;Perform daily checks.&#10;Submit reports on time." maxlength="5000"></textarea>
-                        <div class="form-text text-end">Max 5000 characters.</div>
+                        <textarea name="duties" id="modalDuties" class="form-control" rows="10" placeholder="e.g.&#10;Perform daily checks.&#10;Submit reports on time." maxlength="10000"></textarea>
+                        <div class="form-text d-flex justify-content-between"><span>Maximum 10,000 characters.</span><span id="dutiesCharacterCount">0 / 10,000</span></div>
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-info text-white" onclick="previewDuties()"><i class="bi bi-eye"></i> Preview</button>
@@ -1568,9 +1759,18 @@ if (isset($_GET['tab'])) $activeTab = $_GET['tab'];
             document.getElementById('modalRoleName').innerText = name;
             document.getElementById('modalRoleNameInput').value = name; // [NEW] Populate rename field
             document.getElementById('modalDuties').value = currentDuties;
+            updateDutiesCharacterCount();
             document.getElementById('dutiesFormAction').value = 'update_role_duties'; // Reset to duties mode
             dutiesModal.show();
         }
+
+        function updateDutiesCharacterCount() {
+            const duties = document.getElementById('modalDuties');
+            const count = document.getElementById('dutiesCharacterCount');
+            if (duties && count) count.textContent = `${duties.value.length.toLocaleString()} / 10,000`;
+        }
+
+        document.getElementById('modalDuties')?.addEventListener('input', updateDutiesCharacterCount);
 
         // [NEW] Rename role via the same modal
         function submitRoleRename() {
@@ -1637,9 +1837,28 @@ if (isset($_GET['tab'])) $activeTab = $_GET['tab'];
         function editGeneric(type, id, currentName) {
             document.getElementById('genericAction').value = 'edit_' + type;
             document.getElementById('genericId').value = id;
-            document.getElementById('genericNameInput').value = currentName;
+            const nameInput = document.getElementById('genericNameInput');
+            nameInput.value = currentName;
+            nameInput.maxLength = type === 'dept' ? 50 : 100;
+            nameInput.pattern = type === 'group' ? '[A-Za-z0-9 ._-]+' : '[A-Za-z0-9 .-]+';
+            nameInput.title = `Maximum ${nameInput.maxLength} characters; letters, numbers, spaces, periods${type === 'group' ? ', underscores, ' : ', ' }and dashes only.`;
             document.getElementById('genericTypeLabel').innerText = type.charAt(0).toUpperCase() + type.slice(1);
             new bootstrap.Modal(document.getElementById('genericEditModal')).show();
+        }
+
+        const departmentSearch = document.getElementById('departmentSearch');
+        if (departmentSearch) {
+            departmentSearch.addEventListener('input', function() {
+                const query = this.value.trim().toLowerCase();
+                const departments = Array.from(document.querySelectorAll('#deptList [data-department-name]'));
+                let visibleCount = 0;
+                departments.forEach((item) => {
+                    const matches = item.dataset.departmentName.toLowerCase().includes(query);
+                    item.classList.toggle('d-none', !matches);
+                    if (matches) visibleCount++;
+                });
+                document.getElementById('departmentSearchEmpty')?.classList.toggle('d-none', visibleCount > 0);
+            });
         }
 
         // --- TAG SYSTEM LOGIC (Mirrored from tracker.php) ---

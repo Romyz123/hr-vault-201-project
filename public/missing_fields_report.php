@@ -8,9 +8,42 @@ if (!isset($_SESSION['user_id']) || !in_array($_SESSION['role'] ?? '', ['ADMIN',
     die("ACCESS DENIED");
 }
 
-// 2. FETCH ACTIVE EMPLOYEES
-$sql = "SELECT * FROM employees WHERE status = 'Active' ORDER BY last_name ASC";
-$stmt = $pdo->query($sql);
+// 2. FILTERS AND ACTIVE EMPLOYEES
+$deptFilter = trim($_GET['dept'] ?? '');
+$sectionFilter = trim($_GET['section'] ?? '');
+$agencyFilter = trim($_GET['agency'] ?? '');
+$missingFilter = trim($_GET['missing'] ?? '');
+$allowedMissingFilters = [
+    'sss_no' => 'SSS Number',
+    'tin_no' => 'TIN Number',
+    'philhealth_no' => 'PhilHealth',
+    'pagibig_no' => 'Pag-IBIG',
+    'contact_number' => 'Contact Number',
+    'present_address' => 'Present Address',
+    'emergency_name' => 'Emergency Contact Name',
+    'emergency_contact' => 'Emergency Contact Number',
+    'avatar_path' => 'Profile Picture'
+];
+if (!array_key_exists($missingFilter, $allowedMissingFilters)) $missingFilter = '';
+
+$sql = "SELECT * FROM employees WHERE status = 'Active' AND deleted_at IS NULL";
+$params = [];
+if ($deptFilter !== '') {
+    $sql .= " AND dept = ?";
+    $params[] = $deptFilter;
+}
+if ($sectionFilter !== '') {
+    $sql .= " AND section = ?";
+    $params[] = $sectionFilter;
+}
+if ($agencyFilter !== '') {
+    $sql .= " AND (agency_name = ? OR employment_type = ?)";
+    $params[] = $agencyFilter;
+    $params[] = $agencyFilter;
+}
+$sql .= " ORDER BY last_name ASC";
+$stmt = $pdo->prepare($sql);
+$stmt->execute($params);
 $employees = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 // 3. DEFINE REQUIRED FIELDS
@@ -25,12 +58,19 @@ $requiredFields = [
     'emergency_contact' => 'Emergency Contact Number'
 ];
 
+function isMissingReportValue(?string $value, string $field): bool
+{
+    $normalized = strtolower(trim((string)$value));
+    if ($normalized === '') return true;
+    return $field === 'present_address' && preg_replace('/\s+/', ' ', $normalized) === 'to be updated';
+}
+
 $incompleteProfiles = [];
 
 foreach ($employees as $emp) {
     $missing = [];
     foreach ($requiredFields as $field => $label) {
-        if (empty($emp[$field])) {
+        if (isMissingReportValue($emp[$field] ?? null, $field)) {
             $missing[] = $label;
         }
     }
@@ -43,10 +83,23 @@ foreach ($employees as $emp) {
     }
 
     if (!empty($missing)) {
+        if ($missingFilter !== '') {
+            $hasSelectedMissingField = false;
+            if ($missingFilter === 'avatar_path') {
+                $hasSelectedMissingField = in_array('Profile Picture', $missing, true);
+            } else {
+                $hasSelectedMissingField = in_array($allowedMissingFilters[$missingFilter], $missing, true);
+            }
+            if (!$hasSelectedMissingField) continue;
+        }
         $emp['missing_fields'] = $missing;
         $incompleteProfiles[] = $emp;
     }
 }
+
+$departments = $pdo->query("SELECT DISTINCT dept FROM employees WHERE status = 'Active' AND deleted_at IS NULL AND dept IS NOT NULL AND dept != '' ORDER BY dept ASC")->fetchAll(PDO::FETCH_COLUMN);
+$sections = $pdo->query("SELECT DISTINCT section FROM employees WHERE status = 'Active' AND deleted_at IS NULL AND section IS NOT NULL AND section != '' ORDER BY section ASC")->fetchAll(PDO::FETCH_COLUMN);
+$agencies = $pdo->query("SELECT DISTINCT value FROM (SELECT agency_name AS value FROM employees WHERE status = 'Active' AND deleted_at IS NULL AND agency_name IS NOT NULL AND agency_name != '' UNION SELECT employment_type AS value FROM employees WHERE status = 'Active' AND deleted_at IS NULL AND employment_type IS NOT NULL AND employment_type != '') AS report_agencies ORDER BY value ASC")->fetchAll(PDO::FETCH_COLUMN);
 
 // 4. EXCEL / CSV EXPORT HANDLER
 if (isset($_GET['export']) && $_GET['export'] === 'excel') {
@@ -242,12 +295,59 @@ if (empty($logo_src)) {
                 <p class="text-muted mb-0">Found <strong><?php echo count($incompleteProfiles); ?></strong> active employees with incomplete 201 file records.</p>
             </div>
             <div class="d-flex gap-2">
-                <a href="missing_fields_report.php?export=excel" class="btn btn-outline-success shadow-sm fw-bold">
+                <a href="missing_fields_report.php?<?php echo htmlspecialchars(http_build_query(array_merge($_GET, ['export' => 'excel']))); ?>" class="btn btn-outline-success shadow-sm fw-bold">
                     <i class="bi bi-file-earmark-excel-fill"></i> Export to Excel
                 </a>
                 <button onclick="window.print()" class="btn btn-dark shadow-sm fw-bold">
                     <i class="bi bi-printer-fill"></i> Print Report
                 </button>
+            </div>
+        </div>
+
+        <div class="card shadow-sm border-0 mb-4 no-print">
+            <div class="card-body">
+                <form method="GET" class="row g-2 align-items-end">
+                    <div class="col-md-3">
+                        <label class="form-label small fw-bold">Department</label>
+                        <select name="dept" class="form-select form-select-sm">
+                            <option value="">All Departments</option>
+                            <?php foreach ($departments as $department): ?>
+                                <option value="<?php echo htmlspecialchars($department); ?>" <?php echo $deptFilter === $department ? 'selected' : ''; ?>><?php echo htmlspecialchars($department); ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label small fw-bold">Section</label>
+                        <select name="section" class="form-select form-select-sm">
+                            <option value="">All Sections</option>
+                            <?php foreach ($sections as $section): ?>
+                                <option value="<?php echo htmlspecialchars($section); ?>" <?php echo $sectionFilter === $section ? 'selected' : ''; ?>><?php echo htmlspecialchars($section); ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label small fw-bold">Agency / Employment Type</label>
+                        <select name="agency" class="form-select form-select-sm">
+                            <option value="">All Agencies</option>
+                            <?php foreach ($agencies as $agency): ?>
+                                <option value="<?php echo htmlspecialchars($agency); ?>" <?php echo $agencyFilter === $agency ? 'selected' : ''; ?>><?php echo htmlspecialchars($agency); ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label small fw-bold">Missing Requirement</label>
+                        <select name="missing" class="form-select form-select-sm">
+                            <option value="">Any Missing Requirement</option>
+                            <?php foreach ($allowedMissingFilters as $field => $label): ?>
+                                <option value="<?php echo htmlspecialchars($field); ?>" <?php echo $missingFilter === $field ? 'selected' : ''; ?>><?php echo htmlspecialchars($label); ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div class="col-12 d-flex justify-content-end gap-2">
+                        <a href="missing_fields_report.php" class="btn btn-sm btn-outline-secondary">Reset</a>
+                        <button type="submit" class="btn btn-sm btn-primary"><i class="bi bi-funnel me-1"></i>Apply Filters</button>
+                    </div>
+                </form>
             </div>
         </div>
 

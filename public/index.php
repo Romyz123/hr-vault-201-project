@@ -33,7 +33,9 @@ if (empty($logo_src)) {
 // [FIX] Defensive initialization for variables from options.php (moved before require)
 $agencies = [];
 $deptMap = [];
+$groups = [];
 $system_roles = [];
+$employee_statuses = ['Active', 'Resigned', 'Terminated', 'AWOL', 'Retired'];
 require_once 'options.php'; // [NEW] Load dynamic options
 session_start();
 
@@ -279,6 +281,7 @@ $filter_status = getQueryParamSafe('status', 24, '');
 $filter_type   = getQueryParamSafe('type',   40, ''); // can match employment_type or agency_name
 $filter_dept   = getQueryParamSafe('dept',   32, '');
 $filter_section = getQueryParamSafe('section', 50, '');
+$filter_job_title = getQueryParamSafe('job_title', 100, '');
 $search_query  = Validator::sanitizeSearch($_GET['search'] ?? '');
 $filter_doc_cat = getQueryParamSafe('doc_cat', 50, '');
 $sort_option   = getQueryParamSafe('sort',   24, 'newest');
@@ -404,10 +407,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['cleanup_dev_files']) 
     exit;
 }
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'bulk_move_dept') {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && ($_POST['action'] === 'bulk_move_dept' || $_POST['action'] === 'bulk_delete')) {
     if (!in_array(strtoupper($_SESSION['role'] ?? ''), ['ADMIN', 'MANAGER', 'HR'], true)) {
         if (isset($logger)) {
-            $logger->log($_SESSION['user_id'] ?? 0, 'AUTH_FAIL', 'Unauthorized bulk_move_dept attempt.');
+            $logger->log($_SESSION['user_id'] ?? 0, 'AUTH_FAIL', 'Unauthorized bulk action attempt.');
         }
         http_response_code(403);
         header('Location: index.php?error=' . urlencode('Access denied.'));
@@ -427,23 +430,41 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         return $id > 0;
     }));
 
+    $redirectQuery = trim($_POST['redirect_query'] ?? '');
+    $redirectUrl = 'index.php';
+    if ($redirectQuery !== '') {
+        $redirectUrl = 'index.php?' . ltrim($redirectQuery, '?&');
+    }
+    $separator = (strpos($redirectUrl, '?') === false) ? '?' : '&';
+
+    if (empty($selectedIds)) {
+        header('Location: ' . $redirectUrl . $separator . 'error=' . urlencode('No employees were selected.'));
+        exit;
+    }
+
+    // --- HANDLER 1: BULK SOFT DELETE ---
+    if ($_POST['action'] === 'bulk_delete') {
+        $placeholders = implode(',', array_fill(0, count($selectedIds), '?'));
+        $sql = "UPDATE employees SET deleted_at = NOW() WHERE id IN ($placeholders)";
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute($selectedIds);
+        $count = $stmt->rowCount();
+
+        if (isset($logger)) {
+            $logger->log($_SESSION['user_id'], 'BULK_SOFT_DELETE', "Moved $count employee(s) to Recycle Bin.");
+        }
+
+        header('Location: ' . $redirectUrl . $separator . 'msg=' . urlencode("🗑️ $count employee(s) moved to Recovery Console / Recycle Bin."));
+        exit;
+    }
+
+    // --- HANDLER 2: BULK UPDATE FIELDS ---
     $targetDept = trim($_POST['target_dept'] ?? '');
     $targetSection = trim($_POST['target_section'] ?? '');
     $targetStatus = trim($_POST['target_status'] ?? '');
     $targetRole = trim($_POST['target_role'] ?? '');
     $targetAgency = trim($_POST['target_agency'] ?? '');
-    $redirectQuery = trim($_POST['redirect_query'] ?? '');
-
-    $redirectUrl = 'index.php';
-    if ($redirectQuery !== '') {
-        $redirectUrl = 'index.php?' . ltrim($redirectQuery, '?&');
-    }
-
-    $separator = (strpos($redirectUrl, '?') === false) ? '?' : '&';
-    if (empty($selectedIds)) {
-        header('Location: ' . $redirectUrl . $separator . 'error=' . urlencode('No employees were selected.'));
-        exit;
-    }
+    $targetGroup = trim($_POST['target_group'] ?? '');
 
     $updates = [];
     $params = [];
@@ -456,8 +477,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         $params[] = $targetSection;
     }
     if ($targetStatus !== '') {
+        if (!in_array($targetStatus, $employee_statuses, true)) {
+            header('Location: ' . $redirectUrl . $separator . 'error=' . urlencode('Invalid employee status selected.'));
+            exit;
+        }
         $updates[] = 'status = ?';
         $params[] = $targetStatus;
+    }
+    if ($targetGroup !== '') {
+        if (!in_array($targetGroup, $groups, true)) {
+            header('Location: ' . $redirectUrl . $separator . 'error=' . urlencode('Invalid group selected.'));
+            exit;
+        }
+        $updates[] = '`group` = ?';
+        $params[] = $targetGroup;
     }
     if ($targetRole !== '') {
         $updates[] = 'system_role = ?';
@@ -593,6 +626,11 @@ if ($filter_section !== '') {
     $where[]  = 'section LIKE ?';
     $params[] = "%$filter_section%";
 }
+// Job Title filter
+if ($filter_job_title !== '') {
+    $where[]  = 'job_title = ?';
+    $params[] = $filter_job_title;
+}
 
 // Document Category filter (from Chart click)
 if ($filter_doc_cat !== '') {
@@ -672,6 +710,27 @@ $empStmt->bindValue($paramIndex++, $offset,  PDO::PARAM_INT);
 $empStmt->execute();
 $employees = $empStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
+// The directory list is intended for complete review, so it loads every
+// employee matching the active filters instead of only the current card page.
+$listSql = "SELECT * FROM employees {$whereSql} ORDER BY {$orderBy}";
+$listStmt = $pdo->prepare($listSql);
+$listParamIndex = 1;
+foreach ($params as $value) {
+    $listStmt->bindValue($listParamIndex++, $value);
+}
+$listStmt->execute();
+$listEmployees = $listStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+usort($listEmployees, static function (array $left, array $right): int {
+    $leftSection = trim(($left['dept'] ?? 'Unassigned') . ' / ' . ($left['section'] ?? 'Unassigned'));
+    $rightSection = trim(($right['dept'] ?? 'Unassigned') . ' / ' . ($right['section'] ?? 'Unassigned'));
+    return strcasecmp($leftSection . '|' . ($left['last_name'] ?? ''), $rightSection . '|' . ($right['last_name'] ?? ''));
+});
+$listSectionCounts = [];
+foreach ($listEmployees as $listEmployee) {
+    $listSectionKey = trim(($listEmployee['dept'] ?? '') ?: 'Unassigned') . ' / ' . trim(($listEmployee['section'] ?? '') ?: 'Unassigned');
+    $listSectionCounts[$listSectionKey] = ($listSectionCounts[$listSectionKey] ?? 0) + 1;
+}
+
 // [OPTIMIZATION] Spreadsheet data has been removed from initial page load.
 // This data should be loaded asynchronously via a dedicated API to prevent memory issues.
 $spreadsheetJson     = '[]';
@@ -733,6 +792,13 @@ try {
     });
 } catch (Exception $e) {
     $dynamicCats = ['201 Files', 'Contract', 'Government IDs', 'Medical', 'Memo / DA', 'Evaluation', 'Certificate', 'Training Record'];
+}
+$jobTitles = [];
+try {
+    $jtStmt = $pdo->query("SELECT DISTINCT job_title FROM employees WHERE deleted_at IS NULL AND job_title IS NOT NULL AND job_title != '' ORDER BY job_title ASC");
+    $jobTitles = $jtStmt->fetchAll(PDO::FETCH_COLUMN);
+} catch (Exception $e) {
+    $jobTitles = [];
 }
 
 // ---------- 10) CHART DATA (simple counts by category) ----------
@@ -805,6 +871,51 @@ $currentVaultGB = round($currentVaultBytes / 1024 / 1024 / 1024, 2);
 $vaultQuotaPercent = ($vaultLimitGB > 0) ? min(100, round(($currentVaultGB / $vaultLimitGB) * 100)) : 0;
 
 $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
+// ---------- 3) DASHBOARD ANALYTICS DATA ----------
+// 1. Headcount by Department (Active Only)
+$deptHeadcount = $pdo->query("SELECT dept, COUNT(*) as count FROM employees WHERE deleted_at IS NULL AND status = 'Active' AND dept != '' GROUP BY dept ORDER BY count DESC LIMIT 8")->fetchAll(PDO::FETCH_ASSOC);
+
+// 2. Compliance Rate (Missing Requirements)
+$requiredFieldsSQL = "(sss_no IS NULL OR sss_no = '' OR tin_no IS NULL OR tin_no = '' OR philhealth_no IS NULL OR philhealth_no = '' OR pagibig_no IS NULL OR pagibig_no = '' OR contact_number IS NULL OR contact_number = '' OR present_address IS NULL OR present_address = '' OR emergency_name IS NULL OR emergency_name = '' OR emergency_contact IS NULL OR emergency_contact = '')";
+$complianceRow = $pdo->query("
+    SELECT 
+        SUM(CASE WHEN $requiredFieldsSQL THEN 1 ELSE 0 END) as incomplete,
+        SUM(CASE WHEN NOT $requiredFieldsSQL THEN 1 ELSE 0 END) as complete
+    FROM employees 
+    WHERE deleted_at IS NULL AND status = 'Active'
+")->fetch(PDO::FETCH_ASSOC);
+$completeCount = (int)($complianceRow['complete'] ?? 0);
+$incompleteCount = (int)($complianceRow['incomplete'] ?? 0);
+
+// 3. New Hires vs Attrition (Last 6 Months)
+$sixMonthsAgo = date('Y-m-01', strtotime('-5 months'));
+// Pre-fill last 6 months with 0
+$trendData = [];
+for ($i = 5; $i >= 0; $i--) {
+    $monthKey = date('Y-m', strtotime("-$i months"));
+    $trendData[$monthKey] = ['hires' => 0, 'attrition' => 0];
+}
+
+$hires = $pdo->prepare("SELECT DATE_FORMAT(hire_date, '%Y-%m') as month, COUNT(*) as count FROM employees WHERE deleted_at IS NULL AND hire_date >= ? GROUP BY month");
+$hires->execute([$sixMonthsAgo]);
+foreach ($hires->fetchAll(PDO::FETCH_ASSOC) as $h) {
+    if (isset($trendData[$h['month']])) $trendData[$h['month']]['hires'] = (int)$h['count'];
+}
+
+$attrition = $pdo->prepare("SELECT DATE_FORMAT(COALESCE(exit_date, updated_at), '%Y-%m') as month, COUNT(*) as count FROM employees WHERE deleted_at IS NULL AND status != 'Active' AND COALESCE(exit_date, updated_at) >= ? GROUP BY month");
+$attrition->execute([$sixMonthsAgo]);
+foreach ($attrition->fetchAll(PDO::FETCH_ASSOC) as $a) {
+    if (isset($trendData[$a['month']])) $trendData[$a['month']]['attrition'] = (int)$a['count'];
+}
+
+$monthsLabel = [];
+$hiresData = [];
+$attritionData = [];
+foreach ($trendData as $m => $d) {
+    $monthsLabel[] = date('M Y', strtotime($m . '-01'));
+    $hiresData[] = $d['hires'];
+    $attritionData[] = $d['attrition'];
+}
 ?>
 <?php require 'header.php'; ?>
 
@@ -930,33 +1041,39 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
         </div>
     <?php endif; ?>
 
-    <!-- [ADMIN] System Health & Server Config (Professional View) -->
+    <!-- [ADMIN] System Health & Server Config (Collapsed View) -->
     <?php if ($userRole === 'ADMIN'): ?>
-        <div class="card shadow-sm mb-4 border-info no-print">
-            <div class="card-header bg-info text-white fw-bold d-flex justify-content-between align-items-center">
-                <span><i class="bi bi-cpu-fill me-2"></i> System Health & Configuration</span>
-                <div>
-                    <a href="error_logs.php" class="btn btn-sm btn-light text-danger fw-bold me-2"><i class="bi bi-bug-fill"></i> View Error Logs</a>
-                    <a href="db_status.php" class="btn btn-sm btn-light text-info fw-bold"><i class="bi bi-arrow-repeat"></i> Check DB Updates</a>
-                </div>
-            </div>
-            <div class="card-body">
-                <div class="row text-center">
-                    <div class="col-md-3 border-end">
-                        <small class="text-muted d-block text-uppercase"><i class="bi bi-code-slash"></i> PHP Version</small>
-                        <span class="fw-bold"><?php echo phpversion(); ?></span>
-                    </div>
-                    <div class="col-md-3 border-end">
-                        <small class="text-muted d-block text-uppercase"><i class="bi bi-cloud-arrow-up"></i> Max Upload</small>
-                        <span class="fw-bold"><?php echo ini_get('upload_max_filesize'); ?></span>
-                    </div>
-                    <div class="col-md-3 border-end">
-                        <small class="text-muted d-block text-uppercase"><i class="bi bi-file-earmark-arrow-up"></i> Max POST</small>
-                        <span class="fw-bold"><?php echo ini_get('post_max_size'); ?></span>
-                    </div>
-                    <div class="col-md-3">
-                        <small class="text-muted d-block text-uppercase"><i class="bi bi-memory"></i> Memory Limit</small>
-                        <span class="fw-bold"><?php echo ini_get('memory_limit'); ?></span>
+        <div class="accordion mb-4 shadow-sm no-print" id="systemHealthAccordion">
+            <div class="accordion-item border-info">
+                <h2 class="accordion-header">
+                    <button class="accordion-button collapsed bg-info text-white fw-bold py-2" type="button" data-bs-toggle="collapse" data-bs-target="#sysHealthCollapse">
+                        <i class="bi bi-cpu-fill me-2"></i> System Health & Configuration
+                    </button>
+                </h2>
+                <div id="sysHealthCollapse" class="accordion-collapse collapse" data-bs-parent="#systemHealthAccordion">
+                    <div class="accordion-body p-3">
+                        <div class="d-flex justify-content-end mb-3">
+                            <a href="error_logs.php" class="btn btn-sm btn-outline-danger fw-bold me-2"><i class="bi bi-bug-fill"></i> View Error Logs</a>
+                            <a href="db_status.php" class="btn btn-sm btn-outline-info fw-bold"><i class="bi bi-arrow-repeat"></i> Check DB Updates</a>
+                        </div>
+                        <div class="row text-center">
+                            <div class="col-md-3 border-end">
+                                <small class="text-muted d-block text-uppercase"><i class="bi bi-code-slash"></i> PHP Version</small>
+                                <span class="fw-bold"><?php echo phpversion(); ?></span>
+                            </div>
+                            <div class="col-md-3 border-end">
+                                <small class="text-muted d-block text-uppercase"><i class="bi bi-cloud-arrow-up"></i> Max Upload</small>
+                                <span class="fw-bold"><?php echo ini_get('upload_max_filesize'); ?></span>
+                            </div>
+                            <div class="col-md-3 border-end">
+                                <small class="text-muted d-block text-uppercase"><i class="bi bi-file-earmark-arrow-up"></i> Max POST</small>
+                                <span class="fw-bold"><?php echo ini_get('post_max_size'); ?></span>
+                            </div>
+                            <div class="col-md-3">
+                                <small class="text-muted d-block text-uppercase"><i class="bi bi-memory"></i> Memory Limit</small>
+                                <span class="fw-bold"><?php echo ini_get('memory_limit'); ?></span>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -988,12 +1105,27 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
     <div class="row mb-4" id="dashboard-widgets">
         <div class="col-lg-8 mb-3 mb-lg-0">
             <div class="card h-100 shadow-soft">
-                <div class="card-header d-flex align-items-center">
-                    <i class="bi bi-graph-up-arrow me-2 text-primary"></i>
-                    <span class="fw-semibold">Document Analytics</span>
+                <div class="card-header d-flex align-items-center justify-content-between">
+                    <div>
+                        <i class="bi bi-graph-up-arrow me-2 text-primary"></i>
+                        <span class="fw-semibold">HR Analytics Overview</span>
+                    </div>
                 </div>
                 <div class="card-body position-relative">
-                    <canvas id="hrChart" style="width: 100%; height: 100%; min-height: 300px;"></canvas>
+                    <div class="row h-100">
+                        <div class="col-md-6 mb-3 text-center">
+                            <h6 class="text-muted fw-bold mb-2">Headcount by Dept</h6>
+                            <canvas id="headcountChart" style="max-height: 220px;"></canvas>
+                        </div>
+                        <div class="col-md-6 mb-3 text-center">
+                            <h6 class="text-muted fw-bold mb-2">201 Compliance Rate</h6>
+                            <canvas id="complianceChart" style="max-height: 220px;"></canvas>
+                        </div>
+                        <div class="col-12 mt-2">
+                            <h6 class="text-muted fw-bold mb-2">New Hires vs Attrition (6 Mos)</h6>
+                            <canvas id="attritionChart" style="max-height: 220px;"></canvas>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -1104,10 +1236,40 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
         </div>
     </div>
 
+    <!-- Document Analytics -->
+    <div class="row mb-4 no-print" id="document-analytics-widget">
+        <div class="col-12">
+            <div class="card shadow-soft">
+                <div class="card-header d-flex flex-wrap gap-2 align-items-center justify-content-between">
+                    <div>
+                        <i class="bi bi-file-earmark-bar-graph me-2 text-primary"></i>
+                        <span class="fw-semibold">Document Analytics</span>
+                        <span class="text-muted small ms-2" id="documentAnalyticsSummary">Loading...</span>
+                    </div>
+                    <div class="d-flex align-items-center gap-2">
+                        <label class="visually-hidden" for="documentAnalyticsGroup">Analytics grouping</label>
+                        <select class="form-select form-select-sm" id="documentAnalyticsGroup" aria-label="Document analytics grouping">
+                            <option value="month">Uploads by Month</option>
+                            <option value="department">Documents by Department</option>
+                            <option value="type">Documents by Type</option>
+                            <option value="status">201 Completeness</option>
+                            <option value="employee">Top Employees</option>
+                        </select>
+                        <a href="analytics.php" class="btn btn-sm btn-outline-primary">Full Analytics</a>
+                    </div>
+                </div>
+                <div class="card-body position-relative" style="height: 300px;">
+                    <div id="documentAnalyticsLoading" class="position-absolute top-50 start-50 translate-middle text-muted small">Loading document analytics...</div>
+                    <canvas id="documentAnalyticsChart" aria-label="Document analytics chart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Directory Search / Filters -->
     <?php // ---------- 11) DIRECTORY SEARCH & FILTERS ---------- 
     ?>
-    <div class="card mb-4 shadow-soft" id="directory-search-bar">
+    <div class="card mb-4 shadow-soft sticky-filter-bar" id="directory-search-bar">
         <div class="card-body">
             <div class="d-flex justify-content-between align-items-center mb-3 no-print">
                 <div class="d-flex align-items-center gap-3">
@@ -1129,15 +1291,9 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
                     <select name="status" class="form-select form-select-sm" onchange="this.form.submit()">
                         <option value="">All Statuses</option>
                         <?php
-                        $statuses = [
-                            'Active'     => 'Active',
-                            'Resigned'   => 'Resigned',
-                            'Terminated' => 'Terminated',
-                            'AWOL'       => 'AWOL'
-                        ];
-                        foreach ($statuses as $val => $label) {
+                        foreach ($employee_statuses as $val) {
                             $sel = ($filter_status === $val) ? 'selected' : '';
-                            echo '<option value="' . h($val) . '" ' . $sel . '>' . h($label) . '</option>';
+                            echo '<option value="' . h($val) . '" ' . $sel . '>' . h($val) . '</option>';
                         }
                         ?>
                     </select>
@@ -1213,7 +1369,18 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
                         <i class="bi bi-tag-fill me-1"></i> <?php echo $isUncatActive ? 'Showing Uncategorized' : 'Filter Uncategorized'; ?>
                     </a>
                 </div>
-
+                <!-- Job Title Filter -->
+                <div class="col-md-2">
+                    <select name="job_title" class="form-select form-select-sm" onchange="this.form.submit()">
+                        <option value="">All Job Titles</option>
+                        <?php
+                        foreach ($jobTitles as $jt) {
+                            $sel = ($filter_job_title === $jt) ? 'selected' : '';
+                            echo '<option value="' . h($jt) . '" ' . $sel . '>' . h($jt) . '</option>';
+                        }
+                        ?>
+                    </select>
+                </div>
                 <!-- [NEW] Bulk Actions Button -->
                 <div class="col-md-auto d-flex align-items-center">
                     <button type="button" id="bulkActionBtn" class="btn btn-sm btn-dark fw-bold shadow-sm d-none" data-bs-toggle="modal" data-bs-target="#bulkActionModal">
@@ -1476,6 +1643,64 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
 
     <!-- ============================================================ COMPACT LIST VIEW (New Reliable Alternative) ============================================================ -->
     <style>
+        /* Keep the directory readable: wide data stays wide and scrolls on small screens. */
+        #view-list .employee-list-scroll {
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        #view-list .employee-directory-table {
+            min-width: 1900px;
+            table-layout: auto;
+        }
+
+        #view-list .employee-directory-table th,
+        #view-list .employee-directory-table td {
+            padding: 0.75rem 0.9rem;
+            vertical-align: middle;
+            white-space: nowrap;
+        }
+
+        #view-list .employee-directory-table th {
+            font-size: 0.78rem;
+            letter-spacing: 0.03em;
+            text-transform: uppercase;
+        }
+
+        #view-list .employee-directory-table td:nth-child(3) {
+            min-width: 220px;
+        }
+
+        #view-list .employee-directory-table td:nth-child(5) {
+            min-width: 190px;
+        }
+
+        #view-list .employee-directory-table td:nth-child(8) {
+            min-width: 220px;
+            white-space: normal;
+        }
+
+        #view-list .employee-directory-table td:nth-child(15) {
+            min-width: 300px;
+            max-width: 420px;
+            white-space: normal;
+            line-height: 1.4;
+        }
+
+        #view-list .employee-directory-table tbody tr {
+            min-height: 70px;
+        }
+
+        #view-list .employee-directory-table tbody tr:hover {
+            background-color: rgba(13, 110, 253, 0.06);
+        }
+
+        @media (max-width: 992px) {
+            #view-list .employee-directory-table {
+                min-width: 1700px;
+            }
+        }
+
         @media print {
             @page {
                 size: landscape;
@@ -1561,7 +1786,7 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
             }
         }
     </style>
-    <div id="view-list" style="display: none;">
+    <div id="view-list" style="display: block;">
         <!-- PRINT HEADER (Only visible on paper) -->
         <div class="d-none d-print-block text-center mb-4">
             <img src="<?= $logo_src ?>" alt="TESP Logo" style="max-height: 55px; margin-bottom: 5px;">
@@ -1572,8 +1797,8 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
 
         <div class="card shadow-sm">
             <div class="card-body p-0">
-                <div class="table-responsive">
-                    <table class="table table-hover align-middle mb-0">
+                <div class="table-responsive employee-list-scroll">
+                    <table class="table table-hover align-middle mb-0 employee-directory-table">
                         <thead class="table-light">
                             <tr>
                                 <th style="width: 40px;" class="no-print"></th>
@@ -1581,6 +1806,8 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
                                 <th>Employee Name</th>
                                 <th>ID</th>
                                 <th>Dept / Section</th>
+                                <th>Group</th>
+                                <th>System Role</th>
                                 <th>Job Title</th>
                                 <th>Employer</th>
                                 <th>Status</th>
@@ -1594,7 +1821,20 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
                             </tr>
                         </thead>
                         <tbody>
-                            <?php foreach ($employees as $emp): ?>
+                            <?php $previousSection = null; ?>
+                            <?php foreach ($listEmployees as $emp):
+                                $sectionKey = trim(($emp['dept'] ?? '') ?: 'Unassigned') . ' / ' . trim(($emp['section'] ?? '') ?: 'Unassigned');
+                                if ($sectionKey !== $previousSection):
+                                    $sectionCount = $listSectionCounts[$sectionKey] ?? 0;
+                                    $previousSection = $sectionKey;
+                            ?>
+                                    <tr class="table-primary section-group-heading">
+                                        <th colspan="17" class="py-2">
+                                            <i class="bi bi-diagram-3 me-2"></i><?php echo h($sectionKey); ?>
+                                            <span class="badge bg-primary ms-2"><?php echo $sectionCount; ?> employee<?php echo $sectionCount === 1 ? '' : 's'; ?></span>
+                                        </th>
+                                    </tr>
+                                <?php endif; ?>
                                 <tr class="employee-row" style="cursor:pointer;" data-bs-toggle="modal" data-bs-target="#viewModal<?= (int)$emp['id'] ?>">
                                     <td class="no-print">
                                         <input type="checkbox" class="form-check-input emp-select-check" value="<?php echo (int)$emp['id']; ?>" onclick="event.stopPropagation(); setEmployeeSelected(this.value, this.checked);">
@@ -1610,7 +1850,12 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
                                     </td>
                                     <td class="fw-bold" style="font-size: 1.05rem;"><?= h($emp['last_name'] . ', ' . $emp['first_name']) ?></td>
                                     <td class="font-monospace small"><?= h($emp['emp_id']) ?></td>
-                                    <td><span class="small text-muted"><?= h($emp['dept']) ?></span></td>
+                                    <td>
+                                        <span class="small text-muted"><?= h($emp['dept']) ?></span>
+                                        <?php if (!empty($emp['section'])): ?><br><span class="small text-muted"><?= h($emp['section']) ?></span><?php endif; ?>
+                                    </td>
+                                    <td><span class="badge bg-light text-dark border"><?= h($emp['group'] ?: 'N/A') ?></span></td>
+                                    <td><span class="badge bg-secondary"><?= h($emp['system_role'] ?: 'Staff') ?></span></td>
                                     <td class="small"><?= h($emp['job_title']) ?></td>
                                     <td><span class="badge bg-light text-dark border"><?= h($emp['agency_name'] ?: $emp['employment_type']) ?></span></td>
                                     <td><span class="badge rounded-pill <?= $emp['status'] === 'Active' ? 'bg-success' : 'bg-warning' ?>"><?= h($emp['status']) ?></span></td>
@@ -1872,7 +2117,7 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
                     </div>
 
                     <div class="row">
-                        <div class="col-6 mb-3">
+                        <div class="col-md-4 mb-3">
                             <label class="form-label fw-bold">Agency</label>
                             <select name="employment_type" class="form-select">
                                 <option value="">-- All --</option>
@@ -1883,7 +2128,16 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
                                 <option value="OTHERS - SUBCONS">OTHERS - SUBCONS</option>
                             </select>
                         </div>
-                        <div class="col-6 mb-3">
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label fw-bold">Employee Status</label>
+                            <select name="status" class="form-select">
+                                <option value="">-- All Statuses --</option>
+                                <?php foreach ($employee_statuses as $statusOption): ?>
+                                    <option value="<?php echo h($statusOption); ?>"><?php echo h($statusOption); ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div class="col-md-4 mb-3">
                             <label class="form-label fw-bold">Category</label>
                             <select name="category" class="form-select">
                                 <option value="">-- All --</option>
@@ -1967,20 +2221,29 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
                             <?php endforeach; ?>
                         </select>
                     </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Change Group</label>
+                        <select name="target_group" id="bulkTargetGroup" class="form-select">
+                            <option value="">-- No Change --</option>
+                            <?php foreach ($groups as $groupOption): ?>
+                                <option value="<?php echo h($groupOption); ?>"><?php echo h($groupOption); ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
                     <hr>
                     <div class="mb-3">
                         <label class="form-label fw-bold">Update Status</label>
                         <select name="target_status" class="form-select">
                             <option value="">-- No Change --</option>
-                            <option value="Active">Active</option>
-                            <option value="Resigned">Resigned</option>
-                            <option value="Terminated">Terminated</option>
-                            <option value="AWOL">AWOL</option>
+                            <?php foreach ($employee_statuses as $statusOption): ?>
+                                <option value="<?php echo h($statusOption); ?>"><?php echo h($statusOption); ?></option>
+                            <?php endforeach; ?>
                         </select>
                     </div>
                     <hr>
                 </div>
-                <div class="modal-footer">
+                <div class="modal-footer d-flex justify-content-between align-items-center">
+                    <button type="button" class="btn btn-outline-danger fw-bold" onclick="confirmBulkDelete()"><i class="bi bi-trash-fill me-1"></i> Delete Selected</button>
                     <button type="button" class="btn btn-success fw-bold" onclick="confirmBulkAction()">Apply Changes</button>
                 </div>
             </form>
@@ -2350,11 +2613,31 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
             }, 200);
         }
 
-        // ---------- Delete confirmation ----------
+        // ---------- Delete Confirmation (Using SweetAlert2) ----------
         function confirmDelete(uuid, empId) {
-            document.getElementById('del_file_uuid').value = uuid;
-            document.getElementById('del_emp_id').value = empId;
-            new bootstrap.Modal(document.getElementById('deleteModal')).show();
+            Swal.fire({
+                title: 'Delete Document?',
+                text: 'Are you sure you want to permanently delete this file? This action cannot be undone.',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#dc3545',
+                cancelButtonColor: '#6c757d',
+                confirmButtonText: 'Yes, delete it!',
+                cancelButtonText: 'Cancel'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    // Populate form fields in deleteModal and submit
+                    const delUuidInput = document.getElementById('del_file_uuid');
+                    const delEmpInput = document.getElementById('del_emp_id');
+                    const delForm = document.querySelector('#deleteModal form');
+
+                    if (delUuidInput && delEmpInput && delForm) {
+                        delUuidInput.value = uuid;
+                        delEmpInput.value = empId;
+                        delForm.submit();
+                    }
+                }
+            });
         }
 
         // ---------- Resolve Modal ----------
@@ -2538,9 +2821,10 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
             const sect = document.getElementById('bulkTargetSection').value;
             const role = document.getElementById('bulkTargetRole').value;
             const agency = document.getElementById('bulkTargetAgency').value;
+            const group = document.getElementById('bulkTargetGroup').value;
             const status = form.querySelector('select[name="target_status"]').value;
 
-            if (!dept && !sect && !role && !agency && !status) {
+            if (!dept && !sect && !role && !agency && !group && !status) {
                 Swal.fire('No Changes', 'Please select at least one field to update.', 'info');
                 return;
             }
@@ -2550,6 +2834,7 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
             if (sect) summary += `<li>Section: <strong>${sect}</strong></li>`;
             if (role) summary += `<li>System Role: <strong>${role}</strong></li>`;
             if (agency) summary += `<li>Agency: <strong>${agency}</strong></li>`;
+            if (group) summary += `<li>Group: <strong>${group}</strong></li>`;
             if (status) summary += `<li>Status: <strong>${status}</strong></li>`;
             summary += '</ul>';
 
@@ -2565,6 +2850,34 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
             });
         }
 
+        /**
+         * Confirmation modal before executing Bulk Soft Delete
+         */
+        function confirmBulkDelete() {
+            const count = selectedEmployeeIds.size;
+            if (count === 0) {
+                Swal.fire('No Selection', 'Please select at least one employee to delete.', 'info');
+                return;
+            }
+
+            Swal.fire({
+                title: `Move ${count} Employee(s) to Recycle Bin?`,
+                text: 'Selected employees will be hidden and moved to the Recovery Console / Recycle Bin.',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#dc3545',
+                cancelButtonColor: '#6c757d',
+                confirmButtonText: 'Yes, Move to Recycle Bin',
+                cancelButtonText: 'Cancel'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    const form = document.getElementById('bulkActionForm');
+                    const actionInput = form.querySelector('input[name="action"]');
+                    if (actionInput) actionInput.value = 'bulk_delete';
+                    form.submit();
+                }
+            });
+        }
         document.addEventListener('DOMContentLoaded', function() {
             loadSelectedEmployees();
             syncSelectionCheckboxes();
@@ -2584,10 +2897,12 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
             const btnCardsView = document.getElementById('btn-view-cards');
             const btnListView = document.getElementById('btn-view-list');
             const btnPrintList = document.getElementById('btn-print-list');
+            const pagination = document.getElementById('pagination-container');
 
             if (mode === 'list') {
                 if (cardsView) cardsView.style.display = 'none';
                 if (listView) listView.style.display = 'block';
+                if (pagination) pagination.style.display = 'none';
                 if (btnPrintList) btnPrintList.classList.remove('d-none');
                 if (btnListView) btnListView.classList.add('active');
                 if (btnCardsView) btnCardsView.classList.remove('active');
@@ -2595,6 +2910,7 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
             } else {
                 if (cardsView) cardsView.style.display = 'block';
                 if (listView) listView.style.display = 'none';
+                if (pagination) pagination.style.display = 'block';
                 if (btnPrintList) btnPrintList.classList.add('d-none');
                 if (btnCardsView) btnCardsView.classList.add('active');
                 if (btnListView) btnListView.classList.remove('active');
@@ -2644,7 +2960,7 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
 
         document.addEventListener("DOMContentLoaded", function() {
             // [FIX] Restore View Preference on Load
-            const preferredView = localStorage.getItem('hr_preferred_view') || 'cards';
+            const preferredView = localStorage.getItem('hr_preferred_view') || 'list';
             switchView(preferredView);
 
             const toggleBtn = document.getElementById('refreshToggle');
@@ -2763,6 +3079,235 @@ $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
         }
     </script>
 
+    <!-- [NEW] Chart.js for Analytics -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        document.addEventListener("DOMContentLoaded", function() {
+            // 1. Headcount by Department (Doughnut)
+            const deptData = <?php echo json_encode($deptHeadcount); ?>;
+            const deptLabels = deptData.map(d => d.dept);
+            const deptCounts = deptData.map(d => parseInt(d.count));
+
+            new Chart(document.getElementById('headcountChart'), {
+                type: 'doughnut',
+                data: {
+                    labels: deptLabels,
+                    datasets: [{
+                        data: deptCounts,
+                        backgroundColor: ['#0d6efd', '#6610f2', '#6f42c1', '#d63384', '#dc3545', '#fd7e14', '#ffc107', '#198754']
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    }
+                }
+            });
+
+            // 2. Compliance Rate (Doughnut)
+            const complete = <?php echo $completeCount; ?>;
+            const incomplete = <?php echo $incompleteCount; ?>;
+            new Chart(document.getElementById('complianceChart'), {
+                type: 'doughnut',
+                data: {
+                    labels: ['Complete 201', 'Missing Requirements'],
+                    datasets: [{
+                        data: [complete, incomplete],
+                        backgroundColor: ['#198754', '#dc3545']
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom'
+                        }
+                    }
+                }
+            });
+
+            // 3. New Hires vs Attrition (Bar)
+            new Chart(document.getElementById('attritionChart'), {
+                type: 'bar',
+                data: {
+                    labels: <?php echo json_encode($monthsLabel); ?>,
+                    datasets: [{
+                            label: 'New Hires',
+                            data: <?php echo json_encode($hiresData); ?>,
+                            backgroundColor: '#0d6efd'
+                        },
+                        {
+                            label: 'Attrition',
+                            data: <?php echo json_encode($attritionData); ?>,
+                            backgroundColor: '#dc3545'
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+
+            // Document analytics restored from the dashboard API.
+            let documentAnalyticsChart = null;
+            const documentAnalyticsSelect = document.getElementById('documentAnalyticsGroup');
+            const documentAnalyticsCanvas = document.getElementById('documentAnalyticsChart');
+            const documentAnalyticsLoading = document.getElementById('documentAnalyticsLoading');
+            const documentAnalyticsSummary = document.getElementById('documentAnalyticsSummary');
+
+            async function loadDocumentAnalytics() {
+                if (!documentAnalyticsSelect || !documentAnalyticsCanvas) return;
+                documentAnalyticsLoading?.classList.remove('d-none');
+                try {
+                    const response = await fetch('api_document_analytics.php?group=' + encodeURIComponent(documentAnalyticsSelect.value), {
+                        headers: {
+                            'Accept': 'application/json'
+                        }
+                    });
+                    if (!response.ok) throw new Error('Analytics request failed');
+                    const result = await response.json();
+                    if (result.error) throw new Error(result.error);
+
+                    const group = documentAnalyticsSelect.value;
+                    const chartType = group === 'month' ? 'line' : (group === 'type' || group === 'status' ? 'doughnut' : 'bar');
+                    const colors = ['#0d6efd', '#198754', '#ffc107', '#dc3545', '#0dcaf0', '#fd7e14', '#6f42c1'];
+                    if (documentAnalyticsChart) documentAnalyticsChart.destroy();
+                    documentAnalyticsChart = new Chart(documentAnalyticsCanvas, {
+                        type: chartType,
+                        data: {
+                            labels: result.labels || [],
+                            datasets: [{
+                                label: 'Documents',
+                                data: result.data || [],
+                                borderColor: '#0d6efd',
+                                backgroundColor: chartType === 'line' ? 'rgba(13, 110, 253, 0.18)' : colors,
+                                borderWidth: 2,
+                                fill: chartType === 'line',
+                                tension: 0.3
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: {
+                                    display: chartType === 'doughnut',
+                                    position: 'bottom'
+                                }
+                            },
+                            scales: chartType === 'bar' || chartType === 'line' ? {
+                                y: {
+                                    beginAtZero: true,
+                                    ticks: {
+                                        precision: 0
+                                    }
+                                }
+                            } : {}
+                        }
+                    });
+                    const total = (result.data || []).reduce((sum, value) => sum + Number(value || 0), 0);
+                    if (documentAnalyticsSummary) documentAnalyticsSummary.textContent = `${total.toLocaleString()} total records`;
+                } catch (error) {
+                    if (documentAnalyticsSummary) documentAnalyticsSummary.textContent = 'Unavailable';
+                    console.error('Document analytics error:', error);
+                } finally {
+                    documentAnalyticsLoading?.classList.add('d-none');
+                }
+            }
+
+            documentAnalyticsSelect?.addEventListener('change', loadDocumentAnalytics);
+            loadDocumentAnalytics();
+
+            // ==========================================
+            // [NEW] AJAX Infinite Scroll Implementation
+            // ==========================================
+            const paginationContainer = document.getElementById('pagination-container');
+            const directoryResults = document.getElementById('directory-results');
+
+            if (paginationContainer && directoryResults) {
+                // Hide standard pagination as we are using Infinite Scroll
+                paginationContainer.style.display = 'none';
+
+                let currentPage = <?php echo (int)$page; ?>;
+                const totalPages = <?php echo (int)$totalPages; ?>;
+                let isFetching = false;
+
+                // Add a loading spinner at the bottom
+                const loadingIndicator = document.createElement('div');
+                loadingIndicator.className = 'text-center my-4 w-100 d-none';
+                loadingIndicator.innerHTML = '<div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading...</span></div><p class="text-muted mt-2 small">Loading more employees...</p>';
+                directoryResults.parentElement.appendChild(loadingIndicator);
+
+                const observer = new IntersectionObserver((entries) => {
+                    if (entries[0].isIntersecting && !isFetching && currentPage < totalPages) {
+                        loadNextPage();
+                    }
+                }, {
+                    rootMargin: '200px'
+                });
+
+                // Observe the loading indicator or the end of the list
+                observer.observe(loadingIndicator);
+                // Also trigger if there are very few results initially and space is available
+                if (currentPage < totalPages) {
+                    loadingIndicator.classList.remove('d-none');
+                }
+
+                async function loadNextPage() {
+                    isFetching = true;
+                    currentPage++;
+                    loadingIndicator.classList.remove('d-none');
+
+                    try {
+                        const currentUrl = new URL(window.location.href);
+                        currentUrl.searchParams.set('page', currentPage);
+
+                        const response = await fetch(currentUrl);
+                        const htmlText = await response.text();
+
+                        // Parse the fetched HTML
+                        const parser = new DOMParser();
+                        const doc = parser.parseFromString(htmlText, 'text/html');
+
+                        // Extract the cards
+                        const newCards = doc.querySelectorAll('#directory-results > div[class*="col-"]');
+                        newCards.forEach(card => {
+                            directoryResults.appendChild(card.cloneNode(true));
+                        });
+
+                        // Extract and append modals so view buttons work
+                        const newModals = doc.querySelectorAll('.modal');
+                        newModals.forEach(modal => {
+                            // Only append if it doesn't already exist
+                            if (!document.getElementById(modal.id)) {
+                                document.body.appendChild(modal.cloneNode(true));
+                            }
+                        });
+
+                        if (currentPage >= totalPages) {
+                            loadingIndicator.classList.add('d-none');
+                            observer.disconnect();
+                        }
+                    } catch (err) {
+                        console.error('Infinite Scroll Error:', err);
+                    } finally {
+                        isFetching = false;
+                    }
+                }
+            }
+        });
+    </script>
 
     </body>
 

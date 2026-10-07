@@ -12,6 +12,7 @@ require '../src/Security.php';
 require '../src/Logger.php';
 require '../src/helpers.php';
 require_once '../src/helpers.php'; // [FIX] Include global helpers for h() and other functions
+require_once __DIR__ . '/options.php';
 session_start();
 
 // [FIX] PRG Pattern for Validation: Load errors and old data from session
@@ -483,12 +484,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     $errors = [];
+    if (!in_array($status, $employee_statuses, true)) {
+        $errors[] = 'Please select a valid employee status.';
+    }
 
     // [SECURITY] 1. Enforce Character Limits (Server-Side)
     $max = [
         'new_emp_id'        => 20,
         'job_title'         => 50,
-        'system_role'       => 50,
+        'system_role'       => 100,
         'company_name'      => 50,
         'previous_company'  => 100,
         'first_name'        => 50,
@@ -1021,11 +1025,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             <div class="col-md-3">
                                 <label class="form-label fw-bold"><?= lang('current_status') ?></label>
                                 <select name="status" id="statusSelect" class="form-select border-primary fw-bold" onchange="toggleExitFields()">
-                                    <option value="Active" <?php if ($emp['status'] == 'Active') echo 'selected'; ?>><?= lang('active') ?></option>
-                                    <option value="Resigned" <?php if ($emp['status'] == 'Resigned') echo 'selected'; ?>><?= lang('resigned') ?></option>
-                                    <option value="Terminated" <?php if ($emp['status'] == 'Terminated') echo 'selected'; ?>><?= lang('terminated') ?></option>
-                                    <option value="AWOL" <?php if ($emp['status'] == 'AWOL') echo 'selected'; ?>><?= lang('awol') ?></option>
-                                    <option value="Retired" <?php if ($emp['status'] == 'Retired') echo 'selected'; ?>><?= lang('retired') ?></option>
+                                    <?php foreach ($employee_statuses as $statusOption): ?>
+                                        <option value="<?= htmlspecialchars($statusOption) ?>" <?= $emp['status'] === $statusOption ? 'selected' : '' ?>><?= htmlspecialchars($statusOption) ?></option>
+                                    <?php endforeach; ?>
                                 </select>
                             </div>
 

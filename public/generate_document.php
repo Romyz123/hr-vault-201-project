@@ -392,7 +392,7 @@ foreach ($all_employees as $emp) {
         $employmentEnd = !empty($manual_end_date_value) ? date('F j, Y', strtotime($manual_end_date_value)) : 'Present';
     } else {
         $currentStatus = strtolower(trim($emp['status'] ?? ''));
-        if (in_array($currentStatus, ['resigned', 'inactive', 'terminated'])) {
+        if ($currentStatus !== '' && $currentStatus !== 'active') {
             $employmentEnd = !empty($end_input) ? date('F j, Y', strtotime($end_input)) : 'Present';
         } else {
             $employmentEnd = 'Present';

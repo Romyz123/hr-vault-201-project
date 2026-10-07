@@ -69,6 +69,17 @@ if (empty($system_roles)) {
     ];
 }
 
+// Employee employment statuses. Active remains a protected system value.
+$defaultEmployeeStatuses = ['Active', 'Resigned', 'Terminated', 'AWOL', 'Retired'];
+$employee_statuses = $sysOpts['employee_statuses'] ?? $defaultEmployeeStatuses;
+if (!is_array($employee_statuses)) $employee_statuses = $defaultEmployeeStatuses;
+$employee_statuses = array_values(array_unique(array_filter(array_map(static function ($status) {
+    return is_string($status) ? trim($status) : '';
+}, $employee_statuses), static function ($status) {
+    return $status !== '';
+})));
+if (!in_array('Active', $employee_statuses, true)) array_unshift($employee_statuses, 'Active');
+
 // Departments & Sections Map
 $deptMap = [];
 $groups = [];

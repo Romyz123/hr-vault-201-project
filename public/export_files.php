@@ -11,7 +11,12 @@ require '../config/db.php';
 require '../src/Security.php';
 require '../src/FileService.php';
 require '../src/Validator.php';
-require 'options.php';
+require_once __DIR__ . '/options.php';
+
+// options.php loads the configured list; keep a safe fallback if that load fails.
+if (!isset($employee_statuses) || !is_array($employee_statuses)) {
+    $employee_statuses = ['Active', 'Resigned', 'Terminated', 'AWOL', 'Retired'];
+}
 session_start();
 
 // [DOWNLOAD HANDLER] Stream split export parts (GET) without requiring CSRF
@@ -86,6 +91,11 @@ $zipPassword = trim($_POST['zip_password'] ?? '');
 // 4. VALIDATION
 if (strlen($dept) > 50 || strlen($section) > 100 || strlen($agency) > 50 || strlen($status) > 20 || strlen($category) > 100 || strlen($search) > 100 || strlen($zipPassword) > 50) {
     $_SESSION['error'] = "Export Failed: One or more input parameters exceed maximum length limits.";
+    header("Location: index.php");
+    exit;
+}
+if ($status !== '' && !in_array($status, $employee_statuses, true)) {
+    $_SESSION['error'] = "Export Failed: Invalid employee status selected.";
     header("Location: index.php");
     exit;
 }

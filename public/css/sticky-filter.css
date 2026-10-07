@@ -1,0 +1,25 @@
+/* sticky-filter.css – makes the filter card stick to the top while scrolling */
+.sticky-filter-bar {
+    position: -webkit-sticky;
+    position: sticky;          /* Keep it visible on scroll */
+    top: 10px;                 /* Distance from top of viewport */
+    z-index: 1020;             /* Above table rows and lower content */
+    background-color: var(--bs-body-bg, #fff); /* Prevent content bleed-through in light & dark modes */
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08); /* Distinct shadow when sticky */
+    transition: top 0.2s ease, box-shadow 0.2s ease;
+}
+
+/* In dark mode, ensure background matches dark theme surface */
+[data-bs-theme="dark"] .sticky-filter-bar {
+    background-color: #2b3035 !important;
+    border-color: #495057 !important;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+}
+
+/* Disable sticky positioning on very small screens to preserve screen estate */
+@media (max-width: 576px) {
+    .sticky-filter-bar {
+        position: static !important;
+        box-shadow: none;
+    }
+}

@@ -94,7 +94,7 @@ try {
 $activeSQL = " WHERE status = 'Active' ";
 if ($hasEmpDeletedAt && !$includeDeleted) $activeSQL .= " AND deleted_at IS NULL ";
 
-$inactiveSQL = " WHERE status IN ('Resigned', 'Terminated', 'AWOL', 'Retired')
+$inactiveSQL = " WHERE status IS NOT NULL AND status != 'Active'
                  AND (
                      (exit_date BETWEEN ? AND ?) 
                      OR ((exit_date IS NULL OR exit_date = '0000-00-00') AND DATE(updated_at) BETWEEN ? AND ?)

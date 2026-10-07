@@ -186,6 +186,7 @@ $displayTitle = $pageTitles[$currentPage] ?? 'TESP HR 201 System';
     <link rel="apple-touch-icon" href="<?= $faviconUrl ?>">
     <link href="assets/bootstrap.min.css" rel="stylesheet">
     <link href="assets/icons/bootstrap-icons.css" rel="stylesheet">
+    <link href="css/sticky-filter.css" rel="stylesheet">
     <script src="assets/chart.min.js"></script>
     <script src="assets/sweetalert2.all.min.js"></script>
     <script src="assets/dark_mode.js"></script>

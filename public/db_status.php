@@ -53,7 +53,7 @@ $columnSchema = [
         'reset_expires' => "DATETIME NULL DEFAULT NULL"
     ],
     'employees' => [
-        'system_role' => "VARCHAR(50) DEFAULT 'Staff'",
+        'system_role' => "VARCHAR(100) DEFAULT 'Staff'",
         'last_reminded' => "DATETIME NULL",
         'exit_date' => "DATE NULL",
         'exit_reason' => "VARCHAR(255) NULL",
@@ -285,6 +285,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['auto_fix'])) {
                 if ($stmt->rowCount() == 0) {
                     $pdo->exec("ALTER TABLE `$table` ADD COLUMN `$col` $def");
                     $updates++;
+                } elseif ($table === 'employees' && $col === 'system_role') {
+                    $column = $stmt->fetch(PDO::FETCH_ASSOC);
+                    if ($column && preg_match('/^varchar\((\d+)\)$/i', $column['Type'], $typeMatch) && (int)$typeMatch[1] < 100) {
+                        $pdo->exec("ALTER TABLE `employees` MODIFY COLUMN `system_role` VARCHAR(100) DEFAULT 'Staff'");
+                        $updates++;
+                    }
                 }
             } catch (Exception $e) {
                 // Ignore if table doesn't exist (handled by step 1)

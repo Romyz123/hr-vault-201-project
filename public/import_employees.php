@@ -156,8 +156,8 @@ $deptMap = [
     // 4. Security / Gunjin
     "GUNJIN"  => ["EMT", "SECURITY", "GUNJIN"],
 
-    // 5. Admin (Low Priority)
-    "ADMIN"   => [
+    // 5. Administration Department (Low Priority)
+    "ADMINISTRATION DEPARTMENT"   => [
         "ADMIN",
         "GAG",
         "TKG",
@@ -481,6 +481,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['undo_batch'])) {
                 if (isset($headerRow[0])) { // Remove BOM if present
                     $headerRow[0] = preg_replace('/^\xEF\xBB\xBF/', '', $headerRow[0]);
                 }
+                $normalizedHeaders = array_map(static function ($header) {
+                    return strtoupper(trim(preg_replace('/[\x00-\x1F\x7F]/', '', (string)$header)));
+                }, $headerRow ?: []);
+                if (in_array('FIRST NAME', $normalizedHeaders, true) && in_array('LAST NAME', $normalizedHeaders, true) && in_array('DEPARTMENT', $normalizedHeaders, true)) {
+                    // Automatically use header mapping for the supplied employee master format,
+                    // even if Standard Format was selected accidentally.
+                    $format = 'CUSTOM';
+                }
 
                 while (($data = fgetcsv($handle, 0, $delimiter)) !== FALSE) {
                     if (empty($data) || (count($data) === 1 && ($data[0] === null || trim((string)$data[0]) === ''))) continue; // Skip empty rows safely
@@ -708,12 +716,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['undo_batch'])) {
                     // --- PROCESSING ---
                     $section = strtoupper(trim($section_raw));
 
-                    // [FIX] Favor Form Dept over Section Map if provided
-                    if (!empty($dept_raw)) { // [FIX] Use $dept_raw from CSV if available
+                    // Prefer the Department value from the custom CSV. Only infer a
+                    // department from Section when the CSV department cell is empty.
+                    if (!empty($dept_raw)) {
                         $dStr = strtoupper(trim($dept_raw));
-                        if (strpos($dStr, 'OP') !== false) $dept = 'OP';
-                        elseif (strpos($dStr, 'SUBCONS') !== false) $dept = 'SUBCONS-OTHERS';
-                        else $dept = array_key_exists($dStr, $deptMap) ? $dStr : (findDept($section, $deptMap) ?: $dStr);
+                        if (array_key_exists($dStr, $deptMap)) {
+                            $dept = $dStr;
+                        } elseif (strpos($dStr, 'OFFICE OF THE PRESIDENT') !== false || $dStr === 'OP') {
+                            $dept = 'OP';
+                        } elseif (strpos($dStr, 'SUBCONS') !== false) {
+                            $dept = 'SUBCONS-OTHERS';
+                        } else {
+                            // Preserve a valid user-supplied department instead of
+                            // replacing it with the generic SUBCONS fallback.
+                            $dept = ucwords(strtolower(trim($dept_raw)));
+                        }
                     } else {
                         $dept = findDept($section, $deptMap);
                     }
