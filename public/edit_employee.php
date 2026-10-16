@@ -2084,6 +2084,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             text: '🔒 Confidentiality Agreement (NDA)'
         },
         {
+            val: 'onboarding_combo',
+            text: '⭐ Complete Onboarding Combo (NDA + Consent + Whistleblower)'
+        },
+        {
             val: 'coe',
             text: '📜 Certificate of Employment (COE)'
         },

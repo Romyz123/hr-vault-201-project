@@ -73,6 +73,9 @@ try {
     error_log("Failed to load system_settings: " . $e->getMessage());
 }
 $docFontSize = $settings['document_font_size'] ?? '11';
+// [ADD THESE LINES] Define margins to prevent undefined warnings
+$marginL = $settings['bulk_margin_left'] ?? '30';
+$marginR = $settings['bulk_margin_right'] ?? '20';
 
 // Validate font size to prevent CSS injection
 if (!is_numeric($docFontSize)) {
@@ -169,6 +172,7 @@ $templateMap = [
     'employee_pledge' => __DIR__ . '/templates/employee_pledge.php',
     'whistleblowing' => __DIR__ . '/templates/whistleblowing.php',
     'data_consent' => __DIR__ . '/templates/data_consent.php',
+    'onboarding_combo' => __DIR__ . '/templates/onboarding_combo.php',
 ];
 $templateFile = $templateMap[$type] ?? '';
 
@@ -182,7 +186,8 @@ $docTitles = [
     'notice_of_decision' => 'Notice of Decision',
     'employee_pledge'   => 'Employee Safety Pledge',
     'whistleblowing'    => 'Whistle Blowing Consent Form',
-    'coe'               => 'Certificate of Employment'
+    'coe'               => 'Certificate of Employment',
+    'onboarding_combo'  => 'Complete Onboarding Packet'
 ];
 $friendlyTitle = $docTitles[$type] ?? 'Document';
 
@@ -206,6 +211,7 @@ if ($isWordFormat) {
             <link rel="icon" href="<?php echo $global_logo_src; ?>" type="<?php echo htmlspecialchars($mime); ?>">
         <?php endif; ?>
         <style>
+            <?php if ($type !== 'onboarding_combo'): ?>
             body {
                 font-family: "Times New Roman", Times, serif;
                 font-size: 12pt;
@@ -213,6 +219,18 @@ if ($isWordFormat) {
                 color: #000;
                 background: #eee;
             }
+            <?php else: ?>
+            body {
+                margin: 0;
+                padding: 0;
+                background: #525659;
+                color: #000;
+            }
+            .combo-wrapper {
+                width: 100%;
+                margin: 0 auto;
+            }
+            <?php endif; ?>
 
             .page {
                 background: white;
@@ -260,13 +278,19 @@ if ($isWordFormat) {
 
             @media print {
                 body {
-                    background: white;
+                    background: white !important;
+                    margin: 0 !important;
+                    padding: 0 !important;
                 }
 
-                .page {
-                    box-shadow: none;
-                    margin: 0;
-                    width: 100%;
+                .page,
+                .document-container {
+                    box-shadow: none !important;
+                    margin: 0 !important;
+                    padding: 0 !important;
+                    width: 100% !important;
+                    max-width: none !important;
+                    border: none !important;
                 }
 
                 .no-print {
@@ -274,16 +298,28 @@ if ($isWordFormat) {
                 }
 
                 @page {
-                    margin: 0.5in;
+                    size: A4 portrait;
+                    margin: <?php echo ($type === 'onboarding_combo') ? '0' : '0.5in'; ?>;
                 }
-            }
 
-            /* Dynamic Font Size Override */
-            .page p,
-            .page li,
-            .page .justify,
-            .page td {
-                font-size: <?php echo htmlspecialchars($docFontSize); ?>pt !important;
+                <?php if ($type !== 'onboarding_combo'): ?>
+                /* Ensure uniform typography and text alignment for legacy contract templates */
+                p,
+                .justify,
+                li {
+                    margin-bottom: 3px !important;
+                    line-height: 2.00 !important;
+                    text-align: justify !important;
+                    text-justify: inter-word !important;
+                    font-size: <?php echo htmlspecialchars($docFontSize); ?>pt !important;
+                    margin-left: <?php echo htmlspecialchars($marginL); ?>px !important;
+                    margin-right: <?php echo htmlspecialchars($marginR); ?>px !important;
+                }
+
+                td {
+                    font-size: <?php echo htmlspecialchars($docFontSize); ?>pt !important;
+                }
+                <?php endif; ?>
             }
         </style>
     </head>
@@ -377,6 +413,7 @@ foreach ($all_employees as $emp) {
 
     // Re-initialize per-employee variables for current employee
     $full_name = strtoupper($emp['first_name'] . ' ' . (empty($emp['middle_name']) ? '' : $emp['middle_name'][0] . '.') . ' ' . $emp['last_name']);
+    $emp_name_formal = $full_name;
     $position  = strtoupper($emp['job_title']);
     $address   = strtoupper($emp['present_address']);
     $section   = strtoupper($emp['section']);
@@ -432,6 +469,15 @@ foreach ($all_employees as $emp) {
     // Record document generation for each employee
     $logger->log($_SESSION['user_id'], 'GENERATE_DOC', "Generated $type for {$emp['first_name']} {$emp['last_name']} ({$emp['emp_id']})");
     ?>
+        <?php if ($type === 'onboarding_combo'): ?>
+            <?php
+            if ($templateFile && file_exists($templateFile)) {
+                include $templateFile;
+            } else {
+                echo "Template Error";
+            }
+            ?>
+        <?php else: ?>
         <div class="document-container">
             <?php
             if ($templateFile && file_exists($templateFile)) {
@@ -441,6 +487,7 @@ foreach ($all_employees as $emp) {
             }
             ?>
         </div>
+        <?php endif; ?>
     <?php
     $renderedContent = ob_get_clean();
 
@@ -486,7 +533,11 @@ foreach ($all_employees as $emp) {
         echo $renderedContent;
         echo '<br style="page-break-before: always; clear: both;">';
     } else {
-        echo '<div class="page">' . $renderedContent . '</div>';
+        if ($type === 'onboarding_combo') {
+            echo '<div class="combo-wrapper">' . $renderedContent . '</div>';
+        } else {
+            echo '<div class="page">' . $renderedContent . '</div>';
+        }
     }
 }
 

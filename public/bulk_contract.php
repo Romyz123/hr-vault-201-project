@@ -111,7 +111,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_POST['generate_bulk']) || 
         'notice_to_explain' => 'templates/notice_to_explain.php',
         'notice_of_decision' => 'templates/notice_of_decision.php',
         'employee_pledge' => 'templates/employee_pledge.php',
-        'whistleblowing' => 'templates/whistleblowing.php'
+        'whistleblowing' => 'templates/whistleblowing.php',
+        'onboarding_combo' => 'templates/onboarding_combo.php'
     ];
 
     // [NEW] Friendly Document Titles for Auto-Save Naming
@@ -124,7 +125,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_POST['generate_bulk']) || 
         'notice_of_decision' => 'Notice of Decision',
         'coe'               => 'Certificate of Employment',
         'employee_pledge'   => 'Employee Safety Pledge',
-        'whistleblowing'    => 'Whistle Blowing Consent Form'
+        'whistleblowing'    => 'Whistle Blowing Consent Form',
+        'onboarding_combo'  => 'Complete Onboarding Packet'
     ];
     $friendlyTitle = $docTitles[$type] ?? 'Document';
 
@@ -523,6 +525,7 @@ $allDepts = $pdo->query("SELECT DISTINCT dept FROM employees WHERE dept != '' OR
                                 <option value="coe">Certificate of Employment (COE)</option>
                                 <option value="data_consent">Data Privacy Consent Form</option>
                                 <option value="confidentiality">Confidentiality (NDA)</option>
+                                <option value="onboarding_combo">⭐ Complete Onboarding Combo (NDA + Consent + Whistleblower)</option>
                                 <option value="notice_to_explain">Notice to Explain (NTE)</option>
                                 <option value="notice_of_decision">Notice of Decision (NOD)</option>
                                 <option value="employee_pledge">Employee Safety Pledge</option>

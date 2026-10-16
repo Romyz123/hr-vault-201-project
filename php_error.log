@@ -11404,3 +11404,42 @@ Stack trace:
 [05-Oct-2026 19:05:00 Asia/Manila] PHP Notice:  session_start(): Ignoring session_start() because a session is already active in C:\xampp\htdocs\hr 201\public\import_employees.php on line 50
 [06-Oct-2026 15:42:10 Asia/Manila] PHP Notice:  session_start(): Ignoring session_start() because a session is already active in C:\xampp\htdocs\hr 201\public\import_employees.php on line 50
 [06-Oct-2026 16:16:27 Asia/Manila] PHP Notice:  session_start(): Ignoring session_start() because a session is already active in C:\xampp\htdocs\hr 201\public\import_employees.php on line 50
+[07-Oct-2026 10:54:12 Asia/Manila] PHP Fatal error:  Uncaught PDOException: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'name' in 'field list' in C:\xampp\htdocs\hr 201\public\packet_builder.php:7
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\packet_builder.php(7): PDO->query('SELECT id, name...')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\packet_builder.php on line 7
+[07-Oct-2026 10:54:13 Asia/Manila] PHP Fatal error:  Uncaught PDOException: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'name' in 'field list' in C:\xampp\htdocs\hr 201\public\packet_builder.php:7
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\packet_builder.php(7): PDO->query('SELECT id, name...')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\packet_builder.php on line 7
+[07-Oct-2026 10:54:15 Asia/Manila] PHP Fatal error:  Uncaught PDOException: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'name' in 'field list' in C:\xampp\htdocs\hr 201\public\packet_builder.php:7
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\packet_builder.php(7): PDO->query('SELECT id, name...')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\packet_builder.php on line 7
+[07-Oct-2026 10:55:19 Asia/Manila] PHP Fatal error:  Uncaught PDOException: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'name' in 'field list' in C:\xampp\htdocs\hr 201\public\packet_builder.php:11
+Stack trace:
+#0 C:\xampp\htdocs\hr 201\public\packet_builder.php(11): PDO->query('SELECT id, name...')
+#1 {main}
+  thrown in C:\xampp\htdocs\hr 201\public\packet_builder.php on line 11
+[07-Oct-2026 10:58:39 Asia/Manila] PHP Warning:  Undefined array key "name" in C:\xampp\htdocs\hr 201\public\compile_packet.php on line 78
+[07-Oct-2026 10:58:39 Asia/Manila] PHP Warning:  Undefined array key "name" in C:\xampp\htdocs\hr 201\public\compile_packet.php on line 78
+[07-Oct-2026 10:58:50 Asia/Manila] PHP Warning:  Undefined array key "name" in C:\xampp\htdocs\hr 201\public\compile_packet.php on line 78
+[07-Oct-2026 11:00:41 Asia/Manila] PHP Warning:  Undefined array key "name" in C:\xampp\htdocs\hr 201\public\compile_packet.php on line 78
+[07-Oct-2026 11:00:41 Asia/Manila] PHP Warning:  Undefined array key "name" in C:\xampp\htdocs\hr 201\public\compile_packet.php on line 78
+[07-Oct-2026 11:00:45 Asia/Manila] PHP Warning:  Undefined array key "name" in C:\xampp\htdocs\hr 201\public\compile_packet.php on line 78
+[16-Oct-2026 14:45:16 Asia/Manila] PHP Notice:  session_start(): Ignoring session_start() because a session is already active in C:\xampp\htdocs\hr 201\public\import_employees.php on line 50
+[16-Oct-2026 14:46:20 Asia/Manila] PHP Notice:  session_start(): Ignoring session_start() because a session is already active in C:\xampp\htdocs\hr 201\public\import_employees.php on line 50
+[16-Oct-2026 14:46:21 Asia/Manila] PHP Notice:  session_start(): Ignoring session_start() because a session is already active in C:\xampp\htdocs\hr 201\public\import_employees.php on line 50
+[16-Oct-2026 14:46:33 Asia/Manila] PHP Notice:  session_start(): Ignoring session_start() because a session is already active in C:\xampp\htdocs\hr 201\public\import_employees.php on line 50
+[16-Oct-2026 14:46:51 Asia/Manila] PHP Notice:  session_start(): Ignoring session_start() because a session is already active in C:\xampp\htdocs\hr 201\public\import_employees.php on line 50
+[16-Oct-2026 14:46:52 Asia/Manila] PHP Notice:  session_start(): Ignoring session_start() because a session is already active in C:\xampp\htdocs\hr 201\public\import_employees.php on line 50
+[16-Oct-2026 14:48:07 Asia/Manila] PHP Notice:  session_start(): Ignoring session_start() because a session is already active in C:\xampp\htdocs\hr 201\public\import_employees.php on line 50
+[16-Oct-2026 14:48:23 Asia/Manila] PHP Notice:  session_start(): Ignoring session_start() because a session is already active in C:\xampp\htdocs\hr 201\public\import_employees.php on line 50
+[16-Oct-2026 14:48:23 Asia/Manila] PHP Notice:  session_start(): Ignoring session_start() because a session is already active in C:\xampp\htdocs\hr 201\public\import_employees.php on line 50
+[16-Oct-2026 14:49:18 Asia/Manila] PHP Notice:  session_start(): Ignoring session_start() because a session is already active in C:\xampp\htdocs\hr 201\public\import_employees.php on line 50
+[16-Oct-2026 14:49:39 Asia/Manila] PHP Notice:  session_start(): Ignoring session_start() because a session is already active in C:\xampp\htdocs\hr 201\public\import_employees.php on line 50
+[16-Oct-2026 14:49:40 Asia/Manila] PHP Notice:  session_start(): Ignoring session_start() because a session is already active in C:\xampp\htdocs\hr 201\public\import_employees.php on line 50
+[16-Oct-2026 14:49:47 Asia/Manila] PHP Notice:  session_start(): Ignoring session_start() because a session is already active in C:\xampp\htdocs\hr 201\public\import_employees.php on line 50
