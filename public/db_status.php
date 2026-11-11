@@ -236,6 +236,32 @@ $tableSchema = [
     'system_roles' => "CREATE TABLE IF NOT EXISTS `system_roles` (
         `id` INT AUTO_INCREMENT PRIMARY KEY,
         `name` VARCHAR(100) NOT NULL UNIQUE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;",
+
+    'college_courses' => "CREATE TABLE IF NOT EXISTS `college_courses` (
+        `id` INT AUTO_INCREMENT PRIMARY KEY,
+        `course_name` VARCHAR(255) NOT NULL,
+        `keywords` TEXT NULL,
+        `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;",
+
+    'college_degrees_catalog' => "CREATE TABLE IF NOT EXISTS `college_degrees_catalog` (
+        `id` INT AUTO_INCREMENT PRIMARY KEY,
+        `degree_name` VARCHAR(255) NOT NULL,
+        `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;",
+
+    'college_courses' => "CREATE TABLE IF NOT EXISTS `college_courses` (
+        `id` INT AUTO_INCREMENT PRIMARY KEY,
+        `course_name` VARCHAR(255) NOT NULL,
+        `keywords` TEXT NULL,
+        `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;",
+
+    'college_degrees_catalog' => "CREATE TABLE IF NOT EXISTS `college_degrees_catalog` (
+        `id` INT AUTO_INCREMENT PRIMARY KEY,
+        `degree_name` VARCHAR(255) NOT NULL,
+        `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;"
 ];
 

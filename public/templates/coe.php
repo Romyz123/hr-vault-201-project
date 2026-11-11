@@ -155,7 +155,7 @@ $issueDate = !empty($_REQUEST['notice_date']) ? date('F d, Y', strtotime($_REQUE
                         </td>
                         <td style="text-align: center; vertical-align: middle;">
                             <div style="font-weight: bold; font-size: 14pt; line-height: 1.2;">TES PHILIPPINES, INC.</div>
-                            <div style="font-size: 10pt; line-height: 1.2; font-weight: bold;">METRO RAIL TRANSIT LINE 3 REHABILITATION PROJECT</div>
+                            <div style="font-size: 10pt; line-height: 1.2; font-weight: bold;">METRO RAIL TRANSIT LINE 3 MAINTENANCE & REHABILITATION PROJECT</div>
                             <div style="font-size: 9.5pt; line-height: 1.2;">Meriton One Building, 1668 Quezon Avenue, Quezon City</div>
                             <div style="font-size: 9.5pt; line-height: 1.2;">Telephone Number: 8929-5347 local 4404</div>
                         </td>

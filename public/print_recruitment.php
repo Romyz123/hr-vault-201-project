@@ -2,6 +2,7 @@
 // public/print_recruitment.php
 require '../config/db.php';
 session_start();
+if (isset($_SESSION['user_id'])) checkSessionTimeout($pdo);
 
 if (!isset($_SESSION['user_id'])) die("Access Denied");
 

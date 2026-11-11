@@ -1,7 +1,9 @@
 <?php
 // public/missing_fields_report.php
 require '../config/db.php';
+require_once __DIR__ . '/../src/helpers.php';
 session_start();
+if (isset($_SESSION['user_id'])) checkSessionTimeout($pdo);
 
 // 1. SECURITY: Admin & HR Only
 if (!isset($_SESSION['user_id']) || !in_array($_SESSION['role'] ?? '', ['ADMIN', 'MANAGER', 'HR'], true)) {
@@ -22,11 +24,21 @@ $allowedMissingFilters = [
     'present_address' => 'Present Address',
     'emergency_name' => 'Emergency Contact Name',
     'emergency_contact' => 'Emergency Contact Number',
-    'avatar_path' => 'Profile Picture'
+    'avatar_path' => 'Profile Picture',
+    'section' => 'Section',
+    'group_name' => 'Group',
+    'section_or_group' => 'Section or Group'
 ];
 if (!array_key_exists($missingFilter, $allowedMissingFilters)) $missingFilter = '';
 
-$sql = "SELECT * FROM employees WHERE status = 'Active' AND deleted_at IS NULL";
+$reportEmployeeCondition = "(
+    LOWER(TRIM(COALESCE(status, ''))) IN ('active', 'resigned')
+    OR (
+        LOWER(TRIM(COALESCE(status, ''))) IN ('', 'inactive', 'unspecified')
+        AND LOWER(COALESCE(exit_reason, '')) REGEXP 'resign|resigned'
+    )
+)";
+$sql = "SELECT * FROM employees WHERE $reportEmployeeCondition AND deleted_at IS NULL";
 $params = [];
 if ($deptFilter !== '') {
     $sql .= " AND dept = ?";
@@ -67,6 +79,17 @@ function isMissingReportValue(?string $value, string $field): bool
 
 $incompleteProfiles = [];
 
+function formatMissingReportDate(?string $date): string
+{
+    $date = trim((string)$date);
+    if ($date === '' || $date === '0000-00-00') {
+        return '—';
+    }
+
+    $timestamp = strtotime($date);
+    return $timestamp === false ? $date : date('M d, Y', $timestamp);
+}
+
 foreach ($employees as $emp) {
     $missing = [];
     foreach ($requiredFields as $field => $label) {
@@ -82,10 +105,22 @@ foreach ($employees as $emp) {
         $missing[] = 'Profile Picture';
     }
 
+    if (trim((string)($emp['section'] ?? '')) === '') {
+        $missing[] = 'Section';
+    }
+    if (
+        trim((string)($emp['group_name'] ?? '')) === '' &&
+        trim((string)($emp['group'] ?? '')) === ''
+    ) {
+        $missing[] = 'Group';
+    }
+
     if (!empty($missing)) {
         if ($missingFilter !== '') {
             $hasSelectedMissingField = false;
-            if ($missingFilter === 'avatar_path') {
+            if ($missingFilter === 'section_or_group') {
+                $hasSelectedMissingField = in_array('Section', $missing, true) || in_array('Group', $missing, true);
+            } elseif ($missingFilter === 'avatar_path') {
                 $hasSelectedMissingField = in_array('Profile Picture', $missing, true);
             } else {
                 $hasSelectedMissingField = in_array($allowedMissingFilters[$missingFilter], $missing, true);
@@ -97,9 +132,9 @@ foreach ($employees as $emp) {
     }
 }
 
-$departments = $pdo->query("SELECT DISTINCT dept FROM employees WHERE status = 'Active' AND deleted_at IS NULL AND dept IS NOT NULL AND dept != '' ORDER BY dept ASC")->fetchAll(PDO::FETCH_COLUMN);
-$sections = $pdo->query("SELECT DISTINCT section FROM employees WHERE status = 'Active' AND deleted_at IS NULL AND section IS NOT NULL AND section != '' ORDER BY section ASC")->fetchAll(PDO::FETCH_COLUMN);
-$agencies = $pdo->query("SELECT DISTINCT value FROM (SELECT agency_name AS value FROM employees WHERE status = 'Active' AND deleted_at IS NULL AND agency_name IS NOT NULL AND agency_name != '' UNION SELECT employment_type AS value FROM employees WHERE status = 'Active' AND deleted_at IS NULL AND employment_type IS NOT NULL AND employment_type != '') AS report_agencies ORDER BY value ASC")->fetchAll(PDO::FETCH_COLUMN);
+$departments = $pdo->query("SELECT DISTINCT dept FROM employees WHERE $reportEmployeeCondition AND deleted_at IS NULL AND dept IS NOT NULL AND dept != '' ORDER BY dept ASC")->fetchAll(PDO::FETCH_COLUMN);
+$sections = $pdo->query("SELECT DISTINCT section FROM employees WHERE $reportEmployeeCondition AND deleted_at IS NULL AND section IS NOT NULL AND section != '' ORDER BY section ASC")->fetchAll(PDO::FETCH_COLUMN);
+$agencies = $pdo->query("SELECT DISTINCT value FROM (SELECT agency_name AS value FROM employees WHERE $reportEmployeeCondition AND deleted_at IS NULL AND agency_name IS NOT NULL AND agency_name != '' UNION SELECT employment_type AS value FROM employees WHERE $reportEmployeeCondition AND deleted_at IS NULL AND employment_type IS NOT NULL AND employment_type != '') AS report_agencies ORDER BY value ASC")->fetchAll(PDO::FETCH_COLUMN);
 
 // 4. EXCEL / CSV EXPORT HANDLER
 if (isset($_GET['export']) && $_GET['export'] === 'excel') {
@@ -112,7 +147,7 @@ if (isset($_GET['export']) && $_GET['export'] === 'excel') {
     fprintf($output, chr(0xEF) . chr(0xBB) . chr(0xBF));
 
     // CSV Headers
-    fputcsv($output, ['Employee ID', 'Last Name', 'First Name', 'Department', 'Missing Requirements', 'Total Missing']);
+    fputcsv($output, ['Employee ID', 'Last Name', 'First Name', 'Department', 'Section', 'Group', 'Status', 'Hire Date', 'Exit Date', 'Missing Requirements', 'Total Missing']);
 
     // CSV Data Rows
     foreach ($incompleteProfiles as $emp) {
@@ -121,6 +156,11 @@ if (isset($_GET['export']) && $_GET['export'] === 'excel') {
             $emp['last_name'],
             $emp['first_name'],
             $emp['dept'],
+            $emp['section'] ?? '',
+            ($emp['group_name'] ?? '') ?: ($emp['group'] ?? ''),
+            $emp['status'],
+            formatMissingReportDate($emp['hire_date'] ?? null),
+            formatMissingReportDate($emp['exit_date'] ?? null),
             implode(' | ', $emp['missing_fields']),
             count($emp['missing_fields'])
         ]);
@@ -167,7 +207,7 @@ if (empty($logo_src)) {
            ====================================================== */
         @media print {
             @page {
-                size: A4 portrait;
+                size: A4 landscape;
                 margin: 0.6in 0.6in;
             }
 
@@ -181,6 +221,10 @@ if (empty($logo_src)) {
 
             .no-print {
                 display: none !important;
+            }
+
+            .table-responsive {
+                overflow: visible !important;
             }
 
             .card {
@@ -263,7 +307,7 @@ if (empty($logo_src)) {
                 </td>
                 <td style="text-align: left; vertical-align: middle;">
                     <div style="font-weight: bold; font-size: 13pt; line-height: 1.2;">TES PHILIPPINES, INC.</div>
-                    <div style="font-weight: bold; font-size: 10pt; line-height: 1.2; color: #444;">METRO RAIL TRANSIT LINE 3 REHABILITATION PROJECT</div>
+                    <div style="font-weight: bold; font-size: 10pt; line-height: 1.2; color: #444;">METRO RAIL TRANSIT LINE 3 MAINTENANCE & REHABILITATION PROJECT</div>
                     <div style="font-size: 9pt; color: #555;">Meriton One Building, 1668 Quezon Avenue, Quezon City | Tel: 8929-5347 loc. 4404</div>
                 </td>
                 <td style="text-align: right; vertical-align: top; font-size: 9pt; color: #555;">
@@ -292,7 +336,7 @@ if (empty($logo_src)) {
         <div class="d-flex justify-content-between align-items-center mb-4 no-print">
             <div>
                 <h4 class="mb-1 fw-bold">Audit Report: Missing Requirements</h4>
-                <p class="text-muted mb-0">Found <strong><?php echo count($incompleteProfiles); ?></strong> active employees with incomplete 201 file records.</p>
+                <p class="text-muted mb-0">Found <strong><?php echo count($incompleteProfiles); ?></strong> active or resigned employees with incomplete 201 file records.</p>
             </div>
             <div class="d-flex gap-2">
                 <a href="missing_fields_report.php?<?php echo htmlspecialchars(http_build_query(array_merge($_GET, ['export' => 'excel']))); ?>" class="btn btn-outline-success shadow-sm fw-bold">
@@ -326,11 +370,11 @@ if (empty($logo_src)) {
                         </select>
                     </div>
                     <div class="col-md-3">
-                        <label class="form-label small fw-bold">Agency / Employment Type</label>
+                        <label class="form-label small fw-bold">Employer / Employment Type</label>
                         <select name="agency" class="form-select form-select-sm">
-                            <option value="">All Agencies</option>
+                            <option value="">All Employers</option>
                             <?php foreach ($agencies as $agency): ?>
-                                <option value="<?php echo htmlspecialchars($agency); ?>" <?php echo $agencyFilter === $agency ? 'selected' : ''; ?>><?php echo htmlspecialchars($agency); ?></option>
+                                <option value="<?php echo htmlspecialchars($agency); ?>" <?php echo $agencyFilter === $agency ? 'selected' : ''; ?>><?php echo htmlspecialchars(employerDisplayLabel($agency)); ?></option>
                             <?php endforeach; ?>
                         </select>
                     </div>
@@ -353,20 +397,26 @@ if (empty($logo_src)) {
 
         <div class="card shadow-sm border-0 mb-5">
             <div class="card-body p-0">
+              <div class="table-responsive">
                 <table class="table table-hover print-table mb-0 align-middle">
                     <thead class="table-dark">
                         <tr>
-                            <th style="width: 8%;">ID</th>
-                            <th style="width: 22%;">Employee Name</th>
-                            <th style="width: 18%;">Department</th>
+                            <th>ID</th>
+                            <th>Employee Name</th>
+                            <th>Department</th>
+                            <th>Section</th>
+                            <th>Group</th>
+                            <th>Status</th>
+                            <th>Hire Date</th>
+                            <th>Exit Date</th>
                             <th>Missing Fields / Requirements</th>
-                            <th class="no-print text-center" style="width: 100px;">Action</th>
+                            <th class="no-print text-center">Action</th>
                         </tr>
                     </thead>
                     <tbody>
                         <?php if (empty($incompleteProfiles)): ?>
                             <tr>
-                                <td colspan="5" class="text-center p-5 text-muted">
+                                <td colspan="10" class="text-center p-5 text-muted">
                                     <i class="bi bi-check-circle fs-1 text-success"></i><br>
                                     <span class="fw-bold mt-2 d-block">All employee 201 profiles are complete!</span>
                                 </td>
@@ -377,6 +427,17 @@ if (empty($logo_src)) {
                                     <td class="fw-bold"><?php echo htmlspecialchars($emp['emp_id']); ?></td>
                                     <td class="fw-bold"><?php echo htmlspecialchars($emp['last_name'] . ', ' . $emp['first_name']); ?></td>
                                     <td><?php echo htmlspecialchars($emp['dept']); ?></td>
+                                    <td><?php echo htmlspecialchars(trim((string)($emp['section'] ?? '')) ?: '—', ENT_QUOTES, 'UTF-8'); ?></td>
+                                    <td><?php echo htmlspecialchars(trim((string)(($emp['group_name'] ?? '') ?: ($emp['group'] ?? ''))) ?: '—', ENT_QUOTES, 'UTF-8'); ?></td>
+                                    <td><?php
+                                        $reportStatus = trim((string)($emp['status'] ?? ''));
+                                        if ($reportStatus === '') {
+                                            $reportStatus = employeeEffectiveStatus('', $emp['exit_reason'] ?? '') ?: 'Unspecified';
+                                        }
+                                        echo htmlspecialchars($reportStatus, ENT_QUOTES, 'UTF-8');
+                                    ?></td>
+                                    <td><?php echo htmlspecialchars(formatMissingReportDate($emp['hire_date'] ?? null), ENT_QUOTES, 'UTF-8'); ?></td>
+                                    <td><?php echo htmlspecialchars(formatMissingReportDate($emp['exit_date'] ?? null), ENT_QUOTES, 'UTF-8'); ?></td>
                                     <td>
                                         <?php foreach ($emp['missing_fields'] as $field): ?>
                                             <span class="badge bg-danger mb-1 print-badge"><?php echo htmlspecialchars($field); ?></span>

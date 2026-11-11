@@ -3,6 +3,7 @@ require '../config/db.php';
 require '../src/Security.php';
 require '../src/Validator.php';
 session_start();
+if (isset($_SESSION['user_id'])) checkSessionTimeout($pdo);
 
 if (!isset($_SESSION['user_id'])) {
     header("Location: login.php");

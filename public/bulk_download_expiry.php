@@ -6,6 +6,7 @@ require '../../src/Security.php';
 require '../../src/FileService.php';
 require '../../src/Logger.php';
 session_start();
+if (isset($_SESSION['user_id'])) checkSessionTimeout($pdo);
 
 // 1. SECURITY: Admin/HR Only
 if (!isset($_SESSION['user_id']) || !in_array($_SESSION['role'], ['ADMIN', 'MANAGER', 'HR'])) {

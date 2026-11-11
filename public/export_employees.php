@@ -8,6 +8,7 @@ require '../config/db.php';
 require '../src/Logger.php';
 require '../src/Validator.php';
 session_start();
+if (isset($_SESSION['user_id'])) checkSessionTimeout($pdo);
 
 // 1. SECURITY CHECK
 if (!isset($_SESSION['user_id'])) {

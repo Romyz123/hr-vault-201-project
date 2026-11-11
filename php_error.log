@@ -11443,3 +11443,289 @@ Stack trace:
 [16-Oct-2026 14:49:39 Asia/Manila] PHP Notice:  session_start(): Ignoring session_start() because a session is already active in C:\xampp\htdocs\hr 201\public\import_employees.php on line 50
 [16-Oct-2026 14:49:40 Asia/Manila] PHP Notice:  session_start(): Ignoring session_start() because a session is already active in C:\xampp\htdocs\hr 201\public\import_employees.php on line 50
 [16-Oct-2026 14:49:47 Asia/Manila] PHP Notice:  session_start(): Ignoring session_start() because a session is already active in C:\xampp\htdocs\hr 201\public\import_employees.php on line 50
+[19-Oct-2026 17:18:04 Asia/Manila] PHP Notice:  session_start(): Ignoring session_start() because a session is already active in C:\xampp\htdocs\hr 201\public\import_employees.php on line 50
+[19-Oct-2026 19:34:17 Asia/Manila] PHP Notice:  session_start(): Ignoring session_start() because a session is already active in C:\xampp\htdocs\hr 201\public\import_employees.php on line 50
+[20-Oct-2026 08:11:40 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 858
+[20-Oct-2026 08:11:40 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 861
+[20-Oct-2026 08:11:40 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 870
+[20-Oct-2026 08:11:40 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1436
+[20-Oct-2026 08:11:40 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1436
+[20-Oct-2026 08:11:40 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1436
+[20-Oct-2026 08:11:40 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1436
+[20-Oct-2026 08:11:40 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1436
+[20-Oct-2026 08:11:40 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1436
+[20-Oct-2026 08:11:40 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1436
+[20-Oct-2026 08:11:40 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1436
+[20-Oct-2026 08:11:40 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1436
+[20-Oct-2026 08:11:40 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1436
+[20-Oct-2026 08:11:40 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1436
+[20-Oct-2026 08:11:40 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1436
+[20-Oct-2026 08:11:40 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1804
+[20-Oct-2026 08:11:40 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1845
+[20-Oct-2026 08:11:47 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 858
+[20-Oct-2026 08:11:47 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 861
+[20-Oct-2026 08:11:47 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 870
+[20-Oct-2026 08:11:47 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1436
+[20-Oct-2026 08:11:47 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1436
+[20-Oct-2026 08:11:47 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1436
+[20-Oct-2026 08:11:47 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1436
+[20-Oct-2026 08:11:47 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1436
+[20-Oct-2026 08:11:47 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1436
+[20-Oct-2026 08:11:47 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1436
+[20-Oct-2026 08:11:47 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1436
+[20-Oct-2026 08:11:47 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1436
+[20-Oct-2026 08:11:47 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1436
+[20-Oct-2026 08:11:47 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1436
+[20-Oct-2026 08:11:47 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1436
+[20-Oct-2026 08:11:47 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1804
+[20-Oct-2026 08:11:47 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1845
+[20-Oct-2026 08:17:51 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 858
+[20-Oct-2026 08:17:51 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 861
+[20-Oct-2026 08:17:51 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 870
+[20-Oct-2026 08:17:51 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1436
+[20-Oct-2026 08:17:51 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1436
+[20-Oct-2026 08:17:51 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1436
+[20-Oct-2026 08:17:51 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1436
+[20-Oct-2026 08:17:51 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1436
+[20-Oct-2026 08:17:51 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1436
+[20-Oct-2026 08:17:51 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1436
+[20-Oct-2026 08:17:51 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1436
+[20-Oct-2026 08:17:51 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1436
+[20-Oct-2026 08:17:51 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1436
+[20-Oct-2026 08:17:51 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1436
+[20-Oct-2026 08:17:51 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1436
+[20-Oct-2026 08:17:51 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1804
+[20-Oct-2026 08:17:51 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1845
+[20-Oct-2026 08:18:00 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 858
+[20-Oct-2026 08:18:00 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 861
+[20-Oct-2026 08:18:00 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 870
+[20-Oct-2026 08:18:00 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1436
+[20-Oct-2026 08:18:00 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1436
+[20-Oct-2026 08:18:00 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1436
+[20-Oct-2026 08:18:00 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1436
+[20-Oct-2026 08:18:00 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1436
+[20-Oct-2026 08:18:00 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1436
+[20-Oct-2026 08:18:00 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1436
+[20-Oct-2026 08:18:00 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1436
+[20-Oct-2026 08:18:00 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1436
+[20-Oct-2026 08:18:00 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1436
+[20-Oct-2026 08:18:00 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1436
+[20-Oct-2026 08:18:00 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1436
+[20-Oct-2026 08:18:00 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1804
+[20-Oct-2026 08:18:00 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1845
+[20-Oct-2026 08:21:44 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 848
+[20-Oct-2026 08:21:44 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 851
+[20-Oct-2026 08:21:44 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 860
+[20-Oct-2026 08:21:44 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1426
+[20-Oct-2026 08:21:44 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1426
+[20-Oct-2026 08:21:44 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1426
+[20-Oct-2026 08:21:44 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1426
+[20-Oct-2026 08:21:44 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1426
+[20-Oct-2026 08:21:44 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1426
+[20-Oct-2026 08:21:44 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1426
+[20-Oct-2026 08:21:44 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1426
+[20-Oct-2026 08:21:44 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1426
+[20-Oct-2026 08:21:44 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1426
+[20-Oct-2026 08:21:44 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1426
+[20-Oct-2026 08:21:44 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1426
+[20-Oct-2026 08:21:44 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1794
+[20-Oct-2026 08:21:44 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1835
+[20-Oct-2026 08:21:44 Asia/Manila] PHP Warning:  Undefined variable $deptTurnLabels in C:\xampp\htdocs\hr 201\public\analytics.php on line 2216
+[20-Oct-2026 08:21:44 Asia/Manila] PHP Warning:  Undefined variable $deptTurnCounts in C:\xampp\htdocs\hr 201\public\analytics.php on line 2217
+[20-Oct-2026 08:21:44 Asia/Manila] PHP Warning:  Undefined variable $deptTurnLabels in C:\xampp\htdocs\hr 201\public\analytics.php on line 2684
+[20-Oct-2026 08:21:44 Asia/Manila] PHP Warning:  Undefined variable $deptTurnCounts in C:\xampp\htdocs\hr 201\public\analytics.php on line 2687
+[20-Oct-2026 08:23:44 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 848
+[20-Oct-2026 08:23:44 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 851
+[20-Oct-2026 08:23:44 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 860
+[20-Oct-2026 08:23:44 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1426
+[20-Oct-2026 08:23:44 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1426
+[20-Oct-2026 08:23:44 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1426
+[20-Oct-2026 08:23:44 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1426
+[20-Oct-2026 08:23:44 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1426
+[20-Oct-2026 08:23:44 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1426
+[20-Oct-2026 08:23:44 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1426
+[20-Oct-2026 08:23:44 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1426
+[20-Oct-2026 08:23:44 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1426
+[20-Oct-2026 08:23:44 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1426
+[20-Oct-2026 08:23:44 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1426
+[20-Oct-2026 08:23:44 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1426
+[20-Oct-2026 08:23:44 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1794
+[20-Oct-2026 08:23:44 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1835
+[20-Oct-2026 08:23:44 Asia/Manila] PHP Warning:  Undefined variable $deptTurnLabels in C:\xampp\htdocs\hr 201\public\analytics.php on line 2216
+[20-Oct-2026 08:23:44 Asia/Manila] PHP Warning:  Undefined variable $deptTurnCounts in C:\xampp\htdocs\hr 201\public\analytics.php on line 2217
+[20-Oct-2026 08:23:44 Asia/Manila] PHP Warning:  Undefined variable $deptTurnLabels in C:\xampp\htdocs\hr 201\public\analytics.php on line 2684
+[20-Oct-2026 08:23:44 Asia/Manila] PHP Warning:  Undefined variable $deptTurnCounts in C:\xampp\htdocs\hr 201\public\analytics.php on line 2687
+[20-Oct-2026 08:23:53 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 848
+[20-Oct-2026 08:23:53 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 851
+[20-Oct-2026 08:23:53 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 860
+[20-Oct-2026 08:23:53 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1426
+[20-Oct-2026 08:23:53 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1426
+[20-Oct-2026 08:23:53 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1426
+[20-Oct-2026 08:23:53 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1426
+[20-Oct-2026 08:23:53 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1426
+[20-Oct-2026 08:23:53 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1426
+[20-Oct-2026 08:23:53 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1426
+[20-Oct-2026 08:23:53 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1426
+[20-Oct-2026 08:23:53 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1426
+[20-Oct-2026 08:23:53 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1426
+[20-Oct-2026 08:23:53 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1426
+[20-Oct-2026 08:23:53 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1426
+[20-Oct-2026 08:23:53 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1794
+[20-Oct-2026 08:23:53 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1835
+[20-Oct-2026 08:23:53 Asia/Manila] PHP Warning:  Undefined variable $deptTurnLabels in C:\xampp\htdocs\hr 201\public\analytics.php on line 2216
+[20-Oct-2026 08:23:53 Asia/Manila] PHP Warning:  Undefined variable $deptTurnCounts in C:\xampp\htdocs\hr 201\public\analytics.php on line 2217
+[20-Oct-2026 08:23:53 Asia/Manila] PHP Warning:  Undefined variable $deptTurnLabels in C:\xampp\htdocs\hr 201\public\analytics.php on line 2684
+[20-Oct-2026 08:23:53 Asia/Manila] PHP Warning:  Undefined variable $deptTurnCounts in C:\xampp\htdocs\hr 201\public\analytics.php on line 2687
+[20-Oct-2026 08:25:33 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 848
+[20-Oct-2026 08:25:33 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 851
+[20-Oct-2026 08:25:33 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 860
+[20-Oct-2026 08:25:33 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1426
+[20-Oct-2026 08:25:33 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1426
+[20-Oct-2026 08:25:33 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1426
+[20-Oct-2026 08:25:33 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1426
+[20-Oct-2026 08:25:33 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1426
+[20-Oct-2026 08:25:33 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1426
+[20-Oct-2026 08:25:33 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1426
+[20-Oct-2026 08:25:33 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1426
+[20-Oct-2026 08:25:33 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1426
+[20-Oct-2026 08:25:33 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1426
+[20-Oct-2026 08:25:33 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1426
+[20-Oct-2026 08:25:33 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1426
+[20-Oct-2026 08:25:33 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1794
+[20-Oct-2026 08:25:33 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1835
+[20-Oct-2026 08:25:33 Asia/Manila] PHP Warning:  Undefined variable $deptTurnLabels in C:\xampp\htdocs\hr 201\public\analytics.php on line 2216
+[20-Oct-2026 08:25:33 Asia/Manila] PHP Warning:  Undefined variable $deptTurnCounts in C:\xampp\htdocs\hr 201\public\analytics.php on line 2217
+[20-Oct-2026 08:25:33 Asia/Manila] PHP Warning:  Undefined variable $deptTurnLabels in C:\xampp\htdocs\hr 201\public\analytics.php on line 2684
+[20-Oct-2026 08:25:33 Asia/Manila] PHP Warning:  Undefined variable $deptTurnCounts in C:\xampp\htdocs\hr 201\public\analytics.php on line 2687
+[20-Oct-2026 08:31:16 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 866
+[20-Oct-2026 08:31:16 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 869
+[20-Oct-2026 08:31:16 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 878
+[20-Oct-2026 08:31:17 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 866
+[20-Oct-2026 08:31:17 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 869
+[20-Oct-2026 08:31:17 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 878
+[20-Oct-2026 08:31:17 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1444
+[20-Oct-2026 08:31:17 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1444
+[20-Oct-2026 08:31:17 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1444
+[20-Oct-2026 08:31:17 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1444
+[20-Oct-2026 08:31:17 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1444
+[20-Oct-2026 08:31:17 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1444
+[20-Oct-2026 08:31:17 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1444
+[20-Oct-2026 08:31:17 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1444
+[20-Oct-2026 08:31:17 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1444
+[20-Oct-2026 08:31:17 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1444
+[20-Oct-2026 08:31:17 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1444
+[20-Oct-2026 08:31:17 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1444
+[20-Oct-2026 08:31:17 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1812
+[20-Oct-2026 08:31:17 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1853
+[20-Oct-2026 08:33:18 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 866
+[20-Oct-2026 08:33:18 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 869
+[20-Oct-2026 08:33:18 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 878
+[20-Oct-2026 08:33:18 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1444
+[20-Oct-2026 08:33:18 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1444
+[20-Oct-2026 08:33:18 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1444
+[20-Oct-2026 08:33:18 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1444
+[20-Oct-2026 08:33:18 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1444
+[20-Oct-2026 08:33:18 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1444
+[20-Oct-2026 08:33:18 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1444
+[20-Oct-2026 08:33:18 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1444
+[20-Oct-2026 08:33:18 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1444
+[20-Oct-2026 08:33:18 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1444
+[20-Oct-2026 08:33:18 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1444
+[20-Oct-2026 08:33:18 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1444
+[20-Oct-2026 08:33:18 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1812
+[20-Oct-2026 08:33:18 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1853
+[20-Oct-2026 08:36:00 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 866
+[20-Oct-2026 08:36:00 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 869
+[20-Oct-2026 08:36:00 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 878
+[20-Oct-2026 08:36:00 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1444
+[20-Oct-2026 08:36:00 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1444
+[20-Oct-2026 08:36:00 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1444
+[20-Oct-2026 08:36:00 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1444
+[20-Oct-2026 08:36:00 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1444
+[20-Oct-2026 08:36:00 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1444
+[20-Oct-2026 08:36:00 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1444
+[20-Oct-2026 08:36:00 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1444
+[20-Oct-2026 08:36:00 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1444
+[20-Oct-2026 08:36:00 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1444
+[20-Oct-2026 08:36:00 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1444
+[20-Oct-2026 08:36:00 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1444
+[20-Oct-2026 08:36:00 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1812
+[20-Oct-2026 08:36:00 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1853
+[20-Oct-2026 08:46:55 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 866
+[20-Oct-2026 08:46:55 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 869
+[20-Oct-2026 08:46:55 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 878
+[20-Oct-2026 08:46:55 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1444
+[20-Oct-2026 08:46:55 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1444
+[20-Oct-2026 08:46:55 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1444
+[20-Oct-2026 08:46:55 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1444
+[20-Oct-2026 08:46:55 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1444
+[20-Oct-2026 08:46:55 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1444
+[20-Oct-2026 08:46:55 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1444
+[20-Oct-2026 08:46:55 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1444
+[20-Oct-2026 08:46:55 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1444
+[20-Oct-2026 08:46:55 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1444
+[20-Oct-2026 08:46:55 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1444
+[20-Oct-2026 08:46:55 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1444
+[20-Oct-2026 08:46:55 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1812
+[20-Oct-2026 08:46:55 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1853
+[20-Oct-2026 08:48:23 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 866
+[20-Oct-2026 08:48:23 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 869
+[20-Oct-2026 08:48:23 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 878
+[20-Oct-2026 08:48:23 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1444
+[20-Oct-2026 08:48:23 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1444
+[20-Oct-2026 08:48:23 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1444
+[20-Oct-2026 08:48:23 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1444
+[20-Oct-2026 08:48:23 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1444
+[20-Oct-2026 08:48:23 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1444
+[20-Oct-2026 08:48:23 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1444
+[20-Oct-2026 08:48:23 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1444
+[20-Oct-2026 08:48:23 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1444
+[20-Oct-2026 08:48:23 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1444
+[20-Oct-2026 08:48:23 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1444
+[20-Oct-2026 08:48:23 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1444
+[20-Oct-2026 08:48:23 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1812
+[20-Oct-2026 08:48:23 Asia/Manila] PHP Warning:  Undefined variable $bdayMonth in C:\xampp\htdocs\hr 201\public\analytics.php on line 1853
+[20-Oct-2026 09:10:35 Asia/Manila] PHP Notice:  session_start(): Ignoring session_start() because a session is already active in C:\xampp\htdocs\hr 201\public\import_employees.php on line 50
+[20-Oct-2026 09:13:15 Asia/Manila] PHP Notice:  session_start(): Ignoring session_start() because a session is already active in C:\xampp\htdocs\hr 201\public\import_employees.php on line 50
+[20-Oct-2026 09:13:16 Asia/Manila] PHP Notice:  session_start(): Ignoring session_start() because a session is already active in C:\xampp\htdocs\hr 201\public\import_employees.php on line 50
+[20-Oct-2026 09:13:22 Asia/Manila] PHP Notice:  session_start(): Ignoring session_start() because a session is already active in C:\xampp\htdocs\hr 201\public\import_employees.php on line 50
+[20-Oct-2026 09:13:42 Asia/Manila] PHP Notice:  session_start(): Ignoring session_start() because a session is already active in C:\xampp\htdocs\hr 201\public\import_employees.php on line 50
+[20-Oct-2026 09:13:42 Asia/Manila] PHP Notice:  session_start(): Ignoring session_start() because a session is already active in C:\xampp\htdocs\hr 201\public\import_employees.php on line 50
+[20-Oct-2026 09:13:46 Asia/Manila] PHP Notice:  session_start(): Ignoring session_start() because a session is already active in C:\xampp\htdocs\hr 201\public\import_employees.php on line 50
+[20-Oct-2026 10:03:00 Asia/Manila] PHP Notice:  session_start(): Ignoring session_start() because a session is already active in C:\xampp\htdocs\hr 201\public\import_employees.php on line 50
+[20-Oct-2026 10:03:32 Asia/Manila] PHP Notice:  session_start(): Ignoring session_start() because a session is already active in C:\xampp\htdocs\hr 201\public\import_employees.php on line 50
+[20-Oct-2026 10:03:32 Asia/Manila] PHP Notice:  session_start(): Ignoring session_start() because a session is already active in C:\xampp\htdocs\hr 201\public\import_employees.php on line 50
+[20-Oct-2026 10:21:01 Asia/Manila] PHP Notice:  session_start(): Ignoring session_start() because a session is already active in C:\xampp\htdocs\hr 201\public\import_employees.php on line 50
+[20-Oct-2026 14:01:28 Asia/Manila] PHP Notice:  session_start(): Ignoring session_start() because a session is already active in C:\xampp\htdocs\hr 201\public\import_employees.php on line 50
+[20-Oct-2026 17:25:21 Asia/Manila] PHP Notice:  session_start(): Ignoring session_start() because a session is already active in C:\xampp\htdocs\hr 201\public\import_employees.php on line 50
+[21-Oct-2026 19:46:41 Asia/Manila] SQLSTATE[HY000] [2002] No connection could be made because the target machine actively refused it
+[22-Oct-2026 13:08:21 Asia/Manila] SQLSTATE[HY000] [2002] No connection could be made because the target machine actively refused it
+[22-Oct-2026 13:08:22 Asia/Manila] SQLSTATE[HY000] [2002] No connection could be made because the target machine actively refused it
+[22-Oct-2026 13:08:52 Asia/Manila] SQLSTATE[HY000] [2002] No connection could be made because the target machine actively refused it
+[31-Oct-2026 10:05:46 Asia/Manila] PHP Notice:  session_start(): Ignoring session_start() because a session is already active in C:\xampp\htdocs\hr 201\public\import_employees.php on line 50
+[04-Nov-2026 09:02:55 Asia/Manila] SQLSTATE[HY000] [2002] An attempt was made to access a socket in a way forbidden by its access permissions
+[04-Nov-2026 10:25:09 Asia/Manila] PHP Parse error:  syntax error, unexpected token "." in C:\xampp\htdocs\hr 201\public\templates\onboarding_combo.php on line 225
+[04-Nov-2026 10:25:14 Asia/Manila] PHP Parse error:  syntax error, unexpected token "." in C:\xampp\htdocs\hr 201\public\templates\onboarding_combo.php on line 225
+[04-Nov-2026 10:26:01 Asia/Manila] PHP Parse error:  syntax error, unexpected token "." in C:\xampp\htdocs\hr 201\public\templates\onboarding_combo.php on line 225
+[05-Nov-2026 17:48:53 Asia/Manila] PHP Notice:  session_start(): Ignoring session_start() because a session is already active in C:\xampp\htdocs\hr 201\public\import_employees.php on line 50
+[05-Nov-2026 17:50:26 Asia/Manila] PHP Notice:  session_start(): Ignoring session_start() because a session is already active in C:\xampp\htdocs\hr 201\public\import_employees.php on line 50
+[05-Nov-2026 17:50:26 Asia/Manila] PHP Notice:  session_start(): Ignoring session_start() because a session is already active in C:\xampp\htdocs\hr 201\public\import_employees.php on line 50
+[05-Nov-2026 17:58:13 Asia/Manila] PHP Notice:  session_start(): Ignoring session_start() because a session is already active in C:\xampp\htdocs\hr 201\public\import_employees.php on line 50
+[09-Nov-2026 10:24:20 Asia/Manila] SQLSTATE[HY000] [2002] An attempt was made to access a socket in a way forbidden by its access permissions
+[09-Nov-2026 10:48:25 Asia/Manila] PHP Notice:  session_start(): Ignoring session_start() because a session is already active in C:\xampp\htdocs\hr 201\public\import_employees.php on line 50
+[09-Nov-2026 10:53:26 Asia/Manila] PHP Notice:  session_start(): Ignoring session_start() because a session is already active in C:\xampp\htdocs\hr 201\public\import_employees.php on line 50
+[10-Nov-2026 09:55:57 Asia/Manila] PHP Notice:  session_start(): Ignoring session_start() because a session is already active in C:\xampp\htdocs\hr 201\public\import_employees.php on line 51
+[10-Nov-2026 09:56:03 Asia/Manila] PHP Notice:  session_start(): Ignoring session_start() because a session is already active in C:\xampp\htdocs\hr 201\public\import_employees.php on line 51
+[10-Nov-2026 09:58:57 Asia/Manila] PHP Notice:  session_start(): Ignoring session_start() because a session is already active in C:\xampp\htdocs\hr 201\public\import_employees.php on line 51
+[10-Nov-2026 09:58:59 Asia/Manila] PHP Notice:  session_start(): Ignoring session_start() because a session is already active in C:\xampp\htdocs\hr 201\public\import_employees.php on line 51
+[10-Nov-2026 10:03:54 Asia/Manila] PHP Notice:  session_start(): Ignoring session_start() because a session is already active in C:\xampp\htdocs\hr 201\public\import_employees.php on line 51
+[10-Nov-2026 10:23:09 Asia/Manila] PHP Notice:  session_start(): Ignoring session_start() because a session is already active in C:\xampp\htdocs\hr 201\public\import_employees.php on line 51
+[10-Nov-2026 14:21:32 Asia/Manila] PHP Fatal error:  Uncaught PDOException: SQLSTATE[42000]: Syntax error or access violation: 1064 You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '0x737461747573' at line 1 in Command line code:1
+Stack trace:
+#0 Command line code(1): PDO->query('SHOW COLUMNS FR...')
+#1 {main}
+  thrown in Command line code on line 1
+[10-Nov-2026 16:24:57 Asia/Manila] PHP Notice:  session_start(): Ignoring session_start() because a session is already active in C:\xampp\htdocs\hr 201\public\import_employees.php on line 51
+[10-Nov-2026 17:02:49 Asia/Manila] PHP Warning:  session_start(): open(C:\xampp\tmp\sess_c8c9ho3e9s38fjln4ipmbd5242, O_RDWR) failed: Permission denied (13) in C:\xampp\htdocs\hr 201\public\logout.php on line 4
+[10-Nov-2026 17:02:49 Asia/Manila] PHP Warning:  session_start(): Failed to read session data: files (path: C:\xampp\tmp) in C:\xampp\htdocs\hr 201\public\logout.php on line 4
+[10-Nov-2026 17:02:49 Asia/Manila] PHP Warning:  session_destroy(): Trying to destroy uninitialized session in C:\xampp\htdocs\hr 201\public\logout.php on line 28

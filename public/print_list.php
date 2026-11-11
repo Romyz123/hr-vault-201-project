@@ -8,7 +8,9 @@
 require '../config/db.php';
 require '../src/Security.php';
 require '../src/Validator.php';
+require_once __DIR__ . '/../src/helpers.php';
 session_start();
+if (isset($_SESSION['user_id'])) checkSessionTimeout($pdo);
 
 if (!isset($_SESSION['user_id'])) {
     die("Access Denied");
@@ -244,7 +246,7 @@ if (empty($logo_src)) {
                         <td><?php echo htmlspecialchars($emp['dept']); ?></td>
                         <td><?php echo htmlspecialchars($emp['section']); ?></td>
                         <td>
-                            <?php echo htmlspecialchars($emp['agency_name'] ?: $emp['employment_type']); ?>
+                            <?php echo htmlspecialchars(employerDisplayLabel($emp['agency_name'] ?: $emp['employment_type'])); ?>
                         </td>
                         <td><?php echo htmlspecialchars($emp['hire_date']); ?></td>
                         <td><?php echo htmlspecialchars($emp['status']); ?></td>

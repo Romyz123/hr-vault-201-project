@@ -2,6 +2,7 @@
 require_once '../config/db.php';
 require_once '../src/Logger.php';
 session_start();
+if (isset($_SESSION['user_id'])) checkSessionTimeout($pdo);
 
 $userRole = isset($_SESSION['role']) ? strtoupper(trim($_SESSION['role'])) : '';
 if (!isset($_SESSION['user_id']) || !in_array($userRole, ['ADMIN', 'HR'])) {

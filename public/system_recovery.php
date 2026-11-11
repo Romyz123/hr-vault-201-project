@@ -665,6 +665,75 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $logger->log($_SESSION['user_id'], 'PRUNE_GHOSTS', "Deleted $count documents for non-existent employees.");
         }
     }
+    // --- [NEW] PERMANENT DELETE SELECTED EMPLOYEES ---
+    if (isset($_POST['permanent_delete_selected_employees'])) {
+        $employeeIds = json_decode($_POST['permanent_delete_employee_ids'] ?? '', true);
+        $employeeIds = is_array($employeeIds) ? array_values(array_filter(array_map('intval', $employeeIds), fn($id) => $id > 0)) : [];
+
+        if (empty($employeeIds)) {
+            $msg = "❌ Select at least one deleted employee to permanently delete.";
+        } else {
+            try {
+                $pdo->beginTransaction();
+
+                // Get string emp_ids for matching documents/disciplinary cases
+                $placeholders = implode(',', array_fill(0, count($employeeIds), '?'));
+                $stmt = $pdo->prepare("SELECT id, emp_id FROM employees WHERE id IN ($placeholders)");
+                $stmt->execute($employeeIds);
+                $employeesToDelete = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+                $deletedCount = 0;
+                foreach ($employeesToDelete as $emp) {
+                    $empId = $emp['id'];
+                    $empIdStr = $emp['emp_id'];
+
+                    // 1. Delete Physical Documents
+                    $docStmt = $pdo->prepare("SELECT file_path FROM documents WHERE employee_id = ?");
+                    $docStmt->execute([$empIdStr]);
+                    foreach ($docStmt->fetchAll(PDO::FETCH_COLUMN) as $file) {
+                        $fullPath = $vaultPath . $file;
+                        if (file_exists($fullPath)) @unlink($fullPath);
+                    }
+
+                    // 2. Delete Disciplinary Files
+                    $discStmt = $pdo->prepare("SELECT attachment_path FROM disciplinary_cases WHERE employee_id = ?");
+                    $discStmt->execute([$empIdStr]);
+                    foreach ($discStmt->fetchAll(PDO::FETCH_COLUMN) as $file) {
+                        $fullPath = __DIR__ . '/uploads/' . $file;
+                        if (file_exists($fullPath)) @unlink($fullPath);
+                    }
+
+                    // 2.5 Delete Avatar
+                    $avStmt = $pdo->prepare("SELECT avatar_path FROM employees WHERE id = ?");
+                    $avStmt->execute([$empId]);
+                    $avatar = $avStmt->fetchColumn();
+                    if ($avatar && basename($avatar) !== 'default.png') {
+                        $avPath = __DIR__ . '/uploads/avatars/' . basename($avatar);
+                        if (file_exists($avPath)) @unlink($avPath);
+                    }
+
+                    // 3. Delete DB Records for this employee
+                    $pdo->prepare("DELETE FROM documents WHERE employee_id = ?")->execute([$empIdStr]);
+                    $pdo->prepare("DELETE FROM performance_evaluations WHERE employee_id = ?")->execute([$empId]);
+                    $pdo->prepare("DELETE FROM hr_performance_reviews WHERE employee_id = ?")->execute([$empId]);
+                    $pdo->prepare("DELETE FROM disciplinary_cases WHERE employee_id = ?")->execute([$empIdStr]);
+                    $pdo->prepare("DELETE FROM employees WHERE id = ?")->execute([$empId]);
+
+                    $deletedCount++;
+                    $logger->log($_SESSION['user_id'], 'PERMANENT_DELETE_EMPLOYEE', "Permanently deleted $empIdStr via bulk action");
+                }
+
+                $pdo->commit();
+                $msg = "🗑️ Successfully and permanently deleted $deletedCount employee(s) along with their files.";
+            } catch (Exception $e) {
+                if ($pdo->inTransaction()) {
+                    $pdo->rollBack();
+                }
+                error_log("BULK_PERMANENT_DELETE_ERROR: " . $e->getMessage());
+                $msg = "❌ Error deleting selected employees. Please try again later.";
+            }
+        }
+    }
 
     // --- RESTORE GHOST EMPLOYEE (From Audit Logs) ---
     if (isset($_POST['restore_ghost'])) {
@@ -903,6 +972,7 @@ $bkMaxSize = $pdo->query("SELECT setting_value FROM system_settings WHERE settin
 ?>
 <?php include 'header.php'; ?>
 
+
 <div class="container">
 
     <!-- [NEW] GHOST RECOVERY FORMS -->
@@ -1015,34 +1085,30 @@ $bkMaxSize = $pdo->query("SELECT setting_value FROM system_settings WHERE settin
         <div class="tab-pane fade <?php echo $activeRecoveryTab === 'deleted' ? 'show active' : ''; ?>" id="deleted">
             <h4 class="mb-4">Deleted Employees</h4>
             <div class="card shadow-sm">
+                
+                <!-- ✅ REPLACE THIS CARD-HEADER BLOCK -->
                 <div class="card-header bg-secondary text-white d-flex justify-content-between align-items-center">
                     <div>
                         <i class="bi bi-person-x"></i> <strong>Recycle Bin: Employees</strong>
                         <small class="d-block text-light">Restore employees or permanently delete them (including files).</small>
                     </div>
-                    <div class="d-flex gap-1">
+                    
+                    <!-- Button Group -->
+                    <div class="d-flex gap-1 align-items-center">
                         <button type="button" onclick="selectAllItems('deleted-employee-checkbox', true)" class="btn btn-sm btn-outline-light">Select All</button>
                         <button type="button" onclick="selectAllItems('deleted-employee-checkbox', false)" class="btn btn-sm btn-light text-dark">Deselect All</button>
                         <button type="button" onclick="submitRestoreEmployees()" class="btn btn-sm btn-success fw-bold">Restore Selected</button>
+                        
+                        <!-- 🚨 NEW Delete Button -->
+                        <button type="button" onclick="submitPermanentDeleteEmployees()" class="btn btn-sm btn-danger fw-bold">Delete Selected Forever</button>
                     </div>
+                    
                     <form method="POST" class="m-0">
-                        <input type="hidden" name="csrf_token" value="<?php echo h($_SESSION['csrf_token']); ?>">
+                        <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
                         <button type="submit" name="restore_all_docs" class="btn btn-sm btn-light fw-bold shadow-sm" onclick="return confirm('This will restore ALL documents currently in the Recycle Bin. Continue?')"><i class="bi bi-recycle"></i> Restore All Documents</button>
                     </form>
                 </div>
-                <div class="card-body p-0 table-responsive">
-                    <table class="table table-hover mb-0 align-middle">
-                        <thead>
-                            <tr>
-                                <th><input type="checkbox" class="form-check-input" id="selectAllDeletedEmployees" aria-label="Select all deleted employees"></th>
-                                <th>Date Deleted</th>
-                                <th>Name</th>
-                                <th>ID</th>
-                                <th>Department</th>
-                                <th>Deleted By</th>
-                                <th class="text-end">Actions</th>
-                            </tr>
-                        </thead>
+                <!-- ✅ END REPLACEMENT -->
                         <tbody>
                             <?php foreach ($deletedEmployees as $emp): ?>
                                 <tr>
@@ -1297,6 +1363,14 @@ $bkMaxSize = $pdo->query("SELECT setting_value FROM system_settings WHERE settin
     <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
     <input type="hidden" name="restore_selected_employees" value="1">
     <input type="hidden" name="deleted_employee_ids" id="hidden_deleted_employee_ids">
+</form>
+
+
+<!-- ADD IT HERE INSTEAD -->
+<form id="permanentDeleteEmployeesForm" method="POST" style="display:none;">
+    <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
+    <input type="hidden" name="permanent_delete_selected_employees" value="1">
+    <input type="hidden" name="permanent_delete_employee_ids" id="hidden_permanent_delete_employee_ids">
 </form>
 
 <!-- MODALS FOR BACKUP -->
@@ -1557,6 +1631,22 @@ $bkMaxSize = $pdo->query("SELECT setting_value FROM system_settings WHERE settin
             addActiveTab(document.getElementById('archiveGhostForm'));
             document.getElementById('archiveGhostForm').submit();
         }
+    }
+
+    function submitPermanentDeleteEmployees() {
+        const checked = document.querySelectorAll('.deleted-employee-checkbox:checked');
+        if (checked.length === 0) {
+            alert('Please select at least one deleted employee to permanently delete.');
+            return;
+        }
+        if (!confirm(`⚠️ PERMANENTLY DELETE ${checked.length} selected employee(s)? This will wipe their database records AND all associated files permanently. This cannot be undone!`)) {
+            return;
+        }
+
+        const ids = Array.from(checked).map(cb => parseInt(cb.value, 10));
+        document.getElementById('hidden_permanent_delete_employee_ids').value = JSON.stringify(ids);
+        addActiveTab(document.getElementById('permanentDeleteEmployeesForm'));
+        document.getElementById('permanentDeleteEmployeesForm').submit();
     }
 </script>
 </body>

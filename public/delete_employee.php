@@ -4,6 +4,7 @@ require '../config/db.php';
 require '../src/Logger.php';
 require '../src/Security.php';
 session_start();
+if (isset($_SESSION['user_id'])) checkSessionTimeout($pdo);
 
 
 // 1. SECURITY: Admin/HR Only

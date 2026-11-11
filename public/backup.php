@@ -8,6 +8,7 @@ require '../src/Security.php';
 // Ensure session is running before modifying/checking session variables
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
+if (isset($_SESSION['user_id'])) checkSessionTimeout($pdo);
 }
 
 set_time_limit(0);

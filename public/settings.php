@@ -394,14 +394,14 @@ include 'header.php';
                     <div class="card-body">
                         <div class="row">
                             <div class="col-md-6 mb-3">
-                                <label for="server_timeout" class="form-label fw-bold">Server Session Lifetime</label>
+                                <label for="server_timeout" class="form-label fw-bold">Server Inactivity Limit</label>
                                 <select id="server_timeout" name="settings[session_timeout_server]" class="form-select">
                                     <option value="1800" <?= ($serverTimeout == 1800) ? 'selected' : '' ?>>30 Minutes (MHI Standard)</option>
                                     <option value="3600" <?= ($serverTimeout == 3600) ? 'selected' : '' ?>>60 Minutes</option>
                                     <option value="7200" <?= ($serverTimeout == 7200) ? 'selected' : '' ?>>2 Hours</option>
                                     <option value="14400" <?= ($serverTimeout == 14400) ? 'selected' : '' ?>>4 Hours</option>
                                 </select>
-                                <div class="form-text">The maximum time a session is valid on the server. After this, the user is forced to log in again.</div>
+                                <div class="form-text">The server enforces the shorter of this limit and the client inactivity timer. Active sessions also follow the system's maximum-session-duration policy.</div>
                             </div>
 
                             <div class="col-md-6 mb-3">
@@ -412,10 +412,7 @@ include 'header.php';
                                     <option value="1200" <?= ($clientTimeout == 1200) ? 'selected' : '' ?>>20 Minutes</option>
                                     <option value="1800" <?= ($clientTimeout == 1800) ? 'selected' : '' ?>>30 Minutes</option>
                                 </select>
-                                <div class="form-text">
-                                    The time of user inactivity before automatic logout.<br>
-                                    <span class="text-danger">Warning:</span> Must be less than Server Session Lifetime.
-                                </div>
+                                <div class="form-text">The time of user inactivity before automatic logout. The effective idle timeout is the shorter of this value and the server inactivity limit.</div>
                             </div>
                         </div>
 

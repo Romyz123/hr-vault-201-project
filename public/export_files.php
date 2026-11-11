@@ -18,6 +18,7 @@ if (!isset($employee_statuses) || !is_array($employee_statuses)) {
     $employee_statuses = ['Active', 'Resigned', 'Terminated', 'AWOL', 'Retired'];
 }
 session_start();
+if (isset($_SESSION['user_id'])) checkSessionTimeout($pdo);
 
 // [DOWNLOAD HANDLER] Stream split export parts (GET) without requiring CSRF
 if (isset($_GET['download_part'])) {
@@ -412,7 +413,7 @@ foreach ($employees as $emp) {
             <div class="grid">
                 <div class="row">
                     <div class="cell"><span class="label">Employment Type</span><span class="value">' . h($emp['employment_type']) . '</span></div>
-                    <div class="cell"><span class="label">Agency</span><span class="value">' . h($emp['agency_name']) . '</span></div>
+                    <div class="cell"><span class="label">Employer</span><span class="value">' . h(employerDisplayLabel($emp['agency_name'])) . '</span></div>
                 </div>
                 <div class="row">
                     <div class="cell"><span class="label">Date Hired</span><span class="value">' . h($emp['hire_date']) . '</span></div>

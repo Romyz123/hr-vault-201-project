@@ -7,6 +7,7 @@ ob_start();
 
 require_once '../../config/db.php';
 if (session_status() === PHP_SESSION_NONE) session_start();
+if (isset($_SESSION['user_id'])) checkSessionTimeout($pdo);
 
 // [SECURITY] Prevent PHP warnings/notices from corrupting the JSON output
 error_reporting(E_ALL);

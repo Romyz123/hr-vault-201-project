@@ -37,6 +37,8 @@ $logger = new Logger($pdo);
 $ids_raw = (isset($_GET['ids']) && !is_array($_GET['ids'])) ? $_GET['ids'] : ((isset($_GET['id']) && !is_array($_GET['id'])) ? $_GET['id'] : '');
 $ids = array_filter(explode(',', (string)$ids_raw), 'is_numeric');
 $type = isset($_GET['type']) ? $_GET['type'] : '';
+$isComboType = in_array($type, ['onboarding_combo', 'combo_project', 'combo_probationary']);
+$comboType = $type; // onboarding_combo.php reads this to decide which documents to include
 $format = isset($_GET['format']) ? $_GET['format'] : 'html'; // 'html' or 'word'
 $agency = isset($_GET['agency']) ? trim((string)$_GET['agency']) : '';
 
@@ -173,6 +175,8 @@ $templateMap = [
     'whistleblowing' => __DIR__ . '/templates/whistleblowing.php',
     'data_consent' => __DIR__ . '/templates/data_consent.php',
     'onboarding_combo' => __DIR__ . '/templates/onboarding_combo.php',
+    'combo_project'      => __DIR__ . '/templates/onboarding_combo.php',
+    'combo_probationary' => __DIR__ . '/templates/onboarding_combo.php',
 ];
 $templateFile = $templateMap[$type] ?? '';
 
@@ -187,7 +191,9 @@ $docTitles = [
     'employee_pledge'   => 'Employee Safety Pledge',
     'whistleblowing'    => 'Whistle Blowing Consent Form',
     'coe'               => 'Certificate of Employment',
-    'onboarding_combo'  => 'Complete Onboarding Packet'
+    'onboarding_combo'  => 'Complete Onboarding Packet',
+    'combo_project'      => 'Onboarding Combo (Project + NDA + Consent + Whistleblower)',
+    'combo_probationary' => 'Onboarding Combo (Probationary + NDA + Consent)',
 ];
 $friendlyTitle = $docTitles[$type] ?? 'Document';
 
@@ -211,7 +217,7 @@ if ($isWordFormat) {
             <link rel="icon" href="<?php echo $global_logo_src; ?>" type="<?php echo htmlspecialchars($mime); ?>">
         <?php endif; ?>
         <style>
-            <?php if ($type !== 'onboarding_combo'): ?>
+            <?php if (!$isComboType): ?>
             body {
                 font-family: "Times New Roman", Times, serif;
                 font-size: 12pt;
@@ -277,6 +283,26 @@ if ($isWordFormat) {
             }
 
             @media print {
+                /* Prevent double lines on tables */
+                table {
+                    border-collapse: collapse !important;
+                }
+                table:not(.signature-table):not(.sig-table):not(.contract-details):not(.report-container):not(.header-content-table) th,
+                table:not(.signature-table):not(.sig-table):not(.contract-details):not(.report-container):not(.header-content-table) td {
+                    border: 1px solid #333 !important;
+                }
+                .signature-table, .signature-table td,
+                .sig-table, .sig-table td,
+                .contract-details, .contract-details td {
+                    border: none !important;
+                }
+                .header-container {
+                    border-bottom: none !important;
+                }
+                .print-content {
+                    border-top: 1px solid #333 !important;
+                }
+
                 body {
                     background: white !important;
                     margin: 0 !important;
@@ -299,10 +325,10 @@ if ($isWordFormat) {
 
                 @page {
                     size: A4 portrait;
-                    margin: <?php echo ($type === 'onboarding_combo') ? '0' : '0.5in'; ?>;
+                    margin: <?php echo ($isComboType) ? '0' : '0.5in'; ?>;
                 }
 
-                <?php if ($type !== 'onboarding_combo'): ?>
+                <?php if (!$isComboType): ?>
                 /* Ensure uniform typography and text alignment for legacy contract templates */
                 p,
                 .justify,
@@ -469,7 +495,7 @@ foreach ($all_employees as $emp) {
     // Record document generation for each employee
     $logger->log($_SESSION['user_id'], 'GENERATE_DOC', "Generated $type for {$emp['first_name']} {$emp['last_name']} ({$emp['emp_id']})");
     ?>
-        <?php if ($type === 'onboarding_combo'): ?>
+        <?php if ($isComboType): ?>
             <?php
             if ($templateFile && file_exists($templateFile)) {
                 include $templateFile;
@@ -533,7 +559,7 @@ foreach ($all_employees as $emp) {
         echo $renderedContent;
         echo '<br style="page-break-before: always; clear: both;">';
     } else {
-        if ($type === 'onboarding_combo') {
+        if ($isComboType) {
             echo '<div class="combo-wrapper">' . $renderedContent . '</div>';
         } else {
             echo '<div class="page">' . $renderedContent . '</div>';

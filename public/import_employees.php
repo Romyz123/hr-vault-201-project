@@ -41,6 +41,7 @@ if (!function_exists('h')) {
     require_once __DIR__ . '/../src/helpers.php';
 }
 session_start();
+if (isset($_SESSION['user_id'])) checkSessionTimeout($pdo);
 
 // ---------- 2) SECURITY & ACCESS CONTROL ----------
 // 1. SECURITY: Admin, Manager & HR Only
@@ -48,6 +49,7 @@ if (!function_exists('h')) {
     require_once __DIR__ . '/../src/helpers.php';
 }
 session_start();
+if (isset($_SESSION['user_id'])) checkSessionTimeout($pdo);
 
 // ---------- 2) SECURITY & ACCESS CONTROL ----------
 // 1. SECURITY: Admin, Manager & HR Only
@@ -1369,14 +1371,14 @@ $history = $pdo->query("SELECT import_batch, MAX(agency_name) as agency_name, CO
                     </div>
 
                     <div class="col-md-6" id="target_agency_container">
-                        <label class="form-label fw-bold text-primary">Assign to Agency <span class="text-danger">*</span></label>
+                        <label class="form-label fw-bold text-primary">Assign to Employer <span class="text-danger">*</span></label>
                         <select name="target_agency" id="target_agency" class="form-select border-primary" required>
-                            <option value="">-- Select Agency --</option>
+                            <option value="">-- Select Employer --</option>
                             <?php foreach ($agencies as $a): ?>
-                                <option value="<?php echo htmlspecialchars($a); ?>"><?php echo htmlspecialchars($a); ?></option>
+                                <option value="<?php echo htmlspecialchars($a); ?>"><?php echo htmlspecialchars(employerDisplayLabel($a)); ?></option>
                             <?php endforeach; ?>
                         </select>
-                        <div class="form-text small">All employees in this import will be assigned to this agency.</div>
+                        <div class="form-text small">All employees in this import will be assigned to this employer.</div>
                     </div>
 
                     <div class="col-md-6">
@@ -1413,7 +1415,7 @@ $history = $pdo->query("SELECT import_batch, MAX(agency_name) as agency_name, CO
                     <thead>
                         <tr>
                             <th>Date</th>
-                            <th>Agency</th>
+                            <th>Employer</th>
                             <th>Count</th>
                             <th>Action</th>
                         </tr>
@@ -1432,7 +1434,7 @@ $history = $pdo->query("SELECT import_batch, MAX(agency_name) as agency_name, CO
                         ?>
                             <tr>
                                 <td><?php echo date('M d, h:i A', $importTime); ?></td>
-                                <td><?php echo htmlspecialchars($h['agency_name']); ?></td>
+                                <td><?php echo htmlspecialchars(employerDisplayLabel($h['agency_name'])); ?></td>
                                 <td><?php echo $h['count']; ?></td>
                                 <td>
                                     <?php if ($canUndo && in_array($_SESSION['role'], ['ADMIN', 'MANAGER'])): ?>

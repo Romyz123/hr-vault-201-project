@@ -689,6 +689,12 @@ if ($logoSrc === '') {
                 box-shadow: none !important;
             }
         }
+
+        .page-two .employee-signature-block>.signature-line {
+            height: 0 !important;
+            border: 0 !important;
+            border-bottom: .75pt solid #000 !important;
+        }
     </style>
 </head>
 
@@ -699,7 +705,7 @@ if ($logoSrc === '') {
                 <img src="<?php echo contractEscape($logoSrc); ?>" class="company-logo" alt="TESP Logo">
                 <div class="company-name">TES PHILIPPINES, INC.</div>
             </div>
-            <div class="project-header">METRO RAIL TRANSIT LINE 3 REHABILITATION PROJECT</div>
+            <div class="project-header">METRO RAIL TRANSIT LINE 3 MAINTENANCE & REHABILITATION PROJECT</div>
             <div class="company-address">Meriton One Building, 1668 Quezon Avenue, Quezon City</div>
         </header>
 
@@ -775,7 +781,7 @@ if ($logoSrc === '') {
                 <img src="<?php echo contractEscape($logoSrc); ?>" class="company-logo" alt="TESP Logo">
                 <div class="company-name">TES PHILIPPINES, INC.</div>
             </div>
-            <div class="project-header">METRO RAIL TRANSIT LINE 3 REHABILITATION PROJECT</div>
+            <div class="project-header">METRO RAIL TRANSIT LINE 3 MAINTENANCE & REHABILITATION PROJECT</div>
             <div class="company-address">Meriton One Building, 1668 Quezon Avenue, Quezon City</div>
         </header>
 

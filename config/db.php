@@ -148,30 +148,44 @@ function checkSessionTimeout(PDO $pdo, ?int $serverTimeout = null): void
         return;
     }
 
-    $timeout = 1800; // Default 30 mins
+    $serverIdleTimeout = ($serverTimeout !== null && $serverTimeout > 0) ? $serverTimeout : 1800;
+    $clientIdleTimeout = 900;
 
-    if ($serverTimeout !== null && $serverTimeout > 0) {
-        $timeout = $serverTimeout;
-    } else {
-        try {
-            $val = $pdo->query("SELECT setting_value FROM system_settings WHERE setting_key = 'session_timeout_server'")
-                ->fetchColumn();
-            if ($val) {
-                $timeout = (int)$val;
-            }
-        } catch (Exception $e) {
-            // ignore
+    try {
+        $settings = $pdo->query("SELECT setting_key, setting_value FROM system_settings WHERE setting_key IN ('session_timeout_server', 'session_timeout_client')")
+            ->fetchAll(PDO::FETCH_KEY_PAIR);
+        if ($serverTimeout === null && isset($settings['session_timeout_server']) && (int)$settings['session_timeout_server'] > 0) {
+            $serverIdleTimeout = (int)$settings['session_timeout_server'];
         }
+        if (isset($settings['session_timeout_client']) && (int)$settings['session_timeout_client'] > 0) {
+            $clientIdleTimeout = (int)$settings['session_timeout_client'];
+        }
+    } catch (Throwable $e) {
+        error_log('Unable to load session timeout settings: ' . $e->getMessage());
     }
 
-    if (isset($_SESSION['last_activity']) && (time() - (int)$_SESSION['last_activity'] > $timeout)) {
+    $now = time();
+    $idleTimeout = min($serverIdleTimeout, $clientIdleTimeout);
+    $idleExpired = isset($_SESSION['last_activity'])
+        && ($now - (int)$_SESSION['last_activity'] > $idleTimeout);
+    if ($idleExpired) {
         session_unset();
         session_destroy();
+        $acceptHeader = strtolower((string)($_SERVER['HTTP_ACCEPT'] ?? ''));
+        $requestedWith = strtolower((string)($_SERVER['HTTP_X_REQUESTED_WITH'] ?? ''));
+        $requestPath = (string)parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH);
+        $isApiRequest = strpos($requestPath, '/api/') !== false;
+        if ($isApiRequest || $requestedWith === 'xmlhttprequest' || strpos($acceptHeader, 'application/json') !== false) {
+            http_response_code(401);
+            header('Content-Type: application/json; charset=utf-8');
+            echo json_encode(['status' => 'error', 'message' => 'Session expired due to inactivity.']);
+            exit;
+        }
         header("Location: login.php?msg=" . urlencode("Session expired due to inactivity."));
         exit;
     }
 
-    $_SESSION['last_activity'] = time();
+    $_SESSION['last_activity'] = $now;
 
     // [SECURITY] Ensure CSRF token is generated for every active session
     if (empty($_SESSION['csrf_token'])) {

@@ -33,6 +33,10 @@ require_once __DIR__ . '/options.php';
 
 // [NEW] Auto-fetch settings if not provided by parent page
 if (isset($_SESSION['user_id'])) {
+    if (session_status() === PHP_SESSION_ACTIVE && function_exists('checkSessionTimeout')) {
+        checkSessionTimeout($pdo);
+    }
+
     $uid = (int)$_SESSION['user_id'];
     $userRole = ($userRole !== '') ? $userRole : strtoupper($_SESSION['role'] ?? '');
 
@@ -40,20 +44,21 @@ if (isset($_SESSION['user_id'])) {
     $db_notifs = [];
     $doc_alerts = [];
 
-    if (!isset($clientTimeout)) {
-        try {
-            $stmt = $pdo->query("SELECT setting_value FROM system_settings WHERE setting_key = 'session_timeout_client'");
-            // [SECURITY FIX] Always check fetchColumn() returns valid data before casting
-            $result = $stmt ? $stmt->fetchColumn() : false;
-            if ($result !== false && $result !== null && (int)$result > 0) {
-                $clientTimeout = (int)$result;
-            } else {
-                $clientTimeout = 900; // Fallback to 15 minutes
-            }
-        } catch (Throwable $e) {
-            $clientTimeout = 900;
+    $clientTimeout = (isset($clientTimeout) && (int)$clientTimeout > 0) ? (int)$clientTimeout : 900;
+    $serverTimeout = (isset($serverTimeout) && (int)$serverTimeout > 0) ? (int)$serverTimeout : 1800;
+    try {
+        $timeoutSettings = $pdo->query("SELECT setting_key, setting_value FROM system_settings WHERE setting_key IN ('session_timeout_server', 'session_timeout_client')")
+            ->fetchAll(PDO::FETCH_KEY_PAIR);
+        if (isset($timeoutSettings['session_timeout_client']) && (int)$timeoutSettings['session_timeout_client'] > 0) {
+            $clientTimeout = (int)$timeoutSettings['session_timeout_client'];
         }
+        if (isset($timeoutSettings['session_timeout_server']) && (int)$timeoutSettings['session_timeout_server'] > 0) {
+            $serverTimeout = (int)$timeoutSettings['session_timeout_server'];
+        }
+    } catch (Throwable $e) {
+        error_log('Unable to load client session timeout settings: ' . $e->getMessage());
     }
+    $clientTimeout = min($clientTimeout, $serverTimeout);
 
     if (isset($_SESSION['user_id'])) {
         try {
@@ -135,8 +140,36 @@ if (isset($_SESSION['user_id'])) {
 
 $csrf_token = $_SESSION['csrf_token'] ?? '';
 
+// [FIX] Initialize $logo_src safely with fallback for pages & print headers
+if (!isset($logo_src) || empty($logo_src)) {
+    $headerLogoPaths = [
+        __DIR__ . '/assets/images/tesp-logo-1.png',
+        __DIR__ . '/uploads/tesp-logo.png',
+        __DIR__ . '/uploads/tesp logo 1.png',
+        __DIR__ . '/../uploads/tesp-logo.png',
+        __DIR__ . '/../uploads/tesp logo 1.png'
+    ];
+    foreach ($headerLogoPaths as $hlp) {
+        if (file_exists($hlp)) {
+            $ext = strtolower(pathinfo($hlp, PATHINFO_EXTENSION));
+            $mime = ($ext === 'jpg' || $ext === 'jpeg') ? 'image/jpeg' : 'image/png';
+            $logo_src = 'data:' . $mime . ';base64,' . base64_encode(file_get_contents($hlp));
+            break;
+        }
+    }
+    if (empty($logo_src)) {
+        $logo_src = 'assets/images/tesp-logo-1.png';
+    }
+}
+
 // Determine dynamic page title based on current file
 $currentPage = basename($_SERVER['PHP_SELF']);
+
+// [FIX] Ensure $logo_src is always initialized before HTML execution
+$logo_src = $logo_src ?? 'assets/images/tesp-logo-1.png';
+if (!file_exists(__DIR__ . '/' . $logo_src) && !file_exists(__DIR__ . '/../' . $logo_src) && strpos($logo_src, 'data:image') !== 0) {
+    $logo_src = '../uploads/tesp-logo.png';
+}
 $pageTitles = [
     'index.php'              => 'Dashboard',
     'edit_employee.php'      => 'Edit Employee',
@@ -662,10 +695,17 @@ $displayTitle = $pageTitles[$currentPage] ?? 'TESP HR 201 System';
         // [SECURITY] Centralized Global Auto-Logout Timer (Client-Side)
         document.addEventListener("DOMContentLoaded", function() {
             const INACTIVITY_LIMIT_MS = <?php echo (int)($clientTimeout ?? 900) * 1000; ?>;
-            let remainingMs = INACTIVITY_LIMIT_MS;
+            const HEARTBEAT_INTERVAL_MS = Math.max(5000, Math.min(60000, INACTIVITY_LIMIT_MS / 3));
+            const ACTIVITY_STORAGE_KEY = 'hr201_last_activity_<?php echo (int)($_SESSION['user_id'] ?? 0); ?>';
+            const CSRF_REFRESH_KEY = 'hr201_csrf_refresh_<?php echo (int)($_SESSION['user_id'] ?? 0); ?>';
+            const CSRF_TOKEN = <?php echo json_encode($csrf_token); ?>;
+            let lastActivityAt = Date.now();
+            let lastActivityBroadcastAt = 0;
+            let lastHeartbeatAt = 0;
+            let heartbeatInFlight = false;
 
             function updateTimer() {
-                if (remainingMs > 0) remainingMs -= 1000;
+                const remainingMs = Math.max(0, INACTIVITY_LIMIT_MS - (Date.now() - lastActivityAt));
                 if (remainingMs <= 0) {
                     window.location.href = 'logout.php?msg=Session_Expired_Auto';
                     return;
@@ -682,15 +722,69 @@ $displayTitle = $pageTitles[$currentPage] ?? 'TESP HR 201 System';
                 }
             }
 
-            function resetTimer() {
-                remainingMs = INACTIVITY_LIMIT_MS;
+            async function sendHeartbeat() {
+                if (heartbeatInFlight || Date.now() - lastHeartbeatAt < HEARTBEAT_INTERVAL_MS) return;
+                heartbeatInFlight = true;
+                lastHeartbeatAt = Date.now();
+                try {
+                    const response = await fetch('session_heartbeat.php', {
+                        method: 'POST',
+                        credentials: 'same-origin',
+                        headers: {
+                            'Content-Type': 'application/x-www-form-urlencoded',
+                            'Accept': 'application/json'
+                        },
+                        body: new URLSearchParams({ csrf_token: CSRF_TOKEN })
+                    });
+                    if (response.redirected) {
+                        window.location.href = response.url;
+                    } else if (response.status === 401) {
+                        window.location.href = 'login.php?msg=Session_Expired_Auto';
+                    } else if (response.status === 403) {
+                        if (!sessionStorage.getItem(CSRF_REFRESH_KEY)) {
+                            sessionStorage.setItem(CSRF_REFRESH_KEY, '1');
+                            window.location.reload();
+                        } else {
+                            console.error('Session heartbeat rejected the CSRF token after refreshing the page.');
+                        }
+                    } else if (!response.ok) {
+                        console.error('Session heartbeat failed with HTTP status ' + response.status + '.');
+                    } else {
+                        sessionStorage.removeItem(CSRF_REFRESH_KEY);
+                    }
+                } catch (error) {
+                    console.error('Session activity heartbeat failed.', error);
+                } finally {
+                    heartbeatInFlight = false;
+                }
+            }
+
+            function recordActivity() {
+                lastActivityAt = Date.now();
+                if (lastActivityAt - lastActivityBroadcastAt >= 1000) {
+                    lastActivityBroadcastAt = lastActivityAt;
+                    try {
+                        localStorage.setItem(ACTIVITY_STORAGE_KEY, String(lastActivityAt));
+                    } catch (error) {
+                        // Storage can be disabled; local timeout still works in this tab.
+                    }
+                }
+                sendHeartbeat();
             }
 
             setInterval(updateTimer, 1000);
-            window.addEventListener('mousemove', resetTimer);
-            window.addEventListener('keydown', resetTimer);
-            window.addEventListener('click', resetTimer);
-            window.addEventListener('scroll', resetTimer);
+            window.addEventListener('mousemove', recordActivity);
+            window.addEventListener('keydown', recordActivity);
+            window.addEventListener('click', recordActivity);
+            window.addEventListener('scroll', recordActivity);
+            window.addEventListener('storage', function(event) {
+                if (event.key === ACTIVITY_STORAGE_KEY && event.newValue) {
+                    const sharedActivityAt = Number(event.newValue);
+                    if (Number.isFinite(sharedActivityAt)) {
+                        lastActivityAt = Math.max(lastActivityAt, sharedActivityAt);
+                    }
+                }
+            });
         });
     </script>
     <?php // --- END: UI REPAIR --- 

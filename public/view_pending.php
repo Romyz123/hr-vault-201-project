@@ -6,6 +6,7 @@ require '../src/Security.php';
 require '../src/FileService.php';
 require '../src/Logger.php';
 session_start();
+if (isset($_SESSION['user_id'])) checkSessionTimeout($pdo);
 
 // [FIX] Load Config to ensure VAULT_PATH is available
 $config = require '../config/config.php';

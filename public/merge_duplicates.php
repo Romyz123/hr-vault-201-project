@@ -5,6 +5,7 @@ require '../src/Logger.php';
 require '../src/Validator.php';
 require_once '../src/helpers.php';
 session_start();
+if (isset($_SESSION['user_id'])) checkSessionTimeout($pdo);
 
 if (!isset($_SESSION['user_id'])) {
     header('Location: login.php');

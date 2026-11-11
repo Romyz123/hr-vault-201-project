@@ -11,8 +11,14 @@ $showAttempts = false;
 
 // Capture success messages (e.g. from Reset Password)
 if (isset($_GET['msg'])) {
-    $alertType = 'success';
-    $alertMsg = htmlspecialchars($_GET['msg'], ENT_QUOTES, 'UTF-8');
+    $message = (string)$_GET['msg'];
+    if ($message === 'Session_Expired_Auto') {
+        $alertType = 'warning';
+        $alertMsg = 'Your session expired. Please log in again.';
+    } else {
+        $alertType = 'success';
+        $alertMsg = htmlspecialchars($message, ENT_QUOTES, 'UTF-8');
+    }
 }
 
 if (isset($_GET['error'])) {

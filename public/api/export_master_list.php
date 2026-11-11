@@ -2,6 +2,7 @@
 // public/api/export_master_list.php
 require '../../config/db.php';
 session_start();
+if (isset($_SESSION['user_id'])) checkSessionTimeout($pdo);
 
 // [SECURITY] HR, Manager, and Admin only
 if (!isset($_SESSION['user_id']) || !in_array($_SESSION['role'], ['ADMIN', 'MANAGER', 'HR'])) {

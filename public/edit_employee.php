@@ -14,6 +14,7 @@ require '../src/helpers.php';
 require_once '../src/helpers.php'; // [FIX] Include global helpers for h() and other functions
 require_once __DIR__ . '/options.php';
 session_start();
+if (isset($_SESSION['user_id'])) checkSessionTimeout($pdo);
 
 // [FIX] PRG Pattern for Validation: Load errors and old data from session
 $errors = $_SESSION['form_errors'] ?? [];
@@ -453,7 +454,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $tin_no = trim($_POST['tin_no'] ?? $emp['tin_no'] ?? '');
     $philhealth_no = trim($_POST['philhealth_no'] ?? $emp['philhealth_no'] ?? '');
     $pagibig_no = trim($_POST['pagibig_no'] ?? $emp['pagibig_no'] ?? '');
-    $status = trim($_POST['status'] ?? $emp['status'] ?? 'Active');
+    $status = array_key_exists('status', $_POST)
+        ? trim((string)$_POST['status'])
+        : trim((string)($emp['status'] ?? ''));
     $exit_date = !empty($_POST['exit_date']) ? $_POST['exit_date'] : null;
     $exit_reason = trim($_POST['exit_reason'] ?? $emp['exit_reason'] ?? '');
     $emergency_name = ucwords(strtolower(trim($_POST['emergency_name'] ?? $emp['emergency_name'] ?? '')));
@@ -484,7 +487,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     $errors = [];
-    if (!in_array($status, $employee_statuses, true)) {
+    if ($status !== '' && !in_array($status, $employee_statuses, true)) {
         $errors[] = 'Please select a valid employee status.';
     }
 
@@ -572,8 +575,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!preg_match($jobTitleRegex, $job_title)) $errors[] = "Job Title contains invalid characters.";
 
     $companyRegex = "/^[a-zA-ZñÑ0-9\s\-\.\,\(\)\/\&'\p{L}]+$/u"; // Allow unicode letters
-    if ($company_name !== '' && !preg_match($companyRegex, $company_name)) $errors[] = "Company Name contains invalid characters.";
-    if ($previous_company !== '' && !preg_match($companyRegex, $previous_company)) $errors[] = "Previous Company contains invalid characters.";
+    if ($company_name !== '' && !preg_match($companyRegex, $company_name)) $errors[] = "Employer Name contains invalid characters.";
+    if ($previous_company !== '' && !preg_match($companyRegex, $previous_company)) $errors[] = "Previous Employer contains invalid characters.";
 
     // [SECURITY] Address Validation
     $addrRegex = "/^[a-zA-ZñÑ0-9\s\.,\-\/#\(\)\']+$/u";
@@ -965,7 +968,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 <label class="form-label"><?= lang('section_s') ?></label>
                                 <div class="input-group">
                                     <input type="text" name="section" id="section" class="form-control bg-white" required readonly value="<?php echo val('section'); ?>">
-                                    <button class="btn btn-outline-secondary" type="button" onclick="document.getElementById('section').value = ''" title="Clear"><i class="bi bi-x-lg"></i></button>
+                                    <button class="btn btn-outline-secondary" type="button" onclick="document.getElementById('section').value = ''; updateGroups();" title="Clear"><i class="bi bi-x-lg"></i></button>
                                 </div>
                                 <select id="sectionPicker" class="form-select mt-1 form-select-sm text-muted" onchange="addSection(this.value)"></select>
                             </div>
@@ -977,11 +980,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 </div>
                                 <select id="groupPicker" class="form-select mt-1 form-select-sm text-muted" onchange="addGroup(this.value)">
                                     <option value="">+ Add Group...</option>
-                                    <?php
-                                    $groups = $groups ?? [];
-                                    foreach ($groups as $g): ?>
-                                        <option value="<?php echo h($g); ?>"><?php echo h($g); ?></option>
-                                    <?php endforeach; ?>
                                 </select>
                             </div>
                             <div class="col-md-3">
@@ -1001,7 +999,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                     <?php foreach ($emp_options as $opt): ?>
                                         <option value="<?php echo h($opt); ?>"
                                             <?php echo ($emp['agency_name'] == $opt || ($opt == 'TESP DIRECT' && $emp['employment_type'] == 'TESP Direct')) ? 'selected' : ''; ?>>
-                                            <?php echo h($opt); ?>
+                                            <?php echo h(employerDisplayLabel($opt)); ?>
                                         </option>
                                     <?php endforeach; ?>
                                 </select>
@@ -1020,13 +1018,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             </div>
                         </div>
 
+                        <?php $currentStatus = employeeEffectiveStatus($emp['status'] ?? '', $emp['exit_reason'] ?? ''); ?>
                         <div class="row mb-3 mt-4 p-3 bg-light border rounded">
 
                             <div class="col-md-3">
                                 <label class="form-label fw-bold"><?= lang('current_status') ?></label>
                                 <select name="status" id="statusSelect" class="form-select border-primary fw-bold" onchange="toggleExitFields()">
+                                    <option value="" <?= $currentStatus === '' ? 'selected' : '' ?>>Unspecified</option>
                                     <?php foreach ($employee_statuses as $statusOption): ?>
-                                        <option value="<?= htmlspecialchars($statusOption) ?>" <?= $emp['status'] === $statusOption ? 'selected' : '' ?>><?= htmlspecialchars($statusOption) ?></option>
+                                        <option value="<?= htmlspecialchars($statusOption) ?>" <?= strcasecmp($currentStatus, $statusOption) === 0 ? 'selected' : '' ?>><?= htmlspecialchars($statusOption) ?></option>
                                     <?php endforeach; ?>
                                 </select>
                             </div>
@@ -1422,7 +1422,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <?php endif; ?>
 
                         <div class="timeline-item mb-0">
-                            <div class="timeline-marker bg-secondary"></div><span class="text-muted small">Joined Company</span>
+                            <div class="timeline-marker bg-secondary"></div><span class="text-muted small">Joined Employer</span>
                         </div>
                     </div>
                 </div>
@@ -1864,9 +1864,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Logic for Sections and Auto-Capitalize
     const sectionMap = <?php echo json_encode($sectionFriendlyMap ?? []); ?>;
     const rawDeptMap = <?php echo json_encode($deptMap ?? []); ?>;
+    const sectionGroupMap = <?php echo json_encode($sectionGroupMap ?? [], JSON_HEX_QUOT | JSON_HEX_APOS); ?>;
     const currentSection = "<?php echo h($emp['section'] ?? ''); ?>";
     const deptInput = document.getElementById('dept');
     const sectionSelect = document.getElementById('sectionPicker');
+    const groupSelect = document.getElementById('groupPicker');
 
     function addDept(val) {
         if (!val) return;
@@ -1907,6 +1909,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 sectionSelect.appendChild(group);
             }
         });
+        updateGroups();
     }
 
     function capitalize(input) {
@@ -1931,6 +1934,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } else {
             input.value = text;
         }
+        updateGroups();
     }
 
     function addGroup(val) {
@@ -1946,6 +1950,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             input.value = val;
         }
         picker.value = "";
+    }
+
+    function updateGroups() {
+        if (!groupSelect) return;
+        groupSelect.innerHTML = '<option value="">+ Add Group...</option>';
+        const depts = deptInput.value.split(',').map(s => s.trim()).filter(s => s !== '');
+        const selectedSections = document.getElementById('section').value.split(',').map(s => s.trim()).filter(s => s !== '');
+
+        depts.forEach(dept => {
+            selectedSections.forEach(section => {
+                const groupNames = sectionGroupMap[dept]?.[section] || [];
+                if (groupNames.length === 0) return;
+                const optGroup = document.createElement('optgroup');
+                optGroup.label = `${dept} / ${section}`;
+                groupNames.forEach(name => {
+                    const option = document.createElement('option');
+                    option.value = name;
+                    option.textContent = name;
+                    optGroup.appendChild(option);
+                });
+                groupSelect.appendChild(optGroup);
+            });
+        });
     }
 
     function filter201Docs() {
@@ -2068,7 +2095,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         const status = statusSelect.value;
         const fields = document.querySelectorAll('.exit-field');
 
-        if (status !== 'Active') {
+        const statusKey = status.trim().toLowerCase();
+        const isCurrentEmployee = statusKey === 'active' || statusKey === 'transferred';
+
+        if (!isCurrentEmployee) {
             fields.forEach(field => field.style.display = 'block');
         } else {
             fields.forEach(field => field.style.display = 'none');
@@ -2084,8 +2114,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             text: '🔒 Confidentiality Agreement (NDA)'
         },
         {
-            val: 'onboarding_combo',
-            text: '⭐ Complete Onboarding Combo (NDA + Consent + Whistleblower)'
+            val: 'combo_project',
+            text: '📦 Combo 1: Project Contract + NDA + Consent + Whistleblower'
+        },
+        {
+            val: 'combo_probationary',
+            text: '📦 Combo 2: Probationary Contract + NDA + Consent'
         },
         {
             val: 'coe',

@@ -14,6 +14,66 @@ if (!function_exists('h')) {
     }
 }
 
+if (!function_exists('employerDisplayLabel')) {
+    /**
+     * Format employment labels for display without changing stored values.
+     */
+    function employerDisplayLabel(mixed $value): string
+    {
+        $label = trim((string)$value);
+        if (strcasecmp($label, 'TESP Direct') === 0) {
+            return 'TESP';
+        }
+        if (strcasecmp($label, 'Agency') === 0) {
+            return 'Employer';
+        }
+        return $label;
+    }
+}
+
+if (!function_exists('employeeEffectiveStatus')) {
+    /**
+     * Resolve reporting status from exit reasons and legacy blank-status records.
+     * This is display/reporting logic only; it does not change stored values.
+     */
+    function employeeEffectiveStatus(mixed $status, mixed $exitReason): string
+    {
+        $reason = trim((string)$exitReason);
+        if (preg_match('/dead|deceased|passed away/i', $reason)) {
+            return 'Deceased';
+        }
+        if (preg_match('/retir/i', $reason)) {
+            return 'Retired';
+        }
+        if (preg_match('/transf|trasf|overseas|abroad|deploy/i', $reason)) {
+            return 'Transferred';
+        }
+        $status = trim((string)$status);
+        if (preg_match('/transf|trasf/i', $status)) {
+            return 'Transferred';
+        }
+        $knownStatuses = [
+            'active' => 'Active',
+            'resigned' => 'Resigned',
+            'terminated' => 'Terminated',
+            'awol' => 'AWOL',
+            'retired' => 'Retired',
+            'transferred' => 'Transferred',
+            'deceased' => 'Deceased',
+        ];
+        if ($status !== '') {
+            if (preg_match('/\bawol\b/i', $reason) && preg_match('/^(inactive|unspecified)$/i', $status)) {
+                return 'AWOL';
+            }
+            return $knownStatuses[strtolower($status)] ?? $status;
+        }
+        if (preg_match('/\bawol\b/i', $reason)) {
+            return 'AWOL';
+        }
+        return $status;
+    }
+}
+
 if (!function_exists('post')) {
     /**
      * Fetch a POST value safely as string.

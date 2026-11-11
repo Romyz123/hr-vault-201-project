@@ -789,7 +789,8 @@ if (!function_exists('agreementEscape')) {
             justify-content: center;
             gap: 9px;
             width: 100%;
-            height: 52px;
+            height: auto;
+            min-height: 40px;
             line-height: normal;
             margin: 0;
             padding: 0;
@@ -1095,7 +1096,7 @@ if (!function_exists('agreementEscape')) {
             </div>
 
             <div class="project-name">
-                METRO RAIL TRANSIT LINE 3 REHABILITATION PROJECT
+                METRO RAIL TRANSIT LINE 3 MAINTENANCE & REHABILITATION PROJECT
             </div>
 
             <div class="company-address">
@@ -1215,7 +1216,7 @@ if (!function_exists('agreementEscape')) {
             </div>
 
             <div class="project-name">
-                METRO RAIL TRANSIT LINE 3 REHABILITATION PROJECT
+                METRO RAIL TRANSIT LINE 3 MAINTENANCE & REHABILITATION PROJECT
             </div>
 
             <div class="company-address">

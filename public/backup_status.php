@@ -2,6 +2,7 @@
 require '../config/db.php';
 
 session_start();
+if (isset($_SESSION['user_id'])) checkSessionTimeout($pdo);
 
 header('Content-Type: application/json; charset=UTF-8');
 

@@ -282,6 +282,7 @@ $filter_type   = getQueryParamSafe('type',   40, ''); // can match employment_ty
 $filter_dept   = getQueryParamSafe('dept',   32, '');
 $filter_section = getQueryParamSafe('section', 50, '');
 $filter_job_title = getQueryParamSafe('job_title', 100, '');
+$filter_group  = getQueryParamSafe('group',  100, ''); // [NEW] Group filter
 $search_query  = Validator::sanitizeSearch($_GET['search'] ?? '');
 $filter_doc_cat = getQueryParamSafe('doc_cat', 50, '');
 $sort_option   = getQueryParamSafe('sort',   24, 'newest');
@@ -347,6 +348,35 @@ try {
 } catch (PDOException $e) {
 }
 
+// Keep status filters and bulk status actions aligned with values already in use.
+try {
+    $statusSql = "SELECT DISTINCT TRIM(status) FROM employees WHERE status IS NOT NULL AND TRIM(status) <> ''";
+    if ($hasEmpDeletedAt) {
+        $statusSql .= " AND deleted_at IS NULL";
+    }
+    $storedStatuses = $pdo->query($statusSql)->fetchAll(PDO::FETCH_COLUMN);
+    $knownStatuses = [];
+    foreach ($employee_statuses as $status) {
+        $statusKey = strtolower(trim((string)$status));
+        if ($statusKey !== '') {
+            $knownStatuses[$statusKey] = trim((string)$status);
+        }
+    }
+    foreach ($storedStatuses as $status) {
+        $status = trim((string)$status);
+        $statusKey = strtolower($status);
+        if ($statusKey !== '' && !isset($knownStatuses[$statusKey])) {
+            $knownStatuses[$statusKey] = $status;
+        }
+    }
+    foreach (['Retired', 'Transferred', 'Deceased'] as $derivedStatus) {
+        $knownStatuses[strtolower($derivedStatus)] = $derivedStatus;
+    }
+    $employee_statuses = array_values($knownStatuses);
+} catch (Throwable $e) {
+    error_log('Unable to load employee status filter options: ' . $e->getMessage());
+}
+
 // Handle "Clear Messages" (only clears DB notifications for this user)
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['clear_notifs'])) {
     // CSRF validation
@@ -407,7 +437,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['cleanup_dev_files']) 
     exit;
 }
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && ($_POST['action'] === 'bulk_move_dept' || $_POST['action'] === 'bulk_delete')) {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && in_array($_POST['action'], ['bulk_move_dept', 'bulk_delete', 'undo_dashboard_bulk'], true)) {
     if (!in_array(strtoupper($_SESSION['role'] ?? ''), ['ADMIN', 'MANAGER', 'HR'], true)) {
         if (isset($logger)) {
             $logger->log($_SESSION['user_id'] ?? 0, 'AUTH_FAIL', 'Unauthorized bulk action attempt.');
@@ -420,6 +450,89 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && ($_POST[
     $formToken = $_POST['csrf_token'] ?? '';
     if (!hash_equals($_SESSION['csrf_token'], $formToken)) {
         die('Invalid CSRF token');
+    }
+
+    if ($_POST['action'] === 'undo_dashboard_bulk') {
+        $batchId = (int)($_POST['batch_id'] ?? 0);
+        if ($batchId <= 0) {
+            http_response_code(400);
+            exit('Invalid bulk action batch.');
+        }
+
+        try {
+            $pdo->beginTransaction();
+            $batchStmt = $pdo->prepare("SELECT id, source, status, reason, created_at, (created_at > DATE_SUB(NOW(), INTERVAL 24 HOUR)) AS undo_available FROM bulk_update_batches WHERE id = ? FOR UPDATE");
+            $batchStmt->execute([$batchId]);
+            $batch = $batchStmt->fetch(PDO::FETCH_ASSOC);
+            if (!$batch || $batch['source'] !== 'UI' || $batch['status'] !== 'APPLIED' || strpos((string)$batch['reason'], 'Dashboard:') !== 0) {
+                throw new RuntimeException('This dashboard bulk action is no longer available to undo.');
+            }
+            if (!(bool)$batch['undo_available']) {
+                throw new RuntimeException('The 24-hour undo period has expired.');
+            }
+
+            $changesStmt = $pdo->prepare('SELECT employee_id, field_name, old_value, new_value FROM bulk_update_changes WHERE batch_id = ? ORDER BY id');
+            $changesStmt->execute([$batchId]);
+            $changes = $changesStmt->fetchAll(PDO::FETCH_ASSOC);
+            $allowedUndoFields = ['dept', 'section', 'status', 'system_role', 'agency_name', 'employment_type', 'group', 'deleted_at'];
+            $revertedCount = 0;
+            $skippedCount = 0;
+            $deletedAtSelect = $hasEmpDeletedAt ? ', deleted_at' : '';
+
+            foreach ($changes as $change) {
+                $field = $change['field_name'];
+                if (!in_array($field, $allowedUndoFields, true)) {
+                    throw new RuntimeException('The batch contains a field that cannot be undone.');
+                }
+
+                $quotedField = '`' . $field . '`';
+                $currentStmt = $pdo->prepare("SELECT {$quotedField}{$deletedAtSelect} FROM employees WHERE id = ? FOR UPDATE");
+                $currentStmt->execute([$change['employee_id']]);
+                $currentRow = $currentStmt->fetch(PDO::FETCH_ASSOC);
+                if (!$currentRow) {
+                    $skippedCount++;
+                    continue;
+                }
+                if ($field !== 'deleted_at' && $hasEmpDeletedAt && $currentRow['deleted_at'] !== null) {
+                    $skippedCount++;
+                    continue;
+                }
+                $currentValue = $currentRow[$field];
+
+                $matchesBatchValue = ($currentValue === null && $change['new_value'] === null)
+                    || ($currentValue !== null && $change['new_value'] !== null && (string)$currentValue === (string)$change['new_value']);
+                if (!$matchesBatchValue) {
+                    $skippedCount++;
+                    continue;
+                }
+
+                $restoreStmt = $pdo->prepare("UPDATE employees SET {$quotedField} = ? WHERE id = ?");
+                $restoreStmt->execute([$change['old_value'], $change['employee_id']]);
+                $revertedCount++;
+            }
+
+            $pdo->prepare("UPDATE bulk_update_batches SET status = 'ROLLED_BACK', rolled_back_by = ?, rolled_back_at = NOW() WHERE id = ?")
+                ->execute([$_SESSION['user_id'], $batchId]);
+            $pdo->commit();
+            $logger->log($_SESSION['user_id'], 'BULK_EMP_UPDATE_UNDO', "Undid dashboard bulk action batch $batchId; reverted $revertedCount change(s), skipped $skippedCount.");
+
+            $redirectQuery = trim($_POST['redirect_query'] ?? '');
+            $redirectUrl = 'index.php' . ($redirectQuery !== '' ? '?' . ltrim($redirectQuery, '?&') : '');
+            $separator = strpos($redirectUrl, '?') === false ? '?' : '&';
+            $message = "Undo complete: $revertedCount change(s) reverted; $skippedCount skipped because records changed.";
+            header('Location: ' . $redirectUrl . $separator . 'msg=' . urlencode($message));
+            exit;
+        } catch (Throwable $e) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            error_log('Dashboard bulk action undo failed: ' . $e->getMessage());
+            $redirectQuery = trim($_POST['redirect_query'] ?? '');
+            $redirectUrl = 'index.php' . ($redirectQuery !== '' ? '?' . ltrim($redirectQuery, '?&') : '');
+            $separator = strpos($redirectUrl, '?') === false ? '?' : '&';
+            header('Location: ' . $redirectUrl . $separator . 'error=' . urlencode('Unable to undo this bulk action.'));
+            exit;
+        }
     }
 
     $selectedIds = $_POST['selected_ids'] ?? [];
@@ -444,17 +557,50 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && ($_POST[
 
     // --- HANDLER 1: BULK SOFT DELETE ---
     if ($_POST['action'] === 'bulk_delete') {
-        $placeholders = implode(',', array_fill(0, count($selectedIds), '?'));
-        $sql = "UPDATE employees SET deleted_at = NOW() WHERE id IN ($placeholders)";
-        $stmt = $pdo->prepare($sql);
-        $stmt->execute($selectedIds);
-        $count = $stmt->rowCount();
-
-        if (isset($logger)) {
-            $logger->log($_SESSION['user_id'], 'BULK_SOFT_DELETE', "Moved $count employee(s) to Recycle Bin.");
+        if (!$hasEmpDeletedAt) {
+            header('Location: ' . $redirectUrl . $separator . 'error=' . urlencode('Employee recycle-bin support is not configured.'));
+            exit;
         }
 
-        header('Location: ' . $redirectUrl . $separator . 'msg=' . urlencode("🗑️ $count employee(s) moved to Recovery Console / Recycle Bin."));
+        try {
+            $pdo->beginTransaction();
+            $placeholders = implode(',', array_fill(0, count($selectedIds), '?'));
+            $rowsStmt = $pdo->prepare("SELECT id, deleted_at FROM employees WHERE id IN ($placeholders) AND deleted_at IS NULL FOR UPDATE");
+            $rowsStmt->execute($selectedIds);
+            $rows = $rowsStmt->fetchAll(PDO::FETCH_ASSOC);
+            if (!$rows) {
+                throw new RuntimeException('No selected active employees were found.');
+            }
+
+            $uuidHex = bin2hex(random_bytes(16));
+            $batchUuid = substr($uuidHex, 0, 8) . '-' . substr($uuidHex, 8, 4) . '-' . substr($uuidHex, 12, 4) . '-' . substr($uuidHex, 16, 4) . '-' . substr($uuidHex, 20, 12);
+            $batchStmt = $pdo->prepare("INSERT INTO bulk_update_batches (batch_uuid, requested_by, reason, source, status) VALUES (?, ?, ?, 'UI', 'APPLIED')");
+            $batchStmt->execute([$batchUuid, $_SESSION['user_id'], 'Dashboard: soft delete']);
+            $batchId = (int)$pdo->lastInsertId();
+
+            $deletedAt = $pdo->query('SELECT NOW()')->fetchColumn();
+            $changeStmt = $pdo->prepare('INSERT INTO bulk_update_changes (batch_id, employee_id, field_name, old_value, new_value) VALUES (?, ?, ?, ?, ?)');
+            $deleteStmt = $pdo->prepare('UPDATE employees SET deleted_at = ? WHERE id = ? AND deleted_at IS NULL');
+            $count = 0;
+            foreach ($rows as $row) {
+                $deleteStmt->execute([$deletedAt, $row['id']]);
+                if ($deleteStmt->rowCount() === 1) {
+                    $changeStmt->execute([$batchId, $row['id'], 'deleted_at', $row['deleted_at'], $deletedAt]);
+                    $count++;
+                }
+            }
+            $pdo->commit();
+        } catch (Throwable $e) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            error_log('Dashboard bulk delete failed: ' . $e->getMessage());
+            header('Location: ' . $redirectUrl . $separator . 'error=' . urlencode('Unable to complete and record the bulk delete.'));
+            exit;
+        }
+
+        $logger->log($_SESSION['user_id'], 'BULK_SOFT_DELETE', "Moved $count employee(s) to Recycle Bin in batch $batchId.");
+        header('Location: ' . $redirectUrl . $separator . 'msg=' . urlencode("🗑️ $count employee(s) moved to Recovery Console / Recycle Bin. Undo is available in Recent Bulk Actions."));
         exit;
     }
 
@@ -467,50 +613,102 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && ($_POST[
     $targetGroup = trim($_POST['target_group'] ?? '');
 
     $updates = [];
-    $params = [];
     if ($targetDept !== '') {
-        $updates[] = 'dept = ?';
-        $params[] = $targetDept;
+        $updates['dept'] = $targetDept;
     }
     if ($targetSection !== '') {
-        $updates[] = 'section = ?';
-        $params[] = $targetSection;
+        $updates['section'] = $targetSection;
     }
-    if ($targetStatus !== '') {
+    if ($targetStatus === '__UNSPECIFIED__') {
+        $updates['status'] = '';
+    } elseif ($targetStatus !== '') {
         if (!in_array($targetStatus, $employee_statuses, true)) {
             header('Location: ' . $redirectUrl . $separator . 'error=' . urlencode('Invalid employee status selected.'));
             exit;
         }
-        $updates[] = 'status = ?';
-        $params[] = $targetStatus;
+        $updates['status'] = $targetStatus;
     }
     if ($targetGroup !== '') {
         if (!in_array($targetGroup, $groups, true)) {
             header('Location: ' . $redirectUrl . $separator . 'error=' . urlencode('Invalid group selected.'));
             exit;
         }
-        $updates[] = '`group` = ?';
-        $params[] = $targetGroup;
+        $updates['group'] = $targetGroup;
     }
     if ($targetRole !== '') {
-        $updates[] = 'system_role = ?';
-        $params[] = $targetRole;
+        $updates['system_role'] = $targetRole;
     }
     if ($targetAgency !== '') {
-        $updates[] = 'agency_name = ?';
-        $params[] = $targetAgency;
-        $updates[] = 'employment_type = ?';
-        $params[] = (stripos($targetAgency, 'TESP') !== false) ? 'TESP Direct' : 'Agency';
+        $updates['agency_name'] = $targetAgency;
+        $updates['employment_type'] = (stripos($targetAgency, 'TESP') !== false) ? 'TESP Direct' : 'Agency';
     }
 
     if (!empty($updates)) {
-        $placeholders = implode(',', array_fill(0, count($selectedIds), '?'));
-        $sql = 'UPDATE employees SET ' . implode(', ', $updates) . ' WHERE id IN (' . $placeholders . ')';
-        $stmt = $pdo->prepare($sql);
-        $stmt->execute(array_merge($params, $selectedIds));
-        $count = $stmt->rowCount();
-        $logger->log($_SESSION['user_id'], 'BULK_EMP_UPDATE', "Updated $count employee(s) using bulk action.");
-        header('Location: ' . $redirectUrl . $separator . 'msg=' . urlencode("Bulk update applied to $count employee(s)."));
+        try {
+            $pdo->beginTransaction();
+            $placeholders = implode(',', array_fill(0, count($selectedIds), '?'));
+            $activeCondition = $hasEmpDeletedAt ? ' AND deleted_at IS NULL' : '';
+            $selectStmt = $pdo->prepare("SELECT id, dept, section, status, system_role, agency_name, employment_type, `group` FROM employees WHERE id IN ($placeholders){$activeCondition} FOR UPDATE");
+            $selectStmt->execute($selectedIds);
+            $rows = $selectStmt->fetchAll(PDO::FETCH_ASSOC);
+            if (!$rows) {
+                throw new RuntimeException('No selected active employees were found.');
+            }
+
+            $uuidHex = bin2hex(random_bytes(16));
+            $batchUuid = substr($uuidHex, 0, 8) . '-' . substr($uuidHex, 8, 4) . '-' . substr($uuidHex, 12, 4) . '-' . substr($uuidHex, 16, 4) . '-' . substr($uuidHex, 20, 12);
+            $batchStmt = $pdo->prepare("INSERT INTO bulk_update_batches (batch_uuid, requested_by, reason, source, status) VALUES (?, ?, ?, 'UI', 'APPLIED')");
+            $batchStmt->execute([$batchUuid, $_SESSION['user_id'], 'Dashboard: bulk employee update']);
+            $batchId = (int)$pdo->lastInsertId();
+            $changeStmt = $pdo->prepare('INSERT INTO bulk_update_changes (batch_id, employee_id, field_name, old_value, new_value) VALUES (?, ?, ?, ?, ?)');
+            $changedEmployees = 0;
+
+            foreach ($rows as $row) {
+                $employeeUpdates = [];
+                foreach ($updates as $field => $newValue) {
+                    $oldValue = $row[$field];
+                    $sameValue = ($oldValue === null && $newValue === null)
+                        || ($oldValue !== null && $newValue !== null && (string)$oldValue === (string)$newValue);
+                    if ($sameValue) {
+                        continue;
+                    }
+                    $employeeUpdates[$field] = $newValue;
+                    $changeStmt->execute([$batchId, $row['id'], $field, $oldValue, $newValue]);
+                }
+
+                if ($employeeUpdates) {
+                    $setClauses = [];
+                    $updateParams = [];
+                    foreach ($employeeUpdates as $field => $newValue) {
+                        $setClauses[] = '`' . $field . '` = ?';
+                        $updateParams[] = $newValue;
+                    }
+                    $updateParams[] = $row['id'];
+                    $updateStmt = $pdo->prepare('UPDATE employees SET ' . implode(', ', $setClauses) . ' WHERE id = ?');
+                    $updateStmt->execute($updateParams);
+                    $changedEmployees++;
+                }
+            }
+
+            if ($changedEmployees === 0) {
+                $pdo->rollBack();
+                header('Location: ' . $redirectUrl . $separator . 'msg=' . urlencode('No changes were needed; selected employees already have those values.'));
+                exit;
+            }
+            $pdo->prepare('UPDATE bulk_update_batches SET reason = ? WHERE id = ?')
+                ->execute(['Dashboard: bulk employee update (' . $changedEmployees . ' employees)', $batchId]);
+            $pdo->commit();
+        } catch (Throwable $e) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            error_log('Dashboard bulk employee update failed: ' . $e->getMessage());
+            header('Location: ' . $redirectUrl . $separator . 'error=' . urlencode('Unable to complete and record the bulk update.'));
+            exit;
+        }
+
+        $logger->log($_SESSION['user_id'], 'BULK_EMP_UPDATE', "Updated $changedEmployees employee(s) in dashboard batch $batchId.");
+        header('Location: ' . $redirectUrl . $separator . 'msg=' . urlencode("Bulk update applied to $changedEmployees employee(s). Undo is available in Recent Bulk Actions."));
         exit;
     }
 
@@ -602,10 +800,22 @@ if ($hasEmpDeletedAt) {
     $where[] = 'deleted_at IS NULL';
 }
 
-// Status filter (exact match)
+// Match status values consistently even if legacy rows contain casing or whitespace differences.
 if ($filter_status !== '') {
-    $where[]  = 'status = ?';
-    $params[] = $filter_status;
+    if ($filter_status === '__UNSPECIFIED__') {
+        $where[] = "TRIM(COALESCE(status, '')) = ''
+            AND LOWER(COALESCE(exit_reason, '')) NOT REGEXP 'dead|deceased|passed away|retir|transf|trasf|overseas|abroad|deploy|(^|[^a-z])awol([^a-z]|$)'";
+    } else {
+        $effectiveStatusSql = "CASE
+            WHEN LOWER(COALESCE(exit_reason, '')) REGEXP 'dead|deceased|passed away' THEN 'Deceased'
+            WHEN LOWER(COALESCE(exit_reason, '')) REGEXP 'retir' THEN 'Retired'
+            WHEN LOWER(COALESCE(exit_reason, '')) REGEXP 'transf|overseas|abroad|deploy' THEN 'Transferred'
+            WHEN TRIM(COALESCE(status, '')) = '' AND LOWER(COALESCE(exit_reason, '')) REGEXP '(^|[^a-z])awol([^a-z]|$)' THEN 'AWOL'
+            ELSE TRIM(status)
+        END";
+        $where[]  = "LOWER(($effectiveStatusSql)) = ?";
+        $params[] = strtolower(trim($filter_status));
+    }
 }
 
 // Type filter: match either employment_type or agency_name (exact to value)
@@ -625,6 +835,11 @@ if ($filter_dept !== '') {
 if ($filter_section !== '') {
     $where[]  = 'section LIKE ?';
     $params[] = "%$filter_section%";
+}
+// [NEW] Group filter
+if ($filter_group !== '') {
+    $where[]  = '`group` LIKE ?';
+    $params[] = "%$filter_group%";
 }
 // Job Title filter
 if ($filter_job_title !== '') {
@@ -873,7 +1088,7 @@ $vaultQuotaPercent = ($vaultLimitGB > 0) ? min(100, round(($currentVaultGB / $va
 $backupLastStatus = $bkSettings['backup_last_status'] ?? 'OK';
 // ---------- 3) DASHBOARD ANALYTICS DATA ----------
 // 1. Headcount by Department (Active Only)
-$deptHeadcount = $pdo->query("SELECT dept, COUNT(*) as count FROM employees WHERE deleted_at IS NULL AND status = 'Active' AND dept != '' GROUP BY dept ORDER BY count DESC LIMIT 8")->fetchAll(PDO::FETCH_ASSOC);
+$deptHeadcount = $pdo->query("SELECT dept, COUNT(*) as count FROM employees WHERE deleted_at IS NULL AND (LOWER(TRIM(COALESCE(status, ''))) = 'active' OR LOWER(TRIM(COALESCE(status, ''))) REGEXP 'transf|trasf' OR LOWER(COALESCE(exit_reason, '')) REGEXP 'transf|trasf|overseas|abroad|deploy') AND LOWER(COALESCE(exit_reason, '')) NOT REGEXP 'dead|deceased|passed away|retir' AND dept != '' GROUP BY dept ORDER BY count DESC LIMIT 8")->fetchAll(PDO::FETCH_ASSOC);
 
 // 2. Compliance Rate (Missing Requirements)
 $requiredFieldsSQL = "(sss_no IS NULL OR sss_no = '' OR tin_no IS NULL OR tin_no = '' OR philhealth_no IS NULL OR philhealth_no = '' OR pagibig_no IS NULL OR pagibig_no = '' OR contact_number IS NULL OR contact_number = '' OR present_address IS NULL OR present_address = '' OR emergency_name IS NULL OR emergency_name = '' OR emergency_contact IS NULL OR emergency_contact = '')";
@@ -882,7 +1097,13 @@ $complianceRow = $pdo->query("
         SUM(CASE WHEN $requiredFieldsSQL THEN 1 ELSE 0 END) as incomplete,
         SUM(CASE WHEN NOT $requiredFieldsSQL THEN 1 ELSE 0 END) as complete
     FROM employees 
-    WHERE deleted_at IS NULL AND status = 'Active'
+    WHERE deleted_at IS NULL
+      AND (
+          LOWER(TRIM(COALESCE(status, ''))) = 'active'
+          OR LOWER(TRIM(COALESCE(status, ''))) REGEXP 'transf|trasf'
+          OR LOWER(COALESCE(exit_reason, '')) REGEXP 'transf|trasf|overseas|abroad|deploy'
+      )
+      AND LOWER(COALESCE(exit_reason, '')) NOT REGEXP 'dead|deceased|passed away|retir'
 ")->fetch(PDO::FETCH_ASSOC);
 $completeCount = (int)($complianceRow['complete'] ?? 0);
 $incompleteCount = (int)($complianceRow['incomplete'] ?? 0);
@@ -902,7 +1123,18 @@ foreach ($hires->fetchAll(PDO::FETCH_ASSOC) as $h) {
     if (isset($trendData[$h['month']])) $trendData[$h['month']]['hires'] = (int)$h['count'];
 }
 
-$attrition = $pdo->prepare("SELECT DATE_FORMAT(COALESCE(exit_date, updated_at), '%Y-%m') as month, COUNT(*) as count FROM employees WHERE deleted_at IS NULL AND status != 'Active' AND COALESCE(exit_date, updated_at) >= ? GROUP BY month");
+$attrition = $pdo->prepare("
+    SELECT DATE_FORMAT(COALESCE(NULLIF(exit_date, '0000-00-00'), updated_at), '%Y-%m') AS month, COUNT(*) AS count
+    FROM employees
+    WHERE deleted_at IS NULL
+      AND (
+          (LOWER(TRIM(status)) NOT IN ('active', 'transferred')
+              AND LOWER(COALESCE(exit_reason, '')) NOT REGEXP 'transf|overseas|abroad|deploy')
+          OR LOWER(COALESCE(exit_reason, '')) REGEXP 'dead|deceased|passed away|retir'
+      )
+      AND COALESCE(NULLIF(exit_date, '0000-00-00'), updated_at) >= ?
+    GROUP BY month
+");
 $attrition->execute([$sixMonthsAgo]);
 foreach ($attrition->fetchAll(PDO::FETCH_ASSOC) as $a) {
     if (isset($trendData[$a['month']])) $trendData[$a['month']]['attrition'] = (int)$a['count'];
@@ -915,6 +1147,28 @@ foreach ($trendData as $m => $d) {
     $monthsLabel[] = date('M Y', strtotime($m . '-01'));
     $hiresData[] = $d['hires'];
     $attritionData[] = $d['attrition'];
+}
+
+$dashboardBulkHistory = [];
+$dashboardBulkHistoryError = false;
+if (in_array($userRole, ['ADMIN', 'MANAGER', 'HR'], true)) {
+    try {
+        $dashboardBulkHistory = $pdo->query("
+            SELECT b.id, b.status, b.reason, b.created_at, u.username,
+                   (b.created_at > DATE_SUB(NOW(), INTERVAL 24 HOUR)) AS undo_available,
+                   (SELECT COUNT(*) FROM bulk_update_changes c WHERE c.batch_id = b.id) AS change_count
+            FROM bulk_update_batches b
+            LEFT JOIN users u ON u.id = b.requested_by
+            WHERE b.source = 'UI'
+              AND b.reason LIKE 'Dashboard:%'
+              AND b.status IN ('APPLIED', 'ROLLED_BACK')
+            ORDER BY b.created_at DESC
+            LIMIT 10
+        ")->fetchAll(PDO::FETCH_ASSOC);
+    } catch (PDOException $e) {
+        error_log('Dashboard bulk action history is unavailable: ' . $e->getMessage());
+        $dashboardBulkHistoryError = true;
+    }
 }
 ?>
 <?php require 'header.php'; ?>
@@ -1290,6 +1544,7 @@ foreach ($trendData as $m => $d) {
                 <div class="col-md-2">
                     <select name="status" class="form-select form-select-sm" onchange="this.form.submit()">
                         <option value="">All Statuses</option>
+                        <option value="__UNSPECIFIED__" <?= $filter_status === '__UNSPECIFIED__' ? 'selected' : '' ?>>Unspecified</option>
                         <?php
                         foreach ($employee_statuses as $val) {
                             $sel = ($filter_status === $val) ? 'selected' : '';
@@ -1338,6 +1593,22 @@ foreach ($trendData as $m => $d) {
                                 echo '<option value="' . h($s) . '" ' . $sel . '>' . h($s) . '</option>';
                             }
                         }
+                        ?>
+                    </select>
+                </div>
+
+                <!-- [NEW] Group filter -->
+                <div class="col-md-2">
+                    <select name="group" class="form-select form-select-sm" onchange="this.form.submit()">
+                        <option value="">All Groups</option>
+                        <?php
+                        try {
+                            $grpOpts = $pdo->query("SELECT DISTINCT `group` FROM employees WHERE `group` IS NOT NULL AND `group` <> '' ORDER BY `group`")->fetchAll(PDO::FETCH_COLUMN);
+                            foreach ($grpOpts as $g) {
+                                $sel = ($filter_group === $g) ? 'selected' : '';
+                                echo '<option value="' . h($g) . '" ' . $sel . '>' . h($g) . '</option>';
+                            }
+                        } catch (Exception $e) { /* graceful fallback */ }
                         ?>
                     </select>
                 </div>
@@ -1431,6 +1702,73 @@ foreach ($trendData as $m => $d) {
         </div>
     </div>
 
+    <?php if (in_array($userRole, ['ADMIN', 'MANAGER', 'HR'], true)): ?>
+        <?php if ($dashboardBulkHistoryError): ?>
+            <div class="alert alert-warning no-print" role="alert">
+                Bulk action undo history is unavailable. Apply the bulk update workflow migration to enable undo.
+            </div>
+        <?php elseif (!empty($dashboardBulkHistory)): ?>
+            <div class="card shadow-sm mb-4 no-print">
+                <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
+                    <strong><i class="bi bi-arrow-counterclockwise me-1"></i> Recent Bulk Actions</strong>
+                    <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#dashboardBulkHistory" aria-expanded="true" aria-controls="dashboardBulkHistory">
+                        Hide / Show
+                    </button>
+                    <span class="small text-muted">Undo is available for 24 hours. After that, the action remains in the logs without an Undo option.</span>
+                </div>
+                <div class="collapse show" id="dashboardBulkHistory">
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover align-middle mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Action</th>
+                                    <th>By</th>
+                                    <th>Date</th>
+                                    <th>Status</th>
+                                    <th class="text-end">Undo</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php foreach ($dashboardBulkHistory as $bulkAction): ?>
+                                    <tr>
+                                        <td>
+                                            <?php echo h($bulkAction['reason']); ?>
+                                            <span class="small text-muted">(<?php echo (int)$bulkAction['change_count']; ?> saved changes)</span>
+                                        </td>
+                                        <td><?php echo h($bulkAction['username'] ?? 'Unknown'); ?></td>
+                                        <td><?php echo h(date('M d, Y h:i A', strtotime($bulkAction['created_at']))); ?></td>
+                                        <td>
+                                            <span class="badge <?php echo $bulkAction['status'] === 'ROLLED_BACK' ? 'bg-secondary' : ((bool)$bulkAction['undo_available'] ? 'bg-success' : 'bg-dark'); ?>">
+                                                <?php echo $bulkAction['status'] === 'ROLLED_BACK' ? 'UNDONE' : ((bool)$bulkAction['undo_available'] ? 'UNDO AVAILABLE' : 'EXPIRED - LOG ONLY'); ?>
+                                            </span>
+                                        </td>
+                                        <td class="text-end">
+                                            <?php if ($bulkAction['status'] === 'APPLIED' && (bool)$bulkAction['undo_available']): ?>
+                                                <form method="POST" class="d-inline" onsubmit="return confirm('Undo this bulk action? Any records changed since the action will be skipped.');">
+                                                    <input type="hidden" name="action" value="undo_dashboard_bulk">
+                                                    <input type="hidden" name="csrf_token" value="<?php echo h($_SESSION['csrf_token']); ?>">
+                                                    <input type="hidden" name="batch_id" value="<?php echo (int)$bulkAction['id']; ?>">
+                                                    <input type="hidden" name="redirect_query" value="<?php echo h($_SERVER['QUERY_STRING'] ?? ''); ?>">
+                                                    <button type="submit" class="btn btn-sm btn-outline-warning">
+                                                        <i class="bi bi-arrow-counterclockwise"></i> Undo
+                                                    </button>
+                                                </form>
+                                            <?php elseif ($bulkAction['status'] === 'ROLLED_BACK'): ?>
+                                                <span class="text-muted small">Already undone</span>
+                                            <?php else: ?>
+                                                <span class="text-muted small">Retained in logs</span>
+                                            <?php endif; ?>
+                                        </td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        <?php endif; ?>
+    <?php endif; ?>
+
     <!-- [FIX] Wrapper for Card View - Moved up to include alerts for total separation -->
     <?php // ---------- 12) EMPLOYEE DIRECTORY RESULTS ---------- 
     ?>
@@ -1455,28 +1793,19 @@ foreach ($trendData as $m => $d) {
             </div>
         <?php endif; ?>
 
-        <?php if (empty($employees)): ?>
-            <div class="alert alert-warning text-center shadow-sm">No employees found matching your search.</div>
-            <?php if ($didYouMean): ?>
-                <div class="alert alert-info text-center shadow-sm mt-2">
-                    <i class="bi bi-lightbulb-fill me-2"></i> Did you mean:
-                    <a href="<?php echo $didYouMeanLink; ?>" class="fw-bold text-dark text-decoration-underline"><?php echo h($didYouMean); ?></a>?
-                </div>
-            <?php endif; ?>
-        <?php endif; ?>
-
         <div class="row g-3" id="directory-results">
             <?php foreach ($employees as $emp):
-                $statusClass = match ($emp['status']) {
-                    'Active'     => 'status-active',
-                    'Resigned'   => 'status-agency',
-                    'Terminated' => 'status-terminated',
-                    default      => 'border-secondary'
-                };
-                $statusBadge = match ($emp['status']) {
-                    'Active'     => 'bg-success',
-                    'Resigned'   => 'bg-warning',
-                    'Terminated' => 'bg-dark',
+            $effectiveStatus = employeeEffectiveStatus($emp['status'], $emp['exit_reason'] ?? '') ?: 'Unspecified';
+            $statusClass = match ($effectiveStatus) {
+                'Active'     => 'status-active',
+                'Resigned'   => 'status-agency',
+                'Terminated' => 'status-terminated',
+                default      => 'border-secondary'
+            };
+            $statusBadge = match ($effectiveStatus) {
+                'Active'     => 'bg-success',
+                'Resigned'   => 'bg-warning',
+                'Terminated' => 'bg-dark',
                     default      => 'bg-secondary'
                 };
 
@@ -1495,7 +1824,7 @@ foreach ($trendData as $m => $d) {
                 // Color-coded employer badges
                 $agName = strtoupper($emp['agency_name'] ?? '');
                 if (($emp['employment_type'] ?? '') === 'TESP Direct') {
-                    $employerBadge = '<span class="badge bg-primary">TESP DIRECT</span>';
+                    $employerBadge = '<span class="badge bg-primary">TESP</span>';
                 } elseif ($agName === 'JORATECH') {
                     $employerBadge = '<span class="badge bg-success">JORATECH</span>';
                 } elseif ($agName === 'UNLISOLUTIONS') {
@@ -1503,7 +1832,7 @@ foreach ($trendData as $m => $d) {
                 } elseif ($agName === 'GUNJIN') {
                     $employerBadge = '<span class="badge bg-danger">GUNJIN</span>';
                 } else {
-                    $employerBadge = '<span class="badge bg-secondary">' . h($agName ?: 'AGENCY') . '</span>';
+                    $employerBadge = '<span class="badge bg-secondary">' . h(employerDisplayLabel($agName ?: 'Agency')) . '</span>';
                 }
                 $deptDisplay = h($emp['dept']);
                 $sectionDisplay = (!empty($emp['section']) && $emp['section'] !== 'Main Unit') ? h($emp['section']) : '';
@@ -1602,7 +1931,7 @@ foreach ($trendData as $m => $d) {
                                     <?php endif; ?>
                                     <!-- Badges row -->
                                     <div class="d-flex flex-wrap gap-1 mt-1">
-                                        <span class="badge <?php echo $statusBadge; ?> rounded-pill"><?php echo h($emp['status']); ?></span>
+                                        <span class="badge <?php echo $statusBadge; ?> rounded-pill"><?php echo h($effectiveStatus); ?></span>
                                         <span class="badge <?php echo $roleBadge; ?> rounded-pill" title="System Role">
                                             <i class="bi bi-person-badge"></i> <?php echo h($sysRole); ?>
                                         </span>
@@ -1857,8 +2186,9 @@ foreach ($trendData as $m => $d) {
                                     <td><span class="badge bg-light text-dark border"><?= h($emp['group'] ?: 'N/A') ?></span></td>
                                     <td><span class="badge bg-secondary"><?= h($emp['system_role'] ?: 'Staff') ?></span></td>
                                     <td class="small"><?= h($emp['job_title']) ?></td>
-                                    <td><span class="badge bg-light text-dark border"><?= h($emp['agency_name'] ?: $emp['employment_type']) ?></span></td>
-                                    <td><span class="badge rounded-pill <?= $emp['status'] === 'Active' ? 'bg-success' : 'bg-warning' ?>"><?= h($emp['status']) ?></span></td>
+                                    <td><span class="badge bg-light text-dark border"><?= h(employerDisplayLabel($emp['agency_name'] ?: $emp['employment_type'])) ?></span></td>
+                                    <?php $effectiveStatus = employeeEffectiveStatus($emp['status'], $emp['exit_reason'] ?? '') ?: 'Unspecified'; ?>
+                                    <td><span class="badge rounded-pill <?= $effectiveStatus === 'Active' ? 'bg-success' : 'bg-warning' ?>"><?= h($effectiveStatus) ?></span></td>
                                     <td class="font-monospace small"><?= h($emp['sss_no'] ?: 'N/A') ?></td>
                                     <td class="font-monospace small"><?= h($emp['tin_no'] ?: 'N/A') ?></td>
                                     <td class="font-monospace small"><?= h($emp['philhealth_no'] ?: 'N/A') ?></td>
@@ -2118,10 +2448,10 @@ foreach ($trendData as $m => $d) {
 
                     <div class="row">
                         <div class="col-md-4 mb-3">
-                            <label class="form-label fw-bold">Agency</label>
+                            <label class="form-label fw-bold">Employer</label>
                             <select name="employment_type" class="form-select">
                                 <option value="">-- All --</option>
-                                <option value="TESP DIRECT">TESP DIRECT</option>
+                                <option value="TESP DIRECT">TESP</option>
                                 <option value="GUNJIN">GUNJIN</option>
                                 <option value="JORATECH">JORATECH</option>
                                 <option value="UNLISOLUTIONS">UNLISOLUTIONS</option>
@@ -2213,11 +2543,11 @@ foreach ($trendData as $m => $d) {
                         </select>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label fw-bold">Change Agency</label>
+                        <label class="form-label fw-bold">Change Employer</label>
                         <select name="target_agency" id="bulkTargetAgency" class="form-select">
                             <option value="">-- No Change --</option>
                             <?php foreach ($agencies as $agency): ?>
-                                <option value="<?php echo h($agency); ?>"><?php echo h($agency); ?></option>
+                                <option value="<?php echo h($agency); ?>"><?php echo h(employerDisplayLabel($agency)); ?></option>
                             <?php endforeach; ?>
                         </select>
                     </div>
@@ -2235,6 +2565,7 @@ foreach ($trendData as $m => $d) {
                         <label class="form-label fw-bold">Update Status</label>
                         <select name="target_status" class="form-select">
                             <option value="">-- No Change --</option>
+                            <option value="__UNSPECIFIED__">Unspecified</option>
                             <?php foreach ($employee_statuses as $statusOption): ?>
                                 <option value="<?php echo h($statusOption); ?>"><?php echo h($statusOption); ?></option>
                             <?php endforeach; ?>
@@ -2833,9 +3164,15 @@ foreach ($trendData as $m => $d) {
             if (dept) summary += `<li>Department: <strong>${dept}</strong></li>`;
             if (sect) summary += `<li>Section: <strong>${sect}</strong></li>`;
             if (role) summary += `<li>System Role: <strong>${role}</strong></li>`;
-            if (agency) summary += `<li>Agency: <strong>${agency}</strong></li>`;
+            if (agency) {
+                const agencyLabel = document.getElementById('bulkTargetAgency').selectedOptions[0]?.textContent.trim() || agency;
+                summary += `<li>Employer: <strong>${agencyLabel}</strong></li>`;
+            }
             if (group) summary += `<li>Group: <strong>${group}</strong></li>`;
-            if (status) summary += `<li>Status: <strong>${status}</strong></li>`;
+            if (status) {
+                const statusLabel = status === '__UNSPECIFIED__' ? 'Unspecified' : status;
+                summary += `<li>Status: <strong>${statusLabel}</strong></li>`;
+            }
             summary += '</ul>';
 
             Swal.fire({

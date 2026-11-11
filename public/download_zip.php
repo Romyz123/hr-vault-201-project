@@ -5,6 +5,7 @@ require '../config/db.php';
 require '../src/Logger.php';
 require '../src/FileService.php';
 session_start();
+if (isset($_SESSION['user_id'])) checkSessionTimeout($pdo);
 
 if (!isset($_SESSION['user_id'])) die("Access Denied");
 

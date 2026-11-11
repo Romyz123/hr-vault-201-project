@@ -9,6 +9,7 @@ define('CLI_MODE', php_sapi_name() === 'cli');
 
 if (!CLI_MODE) {
     session_start();
+if (isset($_SESSION['user_id'])) checkSessionTimeout($pdo);
     if (($_SESSION['role'] ?? '') !== 'ADMIN') {
         header('HTTP/1.1 403 Forbidden');
         echo 'Access Denied';

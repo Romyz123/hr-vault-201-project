@@ -6,6 +6,7 @@ require '../../config/db.php';
 require '../../src/Security.php';
 require '../../src/FileService.php';
 session_start();
+if (isset($_SESSION['user_id'])) checkSessionTimeout($pdo);
 
 header('Content-Type: application/json');
 

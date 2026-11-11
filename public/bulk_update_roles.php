@@ -48,24 +48,47 @@ $bulkFields = [
     'section' => 'Section',
     'group_name' => 'Group',
     'gender' => 'Gender',
-    'agency_name' => 'Agency',
+    'agency_name' => 'Employer',
     'employment_type' => 'Employment Type',
     'status' => 'Status'
 ];
 
-function bulkFilteredEmployeeIds(PDO $pdo, array $filters): array
+function bulkFilteredEmployeeIds($pdo, $filters)
 {
     $where = ['deleted_at IS NULL'];
     $params = [];
     $search = Validator::sanitizeSearch($filters['search'] ?? '');
     if ($search !== '') {
         $where[] = '(emp_id LIKE ? OR first_name LIKE ? OR last_name LIKE ?)';
-        $term = "%$search%";
+        $term = "\%$search%";
         array_push($params, $term, $term, $term);
     }
-    $filterMap = ['dept' => 'dept', 'section' => 'section', 'job_title' => 'job_title', 'role' => 'system_role', 'status' => 'status', 'agency' => 'agency_name'];
+    $filterMap = ['dept' => 'dept', 'section' => 'section', 'job_title' => 'job_title', 'role' => 'system_role', 'status' => 'status', 'agency' => 'agency_name', 'group' => 'group_name'];
     foreach ($filterMap as $input => $column) {
         if (($filters[$input] ?? '') !== '') {
+            if ($input === 'status' && $filters[$input] === '__UNSPECIFIED__') {
+                $where[] = "TRIM(COALESCE(status, '')) = ''
+                    AND LOWER(COALESCE(exit_reason, '')) NOT REGEXP 'dead|deceased|passed away|retir|transf|trasf|overseas|abroad|deploy|(^|[^a-z])awol([^a-z]|$)'";
+                continue;
+            }
+            if ($input === 'status' && $filters[$input] === 'AWOL') {
+                $where[] = "(LOWER(TRIM(COALESCE(status, ''))) = 'awol'
+                    OR (TRIM(COALESCE(status, '')) = ''
+                        AND LOWER(COALESCE(exit_reason, '')) REGEXP '(^|[^a-z])awol([^a-z]|$)'))";
+                continue;
+            }
+            if ($input === 'section') {
+                $where[] = "FIND_IN_SET(?, REPLACE(REPLACE(section, ', ', ','), ' ,', ',')) > 0";
+                $params[] = $filters[$input];
+                continue;
+            }
+            if ($input === 'group') {
+                $where[] = "(FIND_IN_SET(?, REPLACE(REPLACE(group_name, ', ', ','), ' ,', ',')) > 0
+                    OR FIND_IN_SET(?, REPLACE(REPLACE(`group`, ', ', ','), ' ,', ',')) > 0)";
+                $params[] = $filters[$input];
+                $params[] = $filters[$input];
+                continue;
+            }
             $where[] = "$column = ?";
             $params[] = $filters[$input];
         }
@@ -75,14 +98,14 @@ function bulkFilteredEmployeeIds(PDO $pdo, array $filters): array
     return array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN));
 }
 
-function bulkCreateBatch(PDO $pdo, int $userId, string $reason, string $source, string $status): int
+function bulkCreateBatch($pdo, $userId, $reason, $source, $status)
 {
     $stmt = $pdo->prepare('INSERT INTO bulk_update_batches (batch_uuid, requested_by, reason, source, status) VALUES (?, ?, ?, ?, ?)');
-    $stmt->execute([sprintf('%s-%s-%s-%s', uniqid('', true), bin2hex(random_bytes(4)), date('YmdHis'), $userId), $userId, $reason ?: null, $source, $status]);
+    $stmt->execute([sprintf('\%s-\%s-\%s-\%s', uniqid('', true), bin2hex(random_bytes(4)), date('YmdHis'), $userId), $userId, $reason ?: null, $source, $status]);
     return (int)$pdo->lastInsertId();
 }
 
-function bulkHasSensitiveChanges(array $changes): bool
+function bulkHasSensitiveChanges($changes)
 {
     foreach ($changes as $change) {
         if ($change['field_name'] === 'system_role' || $change['field_name'] === 'status') return true;
@@ -91,13 +114,6 @@ function bulkHasSensitiveChanges(array $changes): bool
 }
 
 require __DIR__ . '/options.php';
-
-try {
-    $dbGroups = $pdo->query("SELECT group_name FROM org_groups ORDER BY group_name ASC")->fetchAll(PDO::FETCH_COLUMN);
-    $groups = !empty($dbGroups) ? $dbGroups : ($org_groups ?? []);
-} catch (Exception $e) {
-    $groups = $org_groups ?? [];
-}
 
 if (empty($_SESSION['csrf_token'])) {
     $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
@@ -155,6 +171,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['batch_action'])) {
             $logger->log($_SESSION['user_id'], 'BULK_UPDATE_REJECTED', "Rejected bulk update batch $batchId.");
             $msg = 'Bulk update rejected.';
         } else {
+            if ($batch['source'] === 'UI' && strpos((string)$batch['reason'], 'Dashboard:') === 0) {
+                throw new RuntimeException('Dashboard bulk actions can only be undone from the dashboard within their 24-hour undo period.');
+            }
             if (!in_array($batch['status'], ['APPLIED', 'APPROVED'], true)) throw new RuntimeException('Only applied batches can be rolled back.');
             foreach ($changes as $change) {
                 if (!in_array($change['field_name'], $allowedBatchFields, true)) throw new RuntimeException('Invalid field in bulk batch.');
@@ -194,6 +213,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_POST['update_roles']) || i
             'role' => $_POST['role_state'] ?? '',
             'status' => $_POST['status_state'] ?? '',
             'agency' => $_POST['agency_state'] ?? '',
+            'group' => $_POST['group_state'] ?? '',
             'dup_filter' => $_POST['dup_filter_state'] ?? 'all'
         ]);
     }
@@ -209,6 +229,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_POST['update_roles']) || i
         'role' => $_POST['role_state'] ?? '',
         'status' => $_POST['status_state'] ?? '',
         'agency' => $_POST['agency_state'] ?? '',
+        'group' => $_POST['group_state'] ?? '',
         'dup_filter' => $_POST['dup_filter_state'] ?? 'all'
     ]);
     $ids = array_values(array_intersect($ids, $filterIds));
@@ -220,7 +241,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_POST['update_roles']) || i
     $new_group    = trim($_POST['new_group'] ?? '');
     $new_gender   = trim($_POST['new_gender'] ?? '');
     $new_agency   = trim($_POST['new_agency'] ?? '');
-    $new_status   = trim($_POST['new_status'] ?? '');
+    $requested_status = trim($_POST['new_status'] ?? '');
+    $setUnspecifiedStatus = $requested_status === '__UNSPECIFIED__';
+    $new_status = $setUnspecifiedStatus ? '' : $requested_status;
     $new_emp_type = trim($_POST['new_emp_type'] ?? '');
     $audit_reason = substr(trim($_POST['audit_reason'] ?? ''), 0, 200);
     $clearFields = [];
@@ -239,7 +262,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_POST['update_roles']) || i
         $error = "❌ Invalid role selected.";
     } elseif (!empty($new_gender) && !in_array($new_gender, $allowedGenders)) {
         $error = "❌ Invalid gender selected.";
-    } elseif (!empty($new_status) && !in_array($new_status, $employee_statuses, true)) {
+    } elseif (!$setUnspecifiedStatus && !empty($new_status) && !in_array($new_status, $employee_statuses, true)) {
         $error = "❌ Invalid status selected.";
     } elseif (!empty($new_dept)) {
         $selectedDepts = array_map('trim', explode(',', $new_dept));
@@ -251,11 +274,54 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_POST['update_roles']) || i
         }
     }
 
+    if ($new_group !== '' && empty($error)) {
+        $selectedGroups = array_values(array_unique(array_filter(array_map('trim', explode(',', $new_group)))));
+        $groupParentStmt = $pdo->prepare("
+            SELECT d.name AS department_name, s.name AS section_name
+            FROM `groups` g
+            JOIN sections s ON s.id = g.section_id
+            JOIN departments d ON d.id = s.department_id
+            WHERE g.name = ?
+        ");
+        $groupParents = [];
+        foreach ($selectedGroups as $selectedGroup) {
+            $groupParentStmt->execute([$selectedGroup]);
+            $parent = $groupParentStmt->fetch(PDO::FETCH_ASSOC);
+            if (!$parent) {
+                $error = "❌ Group is not linked to a section: " . htmlspecialchars($selectedGroup, ENT_QUOTES, 'UTF-8');
+                break;
+            }
+            $groupParents[$selectedGroup] = $parent;
+        }
+
+        if (empty($error) && !empty($ids)) {
+            $targetStmt = $pdo->prepare(
+                "SELECT id, dept, section FROM employees WHERE deleted_at IS NULL AND id IN (" .
+                rtrim(str_repeat('?,', count($ids)), ',') . ")"
+            );
+            $targetStmt->execute($ids);
+            foreach ($targetStmt->fetchAll(PDO::FETCH_ASSOC) as $target) {
+                $targetDepartments = array_map('trim', explode(',', $new_dept !== '' ? $new_dept : (string)($target['dept'] ?? '')));
+                $targetSections = array_map('trim', explode(',', $new_section !== '' ? $new_section : (string)($target['section'] ?? '')));
+                foreach ($groupParents as $selectedGroup => $parent) {
+                    if (
+                        !in_array($parent['department_name'], $targetDepartments, true) ||
+                        !in_array($parent['section_name'], $targetSections, true)
+                    ) {
+                        $error = "❌ Group " . htmlspecialchars($selectedGroup, ENT_QUOTES, 'UTF-8') .
+                            " does not belong to every selected employee's final department and section.";
+                        break 2;
+                    }
+                }
+            }
+        }
+    }
+
     if (empty($ids)) {
         $error = "❌ No employees selected.";
     } else {
         $valid = empty($error);
-        if (($new_role !== '' || $new_status !== '') && strtoupper((string)($_SESSION['role'] ?? '')) !== 'ADMIN') {
+        if (($new_role !== '' || $new_status !== '' || $setUnspecifiedStatus) && strtoupper((string)($_SESSION['role'] ?? '')) !== 'ADMIN') {
             $error = "Sensitive role or employment-status changes require administrator approval.";
             $valid = false;
         }
@@ -286,7 +352,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_POST['update_roles']) || i
                     $oldSection = htmlspecialchars($t['section'] ?? '', ENT_QUOTES, 'UTF-8');
                     $oldGroup   = htmlspecialchars($t['group_name'] ?? '', ENT_QUOTES, 'UTF-8');
                     $oldGender  = htmlspecialchars($t['gender'] ?? '', ENT_QUOTES, 'UTF-8');
-                    $oldAgency  = htmlspecialchars($t['agency_name'] ?? '', ENT_QUOTES, 'UTF-8');
+                    $oldAgency  = htmlspecialchars(
+                        employerDisplayLabel(($t['agency_name'] ?? '') ?: ($t['employment_type'] ?? '')),
+                        ENT_QUOTES,
+                        'UTF-8'
+                    );
                     $oldEmpType = htmlspecialchars($t['employment_type'] ?? '', ENT_QUOTES, 'UTF-8');
                     $oldStatus  = htmlspecialchars($t['status'] ?? '', ENT_QUOTES, 'UTF-8');
 
@@ -311,13 +381,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_POST['update_roles']) || i
                     if ($new_gender && ($t['gender'] ?? '') !== $new_gender) {
                         $changes[] = "Gender: <s>$oldGender</s> &rarr; <strong>" . htmlspecialchars($new_gender, ENT_QUOTES, 'UTF-8') . "</strong>";
                     }
-                    if ($new_status && ($t['status'] ?? '') !== $new_status) {
-                        $changes[] = "Status: <s>$oldStatus</s> &rarr; <strong class='text-danger'>" . htmlspecialchars($new_status, ENT_QUOTES, 'UTF-8') . "</strong>";
+                    if (($new_status !== '' || $setUnspecifiedStatus) && (string)($t['status'] ?? '') !== $new_status) {
+                        $newStatusLabel = $setUnspecifiedStatus ? 'Unspecified' : $new_status;
+                        $changes[] = "Status: <s>$oldStatus</s> &rarr; <strong class='text-danger'>" . htmlspecialchars($newStatusLabel, ENT_QUOTES, 'UTF-8') . "</strong>";
                     }
                     if ($new_agency) {
                         $newEmpType = (stripos($new_agency, 'TESP') !== false) ? 'TESP Direct' : 'Agency';
                         if (($t['agency_name'] ?? '') !== $new_agency) {
-                            $changes[] = "Agency: <s>$oldAgency</s> &rarr; <strong>" . htmlspecialchars($new_agency, ENT_QUOTES, 'UTF-8') . "</strong>";
+                            $newAgencyLabel = htmlspecialchars(employerDisplayLabel($new_agency), ENT_QUOTES, 'UTF-8');
+                            $changes[] = "Employer: <s>$oldAgency</s> &rarr; <strong>$newAgencyLabel</strong>";
                         }
                         if ($oldEmpType !== $newEmpType) {
                             $changes[] = "Type: <s>$oldEmpType</s> &rarr; <strong>$newEmpType</strong>";
@@ -372,7 +444,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_POST['update_roles']) || i
                         $updates[] = "gender = ?";
                         $params[] = $new_gender;
                     }
-                    if (!empty($new_status)) {
+                    if ($new_status !== '' || $setUnspecifiedStatus) {
                         $updates[] = "status = ?";
                         $params[] = $new_status;
                     }
@@ -429,7 +501,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_POST['update_roles']) || i
                         ];
                         foreach ($snapshots as $id => $snapshot) {
                             foreach ($newValues as $field => $newValue) {
-                                $requested = $newValue !== '' || !empty($clearFields[$field]);
+                                $requested = $newValue !== '' || ($field === 'status' && $setUnspecifiedStatus) || !empty($clearFields[$field]);
                                 if (!$requested) continue;
                                 $effective = !empty($clearFields[$field]) && $newValue === '' ? null : $newValue;
                                 if ((string)($snapshot[$field] ?? '') !== (string)$effective) {
@@ -452,6 +524,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_POST['update_roles']) || i
                             'role' => $_POST['role_state'] ?? '',
                             'status' => $_POST['status_state'] ?? '',
                             'agency' => $_POST['agency_state'] ?? '',
+                            'group' => $_POST['group_state'] ?? '',
                             'limit' => $_POST['limit_state'] ?? '100'
                         ]);
 
@@ -483,10 +556,11 @@ $job_title_filter = $_GET['job_title'] ?? '';
 $role_filter    = $_GET['role'] ?? '';
 $status_filter  = $_GET['status'] ?? '';
 $agency_filter  = $_GET['agency'] ?? '';
+$group_filter   = $_GET['group'] ?? ''; // [NEW] Group filter
 $limit          = $_GET['limit'] ?? '100';
 $dup_filter     = in_array($_GET['dup_filter'] ?? '', ['all', 'duplicates', 'unique']) ? ($_GET['dup_filter'] ?? 'all') : 'all';
 
-$sql = "SELECT id, emp_id, first_name, last_name, job_title, dept, section, group_name, system_role, agency_name, employment_type, status FROM employees WHERE deleted_at IS NULL";
+$sql = "SELECT id, emp_id, first_name, last_name, job_title, dept, section, group_name, system_role, agency_name, employment_type, status, exit_reason FROM employees WHERE deleted_at IS NULL";
 $params = [];
 
 if ($search) {
@@ -503,7 +577,7 @@ if ($dept) {
 }
 
 if ($section_filter) {
-    $sql .= " AND section = ?";
+    $sql .= " AND FIND_IN_SET(?, REPLACE(REPLACE(section, ', ', ','), ' ,', ',')) > 0";
     $params[] = $section_filter;
 }
 
@@ -517,7 +591,14 @@ if ($role_filter) {
     $params[] = $role_filter;
 }
 
-if ($status_filter) {
+if ($status_filter === '__UNSPECIFIED__') {
+    $sql .= " AND TRIM(COALESCE(status, '')) = ''
+        AND LOWER(COALESCE(exit_reason, '')) NOT REGEXP 'dead|deceased|passed away|retir|transf|trasf|overseas|abroad|deploy|(^|[^a-z])awol([^a-z]|$)'";
+} elseif ($status_filter === 'AWOL') {
+    $sql .= " AND (LOWER(TRIM(COALESCE(status, ''))) = 'awol'
+        OR (TRIM(COALESCE(status, '')) = ''
+            AND LOWER(COALESCE(exit_reason, '')) REGEXP '(^|[^a-z])awol([^a-z]|$)'))";
+} elseif ($status_filter) {
     $sql .= " AND status = ?";
     $params[] = $status_filter;
 }
@@ -525,6 +606,13 @@ if ($status_filter) {
 if ($agency_filter) {
     $sql .= " AND agency_name = ?";
     $params[] = $agency_filter;
+}
+
+// [NEW] Group filter
+if ($group_filter) {
+    $sql .= " AND (FIND_IN_SET(?, REPLACE(REPLACE(group_name, ', ', ','), ' ,', ',')) > 0 OR FIND_IN_SET(?, REPLACE(REPLACE(`group`, ', ', ','), ' ,', ',')) > 0)";
+    $params[] = $group_filter;
+    $params[] = $group_filter;
 }
 
 $sql .= " ORDER BY last_name ASC";
@@ -573,12 +661,29 @@ if (empty($employees) && !empty($search)) {
     }
 }
 
-$depts = $pdo->query("SELECT DISTINCT dept FROM employees WHERE dept != '' ORDER BY dept")->fetchAll(PDO::FETCH_COLUMN);
-$sections = $pdo->query("SELECT DISTINCT section FROM employees WHERE section != '' ORDER BY section")->fetchAll(PDO::FETCH_COLUMN);
+$depts = array_keys($deptMap);
+$filterSections = [];
+$filterGroups = [];
+foreach ($deptMap as $departmentName => $sectionNames) {
+    if ($dept !== '' && $departmentName !== $dept) continue;
+    foreach ($sectionNames as $sectionName) {
+        $filterSections[$sectionName] = true;
+        if ($section_filter !== '' && $sectionName !== $section_filter) continue;
+        foreach ($sectionGroupMap[$departmentName][$sectionName] ?? [] as $groupName) {
+            $filterGroups[$groupName] = true;
+        }
+    }
+}
+$sections = array_keys($filterSections);
+$filterGroups = array_keys($filterGroups);
+natcasesort($sections);
+natcasesort($filterGroups);
+$sections = array_values($sections);
+$filterGroups = array_values($filterGroups);
 $historyLogs = $pdo->query("SELECT a.*, u.username FROM activity_logs a LEFT JOIN users u ON a.user_id = u.id WHERE action = 'BULK_UPDATE_ROLE' ORDER BY created_at DESC LIMIT 5")->fetchAll(PDO::FETCH_ASSOC);
 $pendingBatches = [];
 try {
-    $pendingBatches = $pdo->query("SELECT b.id, b.source, b.status, b.reason, b.created_at, u.username FROM bulk_update_batches b LEFT JOIN users u ON b.requested_by = u.id WHERE b.status IN ('PENDING_APPROVAL', 'APPLIED', 'APPROVED') ORDER BY b.created_at DESC LIMIT 10")->fetchAll(PDO::FETCH_ASSOC);
+    $pendingBatches = $pdo->query("SELECT b.id, b.source, b.status, b.reason, b.created_at, u.username FROM bulk_update_batches b LEFT JOIN users u ON b.requested_by = u.id WHERE b.status IN ('PENDING_APPROVAL', 'APPLIED', 'APPROVED') AND (b.reason IS NULL OR b.reason NOT LIKE 'Dashboard:%') ORDER BY b.created_at DESC LIMIT 10")->fetchAll(PDO::FETCH_ASSOC);
 } catch (PDOException $exception) {
     error_log('Bulk update workflow migration is not installed: ' . $exception->getMessage());
     $error = 'Bulk update history is unavailable until the bulk workflow database migration is applied.';
@@ -613,8 +718,35 @@ if (isset($_GET['export_csv'])) {
     exit;
 }
 
+
 require 'header.php';
 ?>
+
+<style>
+    /* Sticky Update Panel Only */
+    .sticky-update-panel {
+        position: sticky;
+        top: 15px;
+        z-index: 1040;
+        background-color: #f8f9fa;
+        padding: 5px;
+        border-radius: 8px;
+        box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
+        border: 1px solid #ced4da;
+        margin-bottom: 20px;
+    }
+
+    .sticky-update-panel .card {
+        margin-bottom: 0 !important;
+    }
+
+    .card-action-buttons {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        justify-content: flex-end;
+    }
+</style>
 
 <div class="container">
     <!-- DRY RUN RESULTS ALERT -->
@@ -651,13 +783,19 @@ require 'header.php';
         </div>
     <?php endif; ?>
 
-    <!-- FILTER TOOLBAR -->
+    <?php if ($didYouMean): ?>
+        <div class="alert alert-info text-center shadow-sm mb-4">
+            <i class="bi bi-lightbulb-fill me-2"></i> Did you mean:
+            <a href="<?php echo $didYouMeanLink; ?>" class="fw-bold text-dark text-decoration-underline"><?php echo htmlspecialchars($didYouMean); ?></a>?
+        </div>
+    <?php endif; ?>
+
+    <!-- FILTER TOOLBAR (Scrolls naturally) -->
     <div class="card shadow-sm mb-4">
         <div class="card-body py-2">
             <form method="GET" class="row g-2 align-items-center" id="filterForm">
-                <!-- 1. Department Filter -->
                 <div class="col-md-2">
-                    <select name="dept" class="form-select form-select-sm fw-bold" onchange="this.form.submit()">
+                    <select name="dept" class="form-select form-select-sm fw-bold" onchange="this.form.elements.section.value=''; this.form.elements.group.value=''; this.form.submit()">
                         <option value="">All Departments</option>
                         <?php foreach ($depts as $d): ?>
                             <option value="<?php echo htmlspecialchars($d); ?>" <?php echo ($dept === $d) ? 'selected' : ''; ?>>
@@ -666,7 +804,6 @@ require 'header.php';
                         <?php endforeach; ?>
                     </select>
                 </div>
-                <!-- Position / Job Title Filter -->
                 <div class="col-md-2">
                     <label class="form-label form-label-sm fw-bold text-muted mb-1">Position / Job Title</label>
                     <select name="job_title" class="form-select form-select-sm" onchange="this.form.submit()">
@@ -678,10 +815,8 @@ require 'header.php';
                         <?php endforeach; ?>
                     </select>
                 </div>
-
-                <!-- 2. Section Filter -->
                 <div class="col-md-2">
-                    <select name="section" class="form-select form-select-sm" onchange="this.form.submit()">
+                    <select name="section" class="form-select form-select-sm" onchange="this.form.elements.group.value=''; this.form.submit()">
                         <option value="">All Sections</option>
                         <?php foreach ($sections as $sec): ?>
                             <option value="<?php echo htmlspecialchars($sec); ?>" <?php echo ($section_filter === $sec) ? 'selected' : ''; ?>>
@@ -690,8 +825,6 @@ require 'header.php';
                         <?php endforeach; ?>
                     </select>
                 </div>
-
-                <!-- 3. System Role Filter -->
                 <div class="col-md-2">
                     <select name="role" class="form-select form-select-sm" onchange="this.form.submit()">
                         <option value="">All Roles</option>
@@ -702,11 +835,10 @@ require 'header.php';
                         <?php endforeach; ?>
                     </select>
                 </div>
-
-                <!-- 4. Employee Status Filter -->
                 <div class="col-md-2">
                     <select name="status" class="form-select form-select-sm" onchange="this.form.submit()">
                         <option value="">All Statuses</option>
+                        <option value="__UNSPECIFIED__" <?php echo ($status_filter === '__UNSPECIFIED__') ? 'selected' : ''; ?>>Unspecified</option>
                         <?php foreach ($employee_statuses as $st): ?>
                             <option value="<?php echo htmlspecialchars($st); ?>" <?php echo ($status_filter === $st) ? 'selected' : ''; ?>>
                                 <?php echo htmlspecialchars($st); ?>
@@ -714,20 +846,27 @@ require 'header.php';
                         <?php endforeach; ?>
                     </select>
                 </div>
-
-                <!-- 5. Agency Filter -->
                 <div class="col-md-2">
                     <select name="agency" class="form-select form-select-sm" onchange="this.form.submit()">
-                        <option value="">All Agencies</option>
+                        <option value="">All Employers</option>
                         <?php foreach ($agencies as $ag): ?>
                             <option value="<?php echo htmlspecialchars($ag); ?>" <?php echo ($agency_filter === $ag) ? 'selected' : ''; ?>>
-                                <?php echo htmlspecialchars($ag); ?>
+                                <?php echo htmlspecialchars(employerDisplayLabel($ag)); ?>
                             </option>
                         <?php endforeach; ?>
                     </select>
                 </div>
-
-                <!-- 6. Duplicate Record Filter -->
+                <!-- [NEW] Group filter -->
+                <div class="col-md-2">
+                    <select name="group" class="form-select form-select-sm" onchange="this.form.submit()">
+                        <option value="">All Groups</option>
+                        <?php foreach ($filterGroups as $g): ?>
+                            <option value="<?php echo htmlspecialchars($g); ?>" <?php echo ($group_filter === $g) ? 'selected' : ''; ?>>
+                                <?php echo htmlspecialchars($g); ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
                 <div class="col-md-2">
                     <select name="dup_filter" class="form-select form-select-sm fw-bold text-danger" onchange="this.form.submit()">
                         <option value="all" <?php echo $dup_filter === 'all' ? 'selected' : ''; ?>>All Records</option>
@@ -735,8 +874,6 @@ require 'header.php';
                         <option value="unique" <?php echo $dup_filter === 'unique' ? 'selected' : ''; ?>>✔ Unique Only</option>
                     </select>
                 </div>
-
-                <!-- 7. Search Input & Clear Button -->
                 <div class="col-md-4">
                     <div class="input-group input-group-sm">
                         <input type="text" name="search" class="form-control" placeholder="Search Name or ID..." value="<?php echo htmlspecialchars($search); ?>" maxlength="50" oninput="this.value = this.value.replace(/[^a-zA-Z0-9\-_ ]/g, '')">
@@ -745,8 +882,6 @@ require 'header.php';
                         <?php endif; ?>
                     </div>
                 </div>
-
-                <!-- 8. Limit Picker -->
                 <div class="col-md-2">
                     <select name="limit" class="form-select form-select-sm fw-bold text-primary" onchange="this.form.submit()">
                         <option value="50" <?php echo ($limit === '50') ? 'selected' : ''; ?>>Show 50</option>
@@ -755,8 +890,6 @@ require 'header.php';
                         <option value="all" <?php echo ($limit === 'all') ? 'selected' : ''; ?>>Show ALL</option>
                     </select>
                 </div>
-
-                <!-- 9. Submit Filter Button -->
                 <div class="col-md-2">
                     <button type="submit" class="btn btn-primary btn-sm w-100"><i class="bi bi-search"></i> Apply Filters</button>
                 </div>
@@ -770,8 +903,6 @@ require 'header.php';
                         <i class="bi bi-upload"></i> Import CSV
                     </a>
                 </div>
-
-                <!-- 10. Status Counters -->
                 <div class="col-md-4 text-end d-flex gap-2 justify-content-end align-items-center flex-wrap">
                     <span class="badge bg-dark">Listed: <?php echo count($employees); ?></span>
                     <?php if ($totalDuplicates > 0): ?>
@@ -791,17 +922,10 @@ require 'header.php';
         </div>
     </div>
 
-    <?php if ($didYouMean): ?>
-        <div class="alert alert-info text-center shadow-sm mb-4">
-            <i class="bi bi-lightbulb-fill me-2"></i> Did you mean:
-            <a href="<?php echo $didYouMeanLink; ?>" class="fw-bold text-dark text-decoration-underline"><?php echo htmlspecialchars($didYouMean); ?></a>?
-        </div>
-    <?php endif; ?>
-
-    <form method="POST" id="bulkUpdateForm">
+    <!-- STICKY UPDATE PANEL FORM -->
+    <form method="POST" id="bulkUpdateForm" class="sticky-update-panel">
         <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
 
-        <!-- Hidden Fields to Preserve Filter State across Form Submission -->
         <input type="hidden" name="search_state" value="<?php echo htmlspecialchars($search); ?>">
         <input type="hidden" name="dept_state" value="<?php echo htmlspecialchars($dept); ?>">
         <input type="hidden" name="section_state" value="<?php echo htmlspecialchars($section_filter); ?>">
@@ -809,12 +933,13 @@ require 'header.php';
         <input type="hidden" name="role_state" value="<?php echo htmlspecialchars($role_filter); ?>">
         <input type="hidden" name="status_state" value="<?php echo htmlspecialchars($status_filter); ?>">
         <input type="hidden" name="agency_state" value="<?php echo htmlspecialchars($agency_filter); ?>">
+        <input type="hidden" name="group_state" value="<?php echo htmlspecialchars($group_filter); ?>">
         <input type="hidden" name="dup_filter_state" value="<?php echo htmlspecialchars($dup_filter); ?>">
         <input type="hidden" name="select_all_filtered" id="selectAllFiltered" value="0">
         <input type="hidden" name="limit_state" value="<?php echo htmlspecialchars($limit); ?>">
 
         <!-- UPDATE PANEL -->
-        <div class="card shadow-sm mb-4 border-warning">
+        <div class="card shadow-sm border-warning">
             <div class="card-header bg-warning text-dark fw-bold">
                 <i class="bi bi-pencil-square"></i> Update Selected Employees
             </div>
@@ -854,6 +979,7 @@ require 'header.php';
                         <label class="form-label fw-bold text-danger">New Status</label>
                         <select name="new_status" class="form-select border-danger">
                             <option value="">-- No Change --</option>
+                            <option value="__UNSPECIFIED__">Unspecified</option>
                             <?php foreach ($employee_statuses as $statusOption): ?>
                                 <option value="<?php echo htmlspecialchars($statusOption); ?>"><?php echo htmlspecialchars($statusOption); ?></option>
                             <?php endforeach; ?>
@@ -882,8 +1008,6 @@ require 'header.php';
                             <option value="">+ Add Section...</option>
                         </select>
                     </div>
-
-                    <!-- DYNAMIC SYSTEM GROUP PICKER -->
                     <div class="col-md-2">
                         <label class="form-label fw-bold">New Group(s)</label>
                         <div class="input-group">
@@ -892,12 +1016,8 @@ require 'header.php';
                         </div>
                         <select id="groupPicker" class="form-select mt-1 form-select-sm text-muted" onchange="addGroup(this.value)">
                             <option value="">+ Add Group...</option>
-                            <?php foreach ($groups as $g): ?>
-                                <option value="<?php echo htmlspecialchars($g); ?>"><?php echo htmlspecialchars($g); ?></option>
-                            <?php endforeach; ?>
                         </select>
                     </div>
-
                     <div class="col-md-2">
                         <label class="form-label fw-bold">New Gender</label>
                         <select name="new_gender" class="form-select">
@@ -907,66 +1027,79 @@ require 'header.php';
                         </select>
                     </div>
                     <div class="col-md-2">
-                        <label class="form-label fw-bold">New Agency</label>
+                        <label class="form-label fw-bold">New Employer</label>
                         <select name="new_agency" class="form-select">
                             <option value="">-- No Change --</option>
                             <?php foreach ($agencies as $agency): ?>
-                                <option value="<?php echo htmlspecialchars($agency); ?>"><?php echo htmlspecialchars($agency); ?></option>
+                                <option value="<?php echo htmlspecialchars($agency); ?>"><?php echo htmlspecialchars(employerDisplayLabel($agency)); ?></option>
                             <?php endforeach; ?>
                         </select>
                     </div>
-                    <div class="col-md-2 d-grid gap-2 pt-3">
-                        <button type="submit" name="dry_run" value="1" class="btn btn-info text-white fw-bold btn-sm" formnovalidate>Simulate</button>
-                        <button type="submit" name="update_roles" id="applyBtn" class="btn btn-success fw-bold btn-sm">Apply</button>
+
+                    <!-- ACTION BUTTONS -->
+                    <div class="col-md-4 ms-auto mt-3">
+                        <div class="card-action-buttons">
+                            <button type="submit" name="dry_run" value="1" class="btn btn-info text-white fw-bold btn-sm px-3" formnovalidate>
+                                <i class="bi bi-eye"></i> Simulate
+                            </button>
+                            <button type="submit" name="update_roles" id="applyBtn" class="btn btn-success fw-bold btn-sm px-3">
+                                <i class="bi bi-check-circle"></i> Apply Updates
+                            </button>
+                            <button type="button" onclick="window.print()" class="btn btn-outline-secondary fw-bold btn-sm px-3">
+                                <i class="bi bi-printer"></i> Print
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- TABLE -->
-        <div class="card shadow-sm">
-            <div class="card-body p-0">
-                <table class="table table-hover mb-0 align-middle">
-                    <thead class="table-light">
-                        <tr>
-                            <th style="width: 40px;"><input type="checkbox" class="form-check-input" onclick="document.querySelectorAll('.emp-check').forEach(c => { c.checked = this.checked; updateCounter(); })"></th>
-                            <th>Name</th>
-                            <th>ID</th>
-                            <th>Dept</th>
-                            <th>Section</th>
-                            <th>Group</th>
-                            <th>Current Job Title</th>
-                            <th>Current Agency</th>
-                            <th>Current Role</th>
-                            <th>Status</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php if (empty($employees)): ?>
-                            <tr>
-                                <td colspan="10" class="text-center p-4 text-muted">No employees found matching your criteria.</td>
-                            </tr>
-                        <?php else: ?>
-                            <?php foreach ($employees as $e): ?>
-                                <tr>
-                                    <td><input type="checkbox" name="employee_ids[]" value="<?php echo $e['id']; ?>" class="form-check-input emp-check" onchange="updateCounter()"></td>
-                                    <td class="fw-bold"><?php echo htmlspecialchars($e['last_name'] . ', ' . $e['first_name']); ?></td>
-                                    <td><?php echo htmlspecialchars($e['emp_id']); ?></td>
-                                    <td><?php echo htmlspecialchars($e['dept']); ?></td>
-                                    <td><?php echo htmlspecialchars($e['section']); ?></td>
-                                    <td><span class="badge bg-light text-dark border"><?php echo htmlspecialchars($e['group_name'] ?? 'N/A'); ?></span></td>
-                                    <td><?php echo htmlspecialchars($e['job_title']); ?></td>
-                                    <td><span class="badge bg-info text-dark"><?php echo htmlspecialchars($e['agency_name'] ?: $e['employment_type']); ?></span></td>
-                                    <td><span class="badge bg-secondary"><?php echo htmlspecialchars($e['system_role']); ?></span></td>
-                                    <td><span class="badge <?php echo $e['status'] === 'Active' ? 'bg-success' : 'bg-warning text-dark'; ?>"><?php echo htmlspecialchars($e['status']); ?></span></td>
-                                </tr>
-                            <?php endforeach; ?>
-                        <?php endif; ?>
-                    </tbody>
-                </table>
-            </div>
-        </div>
     </form>
+
+    <!-- TABLE AREA -->
+    <div class="card shadow-sm">
+        <div class="card-body p-0">
+            <table class="table table-hover mb-0 align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th style="width: 40px;"><input type="checkbox" class="form-check-input" onclick="document.querySelectorAll('.emp-check').forEach(c => { c.checked = this.checked; updateCounter(); })"></th>
+                        <th>Name</th>
+                        <th>ID</th>
+                        <th>Dept</th>
+                        <th>Section</th>
+                        <th>Group</th>
+                        <th>Current Job Title</th>
+                        <th>Current Employer</th>
+                        <th>Current Role</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php if (empty($employees)): ?>
+                        <tr>
+                            <td colspan="10" class="text-center p-4 text-muted">No employees found matching your criteria.</td>
+                        </tr>
+                    <?php else: ?>
+                        <?php foreach ($employees as $e): ?>
+                            <tr>
+                                <td><input type="checkbox" name="employee_ids[]" value="<?php echo $e['id']; ?>" class="form-check-input emp-check" onchange="updateCounter()" form="bulkUpdateForm"></td>
+                                <td class="fw-bold"><?php echo htmlspecialchars($e['last_name'] . ', ' . $e['first_name']); ?></td>
+                                <td><?php echo htmlspecialchars($e['emp_id']); ?></td>
+                                <td><?php echo htmlspecialchars($e['dept']); ?></td>
+                                <td><?php echo htmlspecialchars($e['section']); ?></td>
+                                <td><span class="badge bg-light text-dark border"><?php echo htmlspecialchars($e['group_name'] ?? 'N/A'); ?></span></td>
+                                <td><?php echo htmlspecialchars($e['job_title']); ?></td>
+                                <td><span class="badge bg-info text-dark"><?php echo htmlspecialchars(employerDisplayLabel($e['agency_name'] ?: $e['employment_type'])); ?></span></td>
+                                <td><span class="badge bg-secondary"><?php echo htmlspecialchars($e['system_role']); ?></span></td>
+                                <?php $displayStatus = employeeEffectiveStatus($e['status'] ?? '', $e['exit_reason'] ?? '') ?: 'Unspecified'; ?>
+                                <td><span class="badge <?php echo $displayStatus === 'Active' ? 'bg-success' : 'bg-warning text-dark'; ?>"><?php echo htmlspecialchars($displayStatus); ?></span></td>
+                            </tr>
+                        <?php endforeach; ?>
+                    <?php endif; ?>
+                </tbody>
+            </table>
+        </div>
+    </div>
 
     <?php if (!empty($pendingBatches)): ?>
         <div class="card shadow-sm mt-4 border-warning">
@@ -1050,6 +1183,9 @@ require 'header.php';
     <?php endif; ?>
 
     const deptMap = <?php echo json_encode($deptMap); ?>;
+    const sectionGroupMap = <?php echo json_encode($sectionGroupMap, JSON_HEX_QUOT | JSON_HEX_APOS); ?>;
+    const filteredDepartment = <?php echo json_encode($dept); ?>;
+    const filteredSection = <?php echo json_encode($section_filter); ?>;
 
     function updateCounter() {
         const count = document.querySelectorAll('input[name="employee_ids[]"]:checked').length;
@@ -1089,6 +1225,7 @@ require 'header.php';
                 sect.appendChild(group);
             }
         });
+        updateNewGroups();
     }
 
     function addSection(val) {
@@ -1105,9 +1242,9 @@ require 'header.php';
         } else {
             input.value = text;
         }
+        updateNewGroups();
     }
 
-    // Dynamic Group Helper
     function addGroup(val) {
         if (!val) return;
         const input = document.getElementById('new_group');
@@ -1119,6 +1256,55 @@ require 'header.php';
         }
         document.getElementById('groupPicker').value = "";
     }
+
+    function updateNewGroups() {
+        const picker = document.getElementById('groupPicker');
+        const input = document.getElementById('new_group');
+        const selectedDepts = (document.getElementById('new_dept').value || filteredDepartment)
+            .split(',').map(value => value.trim()).filter(Boolean);
+        const selectedSections = (document.getElementById('new_section').value || filteredSection)
+            .split(',').map(value => value.trim()).filter(Boolean);
+        picker.innerHTML = '<option value="">+ Add Group...</option>';
+
+        const groupsByDepartment = {};
+        const departments = selectedDepts.length ? selectedDepts : Object.keys(sectionGroupMap);
+        departments.forEach(dept => {
+            const sectionMap = sectionGroupMap[dept] || {};
+            const sections = selectedSections.length ? selectedSections : Object.keys(sectionMap);
+            sections.forEach(section => {
+                const names = sectionMap[section] || [];
+                if (!names.length) return;
+                groupsByDepartment[`${dept} / ${section}`] = names;
+            });
+        });
+
+        Object.entries(groupsByDepartment).forEach(([label, names]) => {
+            const optGroup = document.createElement('optgroup');
+            optGroup.label = label;
+            names.forEach(name => {
+                const option = document.createElement('option');
+                option.value = name;
+                option.textContent = name;
+                optGroup.appendChild(option);
+            });
+            picker.appendChild(optGroup);
+        });
+        if (input.value) {
+            input.value.split(',').map(value => value.trim()).filter(Boolean).forEach(name => {
+                if (!Array.from(picker.options).some(option => option.value === name)) {
+                    const legacyOption = document.createElement('option');
+                    legacyOption.value = name;
+                    legacyOption.textContent = `${name} (unlinked; clear or reassign)`;
+                    legacyOption.disabled = true;
+                    picker.appendChild(legacyOption);
+                }
+            });
+        }
+    }
+
+    document.getElementById('new_section').addEventListener('input', updateNewGroups);
+    document.getElementById('new_dept').addEventListener('input', updateNewGroups);
+    updateNewGroups();
 
     document.getElementById('applyBtn').addEventListener('click', function(e) {
         e.preventDefault();
@@ -1137,7 +1323,8 @@ require 'header.php';
         const section = document.getElementById('new_section').value;
         const group = document.getElementById('new_group').value;
         const gender = document.querySelector('select[name="new_gender"]').value;
-        const agency = document.querySelector('select[name="new_agency"]').value;
+        const agencySelect = document.querySelector('select[name="new_agency"]');
+        const agency = agencySelect.value;
         const status = document.querySelector('select[name="new_status"]').value;
 
         const clearFields = document.querySelectorAll('.clear-field:checked');
@@ -1156,7 +1343,10 @@ require 'header.php';
         if (section) summary += `<li><strong>Section:</strong> ${document.createElement('div').appendChild(document.createTextNode(section)).parentNode.textContent}</li>`;
         if (group) summary += `<li><strong>Group:</strong> ${document.createElement('div').appendChild(document.createTextNode(group)).parentNode.textContent}</li>`;
         if (gender) summary += `<li><strong>Gender:</strong> ${document.createElement('div').appendChild(document.createTextNode(gender)).parentNode.textContent}</li>`;
-        if (agency) summary += `<li><strong>Agency:</strong> ${document.createElement('div').appendChild(document.createTextNode(agency)).parentNode.textContent}</li>`;
+        if (agency) {
+            const agencyLabel = agencySelect.selectedOptions[0]?.textContent.trim() || agency;
+            summary += `<li><strong>Employer:</strong> ${document.createElement('div').appendChild(document.createTextNode(agencyLabel)).parentNode.textContent}</li>`;
+        }
         summary += `</ul>`;
 
         Swal.fire({
@@ -1190,12 +1380,10 @@ require 'header.php';
         this.innerHTML = '<i class="bi bi-check2-all"></i> All Filtered Selected';
     });
 
-    // Save Scroll Position Before Reload
     window.addEventListener('beforeunload', () => {
         sessionStorage.setItem('bulk_update_scroll_pos', window.scrollY);
     });
 
-    // Restore Scroll Position After Reload
     document.addEventListener("DOMContentLoaded", () => {
         const savedPos = sessionStorage.getItem('bulk_update_scroll_pos');
         if (savedPos !== null) {

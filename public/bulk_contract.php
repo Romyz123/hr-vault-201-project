@@ -14,6 +14,7 @@ if (!function_exists('checkSessionTimeout')) {
     require_once __DIR__ . '/../config/db.php';
 }
 session_start();
+checkSessionTimeout($pdo);
 
 // 1. SECURITY: Admin, Manager & HR Only
 $userRole = isset($_SESSION['role']) ? strtoupper(trim($_SESSION['role'])) : '';
@@ -112,7 +113,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_POST['generate_bulk']) || 
         'notice_of_decision' => 'templates/notice_of_decision.php',
         'employee_pledge' => 'templates/employee_pledge.php',
         'whistleblowing' => 'templates/whistleblowing.php',
-        'onboarding_combo' => 'templates/onboarding_combo.php'
+        'onboarding_combo' => 'templates/onboarding_combo.php',
+        'combo_project'      => 'templates/onboarding_combo.php',
+        'combo_probationary' => 'templates/onboarding_combo.php'
     ];
 
     // [NEW] Friendly Document Titles for Auto-Save Naming
@@ -126,11 +129,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_POST['generate_bulk']) || 
         'coe'               => 'Certificate of Employment',
         'employee_pledge'   => 'Employee Safety Pledge',
         'whistleblowing'    => 'Whistle Blowing Consent Form',
-        'onboarding_combo'  => 'Complete Onboarding Packet'
+        'onboarding_combo'  => 'Complete Onboarding Packet',
+        'combo_project'      => 'Onboarding Combo (Project + NDA + Consent + Whistleblower)',
+        'combo_probationary' => 'Onboarding Combo (Probationary + NDA + Consent)'
     ];
     $friendlyTitle = $docTitles[$type] ?? 'Document';
 
     $templateFile = $templateMap[$type] ?? '';
+    $comboType = $type;
+    $isComboType = in_array($type, ['onboarding_combo', 'combo_project', 'combo_probationary']);
 
     $logo_paths = [
         __DIR__ . '/assets/images/tesp-logo-1.png',
@@ -178,8 +185,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_POST['generate_bulk']) || 
         $faviconTag = '<link rel="icon" href="uploads/tesp-logo.png?v=3" type="image/png">';
         echo '<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>Bulk Contracts</title>' . $faviconTag;
         echo '<style>
-            @page { size: A4; margin: 0.5in; }
+            @page { size: A4; margin: ' . ($isComboType ? '0' : '0.5in') . '; }
             @media print { 
+                /* Prevent double lines on tables */
+                table {
+                    border-collapse: collapse !important;
+                }
+                table:not(.signature-table):not(.sig-table):not(.contract-details):not(.report-container):not(.header-content-table) th,
+                table:not(.signature-table):not(.sig-table):not(.contract-details):not(.report-container):not(.header-content-table) td {
+                    border: 1px solid #333 !important;
+                }
+                .signature-table, .signature-table td,
+                .sig-table, .sig-table td,
+                .contract-details, .contract-details td {
+                    border: none !important;
+                }
+                /* Prevent stacking borders between header and content */
+                .header-container, .header-wrapper {
+                    border-bottom: none !important;
+                }
+                .print-content, .document-container {
+                    border-top: none !important;
+                }
+
                 .page-break { page-break-after: always; height: 0; display: block; visibility: hidden; } 
                 .no-print { display: none !important; }
                 body { margin: 0; padding: 0; background: white; }
@@ -187,7 +215,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_POST['generate_bulk']) || 
 
                 /* [FIX] Compact layout for bulk printing to prevent extra pages */
                 .sig-section { margin-top: 30px !important; }
-                
+                ' . (!$isComboType ? '
                 /* [FIX] Body Text: Justified & Line Height 1.5 */
                 p, .justify, li { 
                     margin-bottom: 3px !important; 
@@ -218,6 +246,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_POST['generate_bulk']) || 
                     margin-left: ' . $marginL . 'px !important; 
                     margin-right: ' . $marginR . 'px !important; 
                 }
+                ' : '') . '
                 /* [FIX] Probationary Contract Specific Overrides */
                 ' . ($type === 'probationary' ? '
                 .sig-table { width: 100% !important; margin-top: 50px !important; page-break-inside: avoid !important; }
@@ -304,6 +333,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_POST['generate_bulk']) || 
                 $current_full_date = date('F j, Y');
 
                 // Capture Template Output
+                unset($emp_name_formal);
                 ob_start();
                 include $templateFile;
                 $content = ob_get_clean();
@@ -351,20 +381,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_POST['generate_bulk']) || 
                     @unlink($tmp);
                 }
 
-                // [FIX] Strip outer HTML tags to prevent layout breakage in bulk mode
-                // 1. Extract Styles
-                preg_match_all('/<style>(.*?)<\/style>/is', $content, $matches);
-                $styles = implode("\n", $matches[0]);
+                if ($isComboType) {
+                    echo $content;
+                } else {
+                    // Strip outer HTML tags without regex backtracking over embedded base64 images.
+                    preg_match_all('/<style\b[^>]*>(.*?)<\/style>/is', $content, $matches);
+                    $styles = implode("\n", $matches[0]);
 
-                // 2. Extract Body Content
-                preg_match('/<body[^>]*>(.*?)<\/body>/is', $content, $bodyMatch);
-                $bodyContent = $bodyMatch[1] ?? $content;
-                $bodyContent = trim($bodyContent); // Remove extra whitespace
+                    $bodyOpen = stripos($content, '<body');
+                    $bodyOpenEnd = $bodyOpen === false ? false : strpos($content, '>', $bodyOpen);
+                    $bodyClose = $bodyOpenEnd === false ? false : stripos($content, '</body>', $bodyOpenEnd + 1);
+                    $bodyContent = ($bodyOpenEnd !== false && $bodyClose !== false)
+                        ? substr($content, $bodyOpenEnd + 1, $bodyClose - $bodyOpenEnd - 1)
+                        : $content;
+                    $bodyContent = trim($bodyContent);
 
-                echo $styles; // Output styles for this segment
-                echo '<div class="document-container">';
-                echo $bodyContent;
-                echo '</div>';
+                    echo $styles; // Output styles for this segment
+                    echo '<div class="document-container">';
+                    echo $bodyContent;
+                    echo '</div>';
+                }
 
                 // =========================================================================
                 // STEP 3 (PAGE BREAKS): Separate pages using Word XML vs HTML Print CSS
@@ -375,6 +411,68 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_POST['generate_bulk']) || 
                     echo '<div class="page-break"></div>';
                 }
             }
+        }
+        if (!isset($_POST['export_word'])) {
+            $heartbeatToken = json_encode($_SESSION['csrf_token']);
+            echo '<script>
+                (() => {
+                    let lastHeartbeat = 0;
+                    let lastBroadcast = 0;
+                    let heartbeatInFlight = false;
+                    const csrfRefreshKey = "hr201_csrf_refresh_' . (int)$_SESSION['user_id'] . '";
+                    const heartbeatInterval = Math.max(5000, Math.min(60000, ' . min((int)($settings['session_timeout_client'] ?? 900), (int)($settings['session_timeout_server'] ?? 1800)) * 1000 . ' / 3));
+                    const csrfToken = ' . $heartbeatToken . ';
+                    const activityStorageKey = "hr201_last_activity_' . (int)$_SESSION['user_id'] . '";
+                    const sendHeartbeat = async () => {
+                        const now = Date.now();
+                        if (now - lastBroadcast >= 1000) {
+                            lastBroadcast = now;
+                            try {
+                                localStorage.setItem(activityStorageKey, String(now));
+                            } catch (error) {
+                                // Storage can be disabled; the server heartbeat still works.
+                            }
+                        }
+                        if (heartbeatInFlight || now - lastHeartbeat < heartbeatInterval) return;
+                        heartbeatInFlight = true;
+                        lastHeartbeat = now;
+                        try {
+                            const response = await fetch("session_heartbeat.php", {
+                                method: "POST",
+                                credentials: "same-origin",
+                                headers: {
+                                    "Content-Type": "application/x-www-form-urlencoded",
+                                    "Accept": "application/json"
+                                },
+                                body: new URLSearchParams({ csrf_token: csrfToken })
+                            });
+                            if (response.redirected) {
+                                window.location.href = response.url;
+                            } else if (response.status === 401) {
+                                window.location.href = "login.php?msg=Session_Expired_Auto";
+                            } else if (response.status === 403) {
+                                if (!sessionStorage.getItem(csrfRefreshKey)) {
+                                    sessionStorage.setItem(csrfRefreshKey, "1");
+                                    window.location.reload();
+                                } else {
+                                    console.error("Session heartbeat rejected the CSRF token after refreshing the page.");
+                                }
+                            } else if (!response.ok) {
+                                console.error("Session heartbeat failed with HTTP status " + response.status + ".");
+                            } else {
+                                sessionStorage.removeItem(csrfRefreshKey);
+                            }
+                        } catch (error) {
+                            console.error("Session activity heartbeat failed.", error);
+                        } finally {
+                            heartbeatInFlight = false;
+                        }
+                    };
+                    ["mousemove", "keydown", "click", "scroll"].forEach(eventName => {
+                        window.addEventListener(eventName, sendHeartbeat, { passive: true });
+                    });
+                })();
+            </script>';
         }
         echo '</body></html>';
 
@@ -390,20 +488,50 @@ require 'header.php';
 
 // 3. FETCH EMPLOYEES
 $filter_dept   = $_GET['dept'] ?? '';
+$filter_section = $_GET['section'] ?? '';
+$filter_group  = $_GET['group'] ?? '';
 $filter_type   = isset($_GET['type']) ? $_GET['type'] : 'TESP Direct';
+$filter_status = trim((string)($_GET['status'] ?? 'Active'));
 $search_query  = isset($_GET['search']) ? trim($_GET['search']) : '';
 $search_query = preg_replace('/[^a-zA-Z0-9\-_ ]/', '', $search_query);
+
+try {
+    $storedStatuses = $pdo->query("SELECT DISTINCT TRIM(status) FROM employees WHERE status IS NOT NULL AND TRIM(status) <> '' ORDER BY TRIM(status) ASC")->fetchAll(PDO::FETCH_COLUMN);
+} catch (PDOException $e) {
+    error_log('Unable to load bulk print status filter options: ' . $e->getMessage());
+    $storedStatuses = [];
+}
+$bulkPrintStatuses = array_values(array_unique(array_merge($employee_statuses, $storedStatuses)));
+$validStatusFilters = array_merge(['', '__UNSPECIFIED__'], $bulkPrintStatuses);
+if (!in_array($filter_status, $validStatusFilters, true)) {
+    $filter_status = 'Active';
+}
 
 // [NEW] Hire Date Filters
 $filter_hired_from = $_GET['hired_from'] ?? '';
 $filter_hired_to   = $_GET['hired_to'] ?? '';
 
-$where  = ["status = 'Active'"];
+$where  = [];
 $params = [];
+
+if ($filter_status === '__UNSPECIFIED__') {
+    $where[] = "TRIM(COALESCE(status, '')) = ''";
+} elseif ($filter_status !== '') {
+    $where[] = 'TRIM(status) = ?';
+    $params[] = $filter_status;
+}
 
 if ($filter_dept !== '') {
     $where[]  = 'dept LIKE ?';
     $params[] = "%{$filter_dept}%";
+}
+if ($filter_section !== '') {
+    $where[]  = "FIND_IN_SET(?, REPLACE(REPLACE(section, ', ', ','), ' ,', ',')) > 0";
+    $params[] = $filter_section;
+}
+if ($filter_group !== '') {
+    $where[]  = '`group` LIKE ?';
+    $params[] = "%{$filter_group}%";
 }
 if ($filter_type !== '') {
     $where[] = '(employment_type = ? OR agency_name = ?)';
@@ -432,6 +560,17 @@ $empStmt->execute($params);
 $employees = $empStmt->fetchAll(PDO::FETCH_ASSOC);
 
 $allDepts = $pdo->query("SELECT DISTINCT dept FROM employees WHERE dept != '' ORDER BY dept ASC")->fetchAll(PDO::FETCH_COLUMN);
+$storedSections = $pdo->query("SELECT DISTINCT section FROM employees WHERE section IS NOT NULL AND section != ''")->fetchAll(PDO::FETCH_COLUMN);
+$allSections = [];
+foreach ($storedSections as $storedSection) {
+    foreach (preg_split('/\s*,\s*/', trim((string)$storedSection), -1, PREG_SPLIT_NO_EMPTY) as $sectionName) {
+        $sectionKey = strtolower($sectionName);
+        $allSections[$sectionKey] = $sectionName;
+    }
+}
+natcasesort($allSections);
+$allSections = array_values($allSections);
+$allGroups = $pdo->query("SELECT DISTINCT `group` FROM employees WHERE `group` IS NOT NULL AND `group` != '' ORDER BY `group` ASC")->fetchAll(PDO::FETCH_COLUMN);
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -481,26 +620,57 @@ $allDepts = $pdo->query("SELECT DISTINCT dept FROM employees WHERE dept != '' OR
                         </select>
                     </div>
                     <div class="col-md-2">
+                        <select name="group" class="form-select form-select-sm" onchange="this.form.submit()">
+                            <option value="">All Groups</option>
+                            <?php foreach ($allGroups as $group): ?>
+                                <option value="<?php echo htmlspecialchars($group); ?>" <?php echo ($filter_group === $group) ? 'selected' : ''; ?>>
+                                    <?php echo htmlspecialchars($group); ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <select name="section" class="form-select form-select-sm" onchange="this.form.submit()">
+                            <option value="">All Sections</option>
+                            <?php foreach ($allSections as $section): ?>
+                                <option value="<?php echo htmlspecialchars($section); ?>" <?php echo ($filter_section === $section) ? 'selected' : ''; ?>>
+                                    <?php echo htmlspecialchars($section); ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
                         <select name="type" class="form-select form-select-sm" onchange="this.form.submit()">
-                            <option value="">All Agencies</option>
+                            <option value="">All Employers</option>
                             <?php
                             foreach ($agencies as $val) {
                                 $sel = ($filter_type === $val) ? 'selected' : '';
-                                echo "<option value='" . htmlspecialchars($val) . "' $sel>" . htmlspecialchars($val) . "</option>";
+                                echo "<option value='" . htmlspecialchars($val) . "' $sel>" . htmlspecialchars(employerDisplayLabel($val)) . "</option>";
                             }
                             ?>
                         </select>
                     </div>
-                    <div class="col-md-3">
+                    <div class="col-md-2">
+                        <select name="status" class="form-select form-select-sm" onchange="this.form.submit()">
+                            <option value="" <?php echo $filter_status === '' ? 'selected' : ''; ?>>All Statuses</option>
+                            <option value="__UNSPECIFIED__" <?php echo $filter_status === '__UNSPECIFIED__' ? 'selected' : ''; ?>>Unspecified</option>
+                            <?php foreach ($bulkPrintStatuses as $statusOption): ?>
+                                <option value="<?php echo htmlspecialchars($statusOption, ENT_QUOTES, 'UTF-8'); ?>" <?php echo $filter_status === $statusOption ? 'selected' : ''; ?>>
+                                    <?php echo htmlspecialchars($statusOption, ENT_QUOTES, 'UTF-8'); ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
                         <input type="text" name="search" class="form-control form-control-sm" placeholder="Search Name..." value="<?php echo htmlspecialchars($search_query); ?>" maxlength="50" pattern="[a-zA-Z0-9\-_ ,]+" title="Allowed: Letters, Numbers, Spaces, Dashes, Underscores, Commas">
                     </div>
-                    <div class="col-md-2">
+                    <div class="col-md-1">
                         <input type="date" name="hired_from" class="form-control form-control-sm" value="<?php echo htmlspecialchars($filter_hired_from); ?>" title="Hired From">
                     </div>
-                    <div class="col-md-2">
+                    <div class="col-md-1">
                         <input type="date" name="hired_to" class="form-control form-control-sm" value="<?php echo htmlspecialchars($filter_hired_to); ?>" title="Hired To">
                     </div>
-                    <div class="col-md-1">
+                    <div class="col-md-2">
                         <button type="submit" class="btn btn-primary btn-sm w-100">Filter</button>
                     </div>
                 </form>
@@ -525,7 +695,8 @@ $allDepts = $pdo->query("SELECT DISTINCT dept FROM employees WHERE dept != '' OR
                                 <option value="coe">Certificate of Employment (COE)</option>
                                 <option value="data_consent">Data Privacy Consent Form</option>
                                 <option value="confidentiality">Confidentiality (NDA)</option>
-                                <option value="onboarding_combo">⭐ Complete Onboarding Combo (NDA + Consent + Whistleblower)</option>
+                                <option value="combo_project">📦 Combo 1: Project Contract + NDA + Consent + Whistleblower</option>
+                                <option value="combo_probationary">📦 Combo 2: Probationary Contract + NDA + Consent</option>
                                 <option value="notice_to_explain">Notice to Explain (NTE)</option>
                                 <option value="notice_of_decision">Notice of Decision (NOD)</option>
                                 <option value="employee_pledge">Employee Safety Pledge</option>
@@ -675,7 +846,7 @@ $allDepts = $pdo->query("SELECT DISTINCT dept FROM employees WHERE dept != '' OR
                                     <th>Job Title</th>
                                     <th>Department</th>
                                     <th>Role</th>
-                                    <th>Agency</th>
+                                    <th>Employer</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -694,7 +865,7 @@ $allDepts = $pdo->query("SELECT DISTINCT dept FROM employees WHERE dept != '' OR
                                             <td><?php echo htmlspecialchars($emp['job_title']); ?></td>
                                             <td><?php echo htmlspecialchars($emp['dept']); ?></td>
                                             <td><span class="badge bg-secondary"><?php echo htmlspecialchars($emp['system_role'] ?? 'N/A'); ?></span></td>
-                                            <td><span class="badge bg-info text-dark"><?php echo htmlspecialchars($emp['agency_name'] ?: $emp['employment_type']); ?></span></td>
+                                            <td><span class="badge bg-info text-dark"><?php echo htmlspecialchars(employerDisplayLabel($emp['agency_name'] ?: $emp['employment_type'])); ?></span></td>
                                         </tr>
                                     <?php endforeach; ?>
                                 <?php endif; ?>

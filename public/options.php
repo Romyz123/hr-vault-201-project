@@ -69,8 +69,8 @@ if (empty($system_roles)) {
     ];
 }
 
-// Employee employment statuses. Active remains a protected system value.
-$defaultEmployeeStatuses = ['Active', 'Resigned', 'Terminated', 'AWOL', 'Retired'];
+// Active and Transferred are employment statuses, not attrition outcomes.
+$defaultEmployeeStatuses = ['Active', 'Transferred', 'Resigned', 'Terminated', 'AWOL', 'Retired'];
 $employee_statuses = $sysOpts['employee_statuses'] ?? $defaultEmployeeStatuses;
 if (!is_array($employee_statuses)) $employee_statuses = $defaultEmployeeStatuses;
 $employee_statuses = array_values(array_unique(array_filter(array_map(static function ($status) {
@@ -79,21 +79,31 @@ $employee_statuses = array_values(array_unique(array_filter(array_map(static fun
     return $status !== '';
 })));
 if (!in_array('Active', $employee_statuses, true)) array_unshift($employee_statuses, 'Active');
+if (!in_array('Transferred', $employee_statuses, true)) {
+    $employee_statuses[] = 'Transferred';
+}
 
 // Departments & Sections Map
 $deptMap = [];
 $groups = [];
+$sectionGroupMap = [];
 try {
     // [SYNC] Fetch from dedicated departments and sections tables
     $dStmt = $pdo->query("SELECT id, name FROM departments ORDER BY name ASC");
     $depts_raw = $dStmt->fetchAll(PDO::FETCH_ASSOC);
     foreach ($depts_raw as $d) {
         $deptName = $d['name'];
-        $sStmt = $pdo->prepare("SELECT name FROM sections WHERE department_id = ? ORDER BY name ASC");
+        $sStmt = $pdo->prepare("SELECT id, name FROM sections WHERE department_id = ? ORDER BY name ASC");
         $sStmt->execute([$d['id']]);
-        $deptMap[$deptName] = $sStmt->fetchAll(PDO::FETCH_COLUMN);
+        $deptMap[$deptName] = [];
+        foreach ($sStmt->fetchAll(PDO::FETCH_ASSOC) as $sectionRow) {
+            $sectionName = $sectionRow['name'];
+            $deptMap[$deptName][] = $sectionName;
+            $sectionGroupMap[$deptName][$sectionName] = [];
+        }
     }
 } catch (Exception $e) {
+    error_log('Unable to load department and section hierarchy options: ' . $e->getMessage());
 }
 
 if (empty($deptMap)) {
@@ -118,14 +128,23 @@ if (empty($deptMap)) {
     ];
 }
 
-// [SYNC] Fetch Groups from dedicated groups table
+// Fetch groups together with their section and department parent for dependent selectors.
 try {
-    $groups = $pdo->query("SELECT name FROM groups ORDER BY name ASC")->fetchAll(PDO::FETCH_COLUMN);
+    $groupStmt = $pdo->query("
+        SELECT g.name, g.section_id, d.name AS department_name, s.name AS section_name
+        FROM `groups` g
+        LEFT JOIN sections s ON s.id = g.section_id
+        LEFT JOIN departments d ON d.id = s.department_id
+        ORDER BY g.name ASC
+    ");
+    foreach ($groupStmt->fetchAll(PDO::FETCH_ASSOC) as $groupRow) {
+        $groups[] = $groupRow['name'];
+        if ($groupRow['section_id'] !== null && $groupRow['department_name'] !== null && $groupRow['section_name'] !== null) {
+            $sectionGroupMap[$groupRow['department_name']][$groupRow['section_name']][] = $groupRow['name'];
+        }
+    }
 } catch (Exception $e) {
-}
-
-if (empty($groups)) {
-    $groups = ['GROUP A', 'GROUP B', 'GROUP C'];
+    error_log('Unable to load groups linked to sections: ' . $e->getMessage());
 }
 
 // [FIX] Section Friendly Map (Code => Friendly Name)

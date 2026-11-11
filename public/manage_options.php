@@ -8,6 +8,7 @@ require '../config/db.php';
 require '../src/Security.php';
 require '../src/Logger.php';
 session_start();
+if (isset($_SESSION['user_id'])) checkSessionTimeout($pdo);
 
 // [FIX] Include global helper functions
 require_once __DIR__ . '/../src/helpers.php';
@@ -359,27 +360,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (empty($error) && $action === 'add_agency' && !empty($name)) {
             $name = strtoupper($name);
             try {
-                if (strlen($name) > 100) $error = "❌ Agency name is too long (Max 100 chars).";
-                elseif (!preg_match('/^[A-Z0-9\s\-\.]+$/', $name)) $error = "❌ Agency name contains invalid characters.";
+                if (strlen($name) > 100) $error = "❌ Employer name is too long (Max 100 chars).";
+                elseif (!preg_match('/^[A-Z0-9\s\-\.]+$/', $name)) $error = "❌ Employer name contains invalid characters.";
                 else {
                     $stmt = $pdo->prepare("INSERT INTO agencies (name) VALUES (?)");
                     $stmt->execute([$name]);
                     $logger->log($_SESSION['user_id'], 'ADD_AGENCY', "Added agency: $name");
-                    $redirectMsg = "✅ Agency '$name' added successfully.";
+                    $redirectMsg = "✅ Employer '$name' added successfully.";
                 }
             } catch (PDOException $e) {
-                $error = "❌ Error: Agency name already exists.";
+                $error = "❌ Error: Employer name already exists.";
             }
         } elseif (empty($error) && $action === 'edit_agency' && !empty($name) && $id > 0) {
             $name = strtoupper($name);
             try {
-                if (strlen($name) > 100) $error = "❌ Agency name is too long (Max 100 chars).";
-                elseif (!preg_match('/^[A-Z0-9\s\-\.]+$/', $name)) $error = "❌ Agency name contains invalid characters.";
+                if (strlen($name) > 100) $error = "❌ Employer name is too long (Max 100 chars).";
+                elseif (!preg_match('/^[A-Z0-9\s\-\.]+$/', $name)) $error = "❌ Employer name contains invalid characters.";
                 else {
                     $stmt = $pdo->prepare("UPDATE agencies SET name = ? WHERE id = ?");
                     $stmt->execute([$name, $id]);
                     $logger->log($_SESSION['user_id'], 'EDIT_AGENCY', "Updated agency ID $id to $name");
-                    $redirectMsg = "✅ Agency updated successfully.";
+                    $redirectMsg = "✅ Employer updated successfully.";
                 }
             } catch (PDOException $e) {
                 $error = "❌ Error: Name already taken.";
@@ -389,11 +390,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $chk = $pdo->prepare("SELECT COUNT(*) FROM employees WHERE agency_name = (SELECT name FROM agencies WHERE id = ?)");
             $chk->execute([$id]);
             if ($chk->fetchColumn() > 0) {
-                $error = "❌ Cannot delete: There are employees assigned to this agency.";
+                $error = "❌ Cannot delete: There are employees assigned to this employer.";
             } else {
                 $pdo->prepare("DELETE FROM agencies WHERE id = ?")->execute([$id]);
                 $logger->log($_SESSION['user_id'], 'DELETE_AGENCY', "Deleted agency ID $id");
-                $redirectMsg = "✅ Agency deleted.";
+                $redirectMsg = "✅ Employer deleted.";
             }
         }
 
@@ -999,7 +1000,7 @@ if (isset($_GET['tab'])) $activeTab = $_GET['tab'];
         <?php endif; ?>
 
         <ul class="nav nav-tabs mb-4" id="optionTabs" role="tablist">
-            <li class="nav-item"><button class="nav-link <?php echo $activeTab === 'agency' ? 'active' : ''; ?> fw-bold" id="agency-tab" data-bs-toggle="tab" data-bs-target="#agency" type="button">🏢 Agencies</button></li>
+            <li class="nav-item"><button class="nav-link <?php echo $activeTab === 'agency' ? 'active' : ''; ?> fw-bold" id="agency-tab" data-bs-toggle="tab" data-bs-target="#agency" type="button">🏢 Employers</button></li>
             <li class="nav-item"><button class="nav-link <?php echo $activeTab === 'role' ? 'active' : ''; ?> fw-bold" id="role-tab" data-bs-toggle="tab" data-bs-target="#role" type="button">💼 System Roles & Duties</button></li>
             <li class="nav-item"><button class="nav-link <?php echo $activeTab === 'status' ? 'active' : ''; ?> fw-bold" id="status-tab" data-bs-toggle="tab" data-bs-target="#status" type="button">🟢 Employee Statuses</button></li>
             <li class="nav-item"><button class="nav-link <?php echo $activeTab === 'college' ? 'active' : ''; ?> fw-bold" id="college-tab" data-bs-toggle="tab" data-bs-target="#college" type="button">🎓 College Courses</button></li>
@@ -1013,15 +1014,15 @@ if (isset($_GET['tab'])) $activeTab = $_GET['tab'];
         <div class="tab-content" id="optionTabsContent">
 
             <div class="tab-pane fade <?php echo $activeTab === 'agency' ? 'show active' : ''; ?>" id="agency" role="tabpanel">
-                <h4 class="mb-4">Agencies</h4>
+                <h4 class="mb-4">Employers</h4>
                 <div class="card shadow-sm">
                     <div class="card-body">
                         <form method="POST" class="row g-2 mb-4 align-items-end">
                             <input type="hidden" name="csrf_token" value="<?php echo $_SESSION['csrf_token']; ?>">
                             <input type="hidden" name="action" value="add_agency">
                             <div class="col-md-9">
-                                <label class="form-label fw-bold">Add New Agency <span class="text-danger">*</span></label>
-                                <input type="text" name="name" class="form-control" placeholder="e.g. NEW AGENCY INC." required maxlength="100" pattern="[A-Za-z0-9 \-\.]+" title="Alphanumeric, spaces, dashes, dots">
+                                <label class="form-label fw-bold">Add New Employer <span class="text-danger">*</span></label>
+                                <input type="text" name="name" class="form-control" placeholder="e.g. NEW EMPLOYER INC." required maxlength="100" pattern="[A-Za-z0-9 \-\.]+" title="Alphanumeric, spaces, dashes, dots">
                             </div>
                             <div class="col-md-3">
                                 <button type="submit" class="btn btn-success w-100"><i class="bi bi-plus-lg"></i> Add</button>
@@ -1031,7 +1032,7 @@ if (isset($_GET['tab'])) $activeTab = $_GET['tab'];
                             <table class="table table-hover align-middle">
                                 <thead class="table-light">
                                     <tr>
-                                        <th>Agency Name</th>
+                                        <th>Employer Name</th>
                                         <th class="text-end">Actions</th>
                                     </tr>
                                 </thead>
@@ -1048,7 +1049,7 @@ if (isset($_GET['tab'])) $activeTab = $_GET['tab'];
                                                 </form>
                                             </td>
                                             <td class="text-end">
-                                                <form method="POST" onsubmit="return confirm('Delete this agency?');">
+                                                <form method="POST" onsubmit="return confirm('Delete this employer?');">
                                                     <input type="hidden" name="csrf_token" value="<?php echo $_SESSION['csrf_token']; ?>">
                                                     <input type="hidden" name="action" value="delete_agency">
                                                     <input type="hidden" name="id" value="<?php echo $a['id']; ?>">

@@ -2,7 +2,9 @@
 // --- START: UI REPAIR ---
 require '../config/db.php';
 require '../src/Security.php';
+require_once __DIR__ . '/../src/helpers.php';
 session_start();
+if (isset($_SESSION['user_id'])) checkSessionTimeout($pdo);
 
 if (!isset($_SESSION['user_id'])) {
     die("Access Denied");
@@ -431,11 +433,11 @@ if (empty($logo_src)) {
                 </div>
                 <div class="col-4">
                     <div class="data-label">Employment Type</div>
-                    <div class="data-value"><?php echo htmlspecialchars($emp['employment_type']); ?></div>
+                    <div class="data-value"><?php echo htmlspecialchars(employerDisplayLabel($emp['employment_type'])); ?></div>
                 </div>
                 <div class="col-4">
                     <div class="data-label">Agency (If Applicable)</div>
-                    <div class="data-value"><?php echo htmlspecialchars($emp['agency_name']); ?></div>
+                    <div class="data-value"><?php echo htmlspecialchars(employerDisplayLabel($emp['agency_name'])); ?></div>
                 </div>
                 <div class="col-4">
                     <div class="data-label">Date Hired</div>

@@ -160,8 +160,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         ['val' => $emp_id, 'name' => 'Employee ID', 'max' => 20, 'pattern' => '/^[A-Za-z0-9\-_]+$/'],
         ['val' => $job_title, 'name' => 'Job Title', 'max' => 50, 'pattern' => "/^[a-zA-Z0-9\s\-\.\,\(\)\/\&']+$/"],
         ['val' => $system_role, 'name' => 'System Role', 'max' => 100],
-        ['val' => $company_name, 'name' => 'Company Name', 'max' => 50, 'pattern' => "/^[a-zA-Z0-9\s\-\.\,\(\)\/\&']+$/"],
-        ['val' => $previous_company, 'name' => 'Previous Company', 'max' => 100, 'pattern' => "/^[a-zA-Z0-9\s\-\.\,\(\)\/\&']+$/"],
+        ['val' => $company_name, 'name' => 'Employer Name', 'max' => 50, 'pattern' => "/^[a-zA-Z0-9\s\-\.\,\(\)\/\&']+$/"],
+        ['val' => $previous_company, 'name' => 'Previous Employer', 'max' => 100, 'pattern' => "/^[a-zA-Z0-9\s\-\.\,\(\)\/\&']+$/"],
         ['val' => $first_name, 'name' => 'First Name', 'max' => 50, 'pattern' => "/^[a-zA-Z\s\-\.\']+$/"],
         ['val' => $middle_name, 'name' => 'Middle Name', 'max' => 50, 'pattern' => "/^[a-zA-Z\s\-\.\']+$/"],
         ['val' => $last_name, 'name' => 'Last Name', 'max' => 50, 'pattern' => "/^[a-zA-Z\s\-\.\']+$/"],
@@ -549,7 +549,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             <div class="input-group">
                                 <!-- [FIX] Removed required attribute -->
                                 <input type="text" name="section" id="section" class="form-control" readonly placeholder="Select below..." value="<?php echo old('section'); ?>">
-                                <button class="btn btn-outline-secondary" type="button" onclick="document.getElementById('section').value = ''" title="Clear"><i class="bi bi-x-lg"></i></button>
+                                <button class="btn btn-outline-secondary" type="button" onclick="document.getElementById('section').value = ''; updateGroups();" title="Clear"><i class="bi bi-x-lg"></i></button>
                             </div>
                             <select id="sectionPicker" class="form-select mt-1 form-select-sm text-muted" onchange="addSection(this.value)">
                                 <option value="">+ Add Section...</option>
@@ -563,9 +563,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             </div>
                             <select id="groupPicker" class="form-select mt-1 form-select-sm text-muted" onchange="addGroup(this.value)">
                                 <option value="">+ Add Group...</option>
-                                <?php foreach ($groups as $g): ?>
-                                    <option value="<?php echo h($g); ?>"><?php echo h($g); ?></option>
-                                <?php endforeach; ?>
                             </select>
                         </div>
 
@@ -587,7 +584,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 <option value="" disabled selected>-- Select --</option>
                                 <?php foreach ($agencies as $a): ?>
                                     <option value="<?php echo h($a); ?>" <?php echo (old('employment_type') == $a) ? 'selected' : ''; ?>>
-                                        <?php echo h($a); ?>
+                                        <?php echo h(employerDisplayLabel($a)); ?>
                                     </option>
                                 <?php endforeach; ?>
                             </select>
@@ -598,13 +595,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 value="<?php echo old('hire_date'); ?>">
                         </div>
                         <div class="col-md-3">
-                            <label class="form-label">Company</label>
+                            <label class="form-label">Employer</label>
                             <input type="text" name="company_name" class="form-control" maxlength="50"
                                 placeholder="e.g. TES Philippines" value="<?php echo old('company_name', 'TES Philippines'); ?>"
                                 pattern="[a-zA-Z0-9\s\-\.\,\(\)\/\&']+" title="Allowed: Alphanumeric and basic punctuation" oninput="this.value = this.value.replace(/[^a-zA-Z0-9\s\-\.\,\(\)\/\&']/g, '')">
                         </div>
                         <div class="col-12">
-                            <label class="form-label">Previous Company</label>
+                            <label class="form-label">Previous Employer</label>
                             <input type="text" name="previous_company" class="form-control" maxlength="100"
                                 placeholder="e.g. ABC Manufacturing Inc." value="<?php echo old('previous_company'); ?>"
                                 pattern="[a-zA-Z0-9\s\-\.\,\(\)\/\&']+" title="Allowed: Alphanumeric and basic punctuation" oninput="this.value = this.value.replace(/[^a-zA-Z0-9\s\-\.\,\(\)\/\&']/g, '')">
@@ -903,11 +900,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         // Fallback for departments not in the list above (uses PHP data)
         const rawDeptMap = <?php echo json_encode($deptMap, JSON_HEX_QUOT | JSON_HEX_APOS); ?>;
+        const sectionGroupMap = <?php echo json_encode($sectionGroupMap, JSON_HEX_QUOT | JSON_HEX_APOS); ?>;
         const oldSection = "<?php echo htmlspecialchars($old['section'] ?? '', ENT_QUOTES); ?>";
 
         // 2. ELEMENT SELECTORS
         const deptInput = document.getElementById('dept');
         const sectionSelect = document.getElementById('sectionPicker');
+        const groupSelect = document.getElementById('groupPicker');
 
         // Multi-Department Logic
         function addDept(val) {
@@ -968,6 +967,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     sectionSelect.appendChild(group);
                 }
             });
+            updateGroups();
+        }
+
+        function updateGroups() {
+            if (!groupSelect) return;
+            groupSelect.innerHTML = '<option value="">+ Add Group...</option>';
+            const depts = deptInput.value.split(',').map(s => s.trim()).filter(s => s !== '');
+            const selectedSections = document.getElementById('section').value.split(',').map(s => s.trim()).filter(s => s !== '');
+
+            depts.forEach(dept => {
+                selectedSections.forEach(section => {
+                    const groupNames = sectionGroupMap[dept]?.[section] || [];
+                    if (groupNames.length === 0) return;
+                    const optGroup = document.createElement('optgroup');
+                    optGroup.label = `${dept} / ${section}`;
+                    groupNames.forEach(name => {
+                        const option = document.createElement('option');
+                        option.value = name;
+                        option.textContent = name;
+                        optGroup.appendChild(option);
+                    });
+                    groupSelect.appendChild(optGroup);
+                });
+            });
         }
 
         // 4. AUTO-CAPITALIZE LOGIC
@@ -997,6 +1020,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             } else {
                 input.value = text;
             }
+            updateGroups();
         }
 
         // 5. ATTACH EVENTS

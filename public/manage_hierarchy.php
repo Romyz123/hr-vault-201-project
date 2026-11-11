@@ -40,6 +40,14 @@ function validateName(string $name): ?string
     return null;
 }
 
+function parseHierarchyParentId(string $parent, string $parentType): ?int
+{
+    if (!preg_match('/^' . preg_quote($parentType, '/') . ':([1-9][0-9]*)$/', $parent, $matches)) {
+        return null;
+    }
+    return (int)$matches[1];
+}
+
 // Handle Form Submissions
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     $csrfToken = $_POST['csrf_token'] ?? '';
@@ -52,13 +60,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         // --- 1. ADD ITEM ---
         if ($action === 'add') {
             $name = strtoupper(trim($_POST['name'] ?? ''));
-            $parent = $_POST['parent'] ?? null;
+            $parent = (string)($_POST['parent'] ?? '');
+            $parentType = $type === 'section' ? 'department' : 'section';
+            $parentId = in_array($type, ['section', 'group'], true)
+                ? parseHierarchyParentId($parent, $parentType)
+                : null;
 
             $valErr = validateName($name);
             if ($valErr) {
                 $error = $valErr;
-            } elseif ($type === 'section' && empty($parent)) {
-                $error = "Please select a department for the new section.";
+            } elseif (in_array($type, ['section', 'group'], true) && $parentId === null) {
+                $error = $type === 'section'
+                    ? "Please select a department for the new section."
+                    : "Please select a section for the new group.";
+            } elseif ($parentId !== null) {
+                $parentTable = $parentType === 'department' ? 'departments' : 'sections';
+                $parentCheck = $pdo->prepare("SELECT COUNT(*) FROM `$parentTable` WHERE id = ?");
+                $parentCheck->execute([$parentId]);
+                if ((int)$parentCheck->fetchColumn() === 0) {
+                    $error = "The selected parent does not exist.";
+                }
             }
 
             if (empty($error)) {
@@ -69,11 +90,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                         $logger->log($_SESSION['user_id'], 'ADD_DEPT', "Added dept: $name");
                     } elseif ($type === 'section') {
                         $stmt = $pdo->prepare("INSERT INTO sections (department_id, name) VALUES (?, ?)");
-                        $stmt->execute([(int)$parent, $name]);
+                        $stmt->execute([$parentId, $name]);
                         $logger->log($_SESSION['user_id'], 'ADD_SECTION', "Added section: $name");
                     } elseif ($type === 'group') {
-                        $stmt = $pdo->prepare("INSERT INTO groups (name) VALUES (?)");
-                        $stmt->execute([$name]);
+                        $stmt = $pdo->prepare("INSERT INTO `groups` (name, section_id) VALUES (?, ?)");
+                        $stmt->execute([$name, $parentId]);
                         $logger->log($_SESSION['user_id'], 'ADD_GROUP', "Added group: $name");
                     }
                     header("Location: manage_hierarchy.php?msg=" . urlencode("Added successfully."));
@@ -87,15 +108,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         } elseif ($action === 'edit') {
             $id = (int)($_POST['id'] ?? 0);
             $name = strtoupper(trim($_POST['name'] ?? ''));
-            $parent = $_POST['parent'] ?? null;
+            $parent = (string)($_POST['parent'] ?? '');
+            $parentType = $type === 'section' ? 'department' : 'section';
+            $parentId = in_array($type, ['section', 'group'], true)
+                ? parseHierarchyParentId($parent, $parentType)
+                : null;
 
             $valErr = validateName($name);
             if ($id <= 0) {
                 $error = "Invalid ID target.";
             } elseif ($valErr) {
                 $error = $valErr;
-            } elseif ($type === 'section' && empty($parent)) {
-                $error = "Please select a department for the section.";
+            } elseif (in_array($type, ['section', 'group'], true) && $parentId === null) {
+                $error = $type === 'section'
+                    ? "Please select a department for the section."
+                    : "Please select a section for the group.";
+            } elseif ($parentId !== null) {
+                $parentTable = $parentType === 'department' ? 'departments' : 'sections';
+                $parentCheck = $pdo->prepare("SELECT COUNT(*) FROM `$parentTable` WHERE id = ?");
+                $parentCheck->execute([$parentId]);
+                if ((int)$parentCheck->fetchColumn() === 0) {
+                    $error = "The selected parent does not exist.";
+                }
             }
 
             if (empty($error)) {
@@ -106,11 +140,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                         $logger->log($_SESSION['user_id'], 'EDIT_DEPT', "Updated dept ID $id to $name");
                     } elseif ($type === 'section') {
                         $stmt = $pdo->prepare("UPDATE sections SET department_id = ?, name = ? WHERE id = ?");
-                        $stmt->execute([(int)$parent, $name, $id]);
+                        $stmt->execute([$parentId, $name, $id]);
                         $logger->log($_SESSION['user_id'], 'EDIT_SECTION', "Updated section ID $id to $name");
                     } elseif ($type === 'group') {
-                        $stmt = $pdo->prepare("UPDATE groups SET name = ? WHERE id = ?");
-                        $stmt->execute([$name, $id]);
+                        $stmt = $pdo->prepare("UPDATE `groups` SET name = ?, section_id = ? WHERE id = ?");
+                        $stmt->execute([$name, $parentId, $id]);
                         $logger->log($_SESSION['user_id'], 'EDIT_GROUP', "Updated group ID $id to $name");
                     }
                     header("Location: manage_hierarchy.php?msg=" . urlencode("Updated successfully."));
@@ -159,8 +193,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 
                     if ($name) {
                         // Check Employee Table Dependencies
-                        $chk = $pdo->prepare("SELECT COUNT(*) FROM employees WHERE $empColumn = ? OR $empColumn LIKE ? OR $empColumn LIKE ? OR $empColumn LIKE ?");
-                        $chk->execute([$name, "$name, %", "%, $name", "%, $name, %"]);
+                        if ($type === 'group') {
+                            $chk = $pdo->prepare("SELECT COUNT(*) FROM employees WHERE `group` = ? OR `group` LIKE ? OR `group` LIKE ? OR `group` LIKE ? OR group_name = ? OR group_name LIKE ? OR group_name LIKE ? OR group_name LIKE ?");
+                            $chk->execute([$name, "$name, %", "%, $name", "%, $name, %", $name, "$name, %", "%, $name", "%, $name, %"]);
+                        } else {
+                            $chk = $pdo->prepare("SELECT COUNT(*) FROM employees WHERE $empColumn = ? OR $empColumn LIKE ? OR $empColumn LIKE ? OR $empColumn LIKE ?");
+                            $chk->execute([$name, "$name, %", "%, $name", "%, $name, %"]);
+                        }
 
                         if ($chk && $chk->fetchColumn() > 0) {
                             $blockedItems[] = $name;
@@ -188,7 +227,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 // Fetch Organizational Records
 $orgDepts = $pdo->query("SELECT * FROM departments ORDER BY name ASC")->fetchAll();
 $orgSections = $pdo->query("SELECT s.*, d.name as dept_name FROM sections s JOIN departments d ON s.department_id = d.id ORDER BY d.name, s.name ASC")->fetchAll();
-$orgGroups = $pdo->query("SELECT * FROM groups ORDER BY name ASC")->fetchAll();
+$orgGroups = $pdo->query("
+    SELECT g.*, s.name AS section_name, d.name AS dept_name
+    FROM `groups` g
+    LEFT JOIN sections s ON s.id = g.section_id
+    LEFT JOIN departments d ON d.id = s.department_id
+    ORDER BY g.name ASC
+")->fetchAll();
 
 require 'header.php';
 ?>
@@ -271,7 +316,7 @@ require 'header.php';
                             <select name="parent" class="form-select" required>
                                 <option value="">-- Select Parent Dept --</option>
                                 <?php foreach ($orgDepts as $d): ?>
-                                    <option value="<?php echo $d['id']; ?>"><?php echo h($d['name']); ?></option>
+                                    <option value="department:<?php echo (int)$d['id']; ?>"><?php echo h($d['name']); ?></option>
                                 <?php endforeach; ?>
                             </select>
                         </div>
@@ -328,12 +373,20 @@ require 'header.php';
                 </div>
                 <div class="card-body">
                     <!-- Add Form -->
-                    <form method="POST" class="input-group mb-3">
+                    <form method="POST" class="mb-3">
                         <input type="hidden" name="action" value="add">
                         <input type="hidden" name="type" value="group">
                         <input type="hidden" name="csrf_token" value="<?php echo h($_SESSION['csrf_token']); ?>">
-                        <input type="text" name="name" class="form-control" placeholder="New Group..." maxlength="100" pattern="[A-Za-z0-9\s\-\.\,\&amp;\/]+" title="Allowed: letters, numbers, spaces, and - . , & /" required>
-                        <button class="btn btn-success" type="submit"><i class="bi bi-plus-lg"></i> Add</button>
+                        <select name="parent" class="form-select mb-2" required>
+                            <option value="">-- Select Parent Section --</option>
+                            <?php foreach ($orgSections as $s): ?>
+                                <option value="section:<?php echo (int)$s['id']; ?>"><?php echo h($s['dept_name'] . ' / ' . $s['name']); ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                        <div class="input-group">
+                            <input type="text" name="name" class="form-control" placeholder="New Group..." maxlength="100" pattern="[A-Za-z0-9\s\-\.\,\&amp;\/]+" title="Allowed: letters, numbers, spaces, and - . , & /" required>
+                            <button class="btn btn-success" type="submit"><i class="bi bi-plus-lg"></i> Add</button>
+                        </div>
                     </form>
 
                     <!-- Selection & Bulk Controls -->
@@ -358,10 +411,11 @@ require 'header.php';
                                         <input class="form-check-input groupCheck" type="checkbox" name="ids[]" value="<?php echo $g['id']; ?>">
                                         <label class="form-check-label fw-semibold text-dark">
                                             <?php echo h($g['name']); ?>
+                                            <small class="text-muted d-block"><?php echo $g['section_name'] !== null ? h($g['dept_name'] . ' / ' . $g['section_name']) : 'Unassigned section'; ?></small>
                                         </label>
                                     </div>
                                     <div class="btn-group btn-group-sm">
-                                        <button type="button" class="btn btn-link text-primary p-0 me-2" onclick="openEditModal('group', <?php echo $g['id']; ?>, '<?php echo addslashes(h($g['name'])); ?>')">
+                                        <button type="button" class="btn btn-link text-primary p-0 me-2" onclick="openEditModal('group', <?php echo $g['id']; ?>, '<?php echo addslashes(h($g['name'])); ?>', <?php echo (int)($g['section_id'] ?? 0); ?>)">
                                             <i class="bi bi-pencil-square"></i>
                                         </button>
                                     </div>
@@ -391,11 +445,14 @@ require 'header.php';
                     <input type="hidden" name="id" id="editId">
 
                     <div class="mb-3" id="editParentContainer" style="display:none;">
-                        <label class="form-label fw-bold">Parent Department</label>
+                        <label class="form-label fw-bold" id="editParentLabel">Parent Department</label>
                         <select name="parent" id="editParent" class="form-select">
-                            <option value="">-- Select Parent Dept --</option>
+                            <option value="">-- Select Parent --</option>
                             <?php foreach ($orgDepts as $d): ?>
-                                <option value="<?php echo $d['id']; ?>"><?php echo h($d['name']); ?></option>
+                                <option value="department:<?php echo (int)$d['id']; ?>" data-parent-type="section"><?php echo h($d['name']); ?></option>
+                            <?php endforeach; ?>
+                            <?php foreach ($orgSections as $s): ?>
+                                <option value="section:<?php echo (int)$s['id']; ?>" data-parent-type="group"><?php echo h($s['dept_name'] . ' / ' . $s['name']); ?></option>
                             <?php endforeach; ?>
                         </select>
                     </div>
@@ -431,14 +488,27 @@ require 'header.php';
         const parentContainer = document.getElementById('editParentContainer');
         const parentSelect = document.getElementById('editParent');
 
-        if (type === 'section') {
+        const parentLabel = document.getElementById('editParentLabel');
+        if (type === 'section' || type === 'group') {
             parentContainer.style.display = 'block';
             parentSelect.required = true;
-            parentSelect.value = parentId || '';
+            const parentType = type === 'section' ? 'department' : 'section';
+            parentLabel.textContent = type === 'section' ? 'Parent Department' : 'Parent Section';
+            Array.from(parentSelect.options).forEach(option => {
+                if (option.dataset.parentType) {
+                    option.hidden = option.dataset.parentType !== type;
+                    option.disabled = option.hidden;
+                }
+            });
+            parentSelect.value = parentId ? `${parentType}:${parentId}` : '';
         } else {
             parentContainer.style.display = 'none';
             parentSelect.required = false;
             parentSelect.value = '';
+            Array.from(parentSelect.options).forEach(option => {
+                option.hidden = false;
+                option.disabled = false;
+            });
         }
 
         document.getElementById('editModalTitle').innerText = 'Edit ' + type.charAt(0).toUpperCase() + type.slice(1);

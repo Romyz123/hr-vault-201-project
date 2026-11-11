@@ -482,7 +482,7 @@ CREATE TABLE `employees` (
   `experience` text DEFAULT NULL,
   `skills` text DEFAULT NULL,
   `licenses` text DEFAULT NULL,
-  `status` varchar(20) DEFAULT 'Active',
+  `status` varchar(50) DEFAULT 'Active',
   `exit_date` date DEFAULT NULL,
   `exit_reason` varchar(255) DEFAULT NULL,
   `resignation_label` varchar(50) DEFAULT NULL,
@@ -688,6 +688,16 @@ INSERT INTO `sections` (`id`, `department_id`, `name`) VALUES
 -- --------------------------------------------------------
 
 --
+-- Table structure for table `groups`
+--
+
+CREATE TABLE `groups` (
+  `id` int(11) NOT NULL,
+  `name` varchar(100) NOT NULL,
+  `section_id` int(11) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
 -- Table structure for table `system_roles`
 --
 
@@ -890,6 +900,14 @@ ALTER TABLE `sections`
   ADD UNIQUE KEY `unique_section` (`department_id`,`name`);
 
 --
+-- Indexes for table `groups`
+--
+ALTER TABLE `groups`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `unique_group_name` (`name`),
+  ADD KEY `idx_groups_section_id` (`section_id`);
+
+--
 -- Indexes for table `system_roles`
 --
 ALTER TABLE `system_roles`
@@ -1010,6 +1028,12 @@ ALTER TABLE `sections`
   MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=36;
 
 --
+-- AUTO_INCREMENT for table `groups`
+--
+ALTER TABLE `groups`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+
+--
 -- AUTO_INCREMENT for table `system_roles`
 --
 ALTER TABLE `system_roles`
@@ -1036,6 +1060,12 @@ ALTER TABLE `documents`
 --
 ALTER TABLE `sections`
   ADD CONSTRAINT `sections_ibfk_1` FOREIGN KEY (`department_id`) REFERENCES `departments` (`id`) ON DELETE CASCADE;
+
+--
+-- Constraints for table `groups`
+--
+ALTER TABLE `groups`
+  ADD CONSTRAINT `groups_ibfk_section` FOREIGN KEY (`section_id`) REFERENCES `sections` (`id`) ON DELETE SET NULL;
 COMMIT;
 
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;

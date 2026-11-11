@@ -906,7 +906,7 @@ $paginatedEmployees = array_slice($employees, $offset, $perPage);
                 </div>
                 <div class="col-12 col-md-auto">
                     <select name="type" class="form-select form-select-sm" onchange="this.form.submit()">
-                        <option value="">All Agencies</option>
+                        <option value="">All Employers</option>
                         <?php
                         // [FIX] Dynamically fetch distinct employment types and agency names from the database
                         $agencies = [];
@@ -925,7 +925,7 @@ $paginatedEmployees = array_slice($employees, $offset, $perPage);
 
                         foreach ($agencies as $val) {
                             $sel = ($type === $val) ? 'selected' : '';
-                            echo "<option value='" . htmlspecialchars($val) . "' $sel>" . htmlspecialchars($val) . "</option>";
+                            echo "<option value='" . htmlspecialchars($val) . "' $sel>" . htmlspecialchars(employerDisplayLabel($val)) . "</option>";
                         }
                         ?>
                     </select>

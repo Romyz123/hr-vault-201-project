@@ -14,6 +14,7 @@ $dryRun = false;
 
 if (!$isCli) {
     session_start();
+if (isset($_SESSION['user_id'])) checkSessionTimeout($pdo);
     // Security: Admin Only for Web Access
     if (!isset($_SESSION['user_id']) || ($_SESSION['role'] ?? '') !== 'ADMIN') {
         die("Access Denied: Admin privileges required.");

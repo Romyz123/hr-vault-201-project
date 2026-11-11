@@ -4,6 +4,7 @@
 
 require '../../config/db.php';
 session_start();
+if (isset($_SESSION['user_id'])) checkSessionTimeout($pdo);
 header('Content-Type: application/json');
 
 // [SECURITY] This endpoint contains HR metadata and is unavailable to guests.

@@ -329,9 +329,9 @@ require 'header.php';
                 </div>
                 <div class="col-md-4">
                     <select name="agency" class="form-select form-select-sm" onchange="this.form.submit()">
-                        <option value="">All Agencies</option>
+                        <option value="">All Employers</option>
                         <?php foreach ($agencies as $a): ?>
-                            <option value="<?= h($a) ?>" <?= $agencyFilter === $a ? 'selected' : '' ?>><?= h($a) ?></option>
+                            <option value="<?= h($a) ?>" <?= $agencyFilter === $a ? 'selected' : '' ?>><?= h(employerDisplayLabel($a)) ?></option>
                         <?php endforeach; ?>
                     </select>
                 </div>
