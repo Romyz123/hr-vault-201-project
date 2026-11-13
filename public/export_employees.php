@@ -7,6 +7,7 @@
 require '../config/db.php';
 require '../src/Logger.php';
 require '../src/Validator.php';
+require_once __DIR__ . '/../src/DirectoryReportFilters.php';
 session_start();
 if (isset($_SESSION['user_id'])) checkSessionTimeout($pdo);
 
@@ -62,47 +63,37 @@ function forceExcelText($value)
     return '="' . str_replace('"', '""', $value) . '"';
 }
 
-// 2. GET FILTERS
-$filter_status = isset($_GET['status']) ? trim($_GET['status']) : '';
-$filter_type   = isset($_GET['type'])   ? trim($_GET['type'])   : '';
-$filter_dept   = isset($_GET['dept'])   ? trim($_GET['dept'])   : '';
-$search_query  = Validator::sanitizeSearch($_GET['search'] ?? '');
+// 2. Apply the same filters used by the dashboard directory.
+$filters = [
+    'status' => trim((string)($_GET['status'] ?? '')),
+    'type' => trim((string)($_GET['type'] ?? '')),
+    'dept' => trim((string)($_GET['dept'] ?? '')),
+    'section' => trim((string)($_GET['section'] ?? '')),
+    'group' => trim((string)($_GET['group'] ?? '')),
+    'job_title' => trim((string)($_GET['job_title'] ?? '')),
+    'doc_cat' => trim((string)($_GET['doc_cat'] ?? '')),
+    'search' => Validator::sanitizeSearch($_GET['search'] ?? '')
+];
+$directoryFilters = buildDirectoryReportFilters(
+    $pdo,
+    $filters,
+    loadDirectoryReportRequirements($pdo),
+    directoryReportHasColumn($pdo, 'employees', 'deleted_at'),
+    directoryReportHasColumn($pdo, 'documents', 'deleted_at')
+);
+$sortWhitelist = [
+    'newest' => 'CASE WHEN hire_date IS NULL OR hire_date = "" THEN 1 ELSE 0 END, hire_date DESC',
+    'oldest' => 'CASE WHEN hire_date IS NULL OR hire_date = "" THEN 1 ELSE 0 END, hire_date ASC',
+    'alpha_az' => 'last_name ASC, first_name ASC',
+    'alpha_za' => 'last_name DESC, first_name DESC'
+];
+$sortOption = trim((string)($_GET['sort'] ?? 'newest'));
+$orderBy = $sortWhitelist[$sortOption] ?? $sortWhitelist['newest'];
 
-// 3. BUILD QUERY
-$where = ['1=1'];
-$params = [];
-
-if ($filter_status !== '') {
-    $where[] = 'status = ?';
-    $params[] = $filter_status;
-}
-
-if ($filter_type !== '') {
-    $where[] = '(employment_type = ? OR agency_name = ?)';
-    $params[] = $filter_type;
-    $params[] = $filter_type;
-}
-
-if ($filter_dept !== '') {
-    $where[] = 'dept = ?';
-    $params[] = $filter_dept;
-}
-
-if ($search_query !== '') {
-    $terms = preg_split('/[\s,]+/', $search_query, -1, PREG_SPLIT_NO_EMPTY);
-    foreach ($terms as $term) {
-        $where[] = '(emp_id LIKE ? OR first_name LIKE ? OR last_name LIKE ?)';
-        $t = "%{$term}%";
-        array_push($params, $t, $t, $t);
-    }
-}
-
-$whereSql = 'WHERE ' . implode(' AND ', $where);
-
-// 4. FETCH DATA
-$sql = "SELECT * FROM employees {$whereSql} ORDER BY last_name ASC";
+// 3. FETCH DATA
+$sql = "SELECT * FROM employees {$directoryFilters['where_sql']} ORDER BY {$orderBy}";
 $stmt = $pdo->prepare($sql);
-$stmt->execute($params);
+$stmt->execute($directoryFilters['params']);
 $employees = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 // 5. SET HEADERS
@@ -135,6 +126,7 @@ $headers = [
     'Birth Date',
     'Department',
     'Section',
+    'Group',
     'Job Title',
     'System Role',
     'Status',
@@ -178,6 +170,7 @@ foreach ($employees as $row) {
         sanitizeExcelField($row['birth_date']),
         sanitizeExcelField($row['dept']),
         sanitizeExcelField($displaySection),
+        sanitizeExcelField($row['group'] ?? ''),
         sanitizeExcelField($row['job_title']),
         sanitizeExcelField($row['system_role']),
         sanitizeExcelField($row['status']),

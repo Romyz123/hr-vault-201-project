@@ -9,6 +9,7 @@ require '../config/db.php';
 require '../src/Security.php';
 require '../src/Validator.php';
 require_once __DIR__ . '/../src/helpers.php';
+require_once __DIR__ . '/../src/DirectoryReportFilters.php';
 session_start();
 if (isset($_SESSION['user_id'])) checkSessionTimeout($pdo);
 
@@ -16,48 +17,36 @@ if (!isset($_SESSION['user_id'])) {
     die("Access Denied");
 }
 
-// 1. CAPTURE FILTERS
-$filter_status = isset($_GET['status']) ? trim($_GET['status']) : '';
-$filter_type   = isset($_GET['type'])   ? trim($_GET['type'])   : '';
-$filter_dept   = isset($_GET['dept'])   ? trim($_GET['dept'])   : '';
-$search_query  = Validator::sanitizeSearch($_GET['search'] ?? '');
-
-// 2. BUILD QUERY
-// [FIX 1] Added 'agency_name' to the SELECT list so we can display it.
-$sql = "SELECT emp_id, last_name, first_name, job_title, dept, section, employment_type, agency_name, hire_date, status 
-        FROM employees WHERE 1=1";
-$params = [];
-
-if (!empty($filter_status)) {
-    $sql .= " AND status = ?";
-    $params[] = $filter_status;
-}
-
-// [FIX 2] Updated Filter Logic to search BOTH Employment Type AND Agency Name
-// This ensures "Joratech", "UnliSolutions", etc. work correctly.
-if (!empty($filter_type)) {
-    $sql .= " AND (employment_type = ? OR agency_name = ?)";
-    $params[] = $filter_type;
-    $params[] = $filter_type;
-}
-
-if (!empty($filter_dept)) {
-    $sql .= " AND dept = ?";
-    $params[] = $filter_dept;
-}
-
-if (!empty($search_query)) {
-    $terms = preg_split('/[\s,]+/', $search_query, -1, PREG_SPLIT_NO_EMPTY);
-    foreach ($terms as $term) {
-        $sql .= " AND (emp_id LIKE ? OR first_name LIKE ? OR last_name LIKE ?)";
-        $t = "%{$term}%";
-        array_push($params, $t, $t, $t);
-    }
-}
-$sql .= " ORDER BY last_name ASC";
-
+// Apply the same filters used by the dashboard directory.
+$filters = [
+    'status' => trim((string)($_GET['status'] ?? '')),
+    'type' => trim((string)($_GET['type'] ?? '')),
+    'dept' => trim((string)($_GET['dept'] ?? '')),
+    'section' => trim((string)($_GET['section'] ?? '')),
+    'group' => trim((string)($_GET['group'] ?? '')),
+    'job_title' => trim((string)($_GET['job_title'] ?? '')),
+    'doc_cat' => trim((string)($_GET['doc_cat'] ?? '')),
+    'search' => Validator::sanitizeSearch($_GET['search'] ?? '')
+];
+$directoryFilters = buildDirectoryReportFilters(
+    $pdo,
+    $filters,
+    loadDirectoryReportRequirements($pdo),
+    directoryReportHasColumn($pdo, 'employees', 'deleted_at'),
+    directoryReportHasColumn($pdo, 'documents', 'deleted_at')
+);
+$sortWhitelist = [
+    'newest' => 'CASE WHEN hire_date IS NULL OR hire_date = "" THEN 1 ELSE 0 END, hire_date DESC',
+    'oldest' => 'CASE WHEN hire_date IS NULL OR hire_date = "" THEN 1 ELSE 0 END, hire_date ASC',
+    'alpha_az' => 'last_name ASC, first_name ASC',
+    'alpha_za' => 'last_name DESC, first_name DESC'
+];
+$sortOption = trim((string)($_GET['sort'] ?? 'newest'));
+$orderBy = $sortWhitelist[$sortOption] ?? $sortWhitelist['newest'];
+$sql = "SELECT emp_id, last_name, first_name, job_title, dept, section, `group`, employment_type, agency_name, hire_date, status
+        FROM employees {$directoryFilters['where_sql']} ORDER BY {$orderBy}";
 $stmt = $pdo->prepare($sql);
-$stmt->execute($params);
+$stmt->execute($directoryFilters['params']);
 $employees = $stmt->fetchAll();
 
 $logo_paths = [
@@ -232,6 +221,7 @@ if (empty($logo_src)) {
                     <th>Job Title</th>
                     <th>Dept</th>
                     <th>Section</th>
+                    <th>Group</th>
                     <th>Type</th>
                     <th>Hired Date</th>
                     <th>Status</th>
@@ -245,6 +235,7 @@ if (empty($logo_src)) {
                         <td><?php echo htmlspecialchars($emp['job_title']); ?></td>
                         <td><?php echo htmlspecialchars($emp['dept']); ?></td>
                         <td><?php echo htmlspecialchars($emp['section']); ?></td>
+                        <td><?php echo htmlspecialchars($emp['group'] ?? ''); ?></td>
                         <td>
                             <?php echo htmlspecialchars(employerDisplayLabel($emp['agency_name'] ?: $emp['employment_type'])); ?>
                         </td>

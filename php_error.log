@@ -11729,3 +11729,7 @@ Stack trace:
 [10-Nov-2026 17:02:49 Asia/Manila] PHP Warning:  session_start(): open(C:\xampp\tmp\sess_c8c9ho3e9s38fjln4ipmbd5242, O_RDWR) failed: Permission denied (13) in C:\xampp\htdocs\hr 201\public\logout.php on line 4
 [10-Nov-2026 17:02:49 Asia/Manila] PHP Warning:  session_start(): Failed to read session data: files (path: C:\xampp\tmp) in C:\xampp\htdocs\hr 201\public\logout.php on line 4
 [10-Nov-2026 17:02:49 Asia/Manila] PHP Warning:  session_destroy(): Trying to destroy uninitialized session in C:\xampp\htdocs\hr 201\public\logout.php on line 28
+[11-Nov-2026 16:39:24 Asia/Manila] PHP Notice:  session_start(): Ignoring session_start() because a session is already active in C:\xampp\htdocs\hr 201\public\import_employees.php on line 51
+[12-Nov-2026 20:11:10 Asia/Manila] PHP Warning:  session_start(): open(C:\xampp\tmp\sess_qlgbrjnhkn8nrqdon7irjh59oi, O_RDWR) failed: Permission denied (13) in C:\xampp\htdocs\hr 201\public\api\get_updates.php on line 6
+[12-Nov-2026 20:11:10 Asia/Manila] PHP Warning:  session_start(): Failed to read session data: files (path: C:\xampp\tmp) in C:\xampp\htdocs\hr 201\public\api\get_updates.php on line 6
+[13-Nov-2026 10:19:29 Asia/Manila] PHP Warning:  session_destroy(): Session object destruction failed in C:\xampp\htdocs\hr 201\config\db.php on line 173

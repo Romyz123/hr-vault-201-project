@@ -10,6 +10,7 @@ require '../src/Logger.php';
 require '../src/Validator.php';
 require '../src/SearchHelper.php';
 require_once '../src/helpers.php'; // [FIX] Include global helpers for h() and other functions
+require_once '../src/DirectoryReportFilters.php';
 // [FIX] Locate the company logo and convert to Base64 for reliable display and printing
 $logo_paths = [
     __DIR__ . '/uploads/tesp-logo.png',
@@ -773,127 +774,21 @@ $actionCount = count($doc_alerts);
 $notifCount = $msgCount + $actionCount;
 
 // ---------- 5.5) FETCH DYNAMIC REQUIREMENTS FOR ANALYTICS AND FILTERS ----------
-$REQUIRED_DOCS = [];
-try {
-    $reqStmt = $pdo->query("SELECT name, keywords FROM document_requirements ORDER BY id ASC");
-    $reqList = $reqStmt->fetchAll(PDO::FETCH_ASSOC);
-    foreach ($reqList as $r) {
-        $REQUIRED_DOCS[$r['name']] = array_map('trim', explode(',', $r['keywords']));
-    }
-} catch (Exception $e) {
-    // Failsafe fallback if the database table is suddenly missing
-    $REQUIRED_DOCS = [
-        '201 Files' => ['201', 'PDS', 'Data Sheet', 'Resume'],
-        'Valid ID'  => ['ID', 'Passport', 'License', 'SSS', 'PhilHealth'],
-        'Contract'  => ['Contract', 'Appointment', 'Offer'],
-        'Medical'   => ['Medical', 'Fit to Work', 'Exam'],
-        'Clearance' => ['NBI', 'Police', 'Barangay']
-    ];
-}
+$REQUIRED_DOCS = loadDirectoryReportRequirements($pdo);
 
 // ---------- 6) BUILD FILTER SQL ----------
-$where  = ['1=1'];
-$params = [];
-
-// [FIX] Exclude soft-deleted employees
-if ($hasEmpDeletedAt) {
-    $where[] = 'deleted_at IS NULL';
-}
-
-// Match status values consistently even if legacy rows contain casing or whitespace differences.
-if ($filter_status !== '') {
-    if ($filter_status === '__UNSPECIFIED__') {
-        $where[] = "TRIM(COALESCE(status, '')) = ''
-            AND LOWER(COALESCE(exit_reason, '')) NOT REGEXP 'dead|deceased|passed away|retir|transf|trasf|overseas|abroad|deploy|(^|[^a-z])awol([^a-z]|$)'";
-    } else {
-        $effectiveStatusSql = "CASE
-            WHEN LOWER(COALESCE(exit_reason, '')) REGEXP 'dead|deceased|passed away' THEN 'Deceased'
-            WHEN LOWER(COALESCE(exit_reason, '')) REGEXP 'retir' THEN 'Retired'
-            WHEN LOWER(COALESCE(exit_reason, '')) REGEXP 'transf|overseas|abroad|deploy' THEN 'Transferred'
-            WHEN TRIM(COALESCE(status, '')) = '' AND LOWER(COALESCE(exit_reason, '')) REGEXP '(^|[^a-z])awol([^a-z]|$)' THEN 'AWOL'
-            ELSE TRIM(status)
-        END";
-        $where[]  = "LOWER(($effectiveStatusSql)) = ?";
-        $params[] = strtolower(trim($filter_status));
-    }
-}
-
-// Type filter: match either employment_type or agency_name (exact to value)
-if ($filter_type !== '') {
-    $where[]  = '(employment_type = ? OR agency_name = ?)';
-    $params[] = $filter_type;
-    $params[] = $filter_type;
-}
-
-// [LOGICAL FIX] Department filter (partial match for multi-dept employees)
-if ($filter_dept !== '') {
-    $where[]  = 'dept LIKE ?';
-    $params[] = "%{$filter_dept}%";
-}
-
-// Section filter (Partial match for multi-section support)
-if ($filter_section !== '') {
-    $where[]  = 'section LIKE ?';
-    $params[] = "%$filter_section%";
-}
-// [NEW] Group filter
-if ($filter_group !== '') {
-    $where[]  = '`group` LIKE ?';
-    $params[] = "%$filter_group%";
-}
-// Job Title filter
-if ($filter_job_title !== '') {
-    $where[]  = 'job_title = ?';
-    $params[] = $filter_job_title;
-}
-
-// Document Category filter (from Chart click)
-if ($filter_doc_cat !== '') {
-    if ($filter_doc_cat === 'Uncategorized' || $filter_doc_cat === 'Documents for Employee') {
-        // [FIX] Standardize Uncategorized logic to find documents matching NO requirement rules
-        $matchOrs = [];
-        foreach ($REQUIRED_DOCS as $name => $keys) {
-            $matchOrs[] = "category = " . $pdo->quote($name);
-            foreach ($keys as $k) {
-                if ($k === '') continue;
-                $qK = $pdo->quote("%$k%");
-                $matchOrs[] = "original_name LIKE $qK";
-                $matchOrs[] = "category LIKE $qK";
-            }
-        }
-        $categorizedSql = !empty($matchOrs) ? implode(' OR ', $matchOrs) : "1=0";
-        $docTableFilter = $hasDeletedAtColumn ? "deleted_at IS NULL" : "1=1";
-
-        $where[] = "emp_id IN (SELECT employee_id FROM documents WHERE $docTableFilter AND NOT ($categorizedSql))";
-    } else {
-        // [FIX] Standardize category filtering to match Dashboard and Tracker logic
-        $subConditions = ["category = ?", "category LIKE ?"];
-        $subParams = [$filter_doc_cat, "%$filter_doc_cat%"];
-        $keywords = $REQUIRED_DOCS[$filter_doc_cat] ?? [];
-        foreach ($keywords as $k) { // [FIX] Trim keyword to avoid issues with whitespace
-            if (empty(trim($k))) continue;
-            $subConditions[] = "original_name LIKE ?";
-            $subConditions[] = "category LIKE ?";
-            $subParams[] = "%$k%";
-            $subParams[] = "%$k%";
-        }
-        $docTableFilter = $hasDeletedAtColumn ? "deleted_at IS NULL AND " : "";
-        $where[] = "EXISTS (SELECT 1 FROM documents WHERE documents.employee_id = employees.emp_id AND $docTableFilter (" . implode(' OR ', $subConditions) . "))";
-        $params = array_merge($params, $subParams);
-    }
-}
-
-// Search (Any Order: "John Doe", "Doe John", "2023 John")
-if ($search_query !== '') {
-    $terms = preg_split('/[\s,]+/', $search_query, -1, PREG_SPLIT_NO_EMPTY);
-    foreach ($terms as $term) {
-        $where[] = '(emp_id LIKE ? OR first_name LIKE ? OR last_name LIKE ?)';
-        $t = "%{$term}%";
-        array_push($params, $t, $t, $t);
-    }
-}
-
-$whereSql = 'WHERE ' . implode(' AND ', $where);
+$directoryFilters = buildDirectoryReportFilters($pdo, [
+    'status' => $filter_status,
+    'type' => $filter_type,
+    'dept' => $filter_dept,
+    'section' => $filter_section,
+    'group' => $filter_group,
+    'job_title' => $filter_job_title,
+    'doc_cat' => $filter_doc_cat,
+    'search' => $search_query
+], $REQUIRED_DOCS, $hasEmpDeletedAt, $hasDeletedAtColumn);
+$whereSql = $directoryFilters['where_sql'];
+$params = $directoryFilters['params'];
 
 // ---------- 7) TOTAL COUNT ----------
 $countSql  = "SELECT COUNT(*) FROM employees {$whereSql}";
